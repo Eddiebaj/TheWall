@@ -1,5 +1,5 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, ImageBackground, Keyboard,
@@ -234,22 +234,7 @@ export default function LiveScreen() {
       const resp = await fetch(TRIP_UPDATES, { headers: { 'Ocp-Apim-Subscription-Key': API_KEY } });
       if (!resp.ok) throw new Error(`API error ${resp.status}`);
       const data = await resp.json();
-
-      // DEBUG - remove after testing
-      const lrtStops: string[] = [];
-      for (const ent of (data?.Entity || [])) {
-        const tu = ent.TripUpdate;
-        if (!tu) continue;
-        const route = tu.Trip?.RouteId || '';
-        for (const stu of (tu.StopTimeUpdate || [])) {
-          if (route.includes('350') || route.includes('354') || route === '1' || route === '2') {
-            const entry = `Route:${route} Stop:${stu.StopId}`;
-            if (!lrtStops.includes(entry)) lrtStops.push(entry);
-          }
-        }
-      }
-      Alert.alert('LRT Debug', lrtStops.slice(0, 10).join('\n') || 'No LRT trips in feed right now');
-
+      
       setArrivals(parseGTFS(data, internalId));
       const now = new Date();
       setLastUpdated(`${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`);

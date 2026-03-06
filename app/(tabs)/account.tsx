@@ -1,10 +1,10 @@
-import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 import { useEffect, useState } from 'react';
 import {
-    Alert, Linking, ScrollView,
-    StatusBar, Switch, Text,
-    TouchableOpacity, View
+  Alert, Linking, ScrollView,
+  StatusBar, Switch, Text,
+  TouchableOpacity, View
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
 
@@ -333,7 +333,7 @@ export default function AccountScreen() {
                 <Ionicons name="bus" size={18} color={colours.accent} />
               </View>
               <View>
-                <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>RouteO v0.3.0</Text>
+                <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>RouteO v0.4.0</Text>
                 <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Built in Ottawa for Ottawa', 'Fait à Ottawa pour Ottawa')}</Text>
               </View>
             </View>
