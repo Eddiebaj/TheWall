@@ -17,6 +17,7 @@ const API_KEY = 'e85c07c79cfc45f1b429ce62dcfbab30';
 const UNSPLASH_KEY = 'af-d0y-v_SK3tSea1xQYM3059juIQERP5wnRQ5gul9w';
 const TRIP_UPDATES = 'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt-tp/beta/v1/TripUpdates?format=json';
 
+// Line 1 (Confederation) stations
 const LRT_EAST = [
   { id: 'NA998', name: "Tunney's Pasture" },
   { id: 'NA995', name: 'Bayview' },
@@ -47,6 +48,39 @@ const LRT_WEST = [
   { id: 'CJ990', name: 'Pimisi' },
   { id: 'NA990', name: 'Bayview' },
   { id: 'NA999', name: "Tunney's Pasture" },
+];
+
+// Line 2 (Trillium) stations
+const LRT2_NORTH = [
+  { id: 'RR990',  name: 'Limebank' },
+  { id: 'RE994',  name: 'Leitrim' },
+  { id: 'RE990',  name: 'Uplands' },
+  { id: 'RE992',  name: 'Airport' },
+  { id: 'RE996',  name: 'Bowesville' },
+  { id: 'RF990',  name: 'Greenboro' },
+  { id: 'RF995',  name: 'South Keys' },
+  { id: 'RC990',  name: 'Walkley' },
+  { id: 'RA990',  name: "Mooney's Bay" },
+  { id: 'CG995',  name: 'Carleton' },
+  { id: 'NB990',  name: "Dow's Lake" },
+  { id: 'NB995',  name: 'Corso Italia' },
+  { id: 'NA996',  name: 'Bayview' },
+];
+
+const LRT2_SOUTH = [
+  { id: 'NA996',  name: 'Bayview' },
+  { id: 'NB996',  name: 'Corso Italia' },
+  { id: 'NB990',  name: "Dow's Lake" },
+  { id: 'CG990',  name: 'Carleton' },
+  { id: 'RA990',  name: "Mooney's Bay" },
+  { id: 'RC990',  name: 'Walkley' },
+  { id: 'RF996',  name: 'South Keys' },
+  { id: 'RF990',  name: 'Greenboro' },
+  { id: 'RE997',  name: 'Bowesville' },
+  { id: 'RE992',  name: 'Airport' },
+  { id: 'RE991',  name: 'Uplands' },
+  { id: 'RE995',  name: 'Leitrim' },
+  { id: 'RR990',  name: 'Limebank' },
 ];
 
 const MULTI_PLATFORM_STOPS: { [key: string]: string[] } = {
@@ -173,8 +207,12 @@ export default function LiveScreen() {
   const [searchResults, setSearchResults] = useState<StopResult[]>([]);
   const [reports, setReports] = useState<Reports>({});
   const [favs, setFavs] = useState<Fav[]>([]);
+  const [showLine1, setShowLine1] = useState(false);
+  const [showLine2, setShowLine2] = useState(false);
   const [showEast, setShowEast] = useState(false);
   const [showWest, setShowWest] = useState(false);
+  const [showNorth, setShowNorth] = useState(false);
+  const [showSouth, setShowSouth] = useState(false);
   const [discoverPhotos, setDiscoverPhotos] = useState<{ [id: string]: string }>({});
 
   const isLight = theme === 'light' || (theme === 'system' && colours.bg === '#f0f4f8');
@@ -234,7 +272,22 @@ export default function LiveScreen() {
       const resp = await fetch(TRIP_UPDATES, { headers: { 'Ocp-Apim-Subscription-Key': API_KEY } });
       if (!resp.ok) throw new Error(`API error ${resp.status}`);
       const data = await resp.json();
-      
+
+      // DEBUG - remove after testing
+      const lrtStops: string[] = [];
+      for (const ent of (data?.Entity || [])) {
+        const tu = ent.TripUpdate;
+        if (!tu) continue;
+        const route = tu.Trip?.RouteId || '';
+        for (const stu of (tu.StopTimeUpdate || [])) {
+          if (route.includes('350') || route.includes('354') || route === '1' || route === '2') {
+            const entry = `Route:${route} Stop:${stu.StopId}`;
+            if (!lrtStops.includes(entry)) lrtStops.push(entry);
+          }
+        }
+      }
+      Alert.alert('LRT Debug', lrtStops.slice(0, 10).join('\n') || 'No LRT trips in feed right now');
+
       setArrivals(parseGTFS(data, internalId));
       const now = new Date();
       setLastUpdated(`${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`);
@@ -471,45 +524,76 @@ export default function LiveScreen() {
               )}
             </View>
 
-            {/* LRT */}
-            <View style={styles.lrtHeader}>
-              <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.lrt, textTransform: 'uppercase', letterSpacing: 1 }}>
-                {t('O-Train Line 1', 'O-Train Ligne 1')}
-              </Text>
-              <View style={[styles.lrtBadge, { borderColor: colours.lrt, backgroundColor: colours.lrt + '18' }]}>
-                <Text style={{ fontSize: fonts.sm, fontWeight: '800', color: colours.lrt }}>LRT</Text>
+            {/* O-Train Lines */}
+            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 8, letterSpacing: 1, textTransform: 'uppercase' }}>
+              {t('O-Train', 'O-Train')}
+            </Text>
+
+            {/* Line 1 accordion header */}
+            <TouchableOpacity
+              style={[{
+                flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                marginHorizontal: 20, marginBottom: showLine1 ? 0 : 10,
+                borderWidth: 1, borderRadius: showLine1 ? 16 : 16,
+                borderBottomLeftRadius: showLine1 ? 0 : 16,
+                borderBottomRightRadius: showLine1 ? 0 : 16,
+                padding: 14,
+                backgroundColor: showLine1 ? colours.lrt + '12' : colours.surface,
+                borderColor: showLine1 ? colours.lrt : colours.border,
+              }, cardShadow]}
+              onPress={() => { setShowLine1(!showLine1); setShowLine2(false); setShowEast(false); setShowWest(false); setShowNorth(false); setShowSouth(false); }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colours.lrt + '20', alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: colours.lrt }}>L1</Text>
+                </View>
+                <View>
+                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: showLine1 ? colours.lrt : colours.text }}>
+                    {t('Confederation Line', 'Ligne Confédération')}
+                  </Text>
+                  <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>
+                    {t("Tunney's Pasture ↔ Blair", "Tunney's ↔ Blair")}
+                  </Text>
+                </View>
               </View>
-            </View>
+              <Ionicons name={showLine1 ? 'chevron-up' : 'chevron-down'} size={16} color={colours.muted} />
+            </TouchableOpacity>
 
-            <View style={styles.dirRow}>
-              {[
-                { label: t('Eastbound', 'Direction est'), sub: t("Tunney's → Blair", "Tunney's → Blair"), arrow: '→', active: showEast, onPress: () => { setShowEast(!showEast); setShowWest(false); } },
-                { label: t('Westbound', 'Direction ouest'), sub: t("Blair → Tunney's", "Blair → Tunney's"), arrow: '←', active: showWest, onPress: () => { setShowWest(!showWest); setShowEast(false); } },
-              ].map((dir, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={[styles.dirBtn, {
-                    backgroundColor: dir.active ? colours.lrt + '15' : colours.surface,
-                    borderColor: dir.active ? colours.lrt : colours.border,
-                    ...cardShadow,
-                  }]}
-                  onPress={dir.onPress}
-                >
-                  <Text style={{ fontSize: fonts.lg, color: colours.lrt }}>{dir.arrow}</Text>
-                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: dir.active ? colours.lrt : colours.text }}>{dir.label}</Text>
-                  <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{dir.sub}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            {showLine1 && (
+              <View style={[{
+                marginHorizontal: 20, marginBottom: 10,
+                borderWidth: 1, borderTopWidth: 0,
+                borderBottomLeftRadius: 16, borderBottomRightRadius: 16,
+                backgroundColor: colours.surface, borderColor: colours.lrt,
+                overflow: 'hidden',
+              }, cardShadow]}>
+                {/* Direction buttons */}
+                <View style={{ flexDirection: 'row', gap: 10, padding: 12, paddingBottom: 8 }}>
+                  {[
+                    { label: t('Eastbound', 'Est'), sub: "→ Blair", active: showEast, onPress: () => { setShowEast(!showEast); setShowWest(false); } },
+                    { label: t('Westbound', 'Ouest'), sub: "→ Tunney's", active: showWest, onPress: () => { setShowWest(!showWest); setShowEast(false); } },
+                  ].map((dir, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      style={{
+                        flex: 1, borderWidth: 1, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12,
+                        backgroundColor: dir.active ? colours.lrt + '15' : colours.bg,
+                        borderColor: dir.active ? colours.lrt : colours.border,
+                      }}
+                      onPress={dir.onPress}
+                    >
+                      <Text style={{ fontSize: fonts.md, fontWeight: '700', color: dir.active ? colours.lrt : colours.text }}>{dir.label}</Text>
+                      <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{dir.sub}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
 
-            {showEast && (
-              <View style={[styles.stationList, { backgroundColor: colours.surface, borderColor: colours.border, ...cardShadow }]}>
-                {LRT_EAST.map((station, index) => (
+                {showEast && LRT_EAST.map((station, index) => (
                   <TouchableOpacity
                     key={station.id}
                     style={[styles.stationRow, { borderBottomColor: colours.border },
                       stopId === station.id && { backgroundColor: colours.lrt + '12' }]}
-                    onPress={() => { loadStop(station.id, station.name); setShowEast(false); }}
+                    onPress={() => { loadStop(station.id, station.name); setShowLine1(false); setShowEast(false); }}
                   >
                     <View style={styles.stationDotCol}>
                       <View style={[styles.stationDot, { borderColor: colours.border },
@@ -522,17 +606,13 @@ export default function LiveScreen() {
                     {stopId === station.id && <Text style={{ fontSize: fonts.sm, color: colours.lrt, fontWeight: '700' }}>{t('Viewing', 'En vue')}</Text>}
                   </TouchableOpacity>
                 ))}
-              </View>
-            )}
 
-            {showWest && (
-              <View style={[styles.stationList, { backgroundColor: colours.surface, borderColor: colours.border, ...cardShadow }]}>
-                {LRT_WEST.map((station, index) => (
+                {showWest && LRT_WEST.map((station, index) => (
                   <TouchableOpacity
                     key={station.id}
                     style={[styles.stationRow, { borderBottomColor: colours.border },
                       stopId === station.id && { backgroundColor: colours.lrt + '12' }]}
-                    onPress={() => { loadStop(station.id, station.name); setShowWest(false); }}
+                    onPress={() => { loadStop(station.id, station.name); setShowLine1(false); setShowWest(false); }}
                   >
                     <View style={styles.stationDotCol}>
                       <View style={[styles.stationDot, { borderColor: colours.border },
@@ -543,6 +623,105 @@ export default function LiveScreen() {
                       {station.name}
                     </Text>
                     {stopId === station.id && <Text style={{ fontSize: fonts.sm, color: colours.lrt, fontWeight: '700' }}>{t('Viewing', 'En vue')}</Text>}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {/* Line 2 accordion header */}
+            <TouchableOpacity
+              style={[{
+                flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                marginHorizontal: 20, marginBottom: showLine2 ? 0 : 16,
+                borderWidth: 1, borderRadius: 16,
+                borderBottomLeftRadius: showLine2 ? 0 : 16,
+                borderBottomRightRadius: showLine2 ? 0 : 16,
+                padding: 14,
+                backgroundColor: showLine2 ? '#7b5ea7' + '12' : colours.surface,
+                borderColor: showLine2 ? '#7b5ea7' : colours.border,
+              }, cardShadow]}
+              onPress={() => { setShowLine2(!showLine2); setShowLine1(false); setShowEast(false); setShowWest(false); setShowNorth(false); setShowSouth(false); }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#7b5ea7' + '20', alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#7b5ea7' }}>L2</Text>
+                </View>
+                <View>
+                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: showLine2 ? '#7b5ea7' : colours.text }}>
+                    {t('Trillium Line', 'Ligne Trillium')}
+                  </Text>
+                  <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>
+                    {t('Bayview ↔ Limebank', 'Bayview ↔ Limebank')}
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name={showLine2 ? 'chevron-up' : 'chevron-down'} size={16} color={colours.muted} />
+            </TouchableOpacity>
+
+            {showLine2 && (
+              <View style={[{
+                marginHorizontal: 20, marginBottom: 16,
+                borderWidth: 1, borderTopWidth: 0,
+                borderBottomLeftRadius: 16, borderBottomRightRadius: 16,
+                backgroundColor: colours.surface, borderColor: '#7b5ea7',
+                overflow: 'hidden',
+              }, cardShadow]}>
+                {/* Direction buttons */}
+                <View style={{ flexDirection: 'row', gap: 10, padding: 12, paddingBottom: 8 }}>
+                  {[
+                    { label: t('Northbound', 'Nord'), sub: '→ Bayview', active: showNorth, onPress: () => { setShowNorth(!showNorth); setShowSouth(false); } },
+                    { label: t('Southbound', 'Sud'), sub: '→ Limebank', active: showSouth, onPress: () => { setShowSouth(!showSouth); setShowNorth(false); } },
+                  ].map((dir, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      style={{
+                        flex: 1, borderWidth: 1, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12,
+                        backgroundColor: dir.active ? '#7b5ea7' + '15' : colours.bg,
+                        borderColor: dir.active ? '#7b5ea7' : colours.border,
+                      }}
+                      onPress={dir.onPress}
+                    >
+                      <Text style={{ fontSize: fonts.md, fontWeight: '700', color: dir.active ? '#7b5ea7' : colours.text }}>{dir.label}</Text>
+                      <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{dir.sub}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {showNorth && LRT2_NORTH.map((station, index) => (
+                  <TouchableOpacity
+                    key={station.id + index}
+                    style={[styles.stationRow, { borderBottomColor: colours.border },
+                      stopId === station.id && { backgroundColor: '#7b5ea7' + '12' }]}
+                    onPress={() => { loadStop(station.id, station.name); setShowLine2(false); setShowNorth(false); }}
+                  >
+                    <View style={styles.stationDotCol}>
+                      <View style={[styles.stationDot, { borderColor: colours.border },
+                        stopId === station.id && { backgroundColor: '#7b5ea7', borderColor: '#7b5ea7' }]} />
+                      {index < LRT2_NORTH.length - 1 && <View style={[styles.stationLine, { backgroundColor: colours.border }]} />}
+                    </View>
+                    <Text style={{ flex: 1, fontSize: fonts.md, fontWeight: stopId === station.id ? '700' : '500', color: stopId === station.id ? '#7b5ea7' : colours.text }}>
+                      {station.name}
+                    </Text>
+                    {stopId === station.id && <Text style={{ fontSize: fonts.sm, color: '#7b5ea7', fontWeight: '700' }}>{t('Viewing', 'En vue')}</Text>}
+                  </TouchableOpacity>
+                ))}
+
+                {showSouth && LRT2_SOUTH.map((station, index) => (
+                  <TouchableOpacity
+                    key={station.id + index}
+                    style={[styles.stationRow, { borderBottomColor: colours.border },
+                      stopId === station.id && { backgroundColor: '#7b5ea7' + '12' }]}
+                    onPress={() => { loadStop(station.id, station.name); setShowLine2(false); setShowSouth(false); }}
+                  >
+                    <View style={styles.stationDotCol}>
+                      <View style={[styles.stationDot, { borderColor: colours.border },
+                        stopId === station.id && { backgroundColor: '#7b5ea7', borderColor: '#7b5ea7' }]} />
+                      {index < LRT2_SOUTH.length - 1 && <View style={[styles.stationLine, { backgroundColor: colours.border }]} />}
+                    </View>
+                    <Text style={{ flex: 1, fontSize: fonts.md, fontWeight: stopId === station.id ? '700' : '500', color: stopId === station.id ? '#7b5ea7' : colours.text }}>
+                      {station.name}
+                    </Text>
+                    {stopId === station.id && <Text style={{ fontSize: fonts.sm, color: '#7b5ea7', fontWeight: '700' }}>{t('Viewing', 'En vue')}</Text>}
                   </TouchableOpacity>
                 ))}
               </View>
