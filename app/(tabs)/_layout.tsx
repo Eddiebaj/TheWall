@@ -1,7 +1,7 @@
-import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
-import { AppProvider, useApp } from '../../context/AppContext';
+import { useApp } from '../../context/AppContext';
 
 function TabLayout() {
   const { colours } = useApp();
@@ -71,9 +71,5 @@ function TabLayout() {
 }
 
 export default function RootLayout() {
-  return (
-    <AppProvider>
-      <TabLayout />
-    </AppProvider>
-  );
+  return <TabLayout />;
 }
