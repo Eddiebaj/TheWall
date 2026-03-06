@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, ImageBackground, Keyboard,
@@ -49,7 +50,6 @@ const LRT_WEST = [
 ];
 
 const MULTI_PLATFORM_STOPS: { [key: string]: string[] } = {
-  // Tunney's Pasture (3011)
   '9942': ['9942','9943','9944','9945','9946','9947','9948','NA998','NA999'],
   '9943': ['9942','9943','9944','9945','9946','9947','9948','NA998','NA999'],
   '9944': ['9942','9943','9944','9945','9946','9947','9948','NA998','NA999'],
@@ -59,48 +59,40 @@ const MULTI_PLATFORM_STOPS: { [key: string]: string[] } = {
   '9948': ['9942','9943','9944','9945','9946','9947','9948','NA998','NA999'],
   'NA998': ['9942','9943','9944','9945','9946','9947','9948','NA998','NA999'],
   'NA999': ['9942','9943','9944','9945','9946','9947','9948','NA998','NA999'],
-  // Bayview (3060)
   '10027': ['10027','10028','NA990','NA995','NA996','NA997'],
   '10028': ['10027','10028','NA990','NA995','NA996','NA997'],
   'NA990': ['10027','10028','NA990','NA995','NA996','NA997'],
   'NA995': ['10027','10028','NA990','NA995','NA996','NA997'],
   'NA996': ['10027','10028','NA990','NA995','NA996','NA997'],
   'NA997': ['10027','10028','NA990','NA995','NA996','NA997'],
-  // Pimisi (3010)
   '9870': ['9870','9871','9957','9958','CJ990','CJ995'],
   '9871': ['9870','9871','9957','9958','CJ990','CJ995'],
   '9957': ['9870','9871','9957','9958','CJ990','CJ995'],
   '9958': ['9870','9871','9957','9958','CJ990','CJ995'],
   'CJ990': ['9870','9871','9957','9958','CJ990','CJ995'],
   'CJ995': ['9870','9871','9957','9958','CJ990','CJ995'],
-  // Lyon (3051)
   '9928': ['9928','9929','CA990','CA995'],
   '9929': ['9928','9929','CA990','CA995'],
   'CA990': ['9928','9929','CA990','CA995'],
   'CA995': ['9928','9929','CA990','CA995'],
-  // Parliament (3052)
   '9822': ['9822','9868','CB990','CB995'],
   '9868': ['9822','9868','CB990','CB995'],
   'CB990': ['9822','9868','CB990','CB995'],
   'CB995': ['9822','9868','CB990','CB995'],
-  // Rideau (3009)
   '9833': ['9833','9869','10004','10734','CD990','CD995'],
   '9869': ['9833','9869','10004','10734','CD990','CD995'],
   '10004': ['9833','9869','10004','10734','CD990','CD995'],
   '10734': ['9833','9869','10004','10734','CD990','CD995'],
   'CD990': ['9833','9869','10004','10734','CD990','CD995'],
   'CD995': ['9833','9869','10004','10734','CD990','CD995'],
-  // uOttawa (3021)
   '10735': ['10735','10736','CD998','CD999'],
   '10736': ['10735','10736','CD998','CD999'],
   'CD998': ['10735','10736','CD998','CD999'],
   'CD999': ['10735','10736','CD998','CD999'],
-  // Lees (3022)
   '10042': ['10042','10043','CE990','CE995'],
   '10043': ['10042','10043','CE990','CE995'],
   'CE990': ['10042','10043','CE990','CE995'],
   'CE995': ['10042','10043','CE990','CE995'],
-  // Hurdman (3023)
   '9951': ['9951','9952','9953','9954','9955','AF990','AF995'],
   '9952': ['9951','9952','9953','9954','9955','AF990','AF995'],
   '9953': ['9951','9952','9953','9954','9955','AF990','AF995'],
@@ -108,24 +100,20 @@ const MULTI_PLATFORM_STOPS: { [key: string]: string[] } = {
   '9955': ['9951','9952','9953','9954','9955','AF990','AF995'],
   'AF990': ['9951','9952','9953','9954','9955','AF990','AF995'],
   'AF995': ['9951','9952','9953','9954','9955','AF990','AF995'],
-  // Tremblay (3024)
   '10728': ['10728','10729','AE990','AE995'],
   '10729': ['10728','10729','AE990','AE995'],
   'AE990': ['10728','10729','AE990','AE995'],
   'AE995': ['10728','10729','AE990','AE995'],
-  // St-Laurent (3025)
   '10014': ['10014','10015','10016','10017','EB990','EB995'],
   '10015': ['10014','10015','10016','10017','EB990','EB995'],
   '10016': ['10014','10015','10016','10017','EB990','EB995'],
   '10017': ['10014','10015','10016','10017','EB990','EB995'],
   'EB990': ['10014','10015','10016','10017','EB990','EB995'],
   'EB995': ['10014','10015','10016','10017','EB990','EB995'],
-  // Cyrville (3026)
   '10743': ['10743','10744','EC990','EC995'],
   '10744': ['10743','10744','EC990','EC995'],
   'EC990': ['10743','10744','EC990','EC995'],
   'EC995': ['10743','10744','EC990','EC995'],
-  // Blair (3027)
   '9872': ['9872','9873','9922','9961','9963','10144','10149','EE990','EE995'],
   '9873': ['9872','9873','9922','9961','9963','10144','10149','EE990','EE995'],
   '9922': ['9872','9873','9922','9961','9963','10144','10149','EE990','EE995'],
@@ -138,17 +126,17 @@ const MULTI_PLATFORM_STOPS: { [key: string]: string[] } = {
 };
 
 const QUICK_ACTIONS = [
-  { id: 'live', label_en: 'Live\nBuses', label_fr: 'Bus\nen direct', icon: '🚌', accent: '#00A78D' },
-  { id: 'plan', label_en: 'Plan\nTrip', label_fr: 'Planifier\ntrajet', icon: '🗺️', accent: '#004890' },
-  { id: 'safety', label_en: 'Safety\nMode', label_fr: 'Mode\nsécurité', icon: '🛡️', accent: '#00A78D' },
-  { id: 'alerts', label_en: 'Service\nAlerts', label_fr: 'Alertes\nservice', icon: '🔔', accent: '#e8a020' },
+  { id: 'live', label_en: 'Live\nBuses', label_fr: 'Bus\nen direct', icon: 'bus', accent: '#00A78D' },
+  { id: 'plan', label_en: 'Plan\nTrip', label_fr: 'Planifier\ntrajet', icon: 'map', accent: '#004890' },
+  { id: 'safety', label_en: 'Safety\nMode', label_fr: 'Mode\nsécurité', icon: 'shield', accent: '#00A78D' },
+  { id: 'alerts', label_en: 'Service\nAlerts', label_fr: 'Alertes\nservice', icon: 'notifications', accent: '#e8a020' },
 ];
 
 const OTTAWA_LIFE = [
-  { id: 'coffee', label_en: 'Coffee', label_fr: 'Café', icon: '☕', accent: '#c0852a', desc_en: 'Bridgehead & local cafes', desc_fr: 'Bridgehead & cafés locaux' },
-  { id: 'eats', label_en: 'Eats', label_fr: 'Restos', icon: '🍽️', accent: '#cc3b2a', desc_en: 'Local Ottawa restaurants', desc_fr: "Restaurants locaux d'Ottawa" },
-  { id: 'shopping', label_en: 'Shopping', label_fr: 'Magasins', icon: '🛍️', accent: '#004890', desc_en: 'Shops near your stop', desc_fr: 'Boutiques près de votre arrêt' },
-  { id: 'events', label_en: 'Events', label_fr: 'Événements', icon: '🎉', accent: '#7b5ea7', desc_en: 'Lansdowne, ByWard & NCC', desc_fr: 'Lansdowne, ByWard et CCN' },
+  { id: 'coffee', label_en: 'Coffee', label_fr: 'Café', icon: 'cafe', accent: '#c0852a', desc_en: 'Bridgehead & local cafes', desc_fr: 'Bridgehead & cafés locaux' },
+  { id: 'eats', label_en: 'Eats', label_fr: 'Restos', icon: 'restaurant', accent: '#cc3b2a', desc_en: 'Local Ottawa restaurants', desc_fr: "Restaurants locaux d'Ottawa" },
+  { id: 'shopping', label_en: 'Shopping', label_fr: 'Magasins', icon: 'bag-handle', accent: '#004890', desc_en: 'Shops near your stop', desc_fr: 'Boutiques près de votre arrêt' },
+  { id: 'events', label_en: 'Events', label_fr: 'Événements', icon: 'sparkles', accent: '#7b5ea7', desc_en: 'Lansdowne, ByWard & NCC', desc_fr: 'Lansdowne, ByWard et CCN' },
 ];
 
 const DISCOVER_CARDS = [
@@ -158,7 +146,6 @@ const DISCOVER_CARDS = [
   { id: '4', title_en: 'Lansdowne Park', title_fr: 'Parc Lansdowne', category_en: 'Events', category_fr: 'Événements', query: 'TD Place Lansdowne Ottawa stadium', accent: '#7b5ea7' },
   { id: '5', title_en: "Major's Hill Park", title_fr: "Parc Major's Hill", category_en: 'Outdoors', category_fr: 'Plein air', query: 'majors hill park ottawa', accent: '#00A78D' },
 ];
-
 
 type Arrival = { id: string; routeId: string; headsign: string; minsAway: number; delay: number; secsAway: number };
 type Fav = { id: string; name: string; icon: string };
@@ -235,7 +222,7 @@ export default function LiveScreen() {
   const addFav = (id: string, name: string) => {
     if (favs.find(f => f.id === id)) return;
     if (favs.length >= 5) { Alert.alert(t('Max 5 favourites', 'Max 5 favoris'), t('Long press to remove one first.', 'Appuyez longuement pour en retirer un.')); return; }
-    saveFavs([...favs, { id, name, icon: '⭐' }]);
+    saveFavs([...favs, { id, name, icon: 'star' }]);
   };
   const removeFav = (id: string) => saveFavs(favs.filter(f => f.id !== id));
 
@@ -248,20 +235,21 @@ export default function LiveScreen() {
       if (!resp.ok) throw new Error(`API error ${resp.status}`);
       const data = await resp.json();
 
-// DEBUG - remove after testing
-const lrtStops: string[] = [];
-for (const ent of (data?.Entity || [])) {
-  const tu = ent.TripUpdate;
-  if (!tu) continue;
-  const route = tu.Trip?.RouteId || '';
-  for (const stu of (tu.StopTimeUpdate || [])) {
-    if (route.includes('350') || route.includes('354') || route === '1' || route === '2') {
-      const entry = `Route:${route} Stop:${stu.StopId}`;
-      if (!lrtStops.includes(entry)) lrtStops.push(entry);
-    }
-  }
-}
-Alert.alert('LRT Debug', lrtStops.slice(0, 10).join('\n') || 'No LRT trips in feed right now');
+      // DEBUG - remove after testing
+      const lrtStops: string[] = [];
+      for (const ent of (data?.Entity || [])) {
+        const tu = ent.TripUpdate;
+        if (!tu) continue;
+        const route = tu.Trip?.RouteId || '';
+        for (const stu of (tu.StopTimeUpdate || [])) {
+          if (route.includes('350') || route.includes('354') || route === '1' || route === '2') {
+            const entry = `Route:${route} Stop:${stu.StopId}`;
+            if (!lrtStops.includes(entry)) lrtStops.push(entry);
+          }
+        }
+      }
+      Alert.alert('LRT Debug', lrtStops.slice(0, 10).join('\n') || 'No LRT trips in feed right now');
+
       setArrivals(parseGTFS(data, internalId));
       const now = new Date();
       setLastUpdated(`${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`);
@@ -283,7 +271,7 @@ Alert.alert('LRT Debug', lrtStops.slice(0, 10).join('\n') || 'No LRT trips in fe
       if (!tu) continue;
       for (const stu of (tu.StopTimeUpdate || [])) {
         const stopIdsToMatch = MULTI_PLATFORM_STOPS[internalStopId] || [internalStopId];
-if (!stopIdsToMatch.includes(String(stu.StopId))) continue;
+        if (!stopIdsToMatch.includes(String(stu.StopId))) continue;
         const arr = stu.Arrival || stu.Departure || {};
         const t2 = parseInt(arr.Time || 0);
         if (!t2) continue;
@@ -391,14 +379,11 @@ if (!stopIdsToMatch.includes(String(stu.StopId))) continue;
           style={styles.discoverCardImage}
           resizeMode="cover"
         >
-          {/* Fallback if no photo yet */}
           {!photoUrl && (
             <View style={[styles.discoverCardFallback, { backgroundColor: card.accent + '22' }]}>
               <ActivityIndicator color={card.accent} size="small" />
             </View>
           )}
-
-          {/* Gradient layers */}
           {photoUrl && (
             <>
               <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 100, backgroundColor: 'rgba(0,0,0,0.12)' }} />
@@ -407,28 +392,19 @@ if (!stopIdsToMatch.includes(String(stu.StopId))) continue;
               <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 30, backgroundColor: 'rgba(0,0,0,0.18)' }} />
             </>
           )}
-
-          {/* Category badge — top left */}
           <View style={[styles.categoryBadge, { backgroundColor: card.accent }]}>
             <Text style={{ color: 'white', fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 }}>
               {category}
             </Text>
           </View>
-
-          {/* Title over gradient */}
           {photoUrl && (
             <View style={styles.discoverCardBottom}>
-              <Text
-                numberOfLines={2}
-                style={{ color: 'white', fontSize: fonts.md, fontWeight: '800', lineHeight: 18, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 }}
-              >
+              <Text numberOfLines={2} style={{ color: 'white', fontSize: fonts.md, fontWeight: '800', lineHeight: 18, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 }}>
                 {title}
               </Text>
             </View>
           )}
         </ImageBackground>
-
-        {/* Title below image if no photo */}
         {!photoUrl && (
           <View style={{ padding: 10 }}>
             <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>{title}</Text>
@@ -458,7 +434,10 @@ if (!stopIdsToMatch.includes(String(stu.StopId))) continue;
               <View style={styles.headerRight}>
                 {isNight && (
                   <View style={[styles.nightBadge, { backgroundColor: colours.accentAlt + '22', borderColor: colours.accentAlt }]}>
-                    <Text style={{ color: colours.accentAlt, fontSize: fonts.sm, fontWeight: '700' }}>🌙 {t('Night', 'Nuit')}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Ionicons name="moon" size={12} color={colours.accentAlt} />
+                      <Text style={{ color: colours.accentAlt, fontSize: fonts.sm, fontWeight: '700' }}>{t('Night', 'Nuit')}</Text>
+                    </View>
                   </View>
                 )}
                 <View style={[styles.liveBadge, { backgroundColor: colours.accent + '18', borderColor: colours.accent + '40' }]}>
@@ -607,7 +586,7 @@ if (!stopIdsToMatch.includes(String(stu.StopId))) continue;
                         { text: t('Remove', 'Retirer'), style: 'destructive', onPress: () => removeFav(fav.id) }
                       ])}
                     >
-                      <Text style={{ fontSize: fonts.sm }}>★</Text>
+                      <Ionicons name="star" size={12} color={stopId === fav.id ? 'white' : colours.accent} />
                       <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: stopId === fav.id ? 'white' : colours.text }}>
                         {fav.name}
                       </Text>
@@ -639,7 +618,7 @@ if (!stopIdsToMatch.includes(String(stu.StopId))) continue;
                     ...cardShadow,
                   }]}
                   onPress={() => Alert.alert(language === 'fr' ? action.label_fr : action.label_en, t('Coming soon!', 'Bientôt disponible!'))}>
-                  <Text style={{ fontSize: 22 }}>{action.icon}</Text>
+                  <Ionicons name={action.icon as any} size={24} color={action.accent} />
                   <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.text, textAlign: 'center', lineHeight: 16 }}>
                     {language === 'fr' ? action.label_fr : action.label_en}
                   </Text>
@@ -661,7 +640,7 @@ if (!stopIdsToMatch.includes(String(stu.StopId))) continue;
                     ...cardShadow,
                   }]}
                   onPress={() => Alert.alert(language === 'fr' ? item.label_fr : item.label_en, `${language === 'fr' ? item.desc_fr : item.desc_en}\n\n${t('Coming soon!', 'Bientôt disponible!')}`)}>
-                  <Text style={{ fontSize: 22 }}>{item.icon}</Text>
+                  <Ionicons name={item.icon as any} size={24} color={item.accent} />
                   <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.text, textAlign: 'center', lineHeight: 16 }}>
                     {language === 'fr' ? item.label_fr : item.label_en}
                   </Text>

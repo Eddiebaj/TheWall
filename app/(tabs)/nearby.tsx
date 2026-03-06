@@ -1,4 +1,5 @@
 import * as Location from 'expo-location';
+import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator, ImageBackground, Linking,
@@ -9,14 +10,14 @@ import { useApp } from '../../context/AppContext';
 const PLACES_KEY = 'AIzaSyCKwAVVCbxHKsKViJ4Dq0ZQ5r6k-arue3E';
 
 const CATEGORIES = [
-  { id: 'restaurant', label_en: 'Eats', label_fr: 'Restos', icon: '🍽️', color: '#cc3b2a' },
-  { id: 'cafe', label_en: 'Coffee', label_fr: 'Café', icon: '☕', color: '#c0852a' },
-  { id: 'shopping_mall', label_en: 'Shopping', label_fr: 'Magasins', icon: '🛍️', color: '#004890' },
-  { id: 'gym', label_en: 'Gyms', label_fr: 'Gyms', icon: '💪', color: '#00A78D' },
-  { id: 'supermarket', label_en: 'Grocery', label_fr: 'Épicerie', icon: '🛒', color: '#004890' },
-  { id: 'pharmacy', label_en: 'Pharmacy', label_fr: 'Pharmacie', icon: '💊', color: '#7b5ea7' },
-  { id: 'hardware_store', label_en: 'Hardware', label_fr: 'Quincaillerie', icon: '🔧', color: '#e8a020' },
-  { id: 'bank', label_en: 'Services', label_fr: 'Services', icon: '🏢', color: '#6b7f99' },
+  { id: 'restaurant', label_en: 'Eats', label_fr: 'Restos', icon: 'restaurant', color: '#cc3b2a' },
+  { id: 'cafe', label_en: 'Coffee', label_fr: 'Café', icon: 'cafe', color: '#c0852a' },
+  { id: 'shopping_mall', label_en: 'Shopping', label_fr: 'Magasins', icon: 'bag-handle', color: '#004890' },
+  { id: 'gym', label_en: 'Gyms', label_fr: 'Gyms', icon: 'barbell', color: '#00A78D' },
+  { id: 'supermarket', label_en: 'Grocery', label_fr: 'Épicerie', icon: 'cart', color: '#004890' },
+  { id: 'pharmacy', label_en: 'Pharmacy', label_fr: 'Pharmacie', icon: 'medical', color: '#7b5ea7' },
+  { id: 'hardware_store', label_en: 'Hardware', label_fr: 'Quincaillerie', icon: 'construct', color: '#e8a020' },
+  { id: 'bank', label_en: 'Services', label_fr: 'Services', icon: 'business', color: '#6b7f99' },
 ];
 
 type Category = typeof CATEGORIES[0];
@@ -114,7 +115,6 @@ export default function ExploreScreen() {
         onPress={() => openInMaps(place.name, place.vicinity)}
         activeOpacity={0.92}
       >
-        {/* Photo or fallback */}
         <ImageBackground
           source={hasPhoto ? { uri: getPhotoUrl(place.photoRef!) } : undefined}
           style={{
@@ -128,7 +128,7 @@ export default function ExploreScreen() {
         >
           {/* Fallback icon */}
           {!hasPhoto && (
-            <Text style={{ fontSize: 40 }}>{selectedCategory.icon}</Text>
+            <Ionicons name={selectedCategory.icon as any} size={40} color={selectedCategory.color} />
           )}
 
           {/* Distance badge — top right */}
@@ -201,7 +201,7 @@ export default function ExploreScreen() {
             </View>
             {place.rating && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                <Text style={{ fontSize: fonts.sm, color: colours.orange }}>★</Text>
+                <Ionicons name="star" size={12} color={colours.orange} />
                 <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.text }}>{place.rating}</Text>
               </View>
             )}
@@ -221,7 +221,7 @@ export default function ExploreScreen() {
   const renderContent = () => {
     if (locationError) return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 }}>
-        <Text style={{ fontSize: 40, marginBottom: 12 }}>📍</Text>
+        <Ionicons name="location-outline" size={40} color={colours.red} style={{ marginBottom: 12 }} />
         <Text style={{ color: colours.red, fontSize: fonts.md, textAlign: 'center', lineHeight: 22 }}>{locationError}</Text>
         <TouchableOpacity
           style={{ marginTop: 16, backgroundColor: colours.accent, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 10 }}
@@ -248,7 +248,7 @@ export default function ExploreScreen() {
     );
     if (places.length === 0) return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 }}>
-        <Text style={{ fontSize: 40, marginBottom: 12 }}>{selectedCategory.icon}</Text>
+        <Ionicons name={selectedCategory.icon as any} size={40} color={colours.muted} style={{ marginBottom: 12 }} />
         <Text style={{ color: colours.muted, fontSize: fonts.md, textAlign: 'center' }}>
           {t(`No ${catLabel(selectedCategory).toLowerCase()} found nearby`, `Aucun(e) ${catLabel(selectedCategory).toLowerCase()} trouvé(e) à proximité`)}
         </Text>
@@ -283,7 +283,7 @@ export default function ExploreScreen() {
         </View>
         {location && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.accent + '18', borderWidth: 1, borderColor: colours.accent + '40', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 }}>
-            <Text style={{ fontSize: fonts.sm }}>📍</Text>
+            <Ionicons name="location" size={13} color={colours.accent} />
             <Text style={{ color: colours.accent, fontSize: fonts.sm, fontWeight: '700' }}>{t('Located', 'Localisé')}</Text>
           </View>
         )}
@@ -303,7 +303,7 @@ export default function ExploreScreen() {
               }}
               onPress={() => setSelectedCategory(cat)}
             >
-              <Text style={{ fontSize: fonts.sm }}>{cat.icon}</Text>
+              <Ionicons name={cat.icon as any} size={13} color={selectedCategory.id === cat.id ? cat.color : colours.muted} />
               <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: selectedCategory.id === cat.id ? cat.color : colours.muted }}>
                 {catLabel(cat)}
               </Text>
