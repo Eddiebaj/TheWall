@@ -1,9 +1,10 @@
-import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
+import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator, ImageBackground, Linking,
-  ScrollView, StatusBar, Text, TouchableOpacity, View
+  ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
 
@@ -12,7 +13,7 @@ const PLACES_KEY = 'AIzaSyCKwAVVCbxHKsKViJ4Dq0ZQ5r6k-arue3E';
 const CATEGORIES = [
   { id: 'restaurant', label_en: 'Eats', label_fr: 'Restos', icon: 'restaurant', color: '#cc3b2a' },
   { id: 'cafe', label_en: 'Coffee', label_fr: 'Café', icon: 'cafe', color: '#c0852a' },
-  { id: 'shopping_mall', label_en: 'Shopping', label_fr: 'Magasins', icon: 'bag-handle', color: '#004890' },
+  { id: 'shopping', label_en: 'Shopping', label_fr: 'Magasins', icon: 'bag-handle', color: '#004890' },
   { id: 'gym', label_en: 'Gyms', label_fr: 'Gyms', icon: 'barbell', color: '#00A78D' },
   { id: 'supermarket', label_en: 'Grocery', label_fr: 'Épicerie', icon: 'cart', color: '#004890' },
   { id: 'pharmacy', label_en: 'Pharmacy', label_fr: 'Pharmacie', icon: 'medical', color: '#7b5ea7' },
@@ -20,6 +21,25 @@ const CATEGORIES = [
   { id: 'bank', label_en: 'Services', label_fr: 'Services', icon: 'business', color: '#6b7f99' },
 ];
 
+const SORT_OPTIONS = [
+  { id: 'distance', label_en: 'Nearest', label_fr: 'Plus proche', icon: 'walk' },
+  { id: 'rating', label_en: 'Top Rated', label_fr: 'Mieux noté', icon: 'star' },
+  { id: 'open', label_en: 'Open Now', label_fr: 'Ouvert', icon: 'time' },
+] as const;
+
+// Distance filter options in metres — 0 means "show all"
+const DISTANCE_OPTIONS = [
+  { label: 'All', label_fr: 'Tout', value: 0 },
+  { label: '1 km', label_fr: '1 km', value: 1000 },
+  { label: '2 km', label_fr: '2 km', value: 2000 },
+  { label: '3 km', label_fr: '3 km', value: 3000 },
+  { label: '5 km', label_fr: '5 km', value: 5000 },
+];
+
+// Fetch radius — large enough to capture the whole downtown core
+const FETCH_RADIUS = 5000;
+
+type SortId = typeof SORT_OPTIONS[number]['id'];
 type Category = typeof CATEGORIES[0];
 type Place = {
   id: string;
@@ -27,6 +47,7 @@ type Place = {
   vicinity: string;
   distance: number;
   rating?: number;
+  reviewCount?: number;
   open?: boolean;
   photoRef?: string;
 };
@@ -37,12 +58,36 @@ export default function ExploreScreen() {
 
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locationError, setLocationError] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState(CATEGORIES[0]);
-  const [places, setPlaces] = useState<Place[]>([]);
+  const { category } = useLocalSearchParams<{ category?: string }>();
+  const [selectedCategory, setSelectedCategory] = useState(
+    CATEGORIES.find(c => c.id === category) || CATEGORIES[0]
+  );
+  const [sortBy, setSortBy] = useState<SortId>('distance');
+  const [maxDistance, setMaxDistance] = useState(0); // 0 = show all
+  const [allPlaces, setAllPlaces] = useState<Place[]>([]);
+  const [filteredPlaces, setFilteredPlaces] = useState<Place[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => { getLocation(); }, []);
-  useEffect(() => { if (location) fetchPlaces(); }, [location, selectedCategory]);
+  useEffect(() => { if (location) fetchPlaces(); }, [location, selectedCategory, sortBy]);
+
+  // Re-filter client-side when distance cap or search query changes — no extra API call needed
+  useEffect(() => {
+    applyFilters(allPlaces, searchQuery, maxDistance);
+  }, [searchQuery, maxDistance, allPlaces]);
+
+  const applyFilters = (places: Place[], query: string, distCap: number) => {
+    let result = places;
+    if (distCap > 0) result = result.filter(p => p.distance <= distCap);
+    if (query.trim()) {
+      const q = query.toLowerCase();
+      result = result.filter(p =>
+        p.name.toLowerCase().includes(q) || p.vicinity.toLowerCase().includes(q)
+      );
+    }
+    setFilteredPlaces(result);
+  };
 
   const getLocation = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -57,31 +102,6 @@ export default function ExploreScreen() {
     setLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
   };
 
-  const fetchPlaces = async () => {
-    if (!location) return;
-    setLoading(true);
-    try {
-      const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=1000&type=${selectedCategory.id}&key=${PLACES_KEY}`;
-      const resp = await fetch(url);
-      const data = await resp.json();
-      const results: Place[] = (data.results || []).slice(0, 12).map((p: any) => ({
-        id: p.place_id,
-        name: p.name,
-        vicinity: p.vicinity,
-        distance: getDistance(location.lat, location.lng, p.geometry.location.lat, p.geometry.location.lng),
-        rating: p.rating,
-        open: p.opening_hours?.open_now,
-        photoRef: p.photos?.[0]?.photo_reference ?? null,
-      }));
-      results.sort((a, b) => a.distance - b.distance);
-      setPlaces(results);
-    } catch { setPlaces([]); }
-    finally { setLoading(false); }
-  };
-
-  const getPhotoUrl = (ref: string) =>
-    `https://maps.googleapis.com/maps/api/place/photo?maxwidth=600&photo_reference=${ref}&key=${PLACES_KEY}`;
-
   const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => {
     const R = 6371000;
     const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -90,11 +110,82 @@ export default function ExploreScreen() {
     return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
   };
 
+  const fetchPlaces = async () => {
+    if (!location) return;
+    setLoading(true);
+    try {
+      const types = selectedCategory.id === 'shopping'
+        ? ['shopping_mall', 'clothing_store', 'shoe_store', 'jewelry_store', 'department_store']
+        : [selectedCategory.id];
+
+      const results: Place[] = [];
+      for (const type of types) {
+        // Use radius instead of rankby=distance so we capture everything within the area
+        const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${FETCH_RADIUS}&type=${type}&key=${PLACES_KEY}`;
+        const resp = await fetch(url);
+        const data = await resp.json();
+        (data.results || []).forEach((p: any) => {
+          if (results.find(r => r.id === p.place_id)) return;
+          results.push({
+            id: p.place_id,
+            name: p.name,
+            vicinity: p.vicinity,
+            distance: getDistance(location.lat, location.lng, p.geometry.location.lat, p.geometry.location.lng),
+            rating: p.rating,
+            reviewCount: p.user_ratings_total,
+            open: p.opening_hours?.open_now,
+            photoRef: p.photos?.[0]?.photo_reference ?? null,
+          });
+        });
+      }
+
+      // Sort the full unfiltered set
+      if (sortBy === 'rating') {
+        // Bayesian popularity score — blends stars with review volume so a 4.8★ with
+        // 3 reviews does not beat a 4.5★ with 2,000. C = damping constant (reviews needed
+        // before rating is trusted at face value). globalMean = prior for unknown places.
+        const C = 200;
+        const GLOBAL_MEAN = 4.0;
+        const score = (p: Place) => {
+          const n = p.reviewCount ?? 0;
+          const s = p.rating ?? GLOBAL_MEAN;
+          return (n / (n + C)) * s + (C / (n + C)) * GLOBAL_MEAN;
+        };
+        results.sort((a, b) => score(b) - score(a));
+      } else if (sortBy === 'open') {
+        results.sort((a, b) => {
+          if (a.open === b.open) return a.distance - b.distance;
+          return a.open ? -1 : 1;
+        });
+      } else {
+        results.sort((a, b) => a.distance - b.distance);
+      }
+
+      setAllPlaces(results);
+      applyFilters(results, searchQuery, maxDistance);
+      setSearchQuery('');
+    } catch {
+      setAllPlaces([]);
+      setFilteredPlaces([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getPhotoUrl = (ref: string) =>
+    `https://maps.googleapis.com/maps/api/place/photo?maxwidth=600&photo_reference=${ref}&key=${PLACES_KEY}`;
+
   const openInMaps = (name: string, vicinity: string) =>
     Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(`${name} ${vicinity}`)}`);
 
   const formatDistance = (m: number) => m < 1000 ? `${m}m` : `${(m / 1000).toFixed(1)}km`;
   const catLabel = (cat: Category) => language === 'fr' ? cat.label_fr : cat.label_en;
+
+  const sortLabel = () => {
+    const opt = SORT_OPTIONS.find(o => o.id === sortBy);
+    if (!opt) return '';
+    return language === 'fr' ? opt.label_fr : opt.label_en;
+  };
 
   const renderPlaceCard = (place: Place, index: number) => {
     const hasPhoto = !!place.photoRef;
@@ -102,15 +193,15 @@ export default function ExploreScreen() {
       <TouchableOpacity
         key={place.id}
         style={{
-          borderRadius: 16,
-          marginBottom: 14,
+          borderRadius: 14,
+          marginBottom: 10,
           overflow: 'hidden',
           backgroundColor: colours.surface,
           shadowColor: '#004890',
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: isLight ? 0.1 : 0.0,
-          shadowRadius: 10,
-          elevation: 3,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: isLight ? 0.08 : 0.0,
+          shadowRadius: 8,
+          elevation: 2,
         }}
         onPress={() => openInMaps(place.name, place.vicinity)}
         activeOpacity={0.92}
@@ -119,35 +210,32 @@ export default function ExploreScreen() {
           source={hasPhoto ? { uri: getPhotoUrl(place.photoRef!) } : undefined}
           style={{
             width: '100%',
-            height: 160,
+            height: 120,
             backgroundColor: hasPhoto ? '#1a1a2a' : selectedCategory.color + '18',
             alignItems: hasPhoto ? undefined : 'center',
             justifyContent: hasPhoto ? undefined : 'center',
           }}
           resizeMode="cover"
         >
-          {/* Fallback icon */}
           {!hasPhoto && (
-            <Ionicons name={selectedCategory.icon as any} size={40} color={selectedCategory.color} />
+            <Ionicons name={selectedCategory.icon as any} size={32} color={selectedCategory.color} />
           )}
 
-          {/* Distance badge — top right */}
           <View style={{
-            position: 'absolute', top: 10, right: 10,
+            position: 'absolute', top: 8, right: 8,
             backgroundColor: 'rgba(0,0,0,0.55)',
-            borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
+            borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3,
           }}>
             <Text style={{ color: 'white', fontSize: fonts.sm, fontWeight: '700' }}>
               {formatDistance(place.distance)}
             </Text>
           </View>
 
-          {/* Open/Closed badge — top left */}
           {place.open !== undefined && (
             <View style={{
-              position: 'absolute', top: 10, left: 10,
+              position: 'absolute', top: 8, left: 8,
               backgroundColor: place.open ? 'rgba(0,167,141,0.85)' : 'rgba(180,50,40,0.85)',
-              borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
+              borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3,
             }}>
               <Text style={{ color: 'white', fontSize: fonts.sm, fontWeight: '700' }}>
                 {place.open ? t('Open', 'Ouvert') : t('Closed', 'Fermé')}
@@ -155,54 +243,46 @@ export default function ExploreScreen() {
             </View>
           )}
 
-          {/* Simulated gradient + name overlay */}
           {hasPhoto && (
             <View style={{
               position: 'absolute',
               bottom: 0, left: 0, right: 0,
-              height: 90,
+              height: 70,
               justifyContent: 'flex-end',
-              paddingHorizontal: 12,
-              paddingBottom: 10,
+              paddingHorizontal: 10,
+              paddingBottom: 8,
             }}>
-              <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 90, backgroundColor: 'rgba(0,0,0,0.15)' }} />
-              <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 70, backgroundColor: 'rgba(0,0,0,0.20)' }} />
-              <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 50, backgroundColor: 'rgba(0,0,0,0.20)' }} />
-              <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 30, backgroundColor: 'rgba(0,0,0,0.15)' }} />
-              <Text
-                numberOfLines={1}
-                style={{ color: 'white', fontSize: fonts.lg, fontWeight: '800', textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 4 }}
-              >
+              <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 70, backgroundColor: 'rgba(0,0,0,0.30)' }} />
+              <Text numberOfLines={1} style={{ color: 'white', fontSize: fonts.md, fontWeight: '800', textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 4 }}>
                 {place.name}
               </Text>
-              <Text
-                numberOfLines={1}
-                style={{ color: 'rgba(255,255,255,0.8)', fontSize: fonts.sm, marginTop: 1, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3 }}
-              >
+              <Text numberOfLines={1} style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11, marginTop: 1, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3 }}>
                 {place.vicinity}
               </Text>
             </View>
           )}
         </ImageBackground>
 
-        {/* Bottom info row */}
         <View style={{
           flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-          paddingHorizontal: 14, paddingVertical: 12,
+          paddingHorizontal: 12, paddingVertical: 9,
           backgroundColor: colours.surface,
         }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <View style={{
-              width: 24, height: 24, borderRadius: 7,
+              width: 20, height: 20, borderRadius: 6,
               backgroundColor: selectedCategory.color + '18',
               alignItems: 'center', justifyContent: 'center',
             }}>
-              <Text style={{ fontSize: 10, fontWeight: '800', color: selectedCategory.color }}>{index + 1}</Text>
+              <Text style={{ fontSize: 9, fontWeight: '800', color: selectedCategory.color }}>{index + 1}</Text>
             </View>
             {place.rating && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                <Ionicons name="star" size={12} color={colours.orange} />
+                <Ionicons name="star" size={11} color={colours.orange} />
                 <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.text }}>{place.rating}</Text>
+                {place.reviewCount && (
+                  <Text style={{ fontSize: fonts.sm, color: colours.muted }}>({place.reviewCount.toLocaleString()})</Text>
+                )}
               </View>
             )}
             <Text style={{ fontSize: fonts.sm, color: colours.muted }}>·</Text>
@@ -246,23 +326,35 @@ export default function ExploreScreen() {
         </Text>
       </View>
     );
-    if (places.length === 0) return (
+    if (filteredPlaces.length === 0) return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 }}>
         <Ionicons name={selectedCategory.icon as any} size={40} color={colours.muted} style={{ marginBottom: 12 }} />
         <Text style={{ color: colours.muted, fontSize: fonts.md, textAlign: 'center' }}>
-          {t(`No ${catLabel(selectedCategory).toLowerCase()} found nearby`, `Aucun(e) ${catLabel(selectedCategory).toLowerCase()} trouvé(e) à proximité`)}
+          {searchQuery
+            ? t(`No results for "${searchQuery}"`, `Aucun résultat pour "${searchQuery}"`)
+            : t(`No ${catLabel(selectedCategory).toLowerCase()} found nearby`, `Aucun(e) ${catLabel(selectedCategory).toLowerCase()} trouvé(e) à proximité`)
+          }
         </Text>
+        {maxDistance > 0 && (
+          <TouchableOpacity
+            style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}
+            onPress={() => setMaxDistance(0)}
+          >
+            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Show all distances', 'Afficher toutes les distances')}</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
     return (
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100, paddingTop: 12 }}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100, paddingTop: 8 }}
       >
-        <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-          {places.length} {catLabel(selectedCategory).toLowerCase()} {t('within 1km · sorted by distance', 'dans 1km · trié par distance')}
+        <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          {filteredPlaces.length} {catLabel(selectedCategory).toLowerCase()} · {sortLabel()}
+          {maxDistance > 0 ? ` · within ${formatDistance(maxDistance)}` : ''}
         </Text>
-        {places.map((place, index) => renderPlaceCard(place, index))}
+        {filteredPlaces.map((place, index) => renderPlaceCard(place, index))}
       </ScrollView>
     );
   };
@@ -272,7 +364,7 @@ export default function ExploreScreen() {
       <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
 
       {/* Header */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 60, paddingBottom: 12 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 60, paddingBottom: 10 }}>
         <View>
           <Text style={{ fontSize: fonts.xxl, fontWeight: '800', color: colours.text, letterSpacing: -1 }}>
             Route<Text style={{ color: colours.accent }}>O</Text>
@@ -289,26 +381,94 @@ export default function ExploreScreen() {
         )}
       </View>
 
+      {/* Search bar */}
+      <View style={{ paddingHorizontal: 20, marginBottom: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 10, height: 38 }}>
+          <Ionicons name="search" size={15} color={colours.muted} style={{ marginRight: 7 }} />
+          <TextInput
+            placeholder={language === 'fr' ? 'Rechercher...' : `Search ${catLabel(selectedCategory).toLowerCase()}...`}
+            placeholderTextColor={colours.muted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            style={{ flex: 1, fontSize: fonts.sm, color: colours.text }}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Ionicons name="close-circle" size={15} color={colours.muted} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
       {/* Category chips */}
-      <View style={{ height: 44, justifyContent: 'center', marginBottom: 4 }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 6, alignItems: 'center' }}>
+      <View style={{ height: 38, justifyContent: 'center', marginBottom: 3 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 5, alignItems: 'center' }}>
           {CATEGORIES.map(cat => (
             <TouchableOpacity
               key={cat.id}
               style={{
                 flexDirection: 'row', alignItems: 'center', gap: 4,
-                borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, height: 32,
+                borderWidth: 1, borderRadius: 9, paddingHorizontal: 9, height: 28,
                 backgroundColor: selectedCategory.id === cat.id ? cat.color + '18' : colours.surface,
                 borderColor: selectedCategory.id === cat.id ? cat.color : colours.border,
               }}
-              onPress={() => setSelectedCategory(cat)}
+              onPress={() => { setSelectedCategory(cat); setSearchQuery(''); }}
             >
-              <Ionicons name={cat.icon as any} size={13} color={selectedCategory.id === cat.id ? cat.color : colours.muted} />
-              <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: selectedCategory.id === cat.id ? cat.color : colours.muted }}>
+              <Ionicons name={cat.icon as any} size={12} color={selectedCategory.id === cat.id ? cat.color : colours.muted} />
+              <Text style={{ fontSize: 11, fontWeight: '600', color: selectedCategory.id === cat.id ? cat.color : colours.muted }}>
                 {catLabel(cat)}
               </Text>
             </TouchableOpacity>
           ))}
+        </ScrollView>
+      </View>
+
+      {/* Sort chips */}
+      <View style={{ height: 32, justifyContent: 'center', marginBottom: 3 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 5, alignItems: 'center' }}>
+          {SORT_OPTIONS.map(opt => (
+            <TouchableOpacity
+              key={opt.id}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 4,
+                borderWidth: 1, borderRadius: 9, paddingHorizontal: 9, height: 26,
+                backgroundColor: sortBy === opt.id ? colours.accent + '18' : colours.surface,
+                borderColor: sortBy === opt.id ? colours.accent : colours.border,
+              }}
+              onPress={() => setSortBy(opt.id)}
+            >
+              <Ionicons name={opt.icon as any} size={11} color={sortBy === opt.id ? colours.accent : colours.muted} />
+              <Text style={{ fontSize: 11, fontWeight: '600', color: sortBy === opt.id ? colours.accent : colours.muted }}>
+                {language === 'fr' ? opt.label_fr : opt.label_en}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* Distance filter chips */}
+      <View style={{ height: 32, justifyContent: 'center', marginBottom: 4 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 5, alignItems: 'center' }}>
+          {DISTANCE_OPTIONS.map(opt => {
+            const isActive = maxDistance === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', gap: 4,
+                  borderWidth: 1, borderRadius: 9, paddingHorizontal: 9, height: 26,
+                  backgroundColor: isActive ? colours.accentAlt + '18' : colours.surface,
+                  borderColor: isActive ? colours.accentAlt : colours.border,
+                }}
+                onPress={() => setMaxDistance(opt.value)}
+              >
+                {opt.value === 0 && <Ionicons name="globe-outline" size={11} color={isActive ? colours.accentAlt : colours.muted} />}
+                <Text style={{ fontSize: 11, fontWeight: '600', color: isActive ? colours.accentAlt : colours.muted }}>
+                  {language === 'fr' ? opt.label_fr : opt.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       </View>
 

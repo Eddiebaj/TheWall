@@ -46,11 +46,20 @@ function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="saved"
+        name="map"
         options={{
-          tabBarLabel: 'Saved',
+          tabBarLabel: 'Live Map',
           tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? 'star' : 'star-outline'} size={22} color={color} />
+            <Ionicons name={focused ? 'map' : 'map-outline'} size={22} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="planner"
+        options={{
+          tabBarLabel: 'Planner',
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={focused ? 'navigate' : 'navigate-outline'} size={22} color={color} />
           ),
         }}
       />
@@ -63,9 +72,10 @@ function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen name="saved" options={{ href: null }} />
       <Tabs.Screen name="discover" options={{ href: null }} />
-      <Tabs.Screen name="safety"   options={{ href: null }} />
-      <Tabs.Screen name="alerts"   options={{ href: null }} />
+      <Tabs.Screen name="safety" options={{ href: null }} />
+      <Tabs.Screen name="alerts" options={{ href: null }} />
     </Tabs>
   );
 }
