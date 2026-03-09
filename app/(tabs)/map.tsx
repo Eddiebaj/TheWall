@@ -8,7 +8,6 @@ import MapView, { Marker, Region } from 'react-native-maps';
 import { useApp } from '../../context/AppContext';
 
 const VEHICLES_URL    = 'https://routeo-backend.vercel.app/api/vehicles';
-const EBEVENTS_URL    = 'https://routeo-backend.vercel.app/api/ebevents';
 const TM_KEY          = 'pMuGA4GIB29yxOAKrDb9Vxa3tXhXpak1';
 
 const OTTAWA_REGION: Region = {
@@ -25,7 +24,7 @@ type MapEvent = {
   id: string; name: string; date: string; time?: string;
   venue: string; address?: string; url: string;
   image?: string; category?: string; free?: boolean;
-  source: 'ticketmaster' | 'eventbrite';
+  source: 'ticketmaster';
   lat?: number; lng?: number;
 };
 
@@ -92,60 +91,33 @@ const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 const fetchAllEvents = async (): Promise<MapEvent[]> => {
   if (_eventsCache && Date.now() - _eventsCacheTime < CACHE_TTL) return _eventsCache;
 
-  const [tmResp, ebResp] = await Promise.allSettled([
-    fetch(`https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TM_KEY}&city=Ottawa&countryCode=CA&size=20&sort=date,asc`),
-    fetch(EBEVENTS_URL),
-  ]);
-
   let events: MapEvent[] = [];
-
-  // Ticketmaster — coords come from API directly
-  if (tmResp.status === 'fulfilled' && tmResp.value.ok) {
-    const d = await tmResp.value.json();
-    const tmEvents: MapEvent[] = (d._embedded?.events || []).map((e: any) => ({
-      id: 'tm_' + e.id,
-      name: e.name,
-      date: e.dates?.start?.localDate || '',
-      time: e.dates?.start?.localTime?.slice(0, 5) || '',
-      venue: e._embedded?.venues?.[0]?.name || '',
-      address: e._embedded?.venues?.[0]?.address?.line1 || '',
-      url: e.url,
-      image: e.images?.find((img: any) => img.ratio === '16_9' && img.width > 500)?.url || e.images?.[0]?.url,
-      category: e.classifications?.[0]?.segment?.name,
-      source: 'ticketmaster' as const,
-      lat: parseFloat(e._embedded?.venues?.[0]?.location?.latitude),
-      lng: parseFloat(e._embedded?.venues?.[0]?.location?.longitude),
-    })).filter((e: MapEvent) => e.lat && e.lng && !isNaN(e.lat) && !isNaN(e.lng));
-    events.push(...tmEvents);
-  }
-
-  // Eventbrite — coords pre-geocoded server-side, just use them
-  if (ebResp.status === 'fulfilled' && ebResp.value.ok) {
-    const d = await ebResp.value.json();
-    const ebEvents: MapEvent[] = (d.events || [])
-      .filter((e: any) => e.lat && e.lng)
-      .map((e: any) => ({
-        id: 'eb_' + e.id,
+  try {
+    const tmResp = await fetch(`https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TM_KEY}&city=Ottawa&countryCode=CA&size=20&sort=date,asc`);
+    if (tmResp.ok) {
+      const d = await tmResp.json();
+      const tmEvents: MapEvent[] = (d._embedded?.events || []).map((e: any) => ({
+        id: 'tm_' + e.id,
         name: e.name,
-        date: e.date,
-        time: e.time,
-        venue: e.venue,
-        address: e.address,
+        date: e.dates?.start?.localDate || '',
+        time: e.dates?.start?.localTime?.slice(0, 5) || '',
+        venue: e._embedded?.venues?.[0]?.name || '',
+        address: e._embedded?.venues?.[0]?.address?.line1 || '',
         url: e.url,
-        image: e.image,
-        category: e.category,
-        free: e.free,
-        source: 'eventbrite' as const,
-        lat: e.lat,
-        lng: e.lng,
-      }));
-    events.push(...ebEvents);
-  }
-
+        image: e.images?.find((img: any) => img.ratio === '16_9' && img.width > 500)?.url || e.images?.[0]?.url,
+        category: e.classifications?.[0]?.segment?.name,
+        source: 'ticketmaster' as const,
+        lat: parseFloat(e._embedded?.venues?.[0]?.location?.latitude),
+        lng: parseFloat(e._embedded?.venues?.[0]?.location?.longitude),
+      })).filter((e: MapEvent) => e.lat && e.lng && !isNaN(e.lat) && !isNaN(e.lng));
+      events.push(...tmEvents);
+    }
+  } catch (_) {}
   _eventsCache = events;
   _eventsCacheTime = Date.now();
   return events;
 };
+
 
 export default function MapScreen() {
   const { colours, theme, t, fonts } = useApp();
