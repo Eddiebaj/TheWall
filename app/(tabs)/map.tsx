@@ -1,14 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Animated,
-  StatusBar,
-  Text, TouchableOpacity, View
+  ActivityIndicator, Animated, Dimensions, PanResponder,
+  StatusBar, Text, TouchableOpacity, View
 } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
 import { useApp } from '../../context/AppContext';
 
-const VEHICLES_URL = 'https://routeo-backend.vercel.app/api/vehicles';
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const API_KEY = 'e85c07c79cfc45f1b429ce62dcfbab30';
+const VEHICLE_POSITIONS_URL = 'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt-tp/beta/v1/VehiclePositions?format=json';
+const TRIP_UPDATES_URL = 'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt-tp/beta/v1/TripUpdates?format=json';
 
 const OTTAWA_REGION: Region = {
   latitude: 45.4215,
@@ -22,17 +24,37 @@ type Bus = {
   routeId: string;
   lat: number;
   lng: number;
-  fromStop: string;
-  toStop: string;
-  progress: number;
+  bearing?: number;
+  speed?: number;
+  tripId?: string;
+  label?: string;
+};
+
+type BusDetail = {
+  bus: Bus;
+  nextStops: { name: string; minsAway: number }[];
 };
 
 const ROUTE_COLOURS: { [key: string]: string } = {
-  '1': '#00A78D', '2': '#7b5ea7', '4': '#004890', '7': '#cc3b2a',
-  '8': '#e8a020', '14': '#004890', '16': '#00A78D', '18': '#cc3b2a',
-  '19': '#e8a020', '85': '#004890', '86': '#7b5ea7', '87': '#cc3b2a',
-  '88': '#00A78D', '91': '#004890', '95': '#cc3b2a', '96': '#e8a020',
-  '97': '#7b5ea7', '98': '#004890', '99': '#00A78D',
+  '1': '#00A78D',
+  '2': '#7b5ea7',
+  '4': '#004890',
+  '7': '#cc3b2a',
+  '8': '#e8a020',
+  '14': '#004890',
+  '16': '#00A78D',
+  '18': '#cc3b2a',
+  '19': '#e8a020',
+  '85': '#004890',
+  '86': '#7b5ea7',
+  '87': '#cc3b2a',
+  '88': '#00A78D',
+  '91': '#004890',
+  '95': '#cc3b2a',
+  '96': '#e8a020',
+  '97': '#7b5ea7',
+  '98': '#004890',
+  '99': '#00A78D',
 };
 
 const getRouteColour = (routeId: string) => {
@@ -53,14 +75,14 @@ export default function MapScreen() {
   const [buses, setBuses] = useState<Bus[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState('');
-  const [selectedBus, setSelectedBus] = useState<Bus | null>(null);
+  const [selectedBus, setSelectedBus] = useState<BusDetail | null>(null);
   const [filter, setFilter] = useState<'all' | 'lrt' | 'bus'>('all');
-  const [error, setError] = useState('');
-  
+
+  // Bottom sheet animation
   const sheetAnim = useRef(new Animated.Value(0)).current;
 
-  const showSheet = (bus: Bus) => {
-    setSelectedBus(bus);
+  const showSheet = (detail: BusDetail) => {
+    setSelectedBus(detail);
     Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
   };
 
@@ -70,27 +92,79 @@ export default function MapScreen() {
 
   const sheetTranslate = sheetAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [260, 0],
+    outputRange: [300, 0],
   });
 
   const fetchBuses = async () => {
     try {
-      const url = `${VEHICLES_URL}?t=${Date.now()}`;
-      console.log('FETCHING:', url);
-      const resp = await fetch(url, {
-  headers: { 'Accept': 'application/json' },
-});
-const data = await resp.json();
-      console.log('vehicles count:', data.count, 'array length:', data.vehicles?.length);
-      setBuses(data.vehicles || []);
-      setError('');
+      const resp = await fetch(VEHICLE_POSITIONS_URL, {
+        headers: { 'Ocp-Apim-Subscription-Key': API_KEY },
+      });
+      const data = await resp.json();
+      const entities = data?.Entity || data?.entity || [];
+      const parsed: Bus[] = [];
+
+      for (const ent of entities) {
+        const vp = ent.VehiclePosition || ent.vehicle;
+        if (!vp) continue;
+        const pos = vp.Position || vp.position;
+        const vehicle = vp.Vehicle || vp.vehicle;
+        const trip = vp.Trip || vp.trip;
+        if (!pos?.Latitude && !pos?.latitude) continue;
+
+        parsed.push({
+          id: vehicle?.Id || vehicle?.id || String(Math.random()),
+          routeId: trip?.RouteId || trip?.route_id || '?',
+          lat: pos?.Latitude || pos?.latitude,
+          lng: pos?.Longitude || pos?.longitude,
+          bearing: pos?.Bearing || pos?.bearing,
+          speed: pos?.Speed || pos?.speed,
+          tripId: trip?.TripId || trip?.trip_id,
+          label: vehicle?.Label || vehicle?.label,
+        });
+      }
+
+      setBuses(parsed);
       const now = new Date();
       setLastUpdated(`${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`);
     } catch (e) {
       console.log('Vehicle fetch error:', e);
-      setError(String(e));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchBusDetail = async (bus: Bus) => {
+    // Try to get upcoming stops from trip updates
+    try {
+      const resp = await fetch(TRIP_UPDATES_URL, {
+        headers: { 'Ocp-Apim-Subscription-Key': API_KEY },
+      });
+      const data = await resp.json();
+      const now = Math.floor(Date.now() / 1000);
+      const nextStops: { name: string; minsAway: number }[] = [];
+
+      for (const ent of (data?.Entity || [])) {
+        const tu = ent.TripUpdate;
+        if (!tu) continue;
+        const trip = tu.Trip || {};
+        if (String(trip.TripId) !== String(bus.tripId) && String(trip.RouteId) !== bus.routeId) continue;
+
+        for (const stu of (tu.StopTimeUpdate || []).slice(0, 4)) {
+          const arr = stu.Arrival || stu.Departure || {};
+          const time = parseInt(arr.Time || 0);
+          if (!time || time < now) continue;
+          nextStops.push({
+            name: String(stu.StopId),
+            minsAway: Math.max(0, Math.round((time - now) / 60)),
+          });
+        }
+        break;
+      }
+
+      showSheet({ bus, nextStops });
+    } catch {
+      showSheet({ bus, nextStops: [] });
     }
   };
 
@@ -115,6 +189,7 @@ const data = await resp.json();
     <View style={{ flex: 1, backgroundColor: colours.bg }}>
       <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
 
+      {/* Map */}
       <MapView
         ref={mapRef}
         style={{ flex: 1 }}
@@ -131,7 +206,7 @@ const data = await resp.json();
             <Marker
               key={bus.id}
               coordinate={{ latitude: bus.lat, longitude: bus.lng }}
-              onPress={() => showSheet(bus)}
+              onPress={() => fetchBusDetail(bus)}
               anchor={{ x: 0.5, y: 0.5 }}
             >
               <View style={{
@@ -158,7 +233,7 @@ const data = await resp.json();
         })}
       </MapView>
 
-      {/* Header */}
+      {/* Header overlay */}
       <View style={{
         position: 'absolute', top: 0, left: 0, right: 0,
         paddingTop: 60, paddingHorizontal: 20, paddingBottom: 12,
@@ -213,17 +288,12 @@ const data = await resp.json();
             </TouchableOpacity>
           ))}
         </View>
-
-        {/* Debug / error display */}
-       {error ? (
-  <Text style={{ fontSize: 11, color: 'red', marginTop: 6 }}>{error}</Text>
-) : null}
       </View>
 
       {/* Re-center button */}
       <TouchableOpacity
         style={{
-          position: 'absolute', bottom: selectedBus ? 260 : 110, right: 20,
+          position: 'absolute', bottom: selectedBus ? 280 : 110, right: 20,
           width: 44, height: 44, borderRadius: 22,
           backgroundColor: colours.surface,
           borderWidth: 1, borderColor: colours.border,
@@ -235,6 +305,23 @@ const data = await resp.json();
       >
         <Ionicons name="locate" size={20} color={colours.accent} />
       </TouchableOpacity>
+
+      {/* Loading overlay */}
+      {loading && (
+        <View style={{
+          position: 'absolute', bottom: 120, left: 20, right: 20,
+          backgroundColor: colours.surface, borderRadius: 14,
+          borderWidth: 1, borderColor: colours.border,
+          padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12,
+          shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8,
+          shadowOffset: { width: 0, height: 2 }, elevation: 3,
+        }}>
+          <ActivityIndicator color={colours.accent} />
+          <Text style={{ color: colours.text, fontSize: fonts.md, fontWeight: '500' }}>
+            {t('Fetching live bus positions...', 'Chargement des positions en direct...')}
+          </Text>
+        </View>
+      )}
 
       {/* Bus detail bottom sheet */}
       {selectedBus && (
@@ -248,28 +335,32 @@ const data = await resp.json();
           shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12,
           shadowOffset: { width: 0, height: -3 }, elevation: 10,
         }}>
+          {/* Handle */}
           <View style={{ alignItems: 'center', paddingTop: 12, paddingBottom: 4 }}>
             <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border }} />
           </View>
 
+          {/* Header */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <View style={{
                 width: 44, height: 44, borderRadius: 12,
-                backgroundColor: getRouteColour(selectedBus.routeId),
+                backgroundColor: getRouteColour(selectedBus.bus.routeId),
                 alignItems: 'center', justifyContent: 'center',
               }}>
                 <Text style={{ color: 'white', fontSize: 18 }}>
-                  {isLRT(selectedBus.routeId) ? '🚊' : '🚌'}
+                  {isLRT(selectedBus.bus.routeId) ? '🚊' : '🚌'}
                 </Text>
               </View>
               <View>
                 <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>
-                  {isLRT(selectedBus.routeId) ? 'O-Train' : `${t('Route', 'Route')} ${selectedBus.routeId.split('-')[0]}`}
+                  {isLRT(selectedBus.bus.routeId) ? 'O-Train' : `${t('Route', 'Route')} ${selectedBus.bus.routeId.split('-')[0]}`}
                 </Text>
-                <Text style={{ fontSize: fonts.sm, color: colours.muted }}>
-                  {t('En route', 'En route')} · {selectedBus.progress}% {t('to next stop', 'vers prochain arrêt')}
-                </Text>
+                {selectedBus.bus.label && (
+                  <Text style={{ fontSize: fonts.sm, color: colours.muted }}>
+                    {t('Vehicle', 'Véhicule')} #{selectedBus.bus.label}
+                  </Text>
+                )}
               </View>
             </View>
             <TouchableOpacity
@@ -280,26 +371,47 @@ const data = await resp.json();
             </TouchableOpacity>
           </View>
 
-          {/* Progress bar */}
-          <View style={{ paddingHorizontal: 20, paddingBottom: 16 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-              <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Stop', 'Arrêt')} #{selectedBus.fromStop}</Text>
-              <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Stop', 'Arrêt')} #{selectedBus.toStop}</Text>
-            </View>
-            <View style={{ height: 6, backgroundColor: colours.border, borderRadius: 3 }}>
-              <View style={{
-                height: 6, borderRadius: 3,
-                backgroundColor: getRouteColour(selectedBus.routeId),
-                width: `${selectedBus.progress}%` as any,
-              }} />
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
-              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colours.accent }} />
-              <Text style={{ fontSize: fonts.sm, color: colours.accent, fontWeight: '700' }}>
-                {t('Live · Updates every 15s', 'En direct · Mise à jour toutes les 15s')}
-              </Text>
+          {/* Stats row */}
+          <View style={{ flexDirection: 'row', paddingHorizontal: 20, gap: 10, marginBottom: 16 }}>
+            {selectedBus.bus.speed !== undefined && (
+              <View style={{ flex: 1, backgroundColor: colours.bg, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colours.border }}>
+                <Text style={{ fontSize: 10, color: colours.muted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>{t('Speed', 'Vitesse')}</Text>
+                <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>{Math.round((selectedBus.bus.speed || 0) * 3.6)} <Text style={{ fontSize: fonts.sm, fontWeight: '500', color: colours.muted }}>km/h</Text></Text>
+              </View>
+            )}
+            {selectedBus.bus.bearing !== undefined && (
+              <View style={{ flex: 1, backgroundColor: colours.bg, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colours.border }}>
+                <Text style={{ fontSize: 10, color: colours.muted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>{t('Heading', 'Direction')}</Text>
+                <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>{Math.round(selectedBus.bus.bearing || 0)}°</Text>
+              </View>
+            )}
+            <View style={{ flex: 1, backgroundColor: colours.accent + '12', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colours.accent + '30' }}>
+              <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>{t('Status', 'Statut')}</Text>
+              <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.accent }}>{t('Live', 'En direct')}</Text>
             </View>
           </View>
+
+          {/* Next stops */}
+          {selectedBus.nextStops.length > 0 && (
+            <View style={{ paddingHorizontal: 20 }}>
+              <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
+                {t('Upcoming Stops', 'Prochains arrêts')}
+              </Text>
+              {selectedBus.nextStops.map((stop, i) => (
+                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: i < selectedBus.nextStops.length - 1 ? 1 : 0, borderBottomColor: colours.border }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: i === 0 ? colours.accent : colours.border, borderWidth: i === 0 ? 0 : 1, borderColor: colours.muted }} />
+                    <Text style={{ fontSize: fonts.md, color: colours.text, fontWeight: i === 0 ? '700' : '400' }}>
+                      {t('Stop', 'Arrêt')} #{stop.name}
+                    </Text>
+                  </View>
+                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: i === 0 ? colours.accent : colours.muted }}>
+                    {stop.minsAway === 0 ? t('Now', 'Maint.') : `${stop.minsAway}m`}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
         </Animated.View>
       )}
     </View>
