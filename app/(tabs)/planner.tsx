@@ -7,7 +7,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, Dimensions, Keyboard, KeyboardAvoidingView,
-  Modal, Platform, ScrollView, Share, StyleSheet, Text,
+  Linking, Modal, Platform, ScrollView, Share, StyleSheet, Text,
   TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
@@ -171,6 +171,7 @@ export default function PlannerScreen() {
   const [arriveBy, setArriveBy] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [timeInputText, setTimeInputText] = useState('');
+  const [travelMode, setTravelMode] = useState<'transit' | 'driving' | 'bicycling' | 'walking'>('transit');
 
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -371,6 +372,14 @@ export default function PlannerScreen() {
 
     if (!resolvedFrom?.lat || !resolvedTo?.lat) {
       Alert.alert('Missing locations', 'Could not find one or both addresses. Try selecting from the dropdown.');
+      return;
+    }
+
+    if (travelMode !== 'transit') {
+      const origin = `${resolvedFrom.lat},${resolvedFrom.lng}`;
+      const destination = `${resolvedTo.lat},${resolvedTo.lng}`;
+      const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=${travelMode}`;
+      Linking.openURL(url);
       return;
     }
 
@@ -996,8 +1005,32 @@ export default function PlannerScreen() {
           </View>
         )}
 
-        {/* Depart at / Arrive by toggle */}
+        {/* Travel mode selector */}
         <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {([
+              { key: 'transit', icon: 'bus-outline', label: 'Transit' },
+              { key: 'driving', icon: 'car-outline', label: 'Drive' },
+              { key: 'bicycling', icon: 'bicycle-outline', label: 'Cycle' },
+              { key: 'walking', icon: 'walk-outline', label: 'Walk' },
+            ] as const).map(m => {
+              const active = travelMode === m.key;
+              return (
+                <TouchableOpacity
+                  key={m.key}
+                  onPress={() => setTravelMode(m.key)}
+                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 9, borderRadius: 12, borderWidth: 1, borderColor: active ? colours.accent : colours.border, backgroundColor: active ? colours.accent + '15' : colours.surface }}
+                >
+                  <Ionicons name={m.icon as any} size={15} color={active ? colours.accent : colours.muted} />
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: active ? colours.accent : colours.muted }}>{m.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Depart at / Arrive by toggle */}
+        {travelMode === 'transit' && <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {([false, true] as const).map(ab => {
               const active = arriveBy === ab;
@@ -1014,10 +1047,10 @@ export default function PlannerScreen() {
               );
             })}
           </View>
-        </View>
+        </View>}
 
         {/* Quick time picks */}
-        {showTimePicker && (
+        {travelMode === 'transit' && showTimePicker && (
           <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
             <View style={[{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, padding: 12 }, cardShadow]}>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -1043,7 +1076,7 @@ export default function PlannerScreen() {
           >
             {loading
               ? <ActivityIndicator color="white" size="small" />
-              : <Text style={{ color: 'white', fontWeight: '800', fontSize: 16 }}>Plan Trip</Text>
+              : <Text style={{ color: 'white', fontWeight: '800', fontSize: 16 }}>{travelMode === 'transit' ? 'Plan Trip' : 'Open in Google Maps'}</Text>
             }
           </TouchableOpacity>
         </View>
