@@ -1,11 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Notifications from 'expo-notifications';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Linking, Platform, RefreshControl,
-  ScrollView, StatusBar, StyleSheet, Switch, Text, TouchableOpacity, View,
+  ActivityIndicator, Linking, RefreshControl,
+  ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
 
@@ -23,28 +21,6 @@ type ServiceAlert = {
   link: string; pubDate: string; routes: string[]; category: string;
 };
 
-type NotifSettings = {
-  garbageDay: boolean;        // 8 pm reminder the night before collection
-  criticalAlerts: boolean;    // fire on new LRT/cancellation alerts
-  delayAlerts: boolean;       // fire on new delay alerts
-};
-
-const DEFAULT_NOTIF_SETTINGS: NotifSettings = {
-  garbageDay: true,
-  criticalAlerts: true,
-  delayAlerts: false,
-};
-
-const NOTIF_SETTINGS_KEY = 'routeo_notif_settings';
-
-// ── Notification permission helper ────────────────────────────────
-async function requestNotifPermission(): Promise<boolean> {
-  const { status: existing } = await Notifications.getPermissionsAsync();
-  if (existing === 'granted') return true;
-  const { status } = await Notifications.requestPermissionsAsync();
-  return status === 'granted';
-}
-
 // ── Main Screen ───────────────────────────────────────────────────
 export default function AlertsScreen() {
   const { colours, fonts, t, theme } = useApp();
@@ -56,32 +32,15 @@ export default function AlertsScreen() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
 
-  const [notifSettings, setNotifSettings] = useState<NotifSettings>(DEFAULT_NOTIF_SETTINGS);
-  const [notifPermission, setNotifPermission] = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
-
   const isLight = theme === 'light' || (theme === 'system' && colours.bg === '#f0f4f8');
   const cardShadow = isLight
     ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 }
     : {};
 
-  // ── Load settings ─────────────────────────────────────────────
-  useEffect(() => {
-    AsyncStorage.getItem(NOTIF_SETTINGS_KEY).then(val => {
-      if (val) setNotifSettings({ ...DEFAULT_NOTIF_SETTINGS, ...JSON.parse(val) });
-    });
-    checkPermission();
-  }, []);
-
-  const checkPermission = async () => {
-    const { status } = await Notifications.getPermissionsAsync();
-    setNotifPermission(status as any);
-  };
-
   // Refresh alerts every time the tab is focused
   useFocusEffect(
     useCallback(() => {
       fetchAlerts();
-      checkPermission();
     }, [])
   );
 
@@ -102,30 +61,6 @@ export default function AlertsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
-
-  const saveNotifSettings = async (updated: NotifSettings) => {
-    setNotifSettings(updated);
-    await AsyncStorage.setItem(NOTIF_SETTINGS_KEY, JSON.stringify(updated));
-  };
-
-  const handleToggle = async (key: keyof NotifSettings, value: boolean) => {
-    if (value && notifPermission !== 'granted') {
-      const granted = await requestNotifPermission();
-      setNotifPermission(granted ? 'granted' : 'denied');
-      if (!granted) {
-        Alert.alert(
-          'Notifications disabled',
-          'Enable notifications for RouteO in your device Settings to receive alerts.',
-          [
-            { text: 'Open Settings', onPress: () => Linking.openSettings() },
-            { text: 'Cancel', style: 'cancel' },
-          ]
-        );
-        return;
-      }
-    }
-    saveNotifSettings({ ...notifSettings, [key]: value });
   };
 
   // ── Derived data ──────────────────────────────────────────────
@@ -216,32 +151,6 @@ export default function AlertsScreen() {
     );
   };
 
-  // ── Render notification toggle row ────────────────────────────
-  const renderToggle = (
-    key: keyof NotifSettings,
-    icon: string,
-    iconColor: string,
-    label: string,
-    sublabel: string
-  ) => (
-    <View style={[styles.toggleRow, { borderBottomColor: colours.border }]}>
-      <View style={[styles.toggleIcon, { backgroundColor: iconColor + '18' }]}>
-        <Ionicons name={icon as any} size={16} color={iconColor} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{label}</Text>
-        <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>{sublabel}</Text>
-      </View>
-      <Switch
-        value={notifSettings[key]}
-        onValueChange={v => handleToggle(key, v)}
-        trackColor={{ false: colours.border, true: iconColor + '80' }}
-        thumbColor={notifSettings[key] ? iconColor : colours.muted}
-        ios_backgroundColor={colours.border}
-      />
-    </View>
-  );
-
   return (
     <View style={[styles.container, { backgroundColor: colours.bg }]}>
       <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
@@ -260,7 +169,7 @@ export default function AlertsScreen() {
         <View style={styles.header}>
           <View>
             <Text style={{ fontSize: fonts.xxl, fontWeight: '800', color: colours.text, letterSpacing: -0.5 }}>
-              Alerts <Text style={{ color: colours.accent }}>& Notifs</Text>
+              Alerts
             </Text>
             <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
               {lastUpdated ? `Updated ${lastUpdated} · Pull to refresh` : 'OC Transpo · Live'}
@@ -378,88 +287,6 @@ export default function AlertsScreen() {
           )}
         </View>
 
-        {/* ── Notifications Settings ────────────────────────── */}
-        <View style={{ paddingHorizontal: 20, marginBottom: 8 }}>
-          <Text style={[styles.sectionLabel, { color: colours.muted, fontSize: fonts.sm }]}>
-            Notifications
-          </Text>
-        </View>
-
-        {/* Permission warning */}
-        {notifPermission === 'denied' && (
-          <TouchableOpacity
-            onPress={() => Linking.openSettings()}
-            style={[styles.permBanner, { backgroundColor: '#e8a020' + '15', borderColor: '#e8a020' + '40', marginHorizontal: 20, marginBottom: 12 }]}
-          >
-            <Ionicons name="notifications-off" size={16} color="#e8a020" />
-            <Text style={{ flex: 1, fontSize: fonts.sm, color: '#e8a020', fontWeight: '600', marginLeft: 8 }}>
-              Notifications are disabled. Tap to open Settings.
-            </Text>
-            <Ionicons name="chevron-forward" size={14} color="#e8a020" />
-          </TouchableOpacity>
-        )}
-
-        {/* Toggle card */}
-        <View style={[styles.toggleCard, {
-          backgroundColor: colours.surface,
-          borderColor: colours.border,
-          marginHorizontal: 20,
-          marginBottom: 12,
-        }, cardShadow]}>
-          {renderToggle(
-            'criticalAlerts',
-            'warning',
-            '#cc3b2a',
-            'Critical Alerts',
-            'LRT disruptions & route cancellations'
-          )}
-          {renderToggle(
-            'delayAlerts',
-            'time',
-            '#e8a020',
-            'Delay Alerts',
-            'Significant delays on OC Transpo'
-          )}
-          {renderToggle(
-            'garbageDay',
-            'trash',
-            '#6b7f99',
-            'Garbage Day Reminder',
-            '8 pm reminder the evening before collection'
-          )}
-        </View>
-
-        {/* How it works */}
-        <View style={[styles.howItWorksCard, {
-          backgroundColor: colours.accent + '08',
-          borderColor: colours.accent + '25',
-          marginHorizontal: 20,
-          marginBottom: 16,
-        }]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <Ionicons name="information-circle" size={16} color={colours.accent} />
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>How trip notifications work</Text>
-          </View>
-          <Text style={{ fontSize: fonts.sm, color: colours.muted, lineHeight: 18 }}>
-            When you tap <Text style={{ fontWeight: '700', color: colours.text }}>Go</Text> in the Trip Planner, RouteO automatically schedules notifications for each bus or train leg — a heads-up 2 minutes before boarding and a reminder at departure time. Notifications stop the moment you tap Stop.
-          </Text>
-        </View>
-
-        {/* Events reminder note */}
-        <View style={[styles.howItWorksCard, {
-          backgroundColor: colours.surface,
-          borderColor: colours.border,
-          marginHorizontal: 20,
-          marginBottom: 32,
-        }, cardShadow]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <Ionicons name="ticket" size={16} color="#7b5ea7" />
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.text }}>Event reminders</Text>
-          </View>
-          <Text style={{ fontSize: fonts.sm, color: colours.muted, lineHeight: 18 }}>
-            Event reminders (day-of alerts for saved Ticketmaster or community events) are coming in a future update.
-          </Text>
-        </View>
       </ScrollView>
     </View>
   );
@@ -509,28 +336,5 @@ const styles = StyleSheet.create({
   },
   centerState: {
     alignItems: 'center', paddingVertical: 32,
-  },
-  sectionLabel: {
-    fontWeight: '700', textTransform: 'uppercase',
-    letterSpacing: 1, marginBottom: 10,
-  },
-  permBanner: {
-    flexDirection: 'row', alignItems: 'center',
-    padding: 12, borderRadius: 12, borderWidth: 1,
-  },
-  toggleCard: {
-    borderRadius: 16, borderWidth: 1, overflow: 'hidden',
-  },
-  toggleRow: {
-    flexDirection: 'row', alignItems: 'center',
-    gap: 12, paddingHorizontal: 16, paddingVertical: 14,
-    borderBottomWidth: 1,
-  },
-  toggleIcon: {
-    width: 34, height: 34, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  howItWorksCard: {
-    padding: 14, borderRadius: 14, borderWidth: 1,
   },
 });

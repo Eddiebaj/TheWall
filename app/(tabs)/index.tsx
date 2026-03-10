@@ -6,7 +6,7 @@ import * as Notifications from 'expo-notifications';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWindowDimensions } from 'react-native';
 import {
-  ActivityIndicator, Alert, FlatList, ImageBackground, Keyboard,
+  ActivityIndicator, Alert, FlatList, Image, ImageBackground, Keyboard,
   KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StatusBar,
   StyleSheet, Text, TextInput, TouchableOpacity,
   TouchableWithoutFeedback, View
@@ -14,6 +14,7 @@ import {
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
 import { useApp } from '../../context/AppContext';
+import { supabase } from '../../lib/supabase';
 import stopMap from './stopmap.json';
 import stopNameMap from './stopnamemap.json';
 import stopsearch from './stopsearch.json';
@@ -27,6 +28,10 @@ type SavedBoardItem =
   | { type: 'garbage' }
   | { type: 'service_alert' }
   | { type: 'gas_prices' }
+  | { type: 'otrain' }
+  | { type: 'services' }
+  | { type: 'discover' }
+  | { type: 'saved_team'; id: string; name: string }
   | { type: 'external_link'; id: string; label_en: string; label_fr: string; icon: string; accent: string; url: string };
 
 const API_KEY = 'e85c07c79cfc45f1b429ce62dcfbab30';
@@ -199,7 +204,7 @@ const ALL_OTTAWA_LIFE = [
 
 const DEFAULT_OTTAWA_LIFE_IDS = ['restaurant', 'cafe', 'shopping', 'events'];
 // 'map' removed from default section order
-const DEFAULT_SECTION_ORDER = ['otrain', 'saved', 'services', 'alerts', 'discover'];
+const DEFAULT_SECTION_ORDER = ['otrain', 'saved', 'services', 'gas', 'alerts', 'discover'];
 
 type ServiceTile = { id: string; label_en: string; label_fr: string; icon: string; accent: string; action: 'navigate' | 'link' | 'alert'; target?: string };
 type ServicesTab = { id: string; label_en: string; label_fr: string; icon: string; tiles: ServiceTile[] };
@@ -248,8 +253,8 @@ const SERVICES_TABS: ServicesTab[] = [
   {
     id: 'entertainment', label_en: 'Fun', label_fr: 'Divertis.', icon: 'sparkles',
     tiles: [
-      { id: 'sports',      label_en: 'Sports',       label_fr: 'Sports',        icon: 'trophy',           accent: '#c8102e', action: 'link',     target: 'https://www.nhl.com/senators' },
-      { id: 'lansdowne',   label_en: 'Lansdowne',    label_fr: 'Lansdowne',     icon: 'storefront',       accent: '#7b5ea7', action: 'link',     target: 'https://lansdowne.ca' },
+      { id: 'sports',      label_en: 'Ottawa Sports', label_fr: 'Sports Ottawa', icon: 'trophy-outline',   accent: '#c8102e', action: 'alert',    target: 'sports' },
+      { id: 'social',      label_en: 'Social',       label_fr: 'Social',        icon: 'beer',             accent: '#7b5ea7', action: 'alert',    target: 'social' },
       { id: 'tm_events',   label_en: 'Live Events',  label_fr: 'Événements',    icon: 'ticket',           accent: '#026CDF', action: 'navigate', target: '/(tabs)/events?source=ticketmaster' },
       { id: 'eb_events',   label_en: 'Community',    label_fr: 'Communauté',    icon: 'people',           accent: '#F05537', action: 'navigate', target: '/(tabs)/events?source=eventbrite' },
       { id: 'nac',         label_en: 'NAC',          label_fr: 'CNA',           icon: 'musical-notes',    accent: '#c0852a', action: 'link',     target: 'https://nac-cna.ca' },
@@ -297,19 +302,32 @@ const BIN_INFO: Record<string, { dot: string; color: string; label: string; acce
   'yard-waste':      { dot: '●', color: '#8b5a00', label: 'Yard Waste',        accepts: ['Leaves','Grass clippings','Branches (under 1.5m)','Garden plants'], rejects: ['Food waste','Soil','Rocks'] },
 };
 
+const TEAM_LOGOS: { [name: string]: any } = {
+  'Senators': require('../../assets/images/2025-01-ottawa-senators-logo.webp'),
+  'REDBLACKS': require('../../assets/images/ottawa-redblacks-logo-2023-featured.png'),
+  "67's": require('../../assets/images/Ottawa_67\'s_logo.svg.png'),
+  'Charge': require('../../assets/images/ottawa_charge_logosvg.webp'),
+  'Blackjacks': require('../../assets/images/Ottawa_Blackjacks_logo.png'),
+  'Atlético': require('../../assets/images/Atletico_Ottawa_logo.png'),
+  'Rapid FC': require('../../assets/images/Ottawa_Rapid_FC.png'),
+};
+
 // ── SavedBoardCard component ─────────────────────────────────────
-function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, cardShadow, garbageEvents, alerts }: {
+function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, cardShadow, garbageEvents, alerts, sensGame, onMoveLeft, onMoveRight }: {
   item: SavedBoardItem; colours: any; fonts: any; t: any;
   onPress: () => void; drag: () => void; isActive: boolean; cardShadow: any;
   garbageEvents: { date: string; flags: string[] }[];
   alerts: any[];
+  sensGame?: { state: 'live' | 'pre' | 'none'; period?: string; homeAbbr?: string; awayAbbr?: string; homeScore?: number; awayScore?: number; startTime?: string; opponentAbbr?: string } | null;
+  onMoveLeft?: () => void;
+  onMoveRight?: () => void;
 }) {
   const [preview, setPreview] = useState<{ routeId: string; headsign: string; minsAway: number }[]>([]);
   const [previewLoading, setPreviewLoading] = useState(true);
   const [gasPrice, setGasPrice] = useState<string | null>(null);
 
   useEffect(() => {
-    if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'external_link') { setPreviewLoading(false); return; }
+    if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'saved_team') { setPreviewLoading(false); return; }
     if (item.type === 'gas_prices') {
       setPreviewLoading(false);
       fetch(GAS_URL).then(r => r.json()).then(d => { if (d.price) setGasPrice(d.price); }).catch(() => {});
@@ -322,7 +340,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
         if (isLRT) {
           const resp = await fetch(`${BACKEND_URL}?stop=${item.id}`);
           const data = await resp.json();
-          if (!cancelled) setPreview((data.arrivals || []).slice(0, 2).map((a: any) => ({ routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway })));
+          if (!cancelled) setPreview((data.arrivals || []).slice(0, 3).map((a: any) => ({ routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway })));
         } else {
           const resp = await fetch(TRIP_UPDATES, { headers: { 'Ocp-Apim-Subscription-Key': API_KEY } });
           const data = await resp.json();
@@ -341,7 +359,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
               results.push({ routeId: trip.RouteId || '?', headsign: getHeadsign(String(trip.TripId || '')), minsAway: Math.max(0, Math.round(secsAway / 60)) });
             }
           }
-          if (!cancelled) setPreview(results.sort((a, b) => a.minsAway - b.minsAway).slice(0, 2));
+          if (!cancelled) setPreview(results.sort((a, b) => a.minsAway - b.minsAway).slice(0, 3));
         }
       } catch { if (!cancelled) setPreview([]); }
       finally { if (!cancelled) setPreviewLoading(false); }
@@ -443,6 +461,98 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
     );
   }
 
+  // ── O-Train card ──
+  if (item.type === 'otrain') {
+    return (
+      <ScaleDecorator>
+      <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: colours.lrt + '18', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="train" size={12} color={colours.lrt} />
+          </View>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>O-Train</Text>
+        </View>
+        <View style={{ gap: 4 }}>
+          <Text style={{ fontSize: 13, fontWeight: '800', color: colours.lrt }}>Line 1 & 2</Text>
+          <Text style={{ fontSize: 10, color: colours.muted }}>Confederation & Trillium Lines</Text>
+        </View>
+        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>Tap to view stations →</Text>
+      </TouchableOpacity>
+      </ScaleDecorator>
+    );
+  }
+
+  // ── Services card ──
+  if (item.type === 'services') {
+    return (
+      <ScaleDecorator>
+      <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="grid" size={12} color={colours.accent} />
+          </View>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Services</Text>
+        </View>
+        <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }}>Ottawa Services</Text>
+        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>Tap to view all →</Text>
+      </TouchableOpacity>
+      </ScaleDecorator>
+    );
+  }
+
+  // ── Discover card ──
+  if (item.type === 'discover') {
+    return (
+      <ScaleDecorator>
+      <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#e8a02018', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="compass" size={12} color="#e8a020" />
+          </View>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Discover</Text>
+        </View>
+        <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }}>Discover Ottawa</Text>
+        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>Tap to explore →</Text>
+      </TouchableOpacity>
+      </ScaleDecorator>
+    );
+  }
+
+  // ── Saved Team card ──
+  if (item.type === 'saved_team') {
+    const teamLogo = TEAM_LOGOS[item.name];
+    const isSens = item.name === 'Senators';
+    const sg = isSens ? sensGame : null;
+    return (
+      <ScaleDecorator>
+      <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          {sg?.state === 'live' && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#cc3b2a' }} />
+              <Text style={{ fontSize: 9, fontWeight: '800', color: '#cc3b2a', letterSpacing: 0.5 }}>LIVE · {sg.period}</Text>
+            </View>
+          )}
+          {teamLogo ? (
+            <Image source={teamLogo} style={{ width: sg ? 48 : 64, height: sg ? 48 : 64 }} resizeMode="contain" />
+          ) : (
+            <View style={{ width: 64, height: 64, borderRadius: 16, backgroundColor: '#c8102e18', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="trophy" size={26} color="#c8102e" />
+            </View>
+          )}
+        </View>
+        <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text, textAlign: 'center' }} numberOfLines={1}>{item.name}</Text>
+        {sg?.state === 'live' && (
+          <Text style={{ fontSize: 11, fontWeight: '800', color: colours.text, textAlign: 'center', marginTop: 2 }}>{sg.homeAbbr} {sg.homeScore} · {sg.awayAbbr} {sg.awayScore}</Text>
+        )}
+        {sg?.state === 'pre' && (
+          <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted, textAlign: 'center', marginTop: 2 }} numberOfLines={1}>Tonight vs {sg.opponentAbbr} · {sg.startTime}</Text>
+        )}
+      </TouchableOpacity>
+      </ScaleDecorator>
+    );
+  }
+
   // ── External link card (Skip, Uber, Senators, etc.) ──
   if (item.type === 'external_link') {
     const label = t(item.label_en, item.label_fr);
@@ -469,30 +579,44 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   return (
     <ScaleDecorator>
     <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
-          <Ionicons name={isLRT ? 'train' : 'bus'} size={12} color={isLRT ? colours.lrt : colours.accent} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name={isLRT ? 'train' : 'bus'} size={12} color={isLRT ? colours.lrt : colours.accent} />
+          </View>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            {isLRT ? 'O-Train' : t('Stop', 'Arrêt')}
+          </Text>
         </View>
-        <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-          {isLRT ? 'O-Train' : t('Stop', 'Arrêt')}
-        </Text>
+        <View style={{ flexDirection: 'row', gap: 2 }}>
+          {onMoveLeft && (
+            <Pressable onPress={onMoveLeft} hitSlop={6} style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: colours.border + '80', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="chevron-back" size={12} color={colours.muted} />
+            </Pressable>
+          )}
+          {onMoveRight && (
+            <Pressable onPress={onMoveRight} hitSlop={6} style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: colours.border + '80', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="chevron-forward" size={12} color={colours.muted} />
+            </Pressable>
+          )}
+        </View>
       </View>
       <Text style={{ fontSize: 14, fontWeight: '800', color: colours.text, lineHeight: 18 }} numberOfLines={2}>{item.name}</Text>
-      <View style={{ gap: 5 }}>
+      <View style={{ gap: 4 }}>
         {previewLoading ? (
           <ActivityIndicator size="small" color={colours.accent} />
         ) : preview.length === 0 ? (
           <Text style={{ fontSize: 11, color: colours.muted }}>{t('No arrivals', 'Aucune arrivée')}</Text>
         ) : (
           preview.map((a, i) => (
-            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-              <View style={{ backgroundColor: colours.accent + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, minWidth: 28, alignItems: 'center' }}>
+            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <View style={{ backgroundColor: colours.accent + '18', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, minWidth: 26, alignItems: 'center' }}>
                 <Text style={{ fontSize: 10, fontWeight: '800', color: colours.accent }}>{a.routeId.split('-')[0]}</Text>
               </View>
-              <Text style={{ fontSize: 11, color: colours.muted, flex: 1 }} numberOfLines={1}>{a.headsign ? `→ ${a.headsign}` : ''}</Text>
-              <Text style={{ fontSize: 12, fontWeight: '800', color: a.minsAway <= 2 ? colours.red : colours.accent }}>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: a.minsAway <= 2 ? colours.red : colours.accent }}>
                 {a.minsAway === 0 ? t('Now', 'Maint.') : `${a.minsAway}m`}
               </Text>
+              <Text style={{ fontSize: 10, color: colours.muted, flex: 1 }} numberOfLines={1}>{a.headsign || ''}</Text>
             </View>
           ))
         )}
@@ -611,6 +735,277 @@ function GasPricesExpanded({ colours, fonts }: { colours: any; fonts: any }) {
         </View>
       )}
     </ScrollView>
+  );
+}
+
+// ── Gas Prices Types ─────────────────────────────────────────────
+type GasReport = {
+  id: string;
+  station_name: string;
+  address: string | null;
+  price_per_litre: number;
+  fuel_type: string;
+  reported_at: string;
+  confirmed_count: number;
+  disputed_count: number;
+};
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+// ── GasPricesWidget ──────────────────────────────────────────────
+function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBoard }: { colours: any; fonts: any; t: (en: string, fr: string) => string; cardShadow: any; isBoardSaved: boolean; toggleBoard: () => void }) {
+  const [reports, setReports] = useState<GasReport[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [reportModal, setReportModal] = useState(false);
+  const [stationQuery, setStationQuery] = useState('');
+  const [stationName, setStationName] = useState('');
+  const [stationAddress, setStationAddress] = useState('');
+  const [stationLat, setStationLat] = useState<number | null>(null);
+  const [stationLng, setStationLng] = useState<number | null>(null);
+  const [stationResults, setStationResults] = useState<{ label: string; lat?: number; lng?: number }[]>([]);
+  const stationSeq = useRef(0);
+  const [price, setPrice] = useState('');
+  const [fuelType, setFuelType] = useState<'regular' | 'premium' | 'diesel'>('regular');
+  const [submitting, setSubmitting] = useState(false);
+  const [votedIds, setVotedIds] = useState<Set<string>>(new Set());
+
+  const fetchReports = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from('gas_prices')
+      .select('*')
+      .order('reported_at', { ascending: false })
+      .limit(3);
+    setReports(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchReports(); }, []);
+
+  const handleStationSearch = (text: string) => {
+    setStationQuery(text);
+    setStationName(''); setStationAddress(''); setStationLat(null); setStationLng(null);
+    if (text.length < 2) { setStationResults([]); return; }
+    const seq = ++stationSeq.current;
+    fetch(`https://routeo-backend.vercel.app/api/geocode?input=${encodeURIComponent(text)}`)
+      .then(r => r.json())
+      .then(d => { if (seq === stationSeq.current) setStationResults((d.results || []).filter((r: any) => r.label).slice(0, 4)); })
+      .catch(() => {});
+  };
+
+  const selectStation = (result: { label: string; lat?: number; lng?: number }) => {
+    const parts = result.label.split(',');
+    const name = parts[0].trim();
+    const addr = parts.length > 1 ? result.label : '';
+    setStationQuery(name);
+    setStationName(name);
+    setStationAddress(addr);
+    setStationLat(result.lat || null);
+    setStationLng(result.lng || null);
+    setStationResults([]);
+  };
+
+  const handleSubmit = async () => {
+    const priceNum = parseFloat(price);
+    if (!stationName.trim() || isNaN(priceNum) || priceNum <= 0) {
+      Alert.alert(t('Missing info', 'Info manquante'), t('Select a station and enter a valid price.', 'Sélectionnez une station et entrez un prix valide.'));
+      return;
+    }
+    setSubmitting(true);
+    await supabase.from('gas_prices').insert({
+      station_name: stationName.trim(),
+      address: stationAddress || null,
+      lat: stationLat,
+      lng: stationLng,
+      price_per_litre: priceNum,
+      fuel_type: fuelType,
+    });
+    setStationQuery(''); setStationName(''); setStationAddress(''); setStationLat(null); setStationLng(null);
+    setPrice(''); setFuelType('regular');
+    setSubmitting(false); setReportModal(false);
+    fetchReports();
+  };
+
+  const handleVote = async (id: string, type: 'confirm' | 'dispute') => {
+    if (votedIds.has(id)) return;
+    setVotedIds(prev => new Set(prev).add(id));
+    const col = type === 'confirm' ? 'confirmed_count' : 'disputed_count';
+    const report = reports.find(r => r.id === id);
+    if (!report) return;
+    await supabase.from('gas_prices').update({ [col]: (report[col] || 0) + 1 }).eq('id', id);
+    setReports(prev => prev.map(r => r.id === id ? { ...r, [col]: (r[col] || 0) + 1 } : r));
+  };
+
+  const FUEL_TYPES: { key: 'regular' | 'premium' | 'diesel'; label: string }[] = [
+    { key: 'regular', label: 'Regular' },
+    { key: 'premium', label: 'Premium' },
+    { key: 'diesel', label: 'Diesel' },
+  ];
+
+  return (
+    <>
+      <View style={[{ marginHorizontal: 20, borderRadius: 16, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, overflow: 'hidden', marginBottom: 16 }, cardShadow]}>
+        {/* Header */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#00A78D18', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="speedometer" size={16} color="#00A78D" />
+            </View>
+            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('GAS PRICES', 'PRIX ESSENCE')}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <TouchableOpacity onPress={toggleBoard} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name={isBoardSaved ? 'bookmark' : 'bookmark-outline'} size={18} color={isBoardSaved ? colours.accent : colours.muted} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setReportModal(true)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, backgroundColor: '#00A78D' + '15', borderWidth: 1, borderColor: '#00A78D' }}
+            >
+              <Ionicons name="add-circle" size={14} color="#00A78D" />
+              <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: '#00A78D' }}>{t('Report', 'Signaler')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Content */}
+        {loading ? (
+          <View style={{ padding: 32, alignItems: 'center' }}>
+            <ActivityIndicator color={colours.accent} />
+          </View>
+        ) : reports.length === 0 ? (
+          <View style={{ padding: 32, alignItems: 'center' }}>
+            <Ionicons name="speedometer-outline" size={36} color={colours.muted} />
+            <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.muted, marginTop: 10, textAlign: 'center' }}>
+              {t('Be the first to report a price in Ottawa', 'Soyez le premier à signaler un prix à Ottawa')}
+            </Text>
+          </View>
+        ) : (
+          reports.map((r, i) => {
+            const voted = votedIds.has(r.id);
+            return (
+              <View key={r.id} style={{ borderTopWidth: i > 0 ? 1 : 0, borderTopColor: colours.border }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }} numberOfLines={1}>{r.station_name}</Text>
+                    <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
+                      {r.fuel_type.charAt(0).toUpperCase() + r.fuel_type.slice(1)} · {timeAgo(r.reported_at)}
+                    </Text>
+                  </View>
+                  <Text style={{ fontSize: 20, fontWeight: '900', color: '#00A78D' }}>
+                    {(r.price_per_litre * 100).toFixed(1)}¢
+                  </Text>
+                </View>
+                {/* Vote row */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 14, paddingBottom: 12 }}>
+                  <TouchableOpacity
+                    onPress={() => handleVote(r.id, 'confirm')}
+                    disabled={voted}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, opacity: voted ? 0.5 : 1 }}
+                  >
+                    <Ionicons name="thumbs-up-outline" size={14} color="#34c759" />
+                    <Text style={{ fontSize: 12, color: '#34c759', fontWeight: '600' }}>{r.confirmed_count}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => handleVote(r.id, 'dispute')}
+                    disabled={voted}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, opacity: voted ? 0.5 : 1 }}
+                  >
+                    <Ionicons name="thumbs-down-outline" size={14} color="#cc3b2a" />
+                    <Text style={{ fontSize: 12, color: '#cc3b2a', fontWeight: '600' }}>{r.disputed_count}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          })
+        )}
+      </View>
+
+      {/* Report Modal */}
+      <Modal visible={reportModal} animationType="slide" transparent onRequestClose={() => setReportModal(false)}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+            <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40 }}>
+              <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 4 }} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+                <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text }}>{t('Report Gas Price', 'Signaler un prix')}</Text>
+                <TouchableOpacity style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, alignItems: 'center', justifyContent: 'center' }} onPress={() => setReportModal(false)}>
+                  <Ionicons name="close" size={18} color={colours.text} />
+                </TouchableOpacity>
+              </View>
+              <View style={{ padding: 20, gap: 14 }}>
+                <View style={{ zIndex: 10 }}>
+                  <TextInput
+                    placeholder={t('Search gas station...', 'Chercher une station...')}
+                    placeholderTextColor={colours.muted}
+                    value={stationQuery}
+                    onChangeText={handleStationSearch}
+                    style={{ borderWidth: 1, borderColor: stationName ? '#00A78D' : colours.border, borderRadius: 12, padding: 14, fontSize: fonts.md, color: colours.text, backgroundColor: colours.surface }}
+                  />
+                  {stationName ? (
+                    <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 4, marginLeft: 4 }} numberOfLines={1}>{stationAddress}</Text>
+                  ) : null}
+                  {stationResults.length > 0 && (
+                    <View style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 12, marginTop: 6, overflow: 'hidden', backgroundColor: colours.surface }}>
+                      {stationResults.map((r, i) => (
+                        <TouchableOpacity
+                          key={i}
+                          onPress={() => selectStation(r)}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: i < stationResults.length - 1 ? 1 : 0, borderBottomColor: colours.border }}
+                        >
+                          <Ionicons name="location-outline" size={16} color={colours.muted} />
+                          <Text style={{ flex: 1, fontSize: fonts.md, color: colours.text }} numberOfLines={1}>{r.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+                <TextInput
+                  placeholder={t('Price per litre (e.g. 1.689)', 'Prix par litre (ex. 1.689)')}
+                  placeholderTextColor={colours.muted}
+                  value={price}
+                  onChangeText={setPrice}
+                  keyboardType="decimal-pad"
+                  style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 12, padding: 14, fontSize: fonts.md, color: colours.text, backgroundColor: colours.surface }}
+                />
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {FUEL_TYPES.map(ft => (
+                    <TouchableOpacity
+                      key={ft.key}
+                      onPress={() => setFuelType(ft.key)}
+                      style={{
+                        flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 12, borderWidth: 1,
+                        backgroundColor: fuelType === ft.key ? '#00A78D' + '18' : colours.surface,
+                        borderColor: fuelType === ft.key ? '#00A78D' : colours.border,
+                      }}
+                    >
+                      <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: fuelType === ft.key ? '#00A78D' : colours.muted }}>{ft.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TouchableOpacity
+                  onPress={handleSubmit}
+                  disabled={submitting}
+                  style={{ backgroundColor: '#00A78D', borderRadius: 12, paddingVertical: 14, alignItems: 'center', opacity: submitting ? 0.6 : 1 }}
+                >
+                  {submitting
+                    ? <ActivityIndicator color="white" />
+                    : <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.lg }}>{t('Submit Price', 'Soumettre le prix')}</Text>
+                  }
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+    </>
   );
 }
 
@@ -814,6 +1209,20 @@ export default function LiveScreen() {
   const [eventsUserCoords, setEventsUserCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [eventsGeoCache, setEventsGeoCache] = useState<{ [addr: string]: { lat: number; lng: number } }>({});
   const [garbageModalVisible, setGarbageModalVisible] = useState(false);
+  const [sportsModal, setSportsModal] = useState(false);
+  const [sportsTab, setSportsTab] = useState<'teams' | 'scores' | 'schedule'>('teams');
+  const [socialModal, setSocialModal] = useState(false);
+  const [socialTab, setSocialTab] = useState<'all' | 'bars' | 'restaurants' | 'clubs'>('all');
+  const [socialFeedbackVenue, setSocialFeedbackVenue] = useState<string | null>(null);
+  const [socialFeedbackText, setSocialFeedbackText] = useState('');
+  const [socialFeedbackSent, setSocialFeedbackSent] = useState(false);
+  const [socialFeedbackSending, setSocialFeedbackSending] = useState(false);
+  const [savedTeams, setSavedTeams] = useState<string[]>([]);
+  const [sportsScores, setSportsScores] = useState<any[]>([]);
+  const [sportsScoresLoading, setSportsScoresLoading] = useState(false);
+  const [sportsSchedule, setSportsSchedule] = useState<any[]>([]);
+  const [sportsScheduleLoading, setSportsScheduleLoading] = useState(false);
+  const [sensGame, setSensGame] = useState<{ state: 'live' | 'pre' | 'none'; period?: string; homeAbbr?: string; awayAbbr?: string; homeScore?: number; awayScore?: number; startTime?: string; opponentAbbr?: string } | null>(null);
   const [garbageAddress, setGarbageAddress] = useState('');
   const [garbageAddressInput, setGarbageAddressInput] = useState('');
   const [garbagePlaceId, setGarbagePlaceId] = useState('');
@@ -826,6 +1235,55 @@ export default function LiveScreen() {
   const isLight = theme === 'light' || (theme === 'system' && colours.bg === '#f0f4f8');
   const cardShadow = isLight ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 } : {};
 
+  // ── TEMP DEBUG: log raw NHL schedule API ──
+  useEffect(() => {
+    fetch('https://api-web.nhle.com/v1/schedule/now')
+      .then(r => r.json())
+      .then(d => {
+        const today = new Date().toLocaleDateString('en-CA');
+        const todayEntry = (d.gameWeek || []).find((w: any) => w.date === today);
+        const games = todayEntry?.games || [];
+        console.log('NHL DEBUG today:', today, 'games count:', games.length);
+        games.forEach((g: any, i: number) => console.log(`NHL GAME ${i}:`, g.awayTeam?.abbrev, '@', g.homeTeam?.abbrev, 'state:', g.gameState, 'start:', g.startTimeUTC));
+        const sensGame = games.find((g: any) => g.awayTeam?.abbrev === 'OTT' || g.homeTeam?.abbrev === 'OTT');
+        console.log('NHL SENS MATCH:', sensGame ? JSON.stringify(sensGame) : 'NOT FOUND');
+      })
+      .catch(e => console.log('NHL API ERROR:', e.message));
+  }, []);
+
+  // ── Fetch Senators live game for board card ──
+  useEffect(() => {
+    const fetchSensGame = async () => {
+      try {
+        const resp = await fetch('https://api-web.nhle.com/v1/schedule/now');
+        const data = await resp.json();
+        const today = new Date().toLocaleDateString('en-CA');
+        const todayEntry = (data.gameWeek || []).find((d: any) => d.date === today);
+        const game = (todayEntry?.games || []).find((g: any) => g.awayTeam?.abbrev === 'OTT' || g.homeTeam?.abbrev === 'OTT');
+        if (!game) { setSensGame({ state: 'none' }); return; }
+        const gs = game.gameState;
+        const homeAbbr = game.homeTeam?.abbrev || '?';
+        const awayAbbr = game.awayTeam?.abbrev || '?';
+        const isHome = homeAbbr === 'OTT';
+        const opponentAbbr = isHome ? awayAbbr : homeAbbr;
+        if (gs === 'LIVE' || gs === 'CRIT') {
+          const periodNum = game.period || 0;
+          const periodLabel = periodNum === 1 ? '1st' : periodNum === 2 ? '2nd' : periodNum === 3 ? '3rd' : 'OT';
+          setSensGame({ state: 'live', period: periodLabel, homeAbbr, awayAbbr, homeScore: game.homeTeam?.score ?? 0, awayScore: game.awayTeam?.score ?? 0, opponentAbbr });
+        } else if (gs === 'FINAL') {
+          setSensGame({ state: 'live', period: 'Final', homeAbbr, awayAbbr, homeScore: game.homeTeam?.score ?? 0, awayScore: game.awayTeam?.score ?? 0, opponentAbbr });
+        } else {
+          // FUT, PRE, OFF, or any other state = scheduled/pre-game
+          const startTime = new Date(game.startTimeUTC).toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' });
+          setSensGame({ state: 'pre', opponentAbbr, startTime });
+        }
+      } catch { setSensGame({ state: 'none' }); }
+    };
+    fetchSensGame();
+    const interval = setInterval(fetchSensGame, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     AsyncStorage.getItem('routeo_favs').then(val => {
       const savedFavs: Fav[] = val ? JSON.parse(val) : [];
@@ -834,6 +1292,7 @@ export default function LiveScreen() {
       else fetchArrivals('CD995');
     });
     AsyncStorage.getItem('routeo_saved_places').then(val => { if (val) setSavedPlaces(JSON.parse(val)); });
+    AsyncStorage.getItem('routeo_saved_teams').then(val => { if (val) setSavedTeams(JSON.parse(val)); });
     AsyncStorage.getItem('routeo_saved_routes').then(val => { if (val) setSavedRoutes(JSON.parse(val)); });
     Promise.all([
       AsyncStorage.getItem('routeo_saved_board'),
@@ -929,8 +1388,9 @@ export default function LiveScreen() {
     setSavedBoard(prev => {
       const exists = prev.some(i => {
         if (i.type !== item.type) return false;
-        if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'gas_prices') return true;
+        if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'gas_prices' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover') return true;
         if ((item.type === 'bus_stop' || item.type === 'lrt_station') && (i.type === 'bus_stop' || i.type === 'lrt_station')) return i.id === item.id;
+        if (item.type === 'saved_team' && i.type === 'saved_team') return i.id === item.id;
         if (item.type === 'external_link' && i.type === 'external_link') return i.id === item.id;
         return false;
       });
@@ -945,8 +1405,9 @@ export default function LiveScreen() {
     setSavedBoard(prev => {
       const updated = prev.filter(i => {
         if (i.type !== item.type) return true;
-        if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'gas_prices') return false;
+        if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'gas_prices' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover') return false;
         if ((item.type === 'bus_stop' || item.type === 'lrt_station') && (i.type === 'bus_stop' || i.type === 'lrt_station')) return i.id !== item.id;
+        if (item.type === 'saved_team' && i.type === 'saved_team') return i.id !== item.id;
         if (item.type === 'external_link' && i.type === 'external_link') return i.id !== item.id;
         return true;
       });
@@ -959,6 +1420,10 @@ export default function LiveScreen() {
     if (item.type === 'garbage') return savedBoard.some(i => i.type === 'garbage');
     if (item.type === 'service_alert') return savedBoard.some(i => i.type === 'service_alert');
     if (item.type === 'gas_prices') return savedBoard.some(i => i.type === 'gas_prices');
+    if (item.type === 'otrain') return savedBoard.some(i => i.type === 'otrain');
+    if (item.type === 'services') return savedBoard.some(i => i.type === 'services');
+    if (item.type === 'discover') return savedBoard.some(i => i.type === 'discover');
+    if (item.type === 'saved_team') return savedBoard.some(i => i.type === 'saved_team' && i.id === item.id);
     if (item.type === 'external_link') return savedBoard.some(i => i.type === 'external_link' && i.id === item.id);
     return savedBoard.some(i => (i.type === 'bus_stop' || i.type === 'lrt_station') && i.id === item.id);
   };
@@ -967,6 +1432,9 @@ export default function LiveScreen() {
     if (tile.id === 'garbage') return { type: 'garbage' };
     if (tile.id === 'svc_alerts') return { type: 'service_alert' };
     if (tile.id === 'gas') return { type: 'gas_prices' };
+    if (tile.id === 'otrain') return { type: 'otrain' };
+    if (tile.id === 'services') return { type: 'services' };
+    if (tile.id === 'discover') return { type: 'discover' };
     if (tile.action === 'navigate') return null;
     return {
       type: 'external_link',
@@ -1189,7 +1657,7 @@ export default function LiveScreen() {
       const allEvents = data.events || [];
       setEvents(allEvents);
       // Store today's events with addresses for the map tab
-      const today = new Date().toISOString().split('T')[0];
+      const today = new Date().toLocaleDateString('en-CA');
       const todayEvents = allEvents.filter((e: any) => e.date === today && e.address);
       AsyncStorage.setItem('routeo_today_events', JSON.stringify(todayEvents));
     } catch { setEvents([]); }
@@ -1354,6 +1822,8 @@ export default function LiveScreen() {
   };
 
   const handleServiceTile = (tile: ServiceTile) => {
+    if (tile.action === 'alert' && tile.target === 'sports') { setSportsModal(true); return; }
+    if (tile.action === 'alert' && tile.target === 'social') { setSocialModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'garbage') { setGarbageModalVisible(true); return; }
     if (tile.action === 'alert' && tile.target === '511events') { fetch511Events(); setRoadEventsModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'parks') { fetchParks(); setParksModal(true); return; }
@@ -1384,6 +1854,618 @@ export default function LiveScreen() {
     setAddressSaved(true);
     addToBoardIfMissing({ type: 'garbage' });
   };
+
+  // ── Sports Modal ────────────────────────────────────────────
+  const OTTAWA_TEAMS: { name: string; png: any; url: string; nhl?: string; espn?: { sport: string; league: string; abbr: string } }[] = [
+    { name: 'Senators',   png: require('../../assets/images/2025-01-ottawa-senators-logo.webp'), url: 'https://www.ticketmaster.ca/ottawa-senators-tickets/artist/806004', nhl: 'ott' },
+    { name: 'REDBLACKS',  png: require('../../assets/images/ottawa-redblacks-logo-2023-featured.png'), url: 'https://www.ticketmaster.ca/ottawa-redblacks-tickets/artist/1537798', espn: { sport: 'football', league: 'cfl', abbr: 'ORB' } },
+    { name: "67's",       png: require('../../assets/images/Ottawa_67\'s_logo.svg.png'), url: 'https://ontariohockeyleague.com/team/30/ottawa-67s' },
+    { name: 'Charge',     png: require('../../assets/images/ottawa_charge_logosvg.webp'), url: 'https://thepwhl.com/en/stats/team/10' },
+    { name: 'Blackjacks', png: require('../../assets/images/Ottawa_Blackjacks_logo.png'), url: 'https://cebl.ca/team/ottawa-blackjacks' },
+    { name: 'Atlético',   png: require('../../assets/images/Atletico_Ottawa_logo.png'), url: 'https://atletico.ca/schedule' },
+    { name: 'Rapid FC',   png: require('../../assets/images/Ottawa_Rapid_FC.png'), url: 'https://ottawarapidfc.com/schedule' },
+  ];
+
+  const SPORTS_MODAL_TABS = [
+    { id: 'teams' as const, label_en: 'Teams', label_fr: 'Équipes', icon: 'people' },
+    { id: 'scores' as const, label_en: 'Scores', label_fr: 'Scores', icon: 'football' },
+    { id: 'schedule' as const, label_en: 'Schedule', label_fr: 'Calendrier', icon: 'calendar' },
+  ];
+
+  const toggleSavedTeam = (name: string) => {
+    const team = OTTAWA_TEAMS.find(t => t.name === name);
+    const boardItem: SavedBoardItem = { type: 'saved_team', id: name, name };
+    const removing = savedTeams.includes(name);
+    setSavedTeams(prev => {
+      const updated = removing ? prev.filter(n => n !== name) : [...prev, name];
+      AsyncStorage.setItem('routeo_saved_teams', JSON.stringify(updated));
+      return updated;
+    });
+    if (removing) {
+      removeFromBoard(boardItem);
+    } else {
+      addToBoardIfMissing(boardItem);
+    }
+  };
+
+  const fetchSportsScores = async () => {
+    setSportsScoresLoading(true);
+    const results: any[] = [];
+    const teamsToFetch = OTTAWA_TEAMS.filter(t => t.nhl || t.espn);
+    for (const team of teamsToFetch) {
+      try {
+        if (team.nhl) {
+          // NHL Schedule API
+          const resp = await fetch('https://api-web.nhle.com/v1/schedule/now');
+          const data = await resp.json();
+          const today = new Date().toLocaleDateString('en-CA');
+          const todayEntry = (data.gameWeek || []).find((d: any) => d.date === today);
+          const game = (todayEntry?.games || []).find((g: any) => g.awayTeam?.abbrev === team.nhl!.toUpperCase() || g.homeTeam?.abbrev === team.nhl!.toUpperCase());
+          if (game) {
+            const gs = game.gameState;
+            const state = (gs === 'LIVE' || gs === 'CRIT') ? 'in' : gs === 'FINAL' ? 'post' : 'pre';
+            const startTime = new Date(game.startTimeUTC).toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' });
+            results.push({
+              team: team.name,
+              homeName: game.homeTeam?.placeName?.default || game.homeTeam?.abbrev || '?',
+              homeAbbr: game.homeTeam?.abbrev || '?',
+              homeScore: state === 'pre' ? '-' : String(game.homeTeam?.score ?? '0'),
+              awayName: game.awayTeam?.placeName?.default || game.awayTeam?.abbrev || '?',
+              awayAbbr: game.awayTeam?.abbrev || '?',
+              awayScore: state === 'pre' ? '-' : String(game.awayTeam?.score ?? '0'),
+              status: state === 'in' ? `P${game.period || '?'} · ${game.clock || ''}` : state === 'post' ? (game.periodDescriptor?.periodType === 'OT' ? 'Final/OT' : game.periodDescriptor?.periodType === 'SO' ? 'Final/SO' : 'Final') : startTime,
+              state,
+            });
+          } else {
+            results.push({ team: team.name, noGame: true });
+          }
+        } else if (team.espn) {
+          // ESPN API
+          const resp = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${team.espn.sport}/${team.espn.league}/scoreboard`);
+          const data = await resp.json();
+          const game = (data.events || []).find((ev: any) =>
+            (ev.competitions?.[0]?.competitors || []).some((c: any) => c.team?.abbreviation === team.espn!.abbr)
+          );
+          if (game) {
+            const comp = game.competitions[0];
+            const home = comp.competitors.find((c: any) => c.homeAway === 'home');
+            const away = comp.competitors.find((c: any) => c.homeAway === 'away');
+            const state = comp.status?.type?.state;
+            results.push({
+              team: team.name,
+              homeName: home?.team?.displayName || '?',
+              homeAbbr: home?.team?.abbreviation || '?',
+              homeScore: home?.score || '0',
+              awayName: away?.team?.displayName || '?',
+              awayAbbr: away?.team?.abbreviation || '?',
+              awayScore: away?.score || '0',
+              status: comp.status?.type?.shortDetail || comp.status?.type?.description || '',
+              state,
+            });
+          } else {
+            results.push({ team: team.name, noGame: true });
+          }
+        }
+      } catch {
+        results.push({ team: team.name, noGame: true });
+      }
+    }
+    setSportsScores(results);
+    setSportsScoresLoading(false);
+  };
+
+  const fetchSportsSchedule = async () => {
+    setSportsScheduleLoading(true);
+    const results: any[] = [];
+    const teamsToFetch = OTTAWA_TEAMS.filter(t => t.nhl || t.espn);
+    for (const team of teamsToFetch) {
+      try {
+        if (team.nhl) {
+          // NHL API
+          const resp = await fetch(`https://api-web.nhle.com/v1/club-schedule-season/${team.nhl}/now`);
+          const data = await resp.json();
+          const now = new Date();
+          const upcoming = (data.games || [])
+            .filter((g: any) => new Date(g.startTimeUTC) > now && (g.gameState === 'FUT' || g.gameState === 'PRE'))
+            .slice(0, 5)
+            .map((g: any) => {
+              const isHome = g.homeTeam?.abbrev?.toLowerCase() === team.nhl;
+              const opp = isHome ? g.awayTeam : g.homeTeam;
+              return {
+                date: g.startTimeUTC,
+                opponent: opp?.name?.default || opp?.commonName?.default || '?',
+                opponentAbbr: opp?.abbrev || '?',
+                homeAway: isHome ? 'vs' : '@',
+                status: '',
+              };
+            });
+          results.push({ team: team.name, games: upcoming });
+        } else if (team.espn) {
+          // ESPN API
+          const resp = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${team.espn.sport}/${team.espn.league}/teams/${team.espn.abbr}/schedule`);
+          const data = await resp.json();
+          const now = new Date();
+          const upcoming = (data.events || [])
+            .filter((ev: any) => new Date(ev.date) > now)
+            .slice(0, 5)
+            .map((ev: any) => {
+              const comp = ev.competitions?.[0];
+              const us = (comp?.competitors || []).find((c: any) => c.team?.abbreviation === team.espn!.abbr);
+              const them = (comp?.competitors || []).find((c: any) => c.team?.abbreviation !== team.espn!.abbr);
+              return {
+                date: ev.date,
+                opponent: them?.team?.displayName || '?',
+                opponentAbbr: them?.team?.abbreviation || '?',
+                homeAway: us?.homeAway === 'home' ? 'vs' : '@',
+                status: comp?.status?.type?.description || '',
+              };
+            });
+          results.push({ team: team.name, games: upcoming });
+        }
+      } catch {
+        results.push({ team: team.name, games: [] });
+      }
+    }
+    // Hardcoded schedules for teams without API
+    const now = new Date();
+    const CHARGE_SCHEDULE = [
+      { date: '2026-03-14T19:00:00Z', opponent: 'Vancouver', opponentAbbr: 'VAN', homeAway: 'vs' },
+      { date: '2026-03-18T23:00:00Z', opponent: 'Minnesota', opponentAbbr: 'MIN', homeAway: 'vs' },
+      { date: '2026-03-22T23:00:00Z', opponent: 'Montréal', opponentAbbr: 'MTL', homeAway: '@' },
+      { date: '2026-03-29T23:00:00Z', opponent: 'Seattle', opponentAbbr: 'SEA', homeAway: 'vs' },
+      { date: '2026-04-02T01:30:00Z', opponent: 'Toronto', opponentAbbr: 'TOR', homeAway: '@' },
+      { date: '2026-04-03T23:00:00Z', opponent: 'Montréal', opponentAbbr: 'MTL', homeAway: '@' },
+      { date: '2026-04-08T23:00:00Z', opponent: 'Seattle', opponentAbbr: 'SEA', homeAway: '@' },
+      { date: '2026-04-11T18:00:00Z', opponent: 'Toronto', opponentAbbr: 'TOR', homeAway: 'vs' },
+      { date: '2026-04-18T18:00:00Z', opponent: 'New York', opponentAbbr: 'NY', homeAway: '@' },
+      { date: '2026-04-22T23:00:00Z', opponent: 'Boston', opponentAbbr: 'BOS', homeAway: 'vs' },
+      { date: '2026-04-25T20:00:00Z', opponent: 'Toronto', opponentAbbr: 'TOR', homeAway: '@' },
+    ].filter(g => new Date(g.date) > now).slice(0, 5).map(g => ({ ...g, status: '' }));
+    if (CHARGE_SCHEDULE.length > 0) results.push({ team: 'Charge', games: CHARGE_SCHEDULE });
+
+    const ATLETICO_SCHEDULE = [
+      { date: '2026-04-04T20:00:00Z', opponent: 'Forge FC', opponentAbbr: 'FOR', homeAway: '@' },
+      { date: '2026-04-12T20:00:00Z', opponent: 'Cavalry FC', opponentAbbr: 'CAV', homeAway: '@' },
+      { date: '2026-04-19T18:00:00Z', opponent: 'Surge', opponentAbbr: 'SUR', homeAway: '@' },
+      { date: '2026-04-26T17:00:00Z', opponent: 'Valour FC', opponentAbbr: 'VAL', homeAway: 'vs' },
+      { date: '2026-05-01T23:30:00Z', opponent: 'York United', opponentAbbr: 'YRK', homeAway: '@' },
+      { date: '2026-05-17T17:00:00Z', opponent: 'HFX Wanderers', opponentAbbr: 'HFX', homeAway: 'vs' },
+      { date: '2026-05-24T18:00:00Z', opponent: 'Forge FC', opponentAbbr: 'FOR', homeAway: 'vs' },
+      { date: '2026-05-30T22:00:00Z', opponent: 'Pacific FC', opponentAbbr: 'PAC', homeAway: '@' },
+      { date: '2026-06-06T02:00:00Z', opponent: 'Valour FC', opponentAbbr: 'VAL', homeAway: '@' },
+      { date: '2026-06-09T23:00:00Z', opponent: 'Surge', opponentAbbr: 'SUR', homeAway: 'vs' },
+    ].filter(g => new Date(g.date) > now).slice(0, 5).map(g => ({ ...g, status: '' }));
+    if (ATLETICO_SCHEDULE.length > 0) results.push({ team: 'Atlético', games: ATLETICO_SCHEDULE });
+
+    setSportsSchedule(results);
+    setSportsScheduleLoading(false);
+  };
+
+  const renderSportsModal = () => (
+    <Modal visible={sportsModal} animationType="fade" transparent onRequestClose={() => { setSportsModal(false); setSportsTab('teams'); }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <View style={{ width: '90%', maxWidth: 400, backgroundColor: colours.surface, borderRadius: 20, overflow: 'hidden', maxHeight: '85%' }}>
+          {/* Header */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="trophy" size={20} color="#c8102e" />
+              <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text }}>{t('Ottawa Sports', 'Sports Ottawa')}</Text>
+            </View>
+            <TouchableOpacity onPress={() => { setSportsModal(false); setSportsTab('teams'); }} style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="close" size={16} color={colours.text} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Tabs */}
+          <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, gap: 8 }}>
+            {SPORTS_MODAL_TABS.map(tab => {
+              const active = sportsTab === tab.id;
+              return (
+                <TouchableOpacity key={tab.id} onPress={() => {
+                  setSportsTab(tab.id);
+                  if (tab.id === 'scores') fetchSportsScores();
+                  if (tab.id === 'schedule') fetchSportsSchedule();
+                }} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, flex: 1, height: 34, borderRadius: 17, borderWidth: 1, backgroundColor: active ? colours.accent : colours.surface, borderColor: active ? colours.accent : colours.border }}>
+                  <Ionicons name={tab.icon as any} size={13} color={active ? 'white' : colours.muted} />
+                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: active ? 'white' : colours.muted }}>{language === 'fr' ? tab.label_fr : tab.label_en}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Tab content */}
+          <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 6 }}>
+            {/* ── Teams tab ── */}
+            {sportsTab === 'teams' && (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'flex-start' }}>
+                {OTTAWA_TEAMS.map(team => {
+                  const isSaved = savedTeams.includes(team.name);
+                  return (
+                    <View key={team.name} style={{ width: '30%', alignItems: 'center', backgroundColor: colours.bg, borderRadius: 14, borderWidth: 1, borderColor: colours.border, paddingVertical: 14, paddingHorizontal: 4, position: 'relative' }}>
+                      <Pressable onPress={() => toggleSavedTeam(team.name)} hitSlop={8} style={{ position: 'absolute', top: 6, right: 6, zIndex: 2 }}>
+                        <Ionicons name={isSaved ? 'bookmark' : 'bookmark-outline'} size={16} color={isSaved ? colours.accent : colours.muted} />
+                      </Pressable>
+                      <Pressable onPress={() => { if (team.nhl || team.espn) { setSportsTab('scores'); fetchSportsScores(); } else { Linking.openURL(team.url).catch(() => {}); } }} style={{ alignItems: 'center' }}>
+                        <View style={{ width: 80, height: 80, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+                          <Image source={team.png} style={{ width: 80, height: 80 }} resizeMode="contain" />
+                        </View>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: colours.text, textAlign: 'center' }} numberOfLines={1}>{team.name}</Text>
+                      </Pressable>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* ── Scores tab ── */}
+            {sportsTab === 'scores' && (() => {
+              const withGames = sportsScores.filter(s => !s.noGame);
+              return (
+                <View style={{ gap: 12 }}>
+                  {sportsScoresLoading ? (
+                    <View style={{ padding: 32, alignItems: 'center' }}><ActivityIndicator color={colours.accent} /></View>
+                  ) : withGames.length === 0 ? (
+                    <View style={{ padding: 32, alignItems: 'center' }}>
+                      <Ionicons name="football-outline" size={32} color={colours.muted} />
+                      <Text style={{ fontSize: fonts.md, color: colours.muted, marginTop: 10, textAlign: 'center' }}>
+                        {t('No games today', 'Aucun match aujourd\'hui')}
+                      </Text>
+                    </View>
+                  ) : withGames.map((s, i) => (
+                    <View key={i} style={{ backgroundColor: colours.bg, borderRadius: 14, borderWidth: 1, borderColor: colours.border, overflow: 'hidden', padding: 14 }}>
+                      {/* Header: team name + badge */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Ionicons name="trophy" size={12} color={colours.accent} />
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent, textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.team}</Text>
+                        </View>
+                        {s.state === 'pre' && (
+                          <View style={{ backgroundColor: colours.accent + '18', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: colours.accent }}>Tonight</Text>
+                          </View>
+                        )}
+                        {s.state === 'in' && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#cc3b2a18', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
+                            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#cc3b2a' }} />
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#cc3b2a' }}>LIVE</Text>
+                          </View>
+                        )}
+                        {s.state === 'post' && (
+                          <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>Final</Text>
+                        )}
+                      </View>
+                      {/* Scoreboard: AWAY vs HOME */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 0 }}>
+                        <View style={{ flex: 1, alignItems: 'center' }}>
+                          <Text style={{ fontSize: 18, fontWeight: '900', color: colours.text }}>{s.awayAbbr}</Text>
+                          {s.state !== 'pre' && (
+                            <Text style={{ fontSize: 24, fontWeight: '900', color: s.state === 'in' ? '#cc3b2a' : colours.text, marginTop: 2 }}>{s.awayScore}</Text>
+                          )}
+                        </View>
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: colours.muted, marginHorizontal: 8 }}>vs</Text>
+                        <View style={{ flex: 1, alignItems: 'center' }}>
+                          <Text style={{ fontSize: 18, fontWeight: '900', color: colours.text }}>{s.homeAbbr}</Text>
+                          {s.state !== 'pre' && (
+                            <Text style={{ fontSize: 24, fontWeight: '900', color: s.state === 'in' ? '#cc3b2a' : colours.text, marginTop: 2 }}>{s.homeScore}</Text>
+                          )}
+                        </View>
+                      </View>
+                      {/* Status line */}
+                      <View style={{ alignItems: 'center', marginTop: 8 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                          <Ionicons name={s.state === 'pre' ? 'time-outline' : s.state === 'in' ? 'radio' : 'checkmark-circle-outline'} size={12} color={s.state === 'in' ? '#cc3b2a' : colours.muted} />
+                          <Text style={{ fontSize: 12, fontWeight: '600', color: s.state === 'in' ? '#cc3b2a' : colours.muted }}>{s.status}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              );
+            })()}
+
+            {/* ── Schedule tab ── */}
+            {sportsTab === 'schedule' && (() => {
+              const withGames = sportsSchedule.filter(s => s.games.length > 0);
+              return (
+                <View style={{ gap: 12 }}>
+                  {sportsScheduleLoading ? (
+                    <View style={{ padding: 32, alignItems: 'center' }}><ActivityIndicator color={colours.accent} /></View>
+                  ) : withGames.length === 0 ? (
+                    <View style={{ padding: 32, alignItems: 'center' }}>
+                      <Ionicons name="calendar-outline" size={32} color={colours.muted} />
+                      <Text style={{ fontSize: fonts.md, color: colours.muted, marginTop: 10, textAlign: 'center' }}>
+                        {t('No upcoming games', 'Aucun match à venir')}
+                      </Text>
+                    </View>
+                  ) : withGames.map((s, i) => (
+                    <View key={i} style={{ backgroundColor: colours.bg, borderRadius: 14, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 6 }}>
+                        <Ionicons name="trophy" size={12} color={colours.accent} />
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent, textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.team}</Text>
+                      </View>
+                      {s.games.map((g: any, j: number) => {
+                        const d = new Date(g.date);
+                        return (
+                          <View key={j} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: j > 0 ? 1 : 0, borderTopColor: colours.border, gap: 10 }}>
+                            <View style={{ width: 44 }}>
+                              <Text style={{ fontSize: 11, fontWeight: '800', color: colours.accent }}>{d.toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })}</Text>
+                              <Text style={{ fontSize: 10, color: colours.muted }}>{d.toLocaleDateString('en-CA', { weekday: 'short' })}</Text>
+                            </View>
+                            <Text style={{ fontSize: 13, fontWeight: '700', color: g.homeAway === 'vs' ? colours.accent : colours.muted, width: 20, textAlign: 'center' }}>{g.homeAway}</Text>
+                            <Text style={{ flex: 1, fontSize: fonts.md, fontWeight: '600', color: colours.text }} numberOfLines={1}>{g.opponent}</Text>
+                            <Text style={{ fontSize: 11, color: colours.muted }}>{d.toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' })}</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ))}
+                </View>
+              );
+            })()}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  // ── Social / Happy Hour Modal ────────────────────────────────
+  const HAPPY_HOUR_VENUES: { name: string; address: string; type: ('bar' | 'restaurant' | 'club')[]; deals: { days: number[]; start: string; end: string; description: string }[] }[] = [
+    { name: "Joey's", address: 'Any Location', type: ['bar', 'restaurant'], deals: [
+      { days: [0,1,2,3,4,5,6], start: '15:00', end: '18:00', description: 'Happy Hour daily 3–6pm' },
+      { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun–Thu 9pm–close specials' },
+      { days: [2], start: '15:00', end: '23:59', description: 'Up to 50% off wine Tuesdays' },
+    ]},
+    { name: 'Local Public Eatery', address: 'Any Location', type: ['bar', 'restaurant'], deals: [
+      { days: [1,2,3,4,5], start: '14:00', end: '17:00', description: 'Mon–Fri 2–5pm happy hour' },
+      { days: [6], start: '10:00', end: '14:00', description: 'Sat drinks only 10am–2pm' },
+      { days: [0,1,2], start: '21:00', end: '23:59', description: 'Sun–Wed 9pm–close specials' },
+      { days: [3,4,5,6], start: '22:00', end: '23:59', description: 'Thu–Sat 10pm–close specials' },
+    ]},
+    { name: 'Pour Boy', address: '495 Somerset St W', type: ['bar', 'restaurant'], deals: [
+      { days: [1], start: '11:00', end: '23:59', description: '25% off wings Monday' },
+      { days: [2], start: '19:00', end: '23:59', description: 'Trivia night Tuesday' },
+      { days: [3], start: '19:00', end: '23:59', description: 'Open Mic Wednesday' },
+      { days: [4], start: '19:00', end: '23:59', description: 'Comedy night Thursday' },
+      { days: [5], start: '11:00', end: '23:59', description: '25% off fish & chips + Blingo Friday' },
+    ]},
+    { name: 'Rabbit Hole', address: '208 Sparks St', type: ['bar', 'restaurant', 'club'], deals: [
+      { days: [2], start: '16:00', end: '18:00', description: 'Tue HH 4–6pm' },
+      { days: [2], start: '17:00', end: '23:59', description: 'Half off wine + half off pizzas 5pm–late Tue' },
+      { days: [3], start: '16:00', end: '18:00', description: 'Wed HH 4–6pm + half price oysters' },
+      { days: [4], start: '16:00', end: '18:00', description: 'Thu HH 4–6pm' },
+      { days: [5,6], start: '21:00', end: '23:59', description: 'Fri/Sat Live DJ' },
+    ]},
+    { name: 'Whalesbone', address: 'Elgin + other locations', type: ['restaurant', 'bar'], deals: [
+      { days: [0], start: '17:00', end: '23:59', description: 'Oysters ~$2 each Sunday nights' },
+    ]},
+    { name: "Lieutenant's Pump", address: '361 Elgin St', type: ['restaurant', 'bar', 'club'], deals: [
+      { days: [3], start: '11:00', end: '23:59', description: 'Wednesday wing day — half price' },
+      { days: [1,2,3,4,5], start: '11:00', end: '14:00', description: 'Lunch combo: pint + supper $5' },
+    ]},
+    { name: 'The Standard', address: '360 Elgin St', type: ['restaurant', 'bar', 'club'], deals: [
+      { days: [0,1,2,3,4,5,6], start: '17:00', end: '19:00', description: 'Happy Hour 7 days a week 5–7pm' },
+    ]},
+    { name: 'Heart and Crown', address: 'Any Location', type: ['restaurant', 'bar', 'club'], deals: [
+      { days: [1], start: '11:00', end: '23:59', description: 'Mon: $5 house draught' },
+      { days: [2], start: '11:00', end: '23:59', description: 'Tue: half price wine' },
+      { days: [3], start: '11:00', end: '23:59', description: 'Wed: $5 rail cocktails' },
+      { days: [4], start: '11:00', end: '23:59', description: 'Thu: $5 quarts and craft cans' },
+      { days: [0], start: '11:00', end: '23:59', description: 'Sun: $6 bloody caesars' },
+    ]},
+    { name: 'Union Local 613', address: '315 Somerset St W', type: ['restaurant', 'bar'], deals: [
+      { days: [1,2,3,4,5], start: '16:00', end: '17:00', description: 'Mon–Fri 4–5pm: half price wine, $6 draft, cheap cocktails' },
+    ]},
+    { name: 'Senate Tavern', address: 'Bank / Clarence / Wellington', type: ['restaurant', 'bar'], deals: [
+      { days: [1], start: '17:00', end: '23:59', description: 'Mon: $15 wings 5pm+, $7 lagers + $5 Jameson late' },
+      { days: [2], start: '11:00', end: '23:59', description: 'Tue: $5 tequila + $12 margs all day' },
+      { days: [4], start: '17:00', end: '23:59', description: 'Thu: AYCE wings $28 + $15 mini pitcher' },
+      { days: [5], start: '11:00', end: '23:59', description: 'Fri: $15 fish & chips, $5 tequila + $12 margs' },
+      { days: [6], start: '11:00', end: '23:59', description: 'Sat: $30 bottle of wine' },
+      { days: [0], start: '14:00', end: '17:00', description: 'Sun: $5 caesars, double HH 2–5pm' },
+      { days: [0], start: '23:00', end: '23:59', description: 'Sun: double HH 11pm–2am' },
+    ]},
+    { name: 'Barley Mow', address: 'All locations', type: ['restaurant', 'bar'], deals: [
+      { days: [1,2,3,4,5], start: '14:00', end: '17:00', description: 'Mon–Fri 2–5pm HH' },
+      { days: [3], start: '20:00', end: '23:59', description: 'Wed 8pm: 30¢ wings' },
+      { days: [4], start: '20:00', end: '23:59', description: 'Thu 8pm: Thirsty Thursdays' },
+      { days: [1], start: '17:00', end: '23:59', description: 'Mon: $27 special + $9 beer flights' },
+      { days: [2], start: '17:00', end: '23:59', description: 'Tue: $27 tacos + $10 margaritas' },
+      { days: [3], start: '17:00', end: '23:59', description: 'Wed: $27 sandwich + $30 wine bottles' },
+      { days: [4], start: '17:00', end: '23:59', description: 'Thu: $27 burger' },
+      { days: [5], start: '17:00', end: '23:59', description: 'Fri: $27 fish & chips + $36.95 prime rib' },
+      { days: [6,0], start: '11:00', end: '23:59', description: 'Sat/Sun: $7.50 caesars. Sun: kids eat free' },
+    ]},
+    { name: 'Royal Oak', address: 'All locations', type: ['restaurant', 'bar'], deals: [
+      { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun–Thu 9pm: $5.50 domestics/wine/rails + half price apps' },
+      { days: [1], start: '17:00', end: '23:59', description: 'Mon: 50% off wings after 5pm' },
+      { days: [3], start: '17:00', end: '23:59', description: 'Wed: 50% off wings after 5pm + trivia 7pm' },
+      { days: [4], start: '11:00', end: '23:59', description: 'Thu: 50% off wine bottles' },
+      { days: [5], start: '11:00', end: '23:59', description: 'Fri: $3 off fish & chips' },
+      { days: [6], start: '11:00', end: '23:59', description: 'Sat: $5.95 bar rails' },
+      { days: [0], start: '11:00', end: '23:59', description: 'Sun: $7.95 caesars + craft draughts' },
+    ]},
+    { name: "Jack Astor's", address: 'All locations', type: ['restaurant', 'bar'], deals: [
+      { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Happy hour daily 2–5pm' },
+      { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm–close specials' },
+      { days: [1,2], start: '11:00', end: '23:59', description: 'Half price wine bottles Mon & Tue' },
+    ]},
+    { name: 'Shore Club', address: '11 Colonel By Dr', type: ['restaurant', 'bar'], deals: [
+      { days: [0,1,2,3,4,5,6], start: '15:00', end: '17:00', description: 'Daily 3–5pm: half price oysters, $2 prawns, $3.50 sliders, $9 Heineken, $12 wine' },
+    ]},
+    { name: 'Drip House', address: '692 Somerset St W', type: ['bar'], deals: [
+      { days: [3,4,5], start: '16:30', end: '18:30', description: 'Wed–Fri 4:30–6:30pm: $9 cocktails, wine, and appetizers' },
+    ]},
+    { name: 'Baton Rouge', address: 'All locations', type: ['restaurant', 'bar'], deals: [
+      { days: [1,2,3,4,5], start: '15:00', end: '18:00', description: 'Mon–Fri 3–6pm: $7 pints, $7 wine, $10 cocktails' },
+    ]},
+    { name: 'Craft Beer Market', address: 'All locations', type: ['bar'], deals: [
+      { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Daily 2–5pm HH: discounted craft beer, wine, cocktails' },
+      { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm–close HH' },
+      { days: [0], start: '11:00', end: '23:59', description: 'All-day specials Sundays' },
+    ]},
+  ];
+
+  const getSocialVenues = () => {
+    const now = new Date();
+    const day = now.getDay(); // 0=Sun
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const filtered = HAPPY_HOUR_VENUES
+      .filter(v => socialTab === 'all' || v.type.includes(socialTab === 'bars' ? 'bar' : socialTab === 'clubs' ? 'club' : 'restaurant'))
+      .map(v => {
+        const todayDeals = v.deals.filter(d => d.days.includes(day));
+        const activeDeals = todayDeals.filter(d => timeStr >= d.start && timeStr <= d.end);
+        const upcomingDeals = todayDeals.filter(d => timeStr < d.start);
+        if (todayDeals.length === 0 || (activeDeals.length === 0 && upcomingDeals.length === 0)) return null;
+        return { ...v, todayDeals, activeDeals, upcomingDeals, isActive: activeDeals.length > 0 };
+      })
+      .filter(Boolean) as any[];
+    // Sort: active first, then upcoming, then by name
+    return filtered.sort((a, b) => {
+      if (a.isActive && !b.isActive) return -1;
+      if (!a.isActive && b.isActive) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  };
+
+  const renderSocialModal = () => (
+    <Modal visible={socialModal} animationType="fade" transparent onRequestClose={() => setSocialModal(false)}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <View style={{ width: '92%', maxWidth: 420, backgroundColor: colours.surface, borderRadius: 20, overflow: 'hidden', maxHeight: '85%' }}>
+          {/* Header */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="beer" size={20} color="#7b5ea7" />
+              <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text }}>Social</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <TouchableOpacity onPress={() => { setSocialModal(false); router.push('/(tabs)/map'); }} style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="map-outline" size={15} color={colours.muted} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setSocialModal(false)} style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="close" size={16} color={colours.text} />
+              </TouchableOpacity>
+            </View>
+          </View>
+          {/* Tabs */}
+          <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, gap: 8 }}>
+            {([{ id: 'all' as const, label: 'All' }, { id: 'bars' as const, label: 'Bars' }, { id: 'restaurants' as const, label: 'Restaurants' }, { id: 'clubs' as const, label: 'Clubs' }]).map(tab => {
+              const active = socialTab === tab.id;
+              return (
+                <TouchableOpacity key={tab.id} onPress={() => setSocialTab(tab.id)} style={{ flex: 1, height: 34, borderRadius: 17, borderWidth: 1, backgroundColor: active ? '#7b5ea7' : colours.surface, borderColor: active ? '#7b5ea7' : colours.border, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: active ? 'white' : colours.muted }}>{tab.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {/* Venue list */}
+          <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 6, gap: 10 }}>
+            {(() => {
+              const venues = getSocialVenues() || [];
+              if (venues.length === 0) return (
+                <View style={{ padding: 32, alignItems: 'center' }}>
+                  <Ionicons name="moon-outline" size={32} color={colours.muted} />
+                  <Text style={{ fontSize: 14, color: colours.muted, marginTop: 10, textAlign: 'center' }}>No deals right now</Text>
+                </View>
+              );
+              return venues.map((v, i) => {
+                if (!v || !v.name) return null;
+                const deals = v.isActive ? (v.activeDeals || []) : (v.upcomingDeals || []);
+                const statusDeal = deals[0];
+                return (
+                  <View key={i} style={{ backgroundColor: colours.bg, borderRadius: 14, borderWidth: 1, borderColor: v.isActive ? '#7b5ea7' + '40' : colours.border, overflow: 'hidden' }}>
+                    <View style={{ padding: 14, gap: 6 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Text style={{ fontSize: 15, fontWeight: '800', color: colours.text, flex: 1 }} numberOfLines={1}>{v.name}</Text>
+                        {v.isActive && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#7b5ea7' + '18', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
+                            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#7b5ea7' }} />
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#7b5ea7' }}>NOW</Text>
+                          </View>
+                        )}
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Ionicons name="location-outline" size={12} color={colours.muted} />
+                        <Text style={{ fontSize: 11, color: colours.muted }}>{v.address || 'Ottawa'}</Text>
+                      </View>
+                      {deals.length > 0 && (
+                        <View style={{ marginTop: 2, gap: 4 }}>
+                          {deals.map((d: any, j: number) => (
+                            <View key={j} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
+                              <Text style={{ fontSize: 11, color: v.isActive ? '#7b5ea7' : colours.muted, marginTop: 1 }}>{v.isActive ? '●' : '○'}</Text>
+                              <Text style={{ fontSize: 12, color: colours.text, flex: 1, lineHeight: 16 }}>{d.description}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                      {statusDeal && (
+                        <Text style={{ fontSize: 10, color: colours.muted, marginTop: 2 }}>
+                          {v.isActive
+                            ? `Active now · ends ${(statusDeal.end || '').replace(/^0/, '')}`
+                            : `Starts ${(statusDeal.start || '').replace(/^0/, '')}`}
+                        </Text>
+                      )}
+                      <TouchableOpacity onPress={() => { setSocialFeedbackVenue(v.name); setSocialFeedbackText(''); setSocialFeedbackSent(false); }} style={{ marginTop: 6, alignSelf: 'flex-start' }}>
+                        <Text style={{ fontSize: 10, color: colours.muted, textDecorationLine: 'underline' }}>Is this accurate?</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              });
+            })()}
+          </ScrollView>
+
+          {/* Feedback sheet */}
+          {socialFeedbackVenue && (
+            <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colours.surface, borderTopWidth: 1, borderTopColor: colours.border, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 28, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.15, shadowRadius: 12 }}>
+              {socialFeedbackSent ? (
+                <View style={{ alignItems: 'center', paddingVertical: 12 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: colours.text }}>Thanks for the tip! 👍</Text>
+                  <TouchableOpacity onPress={() => setSocialFeedbackVenue(null)} style={{ marginTop: 14, paddingVertical: 10, paddingHorizontal: 24, borderRadius: 12, backgroundColor: '#7b5ea7', alignItems: 'center' }}>
+                    <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <>
+                  <Text style={{ fontSize: 15, fontWeight: '800', color: colours.text, marginBottom: 4 }}>{socialFeedbackVenue}</Text>
+                  <Text style={{ fontSize: 12, color: colours.muted, marginBottom: 12 }}>Help keep this info up to date</Text>
+                  <TextInput
+                    style={{ backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: colours.text, minHeight: 60, textAlignVertical: 'top', marginBottom: 14 }}
+                    placeholder="e.g. hours changed, deal ended, new deal..."
+                    placeholderTextColor={colours.muted}
+                    value={socialFeedbackText}
+                    onChangeText={setSocialFeedbackText}
+                    multiline
+                  />
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity onPress={() => setSocialFeedbackVenue(null)} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: colours.muted }}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={async () => {
+                        if (!socialFeedbackText.trim()) return;
+                        setSocialFeedbackSending(true);
+                        try {
+                          await supabase.from('social_feedback').insert({ venue_name: socialFeedbackVenue, suggestion: socialFeedbackText.trim() });
+                          setSocialFeedbackSent(true);
+                        } catch {}
+                        setSocialFeedbackSending(false);
+                      }}
+                      style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: socialFeedbackText.trim() ? '#7b5ea7' : colours.border, alignItems: 'center' }}
+                    >
+                      {socialFeedbackSending
+                        ? <ActivityIndicator color="white" size="small" />
+                        : <Text style={{ fontSize: 14, fontWeight: '700', color: socialFeedbackText.trim() ? 'white' : colours.muted }}>Submit</Text>
+                      }
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
 
   // ── Events Modal (Ticketmaster / Eventbrite) ─────────────────
   const renderEventsModal = () => {
@@ -2086,8 +3168,20 @@ export default function LiveScreen() {
         );
       }
 
+      case 'gas': return (
+        <SectionWrapper key="gas" id="gas">
+          <GasPricesWidget colours={colours} fonts={fonts} t={t} cardShadow={cardShadow} isBoardSaved={isBoardSaved({ type: 'gas_prices' })} toggleBoard={() => { const item: SavedBoardItem = { type: 'gas_prices' }; isBoardSaved(item) ? removeFromBoard(item) : addToBoardIfMissing(item); }} />
+        </SectionWrapper>
+      );
+
       case 'alerts': return (
         <SectionWrapper key="alerts" id="alerts">
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 6 }}>
+            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, letterSpacing: 1, textTransform: 'uppercase' }}>{t('Service Alerts', 'Alertes')}</Text>
+            <TouchableOpacity onPress={() => { const item: SavedBoardItem = { type: 'service_alert' }; isBoardSaved(item) ? removeFromBoard(item) : addToBoardIfMissing(item); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name={isBoardSaved({ type: 'service_alert' }) ? 'bookmark' : 'bookmark-outline'} size={18} color={isBoardSaved({ type: 'service_alert' }) ? colours.accent : colours.muted} />
+            </TouchableOpacity>
+          </View>
           <TouchableOpacity style={[styles.notifBar, { backgroundColor: hasAlerts ? alertDotColour() + '12' : colours.surface, borderColor: hasAlerts ? alertDotColour() : colours.border, ...cardShadow }]} onPress={() => setAlertsModalVisible(true)}>
             <View style={styles.notifLeft}>
               {alertsLoading ? <ActivityIndicator size="small" color={colours.muted} style={{ marginRight: 8 }} /> : <View style={[styles.notifDot, { backgroundColor: alertDotColour() }]} />}
@@ -2104,7 +3198,12 @@ export default function LiveScreen() {
         <SectionWrapper key="discover" id="discover">
           <View style={styles.discoverHeader}>
             <Text style={[styles.sectionLabel, { color: colours.muted, fontSize: fonts.sm, marginBottom: 0 }]}>{t('Discover Ottawa', 'Découvrir Ottawa')}</Text>
-            <TouchableOpacity onPress={() => Alert.alert(t('Discover', 'Découvrir'), t('More coming soon!', 'Plus à venir!'))}><Text style={{ color: colours.accent, fontSize: fonts.sm, fontWeight: '600' }}>{t('See all →', 'Voir tout →')}</Text></TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <TouchableOpacity onPress={() => { const item: SavedBoardItem = { type: 'discover' }; isBoardSaved(item) ? removeFromBoard(item) : addToBoardIfMissing(item); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name={isBoardSaved({ type: 'discover' }) ? 'bookmark' : 'bookmark-outline'} size={18} color={isBoardSaved({ type: 'discover' }) ? colours.accent : colours.muted} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => Alert.alert(t('Discover', 'Découvrir'), t('More coming soon!', 'Plus à venir!'))}><Text style={{ color: colours.accent, fontSize: fonts.sm, fontWeight: '600' }}>{t('See all →', 'Voir tout →')}</Text></TouchableOpacity>
+            </View>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cardsRow}>
             {DISCOVER_CARDS.map(card => renderDiscoverCard(card))}
@@ -2127,6 +3226,8 @@ export default function LiveScreen() {
         {renderSwapSheet()}
         {renderExpandedArrivals()}
         {renderBoardExpandModal()}
+        {renderSportsModal()}
+        {renderSocialModal()}
         {renderEventsModal()}
         {renderRoadEventsModal()}
         {renderParksModal()}
@@ -2161,8 +3262,8 @@ export default function LiveScreen() {
             </View>
             {(searchResults.length > 0 || addressResults.length > 0) && (
               <View style={[styles.dropdown, { backgroundColor: colours.surface, borderColor: colours.border, ...cardShadow }]}>
-                {searchResults.map(result => (<TouchableOpacity key={result.internalId} style={[styles.dropdownItem, { borderBottomColor: colours.border }]} onPress={() => { Keyboard.dismiss(); loadStop(result.id, result.name); setSearchText(''); setSearchResults([]); setAddressResults([]); }}><Text style={{ color: colours.text, fontSize: fonts.md, fontWeight: '600', flex: 1 }}>{result.name}</Text><Text style={{ color: colours.muted, fontSize: fonts.sm, marginLeft: 8 }}>{t('Stop', 'Arrêt')} #{result.id}</Text></TouchableOpacity>))}
-                {addressResults.map((addr, i) => (<TouchableOpacity key={`addr-${i}`} style={[styles.dropdownItem, { borderBottomColor: colours.border }]} onPress={() => { Keyboard.dismiss(); setSearchText(''); setSearchResults([]); setAddressResults([]); router.push({ pathname: '/(tabs)/planner', params: { toLabel: addr.label, toLat: String(addr.lat), toLng: String(addr.lng) } } as any); }}><Text style={{ color: colours.text, fontSize: fonts.md, flex: 1 }} numberOfLines={1}>{addr.label}</Text><Text style={{ color: colours.accent, fontSize: fonts.sm, marginLeft: 8 }}>→ Plan</Text></TouchableOpacity>))}
+                {searchResults.map(result => (<TouchableOpacity key={result.internalId} style={[styles.dropdownItem, { borderBottomColor: colours.border }]} onPress={() => { Keyboard.dismiss(); loadStop(result.id, result.name); setSearchText(''); setSearchResults([]); setAddressResults([]); }}><Text style={{ color: colours.text, fontSize: fonts.md, fontWeight: '600', flex: 1 }} numberOfLines={1}>{result.name}  <Text style={{ color: colours.muted, fontSize: fonts.sm }}>·  #{result.id}</Text></Text></TouchableOpacity>))}
+                {searchResults.length === 0 && addressResults.map((addr, i) => (<TouchableOpacity key={`addr-${i}`} style={[styles.dropdownItem, { borderBottomColor: colours.border }]} onPress={() => { Keyboard.dismiss(); setSearchText(''); setSearchResults([]); setAddressResults([]); router.push({ pathname: '/(tabs)/planner', params: { toLabel: addr.label, toLat: String(addr.lat), toLng: String(addr.lng) } } as any); }}><Text style={{ color: colours.text, fontSize: fonts.md, flex: 1 }} numberOfLines={1}>{addr.label}</Text><Text style={{ color: colours.accent, fontSize: fonts.sm, marginLeft: 8 }}>→ Plan</Text></TouchableOpacity>))}
               </View>
             )}
           </View>
@@ -2202,8 +3303,12 @@ export default function LiveScreen() {
                   if (item.type === 'garbage') return 'garbage';
                   if (item.type === 'service_alert') return 'service_alert';
                   if (item.type === 'gas_prices') return 'gas_prices';
+                  if (item.type === 'otrain') return 'otrain';
+                  if (item.type === 'services') return 'services';
+                  if (item.type === 'discover') return 'discover';
+                  if (item.type === 'saved_team') return `team-${item.id}`;
                   if (item.type === 'external_link') return `ext-${item.id}`;
-                  return `${item.type}-${item.id}-${i}`;
+                  return `${item.type}-${(item as any).id}-${i}`;
                 }}
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ paddingHorizontal: 20, gap: 10, paddingBottom: 4 }}
@@ -2212,7 +3317,18 @@ export default function LiveScreen() {
                   setSavedBoard(data);
                   AsyncStorage.setItem('routeo_saved_board', JSON.stringify(data));
                 }}
-                renderItem={({ item, drag, isActive }: RenderItemParams<SavedBoardItem>) => (
+                renderItem={({ item, drag, isActive, getIndex }: RenderItemParams<SavedBoardItem>) => {
+                  const idx = getIndex() ?? -1;
+                  const moveBoard = (from: number, to: number) => {
+                    setSavedBoard(prev => {
+                      const next = [...prev];
+                      const [moved] = next.splice(from, 1);
+                      next.splice(to, 0, moved);
+                      AsyncStorage.setItem('routeo_saved_board', JSON.stringify(next));
+                      return next;
+                    });
+                  };
+                  return (
                   <SavedBoardCard
                     item={item}
                     drag={drag}
@@ -2223,6 +3339,9 @@ export default function LiveScreen() {
                     cardShadow={cardShadow}
                     garbageEvents={garbageEvents}
                     alerts={alerts}
+                    sensGame={sensGame}
+                    onMoveLeft={idx > 0 ? () => moveBoard(idx, idx - 1) : undefined}
+                    onMoveRight={idx < savedBoard.length - 1 ? () => moveBoard(idx, idx + 1) : undefined}
                     onPress={() => {
                       if (item.type === 'service_alert') { setAlertsModalVisible(true); return; }
                       if (item.type === 'external_link') { Linking.openURL(item.url).catch(() => {}); return; }
@@ -2232,9 +3351,16 @@ export default function LiveScreen() {
                         setBoardExpandItem(item);
                       }
                       if (item.type === 'gas_prices') { setBoardExpandItem(item); }
+                      if (item.type === 'saved_team') {
+                        setSportsModal(true);
+                        setSportsTab('scores');
+                        fetchSportsScores();
+                      }
+                      if (item.type === 'otrain' || item.type === 'services' || item.type === 'discover') { /* scroll handled by section visibility */ }
                     }}
                   />
-                )}
+                  );
+                }}
               />
             </>
           )}

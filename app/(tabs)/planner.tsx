@@ -7,7 +7,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, Dimensions, Keyboard, KeyboardAvoidingView,
-  Modal, Platform, ScrollView, StyleSheet, Text,
+  Modal, Platform, ScrollView, Share, StyleSheet, Text,
   TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
@@ -436,9 +436,7 @@ export default function PlannerScreen() {
     const isWalkOnly = itin.legs.every(l => l.mode === 'WALK');
     // BEST = first non-walk itinerary (already sorted by earliest arrival)
     const isFirst = idx === 0 && !isWalkOnly;
-    // Count actual transit legs (bus/tram/rail etc)
-    const transitLegs = itin.legs.filter(l => l.mode !== 'WALK');
-    const transferCount = Math.max(0, transitLegs.length - 1);
+    const transferCount = itin.transfers;
 
     return (
       <TouchableOpacity
@@ -663,6 +661,21 @@ export default function PlannerScreen() {
               <Text style={{ fontSize: 13, color: colours.muted, marginTop: 2 }}>{fmtTime(expandedItinerary.startTime)} → {fmtTime(expandedItinerary.endTime)}</Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {/* Share button */}
+              <TouchableOpacity
+                onPress={() => {
+                  const itin = expandedItinerary!;
+                  const routes = itin.legs
+                    .filter(l => l.mode !== 'WALK')
+                    .map(l => l.routeShortName || l.mode)
+                    .join(', ');
+                  const message = `RouteO Trip 🚌\n${fromText} → ${toText}\n${fmtDuration(itin.duration)} · Departs ${fmtTime(itin.startTime)} · Arrives ${fmtTime(itin.endTime)}\n${itin.transfers} transfer${itin.transfers !== 1 ? 's' : ''} · ${fmtWalk(itin.walkDistance)}\nRoute${routes ? `s: ${routes}` : ': Walk'}\nPlanned with RouteO for OC Transpo Ottawa`;
+                  Share.share({ message });
+                }}
+                style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Ionicons name="share-social-outline" size={16} color={colours.accent} />
+              </TouchableOpacity>
               {/* Notification indicator — shows when trip notifications are armed */}
               {tracking && transitNotifIds.current.length > 0 && (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, backgroundColor: '#34c759' + '18', borderWidth: 1, borderColor: '#34c759' + '50' }}>
@@ -866,44 +879,12 @@ export default function PlannerScreen() {
     );
   };
 
-  // ── Time picker modal ─────────────────────────────────────────
-  const renderTimePicker = () => (
-    <Modal visible={showTimePicker} transparent animationType="fade" onRequestClose={() => setShowTimePicker(false)}>
-      <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }} activeOpacity={1} onPress={() => setShowTimePicker(false)}>
-        <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
-          <View style={{ width: 36, height: 4, backgroundColor: colours.border, borderRadius: 2, alignSelf: 'center', marginBottom: 20 }} />
-          <Text style={{ fontSize: 17, fontWeight: '800', color: colours.text, marginBottom: 4 }}>{arriveBy ? 'Arrive by' : 'Depart at'}</Text>
-          <Text style={{ fontSize: 13, color: colours.muted, marginBottom: 16 }}>Enter time (e.g. 2:30pm) or pick below</Text>
-          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
-            {[false, true].map(ab => (
-              <TouchableOpacity key={String(ab)} onPress={() => setArriveBy(ab)} style={{ flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: arriveBy === ab ? colours.accent : colours.border, backgroundColor: arriveBy === ab ? colours.accent + '15' : colours.surface, alignItems: 'center' }}>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: arriveBy === ab ? colours.accent : colours.muted }}>{ab ? 'Arrive by' : 'Depart at'}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-            {generateQuickTimes().map(({ label, date }) => {
-              const isActive = fmtTime(departTime.getTime()) === fmtTime(date.getTime());
-              return (
-                <TouchableOpacity key={label} onPress={() => { setDepartTime(date); setShowTimePicker(false); }} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, backgroundColor: isActive ? colours.accent + '15' : colours.surface }}>
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: isActive ? colours.accent : colours.text }}>{label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-          <TouchableOpacity onPress={() => setShowTimePicker(false)} style={{ paddingVertical: 14, borderRadius: 14, backgroundColor: colours.accent, alignItems: 'center' }}>
-            <Text style={{ color: 'white', fontWeight: '700', fontSize: 15 }}>Done</Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
-    </Modal>
-  );
+  // (time picker is now inline — no modal needed)
 
   // ── Main render ───────────────────────────────────────────────
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colours.bg }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       {renderExpandedItinerary()}
-      {renderTimePicker()}
 
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 40 }}>
         {/* Header */}
@@ -1015,28 +996,54 @@ export default function PlannerScreen() {
           </View>
         )}
 
-        {/* Time + Plan row */}
-        <View style={{ flexDirection: 'row', paddingHorizontal: 20, gap: 10, marginBottom: 20 }}>
-          <TouchableOpacity
-            onPress={() => setShowTimePicker(true)}
-            style={[{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 14, paddingVertical: 12 }, cardShadow]}
-          >
-            <Ionicons name="time-outline" size={16} color={colours.muted} />
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 10, color: colours.muted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 }}>{arriveBy ? 'Arrive by' : 'Depart at'}</Text>
-              <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{fmtTime(departTime.getTime())}</Text>
-            </View>
-            <Ionicons name="chevron-down" size={14} color={colours.muted} />
-          </TouchableOpacity>
+        {/* Depart at / Arrive by toggle */}
+        <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {([false, true] as const).map(ab => {
+              const active = arriveBy === ab;
+              return (
+                <TouchableOpacity
+                  key={String(ab)}
+                  onPress={() => { setArriveBy(ab); setShowTimePicker(true); }}
+                  style={[{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: active ? colours.accent : colours.border, backgroundColor: active ? colours.accent + '15' : colours.surface }, cardShadow]}
+                >
+                  <Ionicons name={ab ? 'flag-outline' : 'time-outline'} size={14} color={active ? colours.accent : colours.muted} />
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: active ? colours.accent : colours.muted }}>{ab ? 'Arrive by' : 'Depart at'}</Text>
+                  {active && <Text style={{ fontSize: 13, fontWeight: '800', color: colours.accent }}>{fmtTime(departTime.getTime())}</Text>}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
 
+        {/* Quick time picks */}
+        {showTimePicker && (
+          <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
+            <View style={[{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, padding: 12 }, cardShadow]}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {generateQuickTimes().map(({ label, date }) => {
+                  const isActive = fmtTime(departTime.getTime()) === fmtTime(date.getTime());
+                  return (
+                    <TouchableOpacity key={label} onPress={() => { setDepartTime(date); setShowTimePicker(false); }} style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, backgroundColor: isActive ? colours.accent + '15' : colours.bg }}>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: isActive ? colours.accent : colours.text }}>{label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Plan button */}
+        <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
           <TouchableOpacity
             onPress={plan}
-            style={{ paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14, backgroundColor: colours.accent, alignItems: 'center', justifyContent: 'center' }}
+            style={{ paddingVertical: 14, borderRadius: 14, backgroundColor: colours.accent, alignItems: 'center', justifyContent: 'center' }}
             activeOpacity={0.85}
           >
             {loading
               ? <ActivityIndicator color="white" size="small" />
-              : <Text style={{ color: 'white', fontWeight: '800', fontSize: 15 }}>Plan</Text>
+              : <Text style={{ color: 'white', fontWeight: '800', fontSize: 16 }}>Plan Trip</Text>
             }
           </TouchableOpacity>
         </View>

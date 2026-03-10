@@ -1,4 +1,6 @@
 import * as Location from 'expo-location';
+import * as Notifications from 'expo-notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import {
@@ -9,6 +11,20 @@ import {
 import { useApp } from '../../context/AppContext';
 
 const isNightTime = () => { const h = new Date().getHours(); return h >= 21 || h < 4; };
+
+type NotifSettings = {
+  garbageDay: boolean;
+  criticalAlerts: boolean;
+  delayAlerts: boolean;
+};
+
+const DEFAULT_NOTIF_SETTINGS: NotifSettings = {
+  garbageDay: true,
+  criticalAlerts: true,
+  delayAlerts: false,
+};
+
+const NOTIF_SETTINGS_KEY = 'routeo_notif_settings';
 
 export default function AccountScreen() {
   const {
@@ -32,11 +48,51 @@ export default function AccountScreen() {
   const [tripSharing, setTripSharing] = useState(false);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isNight, setIsNight] = useState(isNightTime());
+  const [notifSettings, setNotifSettings] = useState<NotifSettings>(DEFAULT_NOTIF_SETTINGS);
+  const [notifPermission, setNotifPermission] = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
+  const [showNotifs, setShowNotifs] = useState(false);
+  const [showTips, setShowTips] = useState(false);
+  const [showA11y, setShowA11y] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => setIsNight(isNightTime()), 60000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    AsyncStorage.getItem(NOTIF_SETTINGS_KEY).then(val => {
+      if (val) setNotifSettings({ ...DEFAULT_NOTIF_SETTINGS, ...JSON.parse(val) });
+    });
+    Notifications.getPermissionsAsync().then(({ status }) => setNotifPermission(status as any));
+  }, []);
+
+  const saveNotifSettings = async (updated: NotifSettings) => {
+    setNotifSettings(updated);
+    await AsyncStorage.setItem(NOTIF_SETTINGS_KEY, JSON.stringify(updated));
+  };
+
+  const handleNotifToggle = async (key: keyof NotifSettings, value: boolean) => {
+    if (value && notifPermission !== 'granted') {
+      const { status: existing } = await Notifications.getPermissionsAsync();
+      if (existing === 'granted') { setNotifPermission('granted'); }
+      else {
+        const { status } = await Notifications.requestPermissionsAsync();
+        setNotifPermission(status as any);
+        if (status !== 'granted') {
+          Alert.alert(
+            t('Notifications disabled', 'Notifications désactivées'),
+            t('Enable notifications for RouteO in your device Settings.', 'Activez les notifications pour RouteO dans les Paramètres.'),
+            [
+              { text: t('Open Settings', 'Ouvrir les Paramètres'), onPress: () => Linking.openSettings() },
+              { text: t('Cancel', 'Annuler'), style: 'cancel' },
+            ]
+          );
+          return;
+        }
+      }
+    }
+    saveNotifSettings({ ...notifSettings, [key]: value });
+  };
 
   const startTripSharing = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -219,12 +275,79 @@ export default function AccountScreen() {
           ))}
         </Card>
 
-        {/* Late Night Tips */}
-        <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 8, letterSpacing: 1 }}>
-          {t('LATE NIGHT TIPS', 'CONSEILS TARDIFS')}
-        </Text>
+        {/* NOTIFICATIONS (collapsible) */}
         <Card>
-          {LATE_NIGHT_TIPS.map((item, i) => (
+          <TouchableOpacity
+            onPress={() => setShowNotifs(!showNotifs)}
+            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>
+              {t('NOTIFICATIONS', 'NOTIFICATIONS')}
+            </Text>
+            <Ionicons name={showNotifs ? 'chevron-up' : 'chevron-down'} size={16} color={colours.muted} />
+          </TouchableOpacity>
+          {showNotifs && (
+            <>
+              {notifPermission === 'denied' && (
+                <TouchableOpacity
+                  onPress={() => Linking.openSettings()}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 8,
+                    padding: 12, borderRadius: 12, borderWidth: 1,
+                    backgroundColor: '#e8a020' + '15', borderColor: '#e8a020' + '40',
+                    marginHorizontal: 16, marginBottom: 12,
+                  }}
+                >
+                  <Ionicons name="notifications-off" size={16} color="#e8a020" />
+                  <Text style={{ flex: 1, fontSize: fonts.sm, color: '#e8a020', fontWeight: '600' }}>
+                    {t('Notifications are disabled. Tap to open Settings.', 'Les notifications sont désactivées. Appuyez pour ouvrir les Paramètres.')}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={14} color="#e8a020" />
+                </TouchableOpacity>
+              )}
+              {([
+                { key: 'criticalAlerts' as const, icon: 'warning' as const, iconColor: '#cc3b2a', label: t('Critical Alerts', 'Alertes critiques'), desc: t('LRT disruptions & route cancellations', 'Perturbations du TLR et annulations') },
+                { key: 'delayAlerts' as const, icon: 'time' as const, iconColor: '#e8a020', label: t('Delay Alerts', 'Alertes de retard'), desc: t('Significant delays on OC Transpo', 'Retards importants sur OC Transpo') },
+                { key: 'garbageDay' as const, icon: 'trash' as const, iconColor: '#6b7f99', label: t('Garbage Day Reminder', 'Rappel jour de collecte'), desc: t('8 pm reminder the evening before collection', 'Rappel à 20h la veille de la collecte') },
+              ]).map((item, i) => (
+                <View key={item.key}>
+                  {i > 0 && <Divider />}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14 }}>
+                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: item.iconColor + '18', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name={item.icon} size={16} color={item.iconColor} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{item.label}</Text>
+                      <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>{item.desc}</Text>
+                    </View>
+                    <Switch
+                      value={notifSettings[item.key]}
+                      onValueChange={v => handleNotifToggle(item.key, v)}
+                      trackColor={{ false: colours.border, true: item.iconColor + '80' }}
+                      thumbColor={notifSettings[item.key] ? item.iconColor : colours.muted}
+                      ios_backgroundColor={colours.border}
+                    />
+                  </View>
+                </View>
+              ))}
+            </>
+          )}
+        </Card>
+
+        {/* LATE NIGHT TIPS (collapsible) */}
+        <Card>
+          <TouchableOpacity
+            onPress={() => setShowTips(!showTips)}
+            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>
+              {t('LATE NIGHT TIPS', 'CONSEILS TARDIFS')}
+            </Text>
+            <Ionicons name={showTips ? 'chevron-up' : 'chevron-down'} size={16} color={colours.muted} />
+          </TouchableOpacity>
+          {showTips && LATE_NIGHT_TIPS.map((item, i) => (
             <View key={i}>
               {i > 0 && <Divider />}
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 14 }}>
@@ -232,6 +355,41 @@ export default function AccountScreen() {
                   <Ionicons name={item.icon} size={18} color={colours.muted} />
                 </View>
                 <Text style={{ flex: 1, fontSize: fonts.md, color: colours.muted, lineHeight: 20 }}>{item.tip}</Text>
+              </View>
+            </View>
+          ))}
+        </Card>
+
+        {/* ACCESSIBILITY (collapsible) */}
+        <Card>
+          <TouchableOpacity
+            onPress={() => setShowA11y(!showA11y)}
+            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>
+              {t('ACCESSIBILITY', 'ACCESSIBILITÉ')}
+            </Text>
+            <Ionicons name={showA11y ? 'chevron-up' : 'chevron-down'} size={16} color={colours.muted} />
+          </TouchableOpacity>
+          {showA11y && [
+            { label: t('Large Text', 'Grand texte'), desc: t('Increase font size throughout the app', 'Augmenter la taille de police'), val: largeText, set: setLargeText },
+            { label: t('High Contrast', 'Contraste élevé'), desc: t('Stronger colour contrast for readability', 'Meilleur contraste pour la lisibilité'), val: highContrast, set: setHighContrast },
+            { label: t('Reduced Motion', 'Mouvement réduit'), desc: t('Minimize animations and transitions', 'Minimiser les animations'), val: reducedMotion, set: setReducedMotion },
+          ].map((item, i) => (
+            <View key={i}>
+              {i > 0 && <Divider />}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14 }}>
+                <View style={{ flex: 1, marginRight: 12 }}>
+                  <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{item.label}</Text>
+                  <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{item.desc}</Text>
+                </View>
+                <Switch
+                  value={item.val}
+                  onValueChange={v => item.set(v)}
+                  trackColor={{ false: colours.border, true: colours.accent }}
+                  thumbColor={item.val ? 'white' : colours.muted}
+                />
               </View>
             </View>
           ))}
@@ -265,34 +423,6 @@ export default function AccountScreen() {
               </TouchableOpacity>
             ))}
           </View>
-        </Card>
-
-        {/* ACCESSIBILITY */}
-        <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 8, letterSpacing: 1 }}>
-          {t('ACCESSIBILITY', 'ACCESSIBILITÉ')}
-        </Text>
-        <Card>
-          {[
-            { label: t('Large Text', 'Grand texte'), desc: t('Increase font size throughout the app', 'Augmenter la taille de police'), val: largeText, set: setLargeText },
-            { label: t('High Contrast', 'Contraste élevé'), desc: t('Stronger colour contrast for readability', 'Meilleur contraste pour la lisibilité'), val: highContrast, set: setHighContrast },
-            { label: t('Reduced Motion', 'Mouvement réduit'), desc: t('Minimize animations and transitions', 'Minimiser les animations'), val: reducedMotion, set: setReducedMotion },
-          ].map((item, i) => (
-            <View key={i}>
-              {i > 0 && <Divider />}
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14 }}>
-                <View style={{ flex: 1, marginRight: 12 }}>
-                  <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{item.label}</Text>
-                  <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{item.desc}</Text>
-                </View>
-                <Switch
-                  value={item.val}
-                  onValueChange={v => item.set(v)}
-                  trackColor={{ false: colours.border, true: colours.accent }}
-                  thumbColor={item.val ? 'white' : colours.muted}
-                />
-              </View>
-            </View>
-          ))}
         </Card>
 
         {/* LANGUAGE */}
