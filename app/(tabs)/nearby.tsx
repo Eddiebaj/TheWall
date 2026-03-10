@@ -1,14 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, ImageBackground, Linking,
   ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
+import { supabase } from '../../lib/supabase';
 
 const PLACES_KEY = 'AIzaSyCKwAVVCbxHKsKViJ4Dq0ZQ5r6k-arue3E';
+const ARRIVALS_URL = 'https://routeo-backend.vercel.app/api/arrivals';
 
 const CATEGORIES = [
   { id: 'restaurant', label_en: 'Eats', label_fr: 'Restos', icon: 'restaurant', color: '#cc3b2a' },
@@ -46,11 +48,16 @@ type Place = {
   name: string;
   vicinity: string;
   distance: number;
+  lat: number;
+  lng: number;
   rating?: number;
   reviewCount?: number;
   open?: boolean;
   photoRef?: string;
 };
+
+type StopCoord = { stop_id: string; stop_name: string; stop_lat: number; stop_lon: number };
+type NearbyTransit = { stopName: string; stopId: string; walkMin: number; routeId: string; minsAway: number };
 
 export default function ExploreScreen() {
   const { colours, theme, language, t, fonts } = useApp();
@@ -69,8 +76,70 @@ export default function ExploreScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const [nearbyStops, setNearbyStops] = useState<StopCoord[]>([]);
+  const [transitMap, setTransitMap] = useState<{ [placeId: string]: NearbyTransit }>({});
+  const transitFetchedRef = useRef<Set<string>>(new Set());
+
   useEffect(() => { getLocation(); }, []);
   useEffect(() => { if (location) fetchPlaces(); }, [location, selectedCategory, sortBy]);
+
+  // Load stops from Supabase when location is available
+  useEffect(() => {
+    if (!location || nearbyStops.length > 0) return;
+    const delta = 0.04; // ~4km bounding box
+    supabase.from('stops')
+      .select('stop_id,stop_name,stop_lat,stop_lon')
+      .gte('stop_lat', location.lat - delta)
+      .lte('stop_lat', location.lat + delta)
+      .gte('stop_lon', location.lng - delta)
+      .lte('stop_lon', location.lng + delta)
+      .limit(500)
+      .then(({ data }) => {
+        if (data && data.length > 0) setNearbyStops(data);
+      });
+  }, [location]);
+
+  // Find nearest stop + next arrival for each place
+  useEffect(() => {
+    if (nearbyStops.length === 0 || filteredPlaces.length === 0) return;
+    const placesToFetch = filteredPlaces.filter(p => !transitFetchedRef.current.has(p.id));
+    if (placesToFetch.length === 0) return;
+
+    const fetchTransit = async () => {
+      const updates: { [placeId: string]: NearbyTransit } = {};
+      // Process up to 8 places at a time to avoid hammering the API
+      const batch = placesToFetch.slice(0, 8);
+      await Promise.all(batch.map(async (place) => {
+        transitFetchedRef.current.add(place.id);
+        // Find nearest stop
+        let nearest: StopCoord | null = null;
+        let nearestDist = Infinity;
+        for (const stop of nearbyStops) {
+          const d = getDistance(place.lat, place.lng, stop.stop_lat, stop.stop_lon);
+          if (d < nearestDist) { nearestDist = d; nearest = stop; }
+        }
+        if (!nearest || nearestDist > 2000) return; // skip if > 2km
+        try {
+          const resp = await fetch(`${ARRIVALS_URL}?stop=${nearest.stop_id}`);
+          const data = await resp.json();
+          const first = (data.arrivals || [])[0];
+          if (first) {
+            updates[place.id] = {
+              stopName: nearest.stop_name,
+              stopId: nearest.stop_id,
+              walkMin: Math.max(1, Math.ceil(nearestDist / 80)),
+              routeId: String(first.routeId).split('-')[0],
+              minsAway: first.minsAway,
+            };
+          }
+        } catch {}
+      }));
+      if (Object.keys(updates).length > 0) {
+        setTransitMap(prev => ({ ...prev, ...updates }));
+      }
+    };
+    fetchTransit();
+  }, [nearbyStops, filteredPlaces]);
 
   // Re-filter client-side when distance cap or search query changes — no extra API call needed
   useEffect(() => {
@@ -130,6 +199,8 @@ export default function ExploreScreen() {
             id: p.place_id,
             name: p.name,
             vicinity: p.vicinity,
+            lat: p.geometry.location.lat,
+            lng: p.geometry.location.lng,
             distance: getDistance(location.lat, location.lng, p.geometry.location.lat, p.geometry.location.lng),
             rating: p.rating,
             reviewCount: p.user_ratings_total,
@@ -164,6 +235,9 @@ export default function ExploreScreen() {
       setAllPlaces(results);
       applyFilters(results, searchQuery, maxDistance);
       setSearchQuery('');
+      // Reset transit cache for new category
+      transitFetchedRef.current.clear();
+      setTransitMap({});
     } catch {
       setAllPlaces([]);
       setFilteredPlaces([]);
@@ -189,6 +263,7 @@ export default function ExploreScreen() {
 
   const renderPlaceCard = (place: Place, index: number) => {
     const hasPhoto = !!place.photoRef;
+    const transit = transitMap[place.id];
     return (
       <TouchableOpacity
         key={place.id}
@@ -294,6 +369,40 @@ export default function ExploreScreen() {
             {t('Maps →', 'Cartes →')}
           </Text>
         </View>
+
+        {/* Nearest bus stop + next arrival */}
+        {transit && (
+          <View style={{
+            flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+            paddingHorizontal: 12, paddingVertical: 7,
+            borderTopWidth: 1, borderTopColor: colours.border,
+            backgroundColor: colours.surface,
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+              <View style={{
+                width: 20, height: 20, borderRadius: 6,
+                backgroundColor: colours.accent + '18',
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Ionicons name="bus" size={10} color={colours.accent} />
+              </View>
+              <Text style={{ fontSize: 11, color: colours.muted, flex: 1 }} numberOfLines={1}>
+                {transit.stopName}
+              </Text>
+              <Text style={{ fontSize: 10, color: colours.muted }}>
+                {transit.walkMin} {t('min walk', 'min à pied')}
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 8 }}>
+              <View style={{ backgroundColor: colours.accent + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, minWidth: 24, alignItems: 'center' }}>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: colours.accent }}>{transit.routeId}</Text>
+              </View>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: transit.minsAway <= 2 ? '#cc3b2a' : colours.accent }}>
+                {transit.minsAway === 0 ? t('Now', 'Maint.') : `${transit.minsAway}m`}
+              </Text>
+            </View>
+          </View>
+        )}
       </TouchableOpacity>
     );
   };
