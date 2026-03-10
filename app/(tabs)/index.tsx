@@ -24,8 +24,8 @@ import tripMap from './tripmap.json';
 type SavedPlace = { id: string; name: string; vicinity: string; rating?: number; photoRef?: string; categoryIcon: string; categoryColor: string; categoryLabel_en: string; categoryLabel_fr: string };
 // ── Universal saved board item type ──
 type SavedBoardItem =
-  | { type: 'bus_stop';      id: string; name: string }
-  | { type: 'lrt_station';   id: string; name: string }
+  | { type: 'bus_stop';      id: string; name: string; agency?: 'OC' | 'STO' }
+  | { type: 'lrt_station';   id: string; name: string; agency?: 'OC' | 'STO' }
   | { type: 'garbage' }
   | { type: 'service_alert' }
   | { type: 'gas_prices' }
@@ -295,12 +295,11 @@ const resolveStopId = (publicCode: string) => STOP_MAP[String(parseInt(publicCod
 const getStopName = (publicCode: string) => STOP_NAME_MAP[resolveStopId(publicCode)] || `Stop #${publicCode}`;
 const getHeadsign = (tripId: string) => TRIP_MAP[tripId] || '';
 
-// STO (Gatineau) stops use numeric IDs in the 1xxx-5xxx range and won't be in OC Transpo maps
+// STO (Gatineau) stops use numeric IDs in the 15000-59999 range
 const isStoStop = (id: string): boolean => {
-  // If not in OC Transpo stop map and is a short numeric ID (STO range)
   const num = parseInt(id);
   if (isNaN(num)) return false;
-  return num >= 1000 && num <= 5999 && !STOP_MAP[String(num)] && !STOP_NAME_MAP[id];
+  return num >= 15000 && num <= 59999;
 };
 
 const BIN_INFO: Record<string, { dot: string; color: string; label: string; accepts: string[]; rejects: string[] }> = {
@@ -334,7 +333,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
 }) {
   const [preview, setPreview] = useState<{ routeId: string; headsign: string; minsAway: number }[]>([]);
   const [previewLoading, setPreviewLoading] = useState(true);
-  const [previewSource, setPreviewSource] = useState<'gtfs-rt' | 'gtfs-static' | null>(null);
+  const [previewSource, setPreviewSource] = useState<'gtfs-rt' | 'gtfs-static' | 'sto-gtfs-rt' | null>(null);
   const [gasPrice, setGasPrice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -351,7 +350,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
         const data = await resp.json();
         if (!cancelled) {
           setPreview((data.arrivals || []).slice(0, 3).map((a: any) => ({ routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway })));
-          setPreviewSource(data.source === 'gtfs-rt' ? 'gtfs-rt' : 'gtfs-static');
+          setPreviewSource(data.source === 'sto-gtfs-rt' ? 'sto-gtfs-rt' as any : data.source === 'gtfs-rt' ? 'gtfs-rt' : 'gtfs-static');
         }
       } catch { if (!cancelled) setPreview([]); }
       finally { if (!cancelled) setPreviewLoading(false); }
@@ -568,8 +567,9 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
 
   // ── Bus Stop / LRT card ──
   const isLRT = item.type === 'lrt_station';
-  const isLive = previewSource === 'gtfs-rt';
-  const isSTO = isStoStop(item.id);
+  const isLive = previewSource === 'gtfs-rt' || previewSource === 'sto-gtfs-rt';
+  const isSTO = (item as any).agency === 'STO' || isStoStop(item.id);
+  const stoBlue = '#0072bc';
   // Check if any alert routes match this stop's routes
   const stopRouteIds = preview.map(a => a.routeId.split('-')[0]);
   const activeAlerts = alerts.filter((a: any) => a.category !== 'accessibility');
@@ -595,8 +595,8 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
           </Text>
           {!previewLoading && preview.length > 0 && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-              <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: isLive ? '#22c55e' : colours.muted }} />
-              <Text style={{ fontSize: 8, fontWeight: '700', color: isLive ? '#22c55e' : colours.muted }}>{isLive ? 'LIVE' : 'SCHED'}</Text>
+              <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: isLive ? (isSTO ? stoBlue : '#22c55e') : colours.muted }} />
+              <Text style={{ fontSize: 8, fontWeight: '700', color: isLive ? (isSTO ? stoBlue : '#22c55e') : colours.muted }}>{isLive ? 'LIVE' : 'SCHED'}</Text>
             </View>
           )}
         </View>
@@ -620,19 +620,22 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
         ) : preview.length === 0 ? (
           <Text style={{ fontSize: 11, color: colours.muted }}>{t('No arrivals', 'Aucune arrivée')}</Text>
         ) : (
-          preview.map((a, i) => (
+          preview.map((a, i) => {
+            const badgeColor = isSTO ? stoBlue : colours.accent;
+            return (
             <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <View style={{ backgroundColor: colours.accent + '18', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, minWidth: 26, alignItems: 'center' }}>
-                <Text style={{ fontSize: 10, fontWeight: '800', color: colours.accent }}>{a.routeId.split('-')[0]}</Text>
+              <View style={{ backgroundColor: badgeColor + '18', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, minWidth: 26, alignItems: 'center' }}>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: badgeColor }}>{a.routeId.split('-')[0]}</Text>
               </View>
-              <Text style={{ fontSize: 11, fontWeight: '800', color: a.minsAway <= 2 ? colours.red : colours.accent }}>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: a.minsAway <= 2 ? colours.red : badgeColor }}>
                 {timeFormat === 'absolute'
                   ? (() => { const d = new Date(Date.now() + a.minsAway * 60000); const h = d.getHours(); return `${h % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')}${h >= 12 ? 'p' : 'a'}`; })()
                   : (a.minsAway === 0 ? t('Now', 'Maint.') : `${a.minsAway}m`)}
               </Text>
               <Text style={{ fontSize: 10, color: colours.muted, flex: 1 }} numberOfLines={1}>{a.headsign || ''}</Text>
             </View>
-          ))
+            );
+          })
         )}
       </View>
     </TouchableOpacity>
@@ -642,7 +645,9 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
 function SavedStopCard({ fav, isActive, colours, fonts, t, onPress, onLongPress, cardShadow }: any) {
   const [preview, setPreview] = useState<{ routeId: string; headsign: string; minsAway: number }[]>([]);
   const [previewLoading, setPreviewLoading] = useState(true);
-  const [previewSource, setPreviewSource] = useState<'gtfs-rt' | 'gtfs-static' | null>(null);
+  const [previewSource, setPreviewSource] = useState<'gtfs-rt' | 'gtfs-static' | 'sto-gtfs-rt' | null>(null);
+  const isSTO = isStoStop(fav.id);
+  const stopColor = isSTO ? '#0072bc' : colours.accent;
   useEffect(() => {
     let cancelled = false;
     const fetchPreview = async () => {
@@ -651,7 +656,7 @@ function SavedStopCard({ fav, isActive, colours, fonts, t, onPress, onLongPress,
         const data = await resp.json();
         if (!cancelled) {
           setPreview((data.arrivals || []).slice(0, 2).map((a: any) => ({ routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway })));
-          setPreviewSource(data.source === 'gtfs-rt' ? 'gtfs-rt' : 'gtfs-static');
+          setPreviewSource(data.source === 'sto-gtfs-rt' ? 'sto-gtfs-rt' : data.source === 'gtfs-rt' ? 'gtfs-rt' : 'gtfs-static');
         }
       } catch { if (!cancelled) setPreview([]); }
       finally { if (!cancelled) setPreviewLoading(false); }
@@ -659,30 +664,32 @@ function SavedStopCard({ fav, isActive, colours, fonts, t, onPress, onLongPress,
     fetchPreview();
     return () => { cancelled = true; };
   }, [fav.id]);
+  const isLive = previewSource === 'gtfs-rt' || previewSource === 'sto-gtfs-rt';
+  const liveColor = isSTO ? '#0072bc' : '#22c55e';
   return (
-    <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 16, padding: 14, backgroundColor: isActive ? colours.accent : colours.surface, borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
+    <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 16, padding: 14, backgroundColor: isActive ? stopColor : colours.surface, borderWidth: 1, borderColor: isActive ? stopColor : colours.border, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
-          <Ionicons name="bus" size={12} color={isActive ? 'white' : colours.accent} />
+        <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : stopColor + '18', alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="bus" size={12} color={isActive ? 'white' : stopColor} />
         </View>
-        <Text style={{ fontSize: 10, fontWeight: '700', color: isActive ? 'rgba(255,255,255,0.7)' : colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Stop', 'Arrêt')}</Text>
+        <Text style={{ fontSize: 10, fontWeight: '700', color: isActive ? 'rgba(255,255,255,0.7)' : (isSTO ? '#0072bc' : colours.muted), textTransform: 'uppercase', letterSpacing: 0.5 }}>{isSTO ? 'STO' : t('Stop', 'Arrêt')}</Text>
         {!previewLoading && preview.length > 0 && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-            <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: previewSource === 'gtfs-rt' ? '#22c55e' : (isActive ? 'rgba(255,255,255,0.5)' : colours.muted) }} />
-            <Text style={{ fontSize: 8, fontWeight: '700', color: previewSource === 'gtfs-rt' ? '#22c55e' : (isActive ? 'rgba(255,255,255,0.5)' : colours.muted) }}>{previewSource === 'gtfs-rt' ? 'LIVE' : 'SCHED'}</Text>
+            <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: isLive ? liveColor : (isActive ? 'rgba(255,255,255,0.5)' : colours.muted) }} />
+            <Text style={{ fontSize: 8, fontWeight: '700', color: isLive ? liveColor : (isActive ? 'rgba(255,255,255,0.5)' : colours.muted) }}>{isLive ? 'LIVE' : 'SCHED'}</Text>
           </View>
         )}
       </View>
       <Text style={{ fontSize: 14, fontWeight: '800', color: isActive ? 'white' : colours.text, lineHeight: 18 }} numberOfLines={2}>{fav.name}</Text>
       <View style={{ gap: 5 }}>
-        {previewLoading ? <ActivityIndicator size="small" color={isActive ? 'rgba(255,255,255,0.6)' : colours.accent} /> : preview.length === 0 ? <Text style={{ fontSize: 11, color: isActive ? 'rgba(255,255,255,0.5)' : colours.muted }}>{t('No arrivals', 'Aucune arrivée')}</Text> : (
+        {previewLoading ? <ActivityIndicator size="small" color={isActive ? 'rgba(255,255,255,0.6)' : stopColor} /> : preview.length === 0 ? <Text style={{ fontSize: 11, color: isActive ? 'rgba(255,255,255,0.5)' : colours.muted }}>{t('No arrivals', 'Aucune arrivée')}</Text> : (
           preview.map((a, i) => (
             <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-              <View style={{ backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : colours.accent + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, minWidth: 28, alignItems: 'center' }}>
-                <Text style={{ fontSize: 10, fontWeight: '800', color: isActive ? 'white' : colours.accent }}>{a.routeId.split('-')[0]}</Text>
+              <View style={{ backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : stopColor + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, minWidth: 28, alignItems: 'center' }}>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: isActive ? 'white' : stopColor }}>{a.routeId.split('-')[0]}</Text>
               </View>
               <Text style={{ fontSize: 11, color: isActive ? 'rgba(255,255,255,0.7)' : colours.muted, flex: 1 }} numberOfLines={1}>{a.headsign ? `→ ${a.headsign}` : ''}</Text>
-              <Text style={{ fontSize: 12, fontWeight: '800', color: isActive ? 'white' : (a.minsAway <= 2 ? colours.red : colours.accent) }}>{a.minsAway === 0 ? t('Now', 'Maint.') : `${a.minsAway}m`}</Text>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: isActive ? 'white' : (a.minsAway <= 2 ? colours.red : stopColor) }}>{a.minsAway === 0 ? t('Now', 'Maint.') : `${a.minsAway}m`}</Text>
             </View>
           ))
         )}
@@ -1832,7 +1839,10 @@ export default function LiveScreen() {
     if (favs.find(f => f.id === id)) return;
     if (favs.length >= 5) { Alert.alert(t('Max 5 favourites', 'Max 5 favoris'), t('Long press to remove one first.', 'Appuyez longuement pour en retirer un.')); return; }
     saveFavs([...favs, { id, name, icon: 'star' }]);
-    addToBoardIfMissing({ type: LRT_STOP_IDS.has(id) ? 'lrt_station' : 'bus_stop', id, name });
+    const boardItem: SavedBoardItem = isStoStop(id)
+      ? { type: 'bus_stop', id, name, agency: 'STO' }
+      : { type: LRT_STOP_IDS.has(id) ? 'lrt_station' : 'bus_stop', id, name };
+    addToBoardIfMissing(boardItem);
   };
 
   const removeFav = (id: string) => {
@@ -1851,6 +1861,16 @@ export default function LiveScreen() {
       setError('');
       const isNumericOnly = /^\d+$/.test(id);
       const internalId = isNumericOnly ? resolveStopId(id) : id;
+      // STO stops — route through backend which handles STO GTFS-RT
+      if (isStoStop(id)) {
+        const resp = await fetch(`${BACKEND_URL}?stop=${id}`);
+        const data = await resp.json();
+        setArrivals((data.arrivals || []).map((a: any) => ({ id: `${a.stopId || id}-${a.scheduledTime || Math.random()}`, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway, delay: 0, secsAway: a.minsAway * 60, isScheduled: false })));
+        const now = new Date();
+        setLastUpdated(`${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`);
+        setLoading(false);
+        return;
+      }
       if (LRT_STOP_IDS.has(id) || LRT_STOP_IDS.has(internalId)) {
         const rawId = LRT_STOP_IDS.has(id) ? id : internalId;
         const platforms = MULTI_PLATFORM_STOPS[rawId];
@@ -1902,11 +1922,31 @@ export default function LiveScreen() {
 
   const geocodeSeq = useRef(0);
 
+  const stoSearchSeq = useRef(0);
   const handleSearchChange = (text: string) => {
     setSearchText(text);
     if (text.length >= 2) {
       const upper = text.toUpperCase();
-      setSearchResults(STOP_SEARCH.filter(s => s.name.toUpperCase().includes(upper) || s.id.includes(text)).slice(0, 4));
+      const results = STOP_SEARCH.filter(s => s.name.toUpperCase().includes(upper) || s.id.includes(text)).slice(0, 4);
+      // If numeric input matches STO range and not already in results, add a synthetic STO result
+      const num = parseInt(text);
+      if (!isNaN(num) && num >= 15000 && num <= 59999 && !results.find(r => r.id === text)) {
+        results.unshift({ id: text, internalId: text, name: `STO Stop #${text}` });
+        if (results.length > 4) results.pop();
+      }
+      setSearchResults(results);
+      // Also search STO stops from Supabase by name
+      if (text.length >= 3 && isNaN(num)) {
+        const seq = ++stoSearchSeq.current;
+        supabase.from('stops').select('stop_id,name').eq('agency', 'STO').ilike('name', `%${text}%`).limit(4)
+          .then(({ data }) => {
+            if (seq !== stoSearchSeq.current || !data || data.length === 0) return;
+            setSearchResults(prev => {
+              const stoResults: StopResult[] = data.filter(s => !prev.find(p => p.id === s.stop_id)).map(s => ({ id: s.stop_id, internalId: s.stop_id, name: s.name }));
+              return [...prev, ...stoResults].slice(0, 6);
+            });
+          });
+      }
     } else { setSearchResults([]); setAddressResults([]); return; }
     if (text.length >= 3) {
       const seq = ++geocodeSeq.current;
@@ -1919,6 +1959,13 @@ export default function LiveScreen() {
 
   const handleSearch = () => {
     if (searchText.length < 2) return;
+    const num = parseInt(searchText);
+    // STO stop number entered directly
+    if (!isNaN(num) && num >= 15000 && num <= 59999) {
+      loadStop(searchText, `STO Stop #${searchText}`);
+      setSearchText(''); setSearchResults([]); Keyboard.dismiss();
+      return;
+    }
     const internalId = resolveStopId(searchText);
     if (internalId !== searchText) { loadStop(searchText); setSearchText(''); setSearchResults([]); Keyboard.dismiss(); }
   };
@@ -3795,7 +3842,7 @@ export default function LiveScreen() {
             </View>
             {(searchResults.length > 0 || addressResults.length > 0) && (
               <View style={[styles.dropdown, { backgroundColor: colours.surface, borderColor: colours.border, ...cardShadow }]}>
-                {searchResults.map(result => (<TouchableOpacity key={result.internalId} style={[styles.dropdownItem, { borderBottomColor: colours.border }]} onPress={() => { Keyboard.dismiss(); loadStop(result.id, result.name); setExpandedStopId(result.id); setSearchText(''); setSearchResults([]); setAddressResults([]); }}><Text style={{ color: colours.text, fontSize: fonts.md, fontWeight: '600', flex: 1 }} numberOfLines={1}>{result.name}  <Text style={{ color: colours.muted, fontSize: fonts.sm }}>·  #{result.id}</Text></Text></TouchableOpacity>))}
+                {searchResults.map(result => { const resultIsSTO = isStoStop(result.id); return (<TouchableOpacity key={result.internalId} style={[styles.dropdownItem, { borderBottomColor: colours.border }]} onPress={() => { Keyboard.dismiss(); loadStop(result.id, result.name); setExpandedStopId(result.id); setSearchText(''); setSearchResults([]); setAddressResults([]); if (resultIsSTO) { addToBoardIfMissing({ type: 'bus_stop', id: result.id, name: result.name, agency: 'STO' }); } }}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>{resultIsSTO && <View style={{ backgroundColor: '#0072bc', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}><Text style={{ fontSize: 9, fontWeight: '800', color: 'white' }}>STO</Text></View>}<Text style={{ color: colours.text, fontSize: fonts.md, fontWeight: '600', flex: 1 }} numberOfLines={1}>{result.name}  <Text style={{ color: colours.muted, fontSize: fonts.sm }}>·  #{result.id}</Text></Text></View></TouchableOpacity>); })}
                 {searchResults.length === 0 && addressResults.map((addr, i) => (<TouchableOpacity key={`addr-${i}`} style={[styles.dropdownItem, { borderBottomColor: colours.border }]} onPress={() => { Keyboard.dismiss(); setSearchText(''); setSearchResults([]); setAddressResults([]); router.push({ pathname: '/(tabs)/planner', params: { toLabel: addr.label, toLat: String(addr.lat), toLng: String(addr.lng) } } as any); }}><Text style={{ color: colours.text, fontSize: fonts.md, flex: 1 }} numberOfLines={1}>{addr.label}</Text><Text style={{ color: colours.accent, fontSize: fonts.sm, marginLeft: 8 }}>→ Plan</Text></TouchableOpacity>))}
               </View>
             )}
