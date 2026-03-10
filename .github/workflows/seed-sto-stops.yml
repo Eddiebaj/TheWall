@@ -11,7 +11,7 @@ jobs:
     steps:
       - name: Download STO GTFS
         run: |
-          curl -L -o gtfs_sto.zip "https://www.sto.ca/sites/default/files/opendata/gtfs/gtfs_sto.zip"
+          curl -L -o gtfs_sto.zip "https://contenu.sto.ca/GTFS/GTFS.zip"
           unzip -o gtfs_sto.zip stops.txt
 
       - name: Parse stops and upsert to Supabase
