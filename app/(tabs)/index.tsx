@@ -216,7 +216,7 @@ const SERVICES_TABS: ServicesTab[] = [
     tiles: [
       { id: 'live_map',    label_en: 'Live Map',     label_fr: 'Carte live',    icon: 'map',              accent: '#00A78D', action: 'navigate', target: '/(tabs)/map' },
       { id: 'trip_plan',   label_en: 'Trip Planner', label_fr: 'Planificateur', icon: 'navigate',         accent: '#004890', action: 'navigate', target: '/(tabs)/planner' },
-      { id: 'bikeshare',   label_en: 'Bike Share',   label_fr: 'Vélos',         icon: 'bicycle',          accent: '#00A78D', action: 'link',     target: 'https://www.velo.ottawa.ca/en/' },
+      { id: 'bikeshare',   label_en: 'Bike Share',   label_fr: 'Vélos',         icon: 'bicycle',          accent: '#00A78D', action: 'alert',    target: 'bikeshare' },
       { id: 'parkride',    label_en: 'Park & Ride',  label_fr: 'Parc-o-Bus',    icon: 'car',              accent: '#6b7f99', action: 'link',     target: 'https://www.octranspo.com/en/plan-your-trip/service-information/park-and-ride/' },
       { id: 'paybyphone',  label_en: 'PayByPhone',   label_fr: 'PayByPhone',    icon: 'phone-portrait',   accent: '#004890', action: 'link',     target: 'https://www.paybyphone.com/parking/ottawa' },
       { id: 'uber',        label_en: 'Uber',         label_fr: 'Uber',          icon: 'car-sport',        accent: '#6b7f99', action: 'link',     target: 'uber://' },
@@ -245,7 +245,7 @@ const SERVICES_TABS: ServicesTab[] = [
       { id: 'garbage',     label_en: 'Garbage Day',  label_fr: 'Collecte',      icon: 'trash',            accent: '#6b7f99', action: 'alert',    target: 'garbage' },
       { id: 'hydro',       label_en: 'Hydro Ottawa', label_fr: 'Hydro Ottawa',  icon: 'flash',            accent: '#e8a020', action: 'link',     target: 'https://hydroottawa.com/en/outages' },
       { id: 'parking_tkt', label_en: 'Pay Ticket',   label_fr: 'Payer contrav.', icon: 'card',            accent: '#cc3b2a', action: 'link',     target: 'https://www.ottawapolice.ca/en/parking-and-traffic/pay-a-parking-ticket.aspx' },
-      { id: 'road_511',    label_en: 'Road Events',  label_fr: 'Événements',    icon: 'warning',          accent: '#e8a020', action: 'link',     target: 'https://traffic.ottawa.ca/map/' },
+      { id: 'road_511',    label_en: 'Road Events',  label_fr: 'Événements',    icon: 'warning',          accent: '#e8a020', action: 'alert',    target: 'road_closures' },
       { id: 'parks',       label_en: 'Parks & Rinks',label_fr: 'Parcs & Patins',icon: 'snow',             accent: '#004890', action: 'alert',    target: 'parks' },
       { id: 'library',     label_en: 'OPL Library',  label_fr: 'Bib. Ottawa',   icon: 'book',             accent: '#004890', action: 'link',     target: 'https://biblioottawalibrary.ca' },
       { id: 'walkin',      label_en: 'Walk-In Clinic',label_fr: 'Clinique',     icon: 'medical',          accent: '#00A78D', action: 'link',     target: 'https://www.ontario.ca/page/find-walk-in-clinic' },
@@ -1217,14 +1217,18 @@ export default function LiveScreen() {
   const [forecast, setForecast] = useState<{ time: string; temp: number; icon: string; precip: number }[]>([]);
   const [dailyForecast, setDailyForecast] = useState<{ day: string; high: number; low: number; icon: string; precip: number }[]>([]);
   const [locationName, setLocationName] = useState('Ottawa, Ontario');
-  // 511 Ontario road events
-  const [roadEvents, setRoadEvents] = useState<{ id: string; description: string; type: string; road: string }[]>([]);
+  // Ottawa road closures
+  const [roadEvents, setRoadEvents] = useState<{ id: string; description: string; type: string; road: string; distance: number }[]>([]);
   const [roadEventsModal, setRoadEventsModal] = useState(false);
   const [roadEventsLoading, setRoadEventsLoading] = useState(false);
   // Ottawa Open Data parks/rinks
   const [parksModal, setParksModal] = useState(false);
-  const [parks, setParks] = useState<{ name: string; address: string; type: string }[]>([]);
+  const [parks, setParks] = useState<{ name: string; crossStreets: string; facility: string; accessible: string; boards: string; toilet: string }[]>([]);
   const [parksLoading, setParksLoading] = useState(false);
+  // VeloGo bike share
+  const [bikeShareModal, setBikeShareModal] = useState(false);
+  const [bikeStations, setBikeStations] = useState<{ name: string; bikes: number; docks: number; lat: number; lng: number; distance: number }[]>([]);
+  const [bikeShareLoading, setBikeShareLoading] = useState(false);
   // Events modal (Ticketmaster + Eventbrite)
   const [eventsModal, setEventsModal] = useState(false);
   const [eventsSource, setEventsSource] = useState<'ticketmaster' | 'eventbrite'>('ticketmaster');
@@ -1623,13 +1627,52 @@ export default function LiveScreen() {
   };
 
   // ── 511 Ontario road events ───────────────────────────────────
-  const fetch511Events = async () => {
+  const haversineDist = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+    const toRad = (d: number) => d * Math.PI / 180;
+    const R = 6371;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  };
+
+  const getUserCoords = async (): Promise<{ lat: number; lng: number }> => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        return { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      }
+    } catch {}
+    return { lat: 45.4215, lng: -75.6972 };
+  };
+
+  const fetchRoadClosures = async () => {
     setRoadEventsLoading(true);
     try {
-      const resp = await fetch('https://routeo-backend.vercel.app/api/511events');
-      if (!resp.ok) throw new Error(`${resp.status}`);
+      const coords = await getUserCoords();
+      const resp = await fetch('https://maps.ottawa.ca/arcgis/rest/services/Road_Closures/MapServer/0/query?where=1%3D1&outFields=*&f=json');
       const data = await resp.json();
-      setRoadEvents(data.events || []);
+      const features = data.features || [];
+      const events = features.map((f: any, i: number) => {
+        const a = f.attributes || {};
+        const geom = f.geometry;
+        let dist = 999;
+        if (geom) {
+          const eLat = geom.y || geom.paths?.[0]?.[0]?.[1];
+          const eLng = geom.x || geom.paths?.[0]?.[0]?.[0];
+          if (eLat && eLng) dist = haversineDist(coords.lat, coords.lng, eLat, eLng);
+        }
+        return {
+          id: String(a.OBJECTID || i),
+          description: a.DESCRIPTION || a.COMMENTS || a.NAME || 'Road closure',
+          type: a.CLOSURE_TYPE || a.TYPE || 'Closure',
+          road: a.ROAD_NAME || a.STREET || a.NAME || '',
+          distance: dist,
+        };
+      });
+      events.sort((a: any, b: any) => a.distance - b.distance);
+      setRoadEvents(events);
     } catch { setRoadEvents([]); }
     setRoadEventsLoading(false);
   };
@@ -1638,12 +1681,55 @@ export default function LiveScreen() {
   const fetchParks = async () => {
     setParksLoading(true);
     try {
-      const resp = await fetch('https://routeo-backend.vercel.app/api/parks');
-      if (!resp.ok) throw new Error(`${resp.status}`);
+      const resp = await fetch('https://maps.ottawa.ca/arcgis/rest/services/Parks_Inventory/MapServer/13/query?where=1%3D1&outFields=RINK_PARK_NAME,MAJOR_CROSSSTREETS,FACILITY,ACCESSIBLE,BOARDS,TOILET&f=json');
       const data = await resp.json();
-      setParks(data.parks || []);
+      const features = data.features || [];
+      setParks(features.map((f: any) => {
+        const a = f.attributes || {};
+        return {
+          name: a.RINK_PARK_NAME || 'Unknown Rink',
+          crossStreets: a.MAJOR_CROSSSTREETS || '',
+          facility: a.FACILITY || '',
+          accessible: a.ACCESSIBLE || '',
+          boards: a.BOARDS || '',
+          toilet: a.TOILET || '',
+        };
+      }));
     } catch { setParks([]); }
     setParksLoading(false);
+  };
+
+  // ── VeloGo bike share ─────────────────────────────────────────
+  const fetchBikeShare = async () => {
+    setBikeShareLoading(true);
+    try {
+      const coords = await getUserCoords();
+      const [infoResp, statusResp] = await Promise.all([
+        fetch('http://velogo.ca/opendata/station_information.json'),
+        fetch('http://velogo.ca/opendata/station_status.json'),
+      ]);
+      const infoData = await infoResp.json();
+      const statusData = await statusResp.json();
+      const stations = infoData.data?.stations || [];
+      const statuses = statusData.data?.stations || [];
+      const statusMap: { [id: string]: any } = {};
+      for (const s of statuses) statusMap[s.station_id] = s;
+      const merged = stations.map((s: any) => {
+        const st = statusMap[s.station_id] || {};
+        const dist = haversineDist(coords.lat, coords.lng, s.lat, s.lon);
+        return {
+          name: s.name || `Station ${s.station_id}`,
+          bikes: st.num_bikes_available ?? 0,
+          docks: st.num_docks_available ?? 0,
+          lat: s.lat,
+          lng: s.lon,
+          distance: dist,
+        };
+      });
+      merged.sort((a: any, b: any) => a.distance - b.distance);
+      setBikeStations(merged.slice(0, 30));
+    } catch { setBikeStations([]); }
+    setBikeShareLoading(false);
   };
 
   // ── Ticketmaster events ───────────────────────────────────────
@@ -1878,8 +1964,9 @@ export default function LiveScreen() {
     if (tile.action === 'alert' && tile.target === 'social') { setSocialModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'garbage') { setGarbageModalVisible(true); return; }
     if (tile.action === 'alert' && tile.target === '311') { open311Modal(); return; }
-    if (tile.action === 'alert' && tile.target === '511events') { fetch511Events(); setRoadEventsModal(true); return; }
+    if (tile.action === 'alert' && tile.target === 'road_closures') { fetchRoadClosures(); setRoadEventsModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'parks') { fetchParks(); setParksModal(true); return; }
+    if (tile.action === 'alert' && tile.target === 'bikeshare') { fetchBikeShare(); setBikeShareModal(true); return; }
     if (tile.action === 'alert') { setAlertsModalVisible(true); return; }
     if (tile.action === 'navigate' && tile.target?.includes('events?source=')) {
       const source = tile.target.includes('eventbrite') ? 'eventbrite' : 'ticketmaster';
@@ -2786,8 +2873,8 @@ export default function LiveScreen() {
       <View style={[styles.modalContainer, { backgroundColor: colours.bg }]}>
         <View style={[styles.modalHeader, { borderBottomColor: colours.border }]}>
           <View>
-            <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>Road Events</Text>
-            <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>511 Ontario · Ottawa area</Text>
+            <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>{t('Road Closures', 'Fermetures de routes')}</Text>
+            <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Ottawa Open Data · Sorted by distance', 'Donn\u00E9es ouvertes · Tri\u00E9 par distance')}</Text>
           </View>
           <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setRoadEventsModal(false)}>
             <Ionicons name="close" size={18} color={colours.text} />
@@ -2795,22 +2882,25 @@ export default function LiveScreen() {
         </View>
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
           {roadEventsLoading ? (
-            <View style={styles.modalCenter}><ActivityIndicator color={colours.accent} size="large" /></View>
+            <View style={styles.modalCenter}><ActivityIndicator color={colours.accent} size="large" /><Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('Loading road closures...', 'Chargement...')}</Text></View>
           ) : roadEvents.length === 0 ? (
             <View style={styles.modalCenter}>
               <Ionicons name="checkmark-circle" size={40} color={colours.accent} />
-              <Text style={{ color: colours.text, fontWeight: '700', fontSize: fonts.lg, marginTop: 12 }}>All Clear</Text>
-              <Text style={{ color: colours.muted, marginTop: 6, textAlign: 'center' }}>No active road events in Ottawa.</Text>
+              <Text style={{ color: colours.text, fontWeight: '700', fontSize: fonts.lg, marginTop: 12 }}>{t('All Clear', 'Tout est d\u00E9gag\u00E9')}</Text>
+              <Text style={{ color: colours.muted, marginTop: 6, textAlign: 'center' }}>{t('No active road closures in Ottawa.', 'Aucune fermeture de route active.')}</Text>
             </View>
           ) : roadEvents.map(ev => (
             <View key={ev.id} style={{ marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderLeftWidth: 4, borderColor: colours.border, borderLeftColor: '#e8a020', ...cardShadow }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <View style={{ backgroundColor: '#e8a02018', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#e8a020', textTransform: 'uppercase' }}>{ev.type}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                  <View style={{ backgroundColor: '#e8a02018', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#e8a020', textTransform: 'uppercase' }}>{ev.type}</Text>
+                  </View>
+                  {ev.road ? <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.text }} numberOfLines={1}>{ev.road}</Text> : null}
                 </View>
-                {ev.road ? <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted }}>{ev.road}</Text> : null}
+                {ev.distance < 900 && <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted }}>{ev.distance < 1 ? `${(ev.distance * 1000).toFixed(0)}m` : `${ev.distance.toFixed(1)}km`}</Text>}
               </View>
-              <Text style={{ fontSize: fonts.md, color: colours.text, lineHeight: 20 }}>{ev.description}</Text>
+              <Text style={{ fontSize: fonts.md, color: colours.muted, lineHeight: 20 }}>{ev.description}</Text>
             </View>
           ))}
         </ScrollView>
@@ -2824,8 +2914,8 @@ export default function LiveScreen() {
       <View style={[styles.modalContainer, { backgroundColor: colours.bg }]}>
         <View style={[styles.modalHeader, { borderBottomColor: colours.border }]}>
           <View>
-            <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>Parks & Rinks</Text>
-            <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>Ottawa Open Data</Text>
+            <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>{t('Parks & Rinks', 'Parcs et patinoires')}</Text>
+            <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Ottawa Open Data', 'Donn\u00E9es ouvertes d\u2019Ottawa')}</Text>
           </View>
           <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setParksModal(false)}>
             <Ionicons name="close" size={18} color={colours.text} />
@@ -2833,19 +2923,97 @@ export default function LiveScreen() {
         </View>
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
           {parksLoading ? (
-            <View style={styles.modalCenter}><ActivityIndicator color={colours.accent} size="large" /></View>
+            <View style={styles.modalCenter}><ActivityIndicator color={colours.accent} size="large" /><Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('Loading rinks...', 'Chargement...')}</Text></View>
           ) : parks.length === 0 ? (
             <View style={styles.modalCenter}>
               <Ionicons name="snow-outline" size={40} color={colours.muted} />
-              <Text style={{ color: colours.muted, marginTop: 12 }}>No rink data available right now.</Text>
+              <Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('No rink data available right now.', 'Aucune donn\u00E9e de patinoire disponible.')}</Text>
             </View>
           ) : parks.map((p, i) => (
             <View key={i} style={{ marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, ...cardShadow }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <Ionicons name="snow" size={16} color="#004890" />
-                <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text, flex: 1 }} numberOfLines={1}>{p.name}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: '#004890' + '15', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="snow" size={16} color="#004890" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text }} numberOfLines={1}>{p.name}</Text>
+                  {p.crossStreets ? <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }} numberOfLines={1}>{p.crossStreets}</Text> : null}
+                </View>
               </View>
-              {p.address ? <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{p.address}</Text> : null}
+              {p.facility ? <Text style={{ fontSize: fonts.sm, color: colours.muted, marginBottom: 6 }}>{p.facility}</Text> : null}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {p.accessible && p.accessible.toLowerCase() === 'yes' && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#00A78D' + '15', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
+                    <Ionicons name="accessibility" size={12} color="#00A78D" />
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#00A78D' }}>{t('Accessible', 'Accessible')}</Text>
+                  </View>
+                )}
+                {p.boards && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#004890' + '15', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
+                    <Ionicons name="shield-outline" size={12} color="#004890" />
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#004890' }}>{t('Boards', 'Bandes')}: {p.boards}</Text>
+                  </View>
+                )}
+                {p.toilet && p.toilet.toLowerCase() === 'yes' && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#7b5ea7' + '15', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
+                    <Ionicons name="water-outline" size={12} color="#7b5ea7" />
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#7b5ea7' }}>{t('Washroom', 'Toilettes')}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+
+  // ── VeloGo Bike Share Modal ───────────────────────────────────
+  const renderBikeShareModal = () => (
+    <Modal visible={bikeShareModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setBikeShareModal(false)}>
+      <View style={[styles.modalContainer, { backgroundColor: colours.bg }]}>
+        <View style={[styles.modalHeader, { borderBottomColor: colours.border }]}>
+          <View>
+            <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>{t('Bike Share', 'V\u00E9lopartage')}</Text>
+            <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('VeloGo · Nearest stations', 'VeloGo · Stations les plus proches')}</Text>
+          </View>
+          <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setBikeShareModal(false)}>
+            <Ionicons name="close" size={18} color={colours.text} />
+          </TouchableOpacity>
+        </View>
+        <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+          {bikeShareLoading ? (
+            <View style={styles.modalCenter}><ActivityIndicator color={colours.accent} size="large" /><Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('Finding nearby stations...', 'Recherche de stations...')}</Text></View>
+          ) : bikeStations.length === 0 ? (
+            <View style={styles.modalCenter}>
+              <Ionicons name="bicycle-outline" size={40} color={colours.muted} />
+              <Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('No bike stations found.', 'Aucune station trouv\u00E9e.')}</Text>
+            </View>
+          ) : bikeStations.map((s, i) => (
+            <View key={i} style={{ marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, ...cardShadow }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                  <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: '#00A78D' + '15', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="bicycle" size={16} color="#00A78D" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text }} numberOfLines={1}>{s.name}</Text>
+                    <Text style={{ fontSize: 11, color: colours.muted, marginTop: 1 }}>{s.distance < 1 ? `${(s.distance * 1000).toFixed(0)}m away` : `${s.distance.toFixed(1)}km away`}</Text>
+                  </View>
+                </View>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: s.bikes > 0 ? '#00A78D' + '12' : '#cc3b2a' + '12', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
+                  <Ionicons name="bicycle" size={14} color={s.bikes > 0 ? '#00A78D' : '#cc3b2a'} />
+                  <Text style={{ fontSize: 16, fontWeight: '900', color: s.bikes > 0 ? '#00A78D' : '#cc3b2a' }}>{s.bikes}</Text>
+                  <Text style={{ fontSize: 11, color: colours.muted, fontWeight: '600' }}>{t('bikes', 'v\u00E9los')}</Text>
+                </View>
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: s.docks > 0 ? '#004890' + '12' : '#cc3b2a' + '12', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
+                  <Ionicons name="lock-closed-outline" size={14} color={s.docks > 0 ? '#004890' : '#cc3b2a'} />
+                  <Text style={{ fontSize: 16, fontWeight: '900', color: s.docks > 0 ? '#004890' : '#cc3b2a' }}>{s.docks}</Text>
+                  <Text style={{ fontSize: 11, color: colours.muted, fontWeight: '600' }}>{t('docks', 'ancrages')}</Text>
+                </View>
+              </View>
             </View>
           ))}
         </ScrollView>
@@ -3372,6 +3540,7 @@ export default function LiveScreen() {
         {renderEventsModal()}
         {renderRoadEventsModal()}
         {renderParksModal()}
+        {renderBikeShareModal()}
 
         {/* 311 Report Modal */}
         <Modal visible={show311Modal} animationType="slide" transparent onRequestClose={() => setShow311Modal(false)}>
