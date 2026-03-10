@@ -189,6 +189,53 @@ export default function AccountScreen() {
     { icon: 'notifications' as const, tip: t('Tell someone your route before boarding late night', "Dites à quelqu'un votre trajet avant de partir tard") },
   ];
 
+  const notifGroups = [
+    {
+      id: 'trip', icon: 'navigate', color: colours.accent,
+      label: t('Trip Notifications', 'Notifications de trajet'),
+      expanded: showTripNotifs, setExpanded: setShowTripNotifs,
+      items: [
+        { key: 'leaveNow' as keyof NotifSettings, icon: 'alarm' as const, iconColor: colours.accent, label: t('Leave Now Reminder', 'Rappel de depart'), desc: t('Alerts you when to leave for a saved trip', 'Vous alerte quand partir pour un trajet sauvegarde') },
+        { key: 'transferAtRisk' as keyof NotifSettings, icon: 'swap-horizontal' as const, iconColor: '#e8a020', label: t('Transfer at Risk', 'Correspondance a risque'), desc: t('Warns if your connecting bus may be missed', 'Avertit si votre correspondance risque d\'etre manquee') },
+        { key: 'tripDisruption' as keyof NotifSettings, icon: 'alert-circle' as const, iconColor: '#cc3b2a', label: t('Trip Disruption', 'Perturbation de trajet'), desc: t('Notifies if your active route is affected mid-journey', 'Notifie si votre trajet actif est perturbe en cours de route') },
+        { key: 'lastBus' as keyof NotifSettings, icon: 'moon' as const, iconColor: '#7b5ea7', label: t('Last Bus Warning', 'Avertissement dernier bus'), desc: t('Alerts when the last bus of the night is approaching', 'Alerte quand le dernier bus de la nuit approche') },
+      ],
+    },
+    {
+      id: 'transit', icon: 'bus', color: '#cc3b2a',
+      label: t('Transit Alerts', 'Alertes de transport'),
+      expanded: showTransitAlerts, setExpanded: setShowTransitAlerts,
+      items: [
+        { key: 'lrtDisruption' as keyof NotifSettings, icon: 'train' as const, iconColor: '#cc3b2a', label: t('LRT Disruption', 'Perturbation du TLR'), desc: t('Line suspensions and major incidents', 'Suspensions de ligne et incidents majeurs') },
+        { key: 'routeCancellation' as keyof NotifSettings, icon: 'close-circle' as const, iconColor: '#cc3b2a', label: t('Route Cancellation', 'Annulation de route'), desc: t('Specific bus route cancelled', 'Route de bus specifique annulee') },
+        { key: 'significantDelay' as keyof NotifSettings, icon: 'time' as const, iconColor: '#e8a020', label: t('Significant Delay', 'Retard important'), desc: t('Bus running severely behind schedule', 'Bus tres en retard sur l\'horaire') },
+        { key: 'serviceResumed' as keyof NotifSettings, icon: 'checkmark-circle' as const, iconColor: '#00A78D', label: t('Service Resumed', 'Service repris'), desc: t('Line back online after disruption', 'Ligne de retour apres perturbation') },
+        { key: 'busRunningEarly' as keyof NotifSettings, icon: 'speedometer' as const, iconColor: '#e8a020', label: t('Bus Running Early', 'Bus en avance'), desc: t('Warns if your bus is ahead of schedule', 'Avertit si votre bus est en avance sur l\'horaire') },
+      ],
+    },
+    {
+      id: 'city', icon: 'home', color: '#6b7f99',
+      label: t('City Reminders', 'Rappels de la ville'),
+      expanded: showCityReminders, setExpanded: setShowCityReminders,
+      items: [
+        { key: 'garbageDay' as keyof NotifSettings, icon: 'trash' as const, iconColor: '#6b7f99', label: t('Garbage Day', 'Jour de collecte'), desc: t('8 pm reminder the evening before collection', 'Rappel a 20h la veille de la collecte') },
+        { key: 'recyclingReminder' as keyof NotifSettings, icon: 'leaf' as const, iconColor: '#2d7a3a', label: t('Recycling vs Green Bin', 'Recyclage vs bac vert'), desc: t('Alternating week reminder', 'Rappel de semaine alternee') },
+        { key: 'roadClosureNearby' as keyof NotifSettings, icon: 'warning' as const, iconColor: '#e8a020', label: t('Road Closure Nearby', 'Fermeture de route a proximite'), desc: t('Closures affecting your saved area', 'Fermetures affectant votre secteur sauvegarde') },
+        { key: 'hydroOutage' as keyof NotifSettings, icon: 'flash' as const, iconColor: '#cc3b2a', label: t('Hydro Ottawa Outage', 'Panne Hydro Ottawa'), desc: t('Outage reported in your area', 'Panne signalee dans votre secteur') },
+      ],
+    },
+    {
+      id: 'events', icon: 'ticket', color: '#7b5ea7',
+      label: t('Events & Entertainment', 'Evenements & divertissement'),
+      expanded: showEventsNotifs, setExpanded: setShowEventsNotifs,
+      items: [
+        { key: 'sportsGameDay' as keyof NotifSettings, icon: 'american-football' as const, iconColor: '#004890', label: t('Ottawa Sports Game Day', 'Jour de match Ottawa'), desc: t('Sens, REDBLACKS, Atletico Ottawa', 'Sens, REDBLACKS, Atletico Ottawa') },
+        { key: 'festivalEvents' as keyof NotifSettings, icon: 'musical-notes' as const, iconColor: '#7b5ea7', label: t('Bluesfest / NAC Events', 'Bluesfest / Evenements CNA'), desc: t('Evening before reminder', 'Rappel la veille au soir') },
+        { key: 'liveEventsNearby' as keyof NotifSettings, icon: 'location' as const, iconColor: '#cc3b2a', label: t('Live Events Nearby', 'Evenements en direct a proximite'), desc: t('Events happening near your location this week', 'Evenements pres de votre position cette semaine') },
+      ],
+    },
+  ];
+
   const EMERGENCY_CONTACTS = [
     { icon: 'alert-circle' as const, iconColor: colours.red, title: t('Call 911', 'Appeler le 911'), desc: t('Police, ambulance, fire', 'Police, ambulance, pompiers'), tel: '911' },
     { icon: 'bus' as const, iconColor: colours.accent, title: t('OC Transpo Info', 'Info OC Transpo'), desc: '613-560-1000', tel: '6135601000' },
@@ -346,172 +393,76 @@ export default function AccountScreen() {
                 </TouchableOpacity>
               )}
 
-              {/* ── Trip Notifications ── */}
-              <TouchableOpacity
-                onPress={() => setShowTripNotifs(!showTripNotifs)}
-                style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colours.bg + '80' }}
-                activeOpacity={0.7}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Ionicons name="navigate" size={14} color={colours.accent} />
-                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
-                    {t('Trip Notifications', 'Notifications de trajet')}
-                  </Text>
-                </View>
-                <Ionicons name={showTripNotifs ? 'chevron-up' : 'chevron-down'} size={14} color={colours.muted} />
-              </TouchableOpacity>
-              {showTripNotifs && ([
-                { key: 'leaveNow' as const, icon: 'alarm' as const, iconColor: colours.accent, label: t('Leave Now Reminder', 'Rappel de depart'), desc: t('Alerts you when to leave for a saved trip', 'Vous alerte quand partir pour un trajet sauvegarde') },
-                { key: 'transferAtRisk' as const, icon: 'swap-horizontal' as const, iconColor: '#e8a020', label: t('Transfer at Risk', 'Correspondance a risque'), desc: t('Warns if your connecting bus may be missed', 'Avertit si votre correspondance risque d\'etre manquee') },
-                { key: 'tripDisruption' as const, icon: 'alert-circle' as const, iconColor: '#cc3b2a', label: t('Trip Disruption', 'Perturbation de trajet'), desc: t('Notifies if your active route is affected mid-journey', 'Notifie si votre trajet actif est perturbe en cours de route') },
-                { key: 'lastBus' as const, icon: 'moon' as const, iconColor: '#7b5ea7', label: t('Last Bus Warning', 'Avertissement dernier bus'), desc: t('Alerts when the last bus of the night is approaching', 'Alerte quand le dernier bus de la nuit approche') },
-              ]).map((item, i) => (
-                <View key={item.key}>
-                  {i > 0 && <Divider />}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14 }}>
-                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: item.iconColor + '18', alignItems: 'center', justifyContent: 'center' }}>
-                      <Ionicons name={item.icon} size={16} color={item.iconColor} />
+              {notifGroups.map((group, gi) => {
+                const masterOn = group.items.some(item => notifSettings[item.key]);
+                return (
+                  <View key={group.id}>
+                    {gi > 0 && <Divider />}
+                    {/* Group header with master toggle */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colours.bg + '80' }}>
+                      <TouchableOpacity
+                        onPress={() => group.setExpanded(!group.expanded)}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name={group.icon as any} size={14} color={masterOn ? group.color : colours.muted} />
+                        <Text style={{ fontSize: fonts.md, fontWeight: '700', color: masterOn ? colours.text : colours.muted }}>
+                          {group.label}
+                        </Text>
+                        <Ionicons name={group.expanded ? 'chevron-up' : 'chevron-down'} size={14} color={colours.muted} />
+                      </TouchableOpacity>
+                      <Switch
+                        value={masterOn}
+                        onValueChange={v => {
+                          const updated = { ...notifSettings };
+                          for (const item of group.items) updated[item.key] = v;
+                          if (v && notifPermission !== 'granted') {
+                            handleNotifToggle(group.items[0].key, true).then(() => {
+                              const rest = { ...notifSettings };
+                              for (const item of group.items) rest[item.key] = true;
+                              saveNotifSettings(rest);
+                            });
+                          } else {
+                            saveNotifSettings(updated);
+                          }
+                          if (!group.expanded && v) group.setExpanded(true);
+                        }}
+                        trackColor={{ false: colours.border, true: group.color + '80' }}
+                        thumbColor={masterOn ? group.color : colours.muted}
+                        ios_backgroundColor={colours.border}
+                      />
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{item.label}</Text>
-                      <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>{item.desc}</Text>
-                    </View>
-                    <Switch
-                      value={notifSettings[item.key]}
-                      onValueChange={v => handleNotifToggle(item.key, v)}
-                      trackColor={{ false: colours.border, true: item.iconColor + '80' }}
-                      thumbColor={notifSettings[item.key] ? item.iconColor : colours.muted}
-                      ios_backgroundColor={colours.border}
-                    />
-                  </View>
-                </View>
-              ))}
-              <Divider />
 
-              {/* ── Transit Alerts ── */}
-              <TouchableOpacity
-                onPress={() => setShowTransitAlerts(!showTransitAlerts)}
-                style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colours.bg + '80' }}
-                activeOpacity={0.7}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Ionicons name="bus" size={14} color="#cc3b2a" />
-                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
-                    {t('Transit Alerts', 'Alertes de transport')}
-                  </Text>
-                </View>
-                <Ionicons name={showTransitAlerts ? 'chevron-up' : 'chevron-down'} size={14} color={colours.muted} />
-              </TouchableOpacity>
-              {showTransitAlerts && ([
-                { key: 'lrtDisruption' as const, icon: 'train' as const, iconColor: '#cc3b2a', label: t('LRT Disruption', 'Perturbation du TLR'), desc: t('Line suspensions and major incidents', 'Suspensions de ligne et incidents majeurs') },
-                { key: 'routeCancellation' as const, icon: 'close-circle' as const, iconColor: '#cc3b2a', label: t('Route Cancellation', 'Annulation de route'), desc: t('Specific bus route cancelled', 'Route de bus specifique annulee') },
-                { key: 'significantDelay' as const, icon: 'time' as const, iconColor: '#e8a020', label: t('Significant Delay', 'Retard important'), desc: t('Bus running severely behind schedule', 'Bus tres en retard sur l\'horaire') },
-                { key: 'serviceResumed' as const, icon: 'checkmark-circle' as const, iconColor: '#00A78D', label: t('Service Resumed', 'Service repris'), desc: t('Line back online after disruption', 'Ligne de retour apres perturbation') },
-                { key: 'busRunningEarly' as const, icon: 'speedometer' as const, iconColor: '#e8a020', label: t('Bus Running Early', 'Bus en avance'), desc: t('Warns if your bus is ahead of schedule', 'Avertit si votre bus est en avance sur l\'horaire') },
-              ]).map((item, i) => (
-                <View key={item.key}>
-                  {i > 0 && <Divider />}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14 }}>
-                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: item.iconColor + '18', alignItems: 'center', justifyContent: 'center' }}>
-                      <Ionicons name={item.icon} size={16} color={item.iconColor} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{item.label}</Text>
-                      <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>{item.desc}</Text>
-                    </View>
-                    <Switch
-                      value={notifSettings[item.key]}
-                      onValueChange={v => handleNotifToggle(item.key, v)}
-                      trackColor={{ false: colours.border, true: item.iconColor + '80' }}
-                      thumbColor={notifSettings[item.key] ? item.iconColor : colours.muted}
-                      ios_backgroundColor={colours.border}
-                    />
+                    {/* Sub-toggles */}
+                    {group.expanded && group.items.map((item, i) => (
+                      <View key={item.key} style={{ opacity: masterOn ? 1 : 0.4 }}>
+                        {i > 0 && <View style={{ height: 1, backgroundColor: colours.border, marginHorizontal: 32 }} />}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingLeft: 32, paddingRight: 16, paddingVertical: 12 }}>
+                          <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: item.iconColor + '15', alignItems: 'center', justifyContent: 'center' }}>
+                            <Ionicons name={item.icon} size={14} color={masterOn ? item.iconColor : colours.muted} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: masterOn ? colours.text : colours.muted }}>{item.label}</Text>
+                            <Text style={{ fontSize: 11, color: colours.muted, marginTop: 1 }}>{item.desc}</Text>
+                          </View>
+                          <Switch
+                            value={notifSettings[item.key]}
+                            disabled={!masterOn}
+                            onValueChange={v => {
+                              const updated = { ...notifSettings, [item.key]: v };
+                              // If all sub-toggles are now off, master auto-off (handled by masterOn derive)
+                              saveNotifSettings(updated);
+                            }}
+                            trackColor={{ false: colours.border, true: item.iconColor + '80' }}
+                            thumbColor={notifSettings[item.key] && masterOn ? item.iconColor : colours.muted}
+                            ios_backgroundColor={colours.border}
+                          />
+                        </View>
+                      </View>
+                    ))}
                   </View>
-                </View>
-              ))}
-              <Divider />
-
-              {/* ── City Reminders ── */}
-              <TouchableOpacity
-                onPress={() => setShowCityReminders(!showCityReminders)}
-                style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colours.bg + '80' }}
-                activeOpacity={0.7}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Ionicons name="home" size={14} color="#6b7f99" />
-                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
-                    {t('City Reminders', 'Rappels de la ville')}
-                  </Text>
-                </View>
-                <Ionicons name={showCityReminders ? 'chevron-up' : 'chevron-down'} size={14} color={colours.muted} />
-              </TouchableOpacity>
-              {showCityReminders && ([
-                { key: 'garbageDay' as const, icon: 'trash' as const, iconColor: '#6b7f99', label: t('Garbage Day', 'Jour de collecte'), desc: t('8 pm reminder the evening before collection', 'Rappel a 20h la veille de la collecte') },
-                { key: 'recyclingReminder' as const, icon: 'leaf' as const, iconColor: '#2d7a3a', label: t('Recycling vs Green Bin', 'Recyclage vs bac vert'), desc: t('Alternating week reminder', 'Rappel de semaine alternee') },
-                { key: 'roadClosureNearby' as const, icon: 'warning' as const, iconColor: '#e8a020', label: t('Road Closure Nearby', 'Fermeture de route a proximite'), desc: t('Closures affecting your saved area', 'Fermetures affectant votre secteur sauvegarde') },
-                { key: 'hydroOutage' as const, icon: 'flash' as const, iconColor: '#cc3b2a', label: t('Hydro Ottawa Outage', 'Panne Hydro Ottawa'), desc: t('Outage reported in your area', 'Panne signalee dans votre secteur') },
-              ]).map((item, i) => (
-                <View key={item.key}>
-                  {i > 0 && <Divider />}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14 }}>
-                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: item.iconColor + '18', alignItems: 'center', justifyContent: 'center' }}>
-                      <Ionicons name={item.icon} size={16} color={item.iconColor} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{item.label}</Text>
-                      <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>{item.desc}</Text>
-                    </View>
-                    <Switch
-                      value={notifSettings[item.key]}
-                      onValueChange={v => handleNotifToggle(item.key, v)}
-                      trackColor={{ false: colours.border, true: item.iconColor + '80' }}
-                      thumbColor={notifSettings[item.key] ? item.iconColor : colours.muted}
-                      ios_backgroundColor={colours.border}
-                    />
-                  </View>
-                </View>
-              ))}
-              <Divider />
-
-              {/* ── Events & Entertainment ── */}
-              <TouchableOpacity
-                onPress={() => setShowEventsNotifs(!showEventsNotifs)}
-                style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colours.bg + '80' }}
-                activeOpacity={0.7}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Ionicons name="ticket" size={14} color="#7b5ea7" />
-                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
-                    {t('Events & Entertainment', 'Evenements & divertissement')}
-                  </Text>
-                </View>
-                <Ionicons name={showEventsNotifs ? 'chevron-up' : 'chevron-down'} size={14} color={colours.muted} />
-              </TouchableOpacity>
-              {showEventsNotifs && ([
-                { key: 'sportsGameDay' as const, icon: 'american-football' as const, iconColor: '#004890', label: t('Ottawa Sports Game Day', 'Jour de match Ottawa'), desc: t('Sens, REDBLACKS, Atletico Ottawa', 'Sens, REDBLACKS, Atletico Ottawa') },
-                { key: 'festivalEvents' as const, icon: 'musical-notes' as const, iconColor: '#7b5ea7', label: t('Bluesfest / NAC Events', 'Bluesfest / Evenements CNA'), desc: t('Evening before reminder', 'Rappel la veille au soir') },
-                { key: 'liveEventsNearby' as const, icon: 'location' as const, iconColor: '#cc3b2a', label: t('Live Events Nearby', 'Evenements en direct a proximite'), desc: t('Events happening near your location this week', 'Evenements pres de votre position cette semaine') },
-              ]).map((item, i) => (
-                <View key={item.key}>
-                  {i > 0 && <Divider />}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14 }}>
-                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: item.iconColor + '18', alignItems: 'center', justifyContent: 'center' }}>
-                      <Ionicons name={item.icon} size={16} color={item.iconColor} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{item.label}</Text>
-                      <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>{item.desc}</Text>
-                    </View>
-                    <Switch
-                      value={notifSettings[item.key]}
-                      onValueChange={v => handleNotifToggle(item.key, v)}
-                      trackColor={{ false: colours.border, true: item.iconColor + '80' }}
-                      thumbColor={notifSettings[item.key] ? item.iconColor : colours.muted}
-                      ios_backgroundColor={colours.border}
-                    />
-                  </View>
-                </View>
-              ))}
+                );
+              })}
             </>
           )}
         </Card>
