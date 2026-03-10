@@ -215,12 +215,12 @@ const SERVICES_TABS: ServicesTab[] = [
     tiles: [
       { id: 'live_map',    label_en: 'Live Map',     label_fr: 'Carte live',    icon: 'map',              accent: '#00A78D', action: 'navigate', target: '/(tabs)/map' },
       { id: 'trip_plan',   label_en: 'Trip Planner', label_fr: 'Planificateur', icon: 'navigate',         accent: '#004890', action: 'navigate', target: '/(tabs)/planner' },
-      { id: 'bikeshare',   label_en: 'Bike Share',   label_fr: 'Vélos',         icon: 'bicycle',          accent: '#00A78D', action: 'link',     target: 'https://capitalbikeShare.com' },
-      { id: 'parkride',    label_en: 'Park & Ride',  label_fr: 'Parc-o-Bus',    icon: 'car',              accent: '#6b7f99', action: 'link',     target: 'https://www.octranspo.com/en/park-and-ride' },
-      { id: 'paybyphone',  label_en: 'PayByPhone',   label_fr: 'PayByPhone',    icon: 'phone-portrait',   accent: '#004890', action: 'link',     target: 'https://www.paybyphone.com' },
+      { id: 'bikeshare',   label_en: 'Bike Share',   label_fr: 'Vélos',         icon: 'bicycle',          accent: '#00A78D', action: 'link',     target: 'https://www.velo.ottawa.ca/en/' },
+      { id: 'parkride',    label_en: 'Park & Ride',  label_fr: 'Parc-o-Bus',    icon: 'car',              accent: '#6b7f99', action: 'link',     target: 'https://www.octranspo.com/en/plan-your-trip/service-information/park-and-ride/' },
+      { id: 'paybyphone',  label_en: 'PayByPhone',   label_fr: 'PayByPhone',    icon: 'phone-portrait',   accent: '#004890', action: 'link',     target: 'https://www.paybyphone.com/parking/ottawa' },
       { id: 'uber',        label_en: 'Uber',         label_fr: 'Uber',          icon: 'car-sport',        accent: '#6b7f99', action: 'link',     target: 'uber://' },
       { id: 'lyft',        label_en: 'Lyft',         label_fr: 'Lyft',          icon: 'car-sport',        accent: '#FF00BF', action: 'link',     target: 'lyft://' },
-      { id: 'presto',     label_en: 'Presto Card',  label_fr: 'Carte Presto',  icon: 'card',             accent: '#00A78D', action: 'link',     target: 'https://www.prestocard.ca/en/manage-my-account' },
+      { id: 'presto',     label_en: 'Presto Card',  label_fr: 'Carte Presto',  icon: 'card',             accent: '#00A78D', action: 'link',     target: 'https://www.prestocard.ca/en' },
       { id: 'construction',label_en: 'Construction', label_fr: 'Construction',  icon: 'construct',        accent: '#e8a020', action: 'link',     target: 'https://traffic.ottawa.ca' },
     ],
   },
@@ -243,11 +243,11 @@ const SERVICES_TABS: ServicesTab[] = [
       { id: '311',         label_en: '311 Report',   label_fr: 'Signaler 311',  icon: 'megaphone',        accent: '#cc3b2a', action: 'link',     target: 'https://ottawa.ca/en/311' },
       { id: 'garbage',     label_en: 'Garbage Day',  label_fr: 'Collecte',      icon: 'trash',            accent: '#6b7f99', action: 'alert',    target: 'garbage' },
       { id: 'hydro',       label_en: 'Hydro Ottawa', label_fr: 'Hydro Ottawa',  icon: 'flash',            accent: '#e8a020', action: 'link',     target: 'https://hydroottawa.com/en/outages' },
-      { id: 'parking_tkt', label_en: 'Pay Ticket',   label_fr: 'Payer contrav.', icon: 'card',            accent: '#cc3b2a', action: 'link',     target: 'https://www.ottawapolice.ca/en/traffic-and-roads/paying-a-parking-ticket.aspx' },
-      { id: 'road_511',    label_en: 'Road Events',  label_fr: 'Événements',    icon: 'warning',          accent: '#e8a020', action: 'alert',    target: '511events' },
+      { id: 'parking_tkt', label_en: 'Pay Ticket',   label_fr: 'Payer contrav.', icon: 'card',            accent: '#cc3b2a', action: 'link',     target: 'https://www.ottawapolice.ca/en/parking-and-traffic/pay-a-parking-ticket.aspx' },
+      { id: 'road_511',    label_en: 'Road Events',  label_fr: 'Événements',    icon: 'warning',          accent: '#e8a020', action: 'link',     target: 'https://traffic.ottawa.ca/map/' },
       { id: 'parks',       label_en: 'Parks & Rinks',label_fr: 'Parcs & Patins',icon: 'snow',             accent: '#004890', action: 'alert',    target: 'parks' },
       { id: 'library',     label_en: 'OPL Library',  label_fr: 'Bib. Ottawa',   icon: 'book',             accent: '#004890', action: 'link',     target: 'https://biblioottawalibrary.ca' },
-      { id: 'walkin',      label_en: 'Walk-In Clinic',label_fr: 'Clinique',     icon: 'medical',          accent: '#00A78D', action: 'link',     target: 'https://www.ontario.ca/page/find-clinic' },
+      { id: 'walkin',      label_en: 'Walk-In Clinic',label_fr: 'Clinique',     icon: 'medical',          accent: '#00A78D', action: 'link',     target: 'https://www.ontario.ca/page/find-walk-in-clinic' },
     ],
   },
   {
@@ -256,11 +256,11 @@ const SERVICES_TABS: ServicesTab[] = [
       { id: 'sports',      label_en: 'Ottawa Sports', label_fr: 'Sports Ottawa', icon: 'trophy-outline',   accent: '#c8102e', action: 'alert',    target: 'sports' },
       { id: 'social',      label_en: 'Social',       label_fr: 'Social',        icon: 'beer',             accent: '#7b5ea7', action: 'alert',    target: 'social' },
       { id: 'tm_events',   label_en: 'Live Events',  label_fr: 'Événements',    icon: 'ticket',           accent: '#026CDF', action: 'navigate', target: '/(tabs)/events?source=ticketmaster' },
-      { id: 'eb_events',   label_en: 'Community',    label_fr: 'Communauté',    icon: 'people',           accent: '#F05537', action: 'navigate', target: '/(tabs)/events?source=eventbrite' },
+      { id: 'eb_events',   label_en: 'Community',    label_fr: 'Communauté',    icon: 'people',           accent: '#F05537', action: 'link',     target: 'https://www.reddit.com/r/ottawa/' },
       { id: 'nac',         label_en: 'NAC',          label_fr: 'CNA',           icon: 'musical-notes',    accent: '#c0852a', action: 'link',     target: 'https://nac-cna.ca' },
       { id: 'bluesfest',   label_en: 'Bluesfest',    label_fr: 'Bluesfest',     icon: 'mic',              accent: '#004890', action: 'link',     target: 'https://ottawabluesfest.ca' },
       { id: 'cineplex',    label_en: 'Cineplex',     label_fr: 'Cineplex',      icon: 'film',             accent: '#cc3b2a', action: 'link',     target: 'https://www.cineplex.com' },
-      { id: 'casino',      label_en: 'Casino',       label_fr: 'Casino',        icon: 'diamond',          accent: '#e8a020', action: 'link',     target: 'https://www.casinodulacleatimygatineau.com' },
+      { id: 'casino',      label_en: 'Casino',       label_fr: 'Casino',        icon: 'diamond',          accent: '#e8a020', action: 'link',     target: 'https://www.casicolacite.com/en/' },
     ],
   },
 ];
@@ -2171,52 +2171,59 @@ export default function LiveScreen() {
 
   // ── Social / Happy Hour Modal ────────────────────────────────
   const HAPPY_HOUR_VENUES: { name: string; address: string; type: ('bar' | 'restaurant' | 'club')[]; lat: number; lng: number; deals: { days: number[]; start: string; end: string; description: string }[] }[] = [
-    { name: "Joey's", address: 'Any Location', type: ['bar', 'restaurant'], lat: 45.4260, lng: -75.6922, deals: [
+    { name: "Joey's", address: '1980 Ogilvie Rd', type: ['bar', 'restaurant'], lat: 45.4320, lng: -75.6096, deals: [
       { days: [0,1,2,3,4,5,6], start: '15:00', end: '18:00', description: 'Happy Hour daily 3–6pm' },
       { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun–Thu 9pm–close specials' },
       { days: [2], start: '15:00', end: '23:59', description: 'Up to 50% off wine Tuesdays' },
     ]},
-    { name: 'Local Public Eatery', address: 'Any Location', type: ['bar', 'restaurant'], lat: 45.3985, lng: -75.6837, deals: [
+    { name: 'Local Public Eatery', address: '900 Eagleson Rd, Kanata', type: ['bar', 'restaurant'], lat: 45.2711, lng: -75.8586, deals: [
       { days: [1,2,3,4,5], start: '14:00', end: '17:00', description: 'Mon–Fri 2–5pm happy hour' },
       { days: [6], start: '10:00', end: '14:00', description: 'Sat drinks only 10am–2pm' },
       { days: [0,1,2], start: '21:00', end: '23:59', description: 'Sun–Wed 9pm–close specials' },
       { days: [3,4,5,6], start: '22:00', end: '23:59', description: 'Thu–Sat 10pm–close specials' },
     ]},
-    { name: 'Pour Boy', address: '495 Somerset St W', type: ['bar', 'restaurant'], lat: 45.4152, lng: -75.7095, deals: [
+    { name: 'Pour Boy', address: '495 Somerset St W', type: ['bar', 'restaurant'], lat: 45.4138, lng: -75.7005, deals: [
       { days: [1], start: '11:00', end: '23:59', description: '25% off wings Monday' },
       { days: [2], start: '19:00', end: '23:59', description: 'Trivia night Tuesday' },
       { days: [3], start: '19:00', end: '23:59', description: 'Open Mic Wednesday' },
       { days: [4], start: '19:00', end: '23:59', description: 'Comedy night Thursday' },
       { days: [5], start: '11:00', end: '23:59', description: '25% off fish & chips + Blingo Friday' },
     ]},
-    { name: 'Rabbit Hole', address: '208 Sparks St', type: ['bar', 'restaurant', 'club'], lat: 45.4233, lng: -75.6990, deals: [
+    { name: 'Rabbit Hole', address: '208 Sparks St', type: ['bar', 'restaurant', 'club'], lat: 45.4212, lng: -75.7010, deals: [
       { days: [2], start: '16:00', end: '18:00', description: 'Tue HH 4–6pm' },
       { days: [2], start: '17:00', end: '23:59', description: 'Half off wine + half off pizzas 5pm–late Tue' },
       { days: [3], start: '16:00', end: '18:00', description: 'Wed HH 4–6pm + half price oysters' },
       { days: [4], start: '16:00', end: '18:00', description: 'Thu HH 4–6pm' },
       { days: [5,6], start: '21:00', end: '23:59', description: 'Fri/Sat Live DJ' },
     ]},
-    { name: 'Whalesbone', address: 'Elgin + other locations', type: ['restaurant', 'bar'], lat: 45.4185, lng: -75.6880, deals: [
+    { name: 'Whalesbone', address: '430 Bank St', type: ['restaurant', 'bar'], lat: 45.4122, lng: -75.6939, deals: [
       { days: [0], start: '17:00', end: '23:59', description: 'Oysters ~$2 each Sunday nights' },
     ]},
-    { name: "Lieutenant's Pump", address: '361 Elgin St', type: ['restaurant', 'bar', 'club'], lat: 45.4148, lng: -75.6867, deals: [
+    { name: "Lieutenant's Pump", address: '361 Elgin St', type: ['restaurant', 'bar', 'club'], lat: 45.4153, lng: -75.6878, deals: [
       { days: [3], start: '11:00', end: '23:59', description: 'Wednesday wing day — half price' },
       { days: [1,2,3,4,5], start: '11:00', end: '14:00', description: 'Lunch combo: pint + supper $5' },
     ]},
-    { name: 'The Standard', address: '360 Elgin St', type: ['restaurant', 'bar', 'club'], lat: 45.4150, lng: -75.6870, deals: [
+    { name: 'The Standard', address: '360 Elgin St', type: ['restaurant', 'bar', 'club'], lat: 45.4153, lng: -75.6884, deals: [
       { days: [0,1,2,3,4,5,6], start: '17:00', end: '19:00', description: 'Happy Hour 7 days a week 5–7pm' },
     ]},
-    { name: 'Heart and Crown', address: 'Any Location', type: ['restaurant', 'bar', 'club'], lat: 45.4280, lng: -75.6920, deals: [
+    { name: 'Heart and Crown ByWard', address: '67 Clarence St', type: ['restaurant', 'bar', 'club'], lat: 45.4290, lng: -75.6935, deals: [
       { days: [1], start: '11:00', end: '23:59', description: 'Mon: $5 house draught' },
       { days: [2], start: '11:00', end: '23:59', description: 'Tue: half price wine' },
       { days: [3], start: '11:00', end: '23:59', description: 'Wed: $5 rail cocktails' },
       { days: [4], start: '11:00', end: '23:59', description: 'Thu: $5 quarts and craft cans' },
       { days: [0], start: '11:00', end: '23:59', description: 'Sun: $6 bloody caesars' },
     ]},
-    { name: 'Union Local 613', address: '315 Somerset St W', type: ['restaurant', 'bar'], lat: 45.4155, lng: -75.7060, deals: [
+    { name: 'Heart and Crown Preston', address: '361 Preston St', type: ['restaurant', 'bar', 'club'], lat: 45.4011, lng: -75.7096, deals: [
+      { days: [1], start: '11:00', end: '23:59', description: 'Mon: $5 house draught' },
+      { days: [2], start: '11:00', end: '23:59', description: 'Tue: half price wine' },
+      { days: [3], start: '11:00', end: '23:59', description: 'Wed: $5 rail cocktails' },
+      { days: [4], start: '11:00', end: '23:59', description: 'Thu: $5 quarts and craft cans' },
+      { days: [0], start: '11:00', end: '23:59', description: 'Sun: $6 bloody caesars' },
+    ]},
+    { name: 'Union Local 613', address: '315 Somerset St W', type: ['restaurant', 'bar'], lat: 45.4161, lng: -75.6949, deals: [
       { days: [1,2,3,4,5], start: '16:00', end: '17:00', description: 'Mon–Fri 4–5pm: half price wine, $6 draft, cheap cocktails' },
     ]},
-    { name: 'Senate Tavern', address: 'Bank / Clarence / Wellington', type: ['restaurant', 'bar'], lat: 45.4230, lng: -75.6930, deals: [
+    { name: 'Senate Bank', address: '259 Bank St', type: ['restaurant', 'bar'], lat: 45.4162, lng: -75.6968, deals: [
       { days: [1], start: '17:00', end: '23:59', description: 'Mon: $15 wings 5pm+, $7 lagers + $5 Jameson late' },
       { days: [2], start: '11:00', end: '23:59', description: 'Tue: $5 tequila + $12 margs all day' },
       { days: [4], start: '17:00', end: '23:59', description: 'Thu: AYCE wings $28 + $15 mini pitcher' },
@@ -2225,7 +2232,25 @@ export default function LiveScreen() {
       { days: [0], start: '14:00', end: '17:00', description: 'Sun: $5 caesars, double HH 2–5pm' },
       { days: [0], start: '23:00', end: '23:59', description: 'Sun: double HH 11pm–2am' },
     ]},
-    { name: 'Barley Mow', address: 'All locations', type: ['restaurant', 'bar'], lat: 45.4100, lng: -75.6900, deals: [
+    { name: 'Senate Clarence', address: '83 Clarence St', type: ['restaurant', 'bar'], lat: 45.4293, lng: -75.6931, deals: [
+      { days: [1], start: '17:00', end: '23:59', description: 'Mon: $15 wings 5pm+, $7 lagers + $5 Jameson late' },
+      { days: [2], start: '11:00', end: '23:59', description: 'Tue: $5 tequila + $12 margs all day' },
+      { days: [4], start: '17:00', end: '23:59', description: 'Thu: AYCE wings $28 + $15 mini pitcher' },
+      { days: [5], start: '11:00', end: '23:59', description: 'Fri: $15 fish & chips, $5 tequila + $12 margs' },
+      { days: [6], start: '11:00', end: '23:59', description: 'Sat: $30 bottle of wine' },
+      { days: [0], start: '14:00', end: '17:00', description: 'Sun: $5 caesars, double HH 2–5pm' },
+      { days: [0], start: '23:00', end: '23:59', description: 'Sun: double HH 11pm–2am' },
+    ]},
+    { name: 'Senate Wellington', address: '93 Wellington St', type: ['restaurant', 'bar'], lat: 45.4233, lng: -75.6987, deals: [
+      { days: [1], start: '17:00', end: '23:59', description: 'Mon: $15 wings 5pm+, $7 lagers + $5 Jameson late' },
+      { days: [2], start: '11:00', end: '23:59', description: 'Tue: $5 tequila + $12 margs all day' },
+      { days: [4], start: '17:00', end: '23:59', description: 'Thu: AYCE wings $28 + $15 mini pitcher' },
+      { days: [5], start: '11:00', end: '23:59', description: 'Fri: $15 fish & chips, $5 tequila + $12 margs' },
+      { days: [6], start: '11:00', end: '23:59', description: 'Sat: $30 bottle of wine' },
+      { days: [0], start: '14:00', end: '17:00', description: 'Sun: $5 caesars, double HH 2–5pm' },
+      { days: [0], start: '23:00', end: '23:59', description: 'Sun: double HH 11pm–2am' },
+    ]},
+    { name: 'Barley Mow Merivale', address: '1326 Merivale Rd', type: ['restaurant', 'bar'], lat: 45.3681, lng: -75.7318, deals: [
       { days: [1,2,3,4,5], start: '14:00', end: '17:00', description: 'Mon–Fri 2–5pm HH' },
       { days: [3], start: '20:00', end: '23:59', description: 'Wed 8pm: 30¢ wings' },
       { days: [4], start: '20:00', end: '23:59', description: 'Thu 8pm: Thirsty Thursdays' },
@@ -2236,7 +2261,18 @@ export default function LiveScreen() {
       { days: [5], start: '17:00', end: '23:59', description: 'Fri: $27 fish & chips + $36.95 prime rib' },
       { days: [6,0], start: '11:00', end: '23:59', description: 'Sat/Sun: $7.50 caesars. Sun: kids eat free' },
     ]},
-    { name: 'Royal Oak', address: 'All locations', type: ['restaurant', 'bar'], lat: 45.4220, lng: -75.6870, deals: [
+    { name: 'Barley Mow Westboro', address: '354 Richmond Rd', type: ['restaurant', 'bar'], lat: 45.3917, lng: -75.7543, deals: [
+      { days: [1,2,3,4,5], start: '14:00', end: '17:00', description: 'Mon–Fri 2–5pm HH' },
+      { days: [3], start: '20:00', end: '23:59', description: 'Wed 8pm: 30¢ wings' },
+      { days: [4], start: '20:00', end: '23:59', description: 'Thu 8pm: Thirsty Thursdays' },
+      { days: [1], start: '17:00', end: '23:59', description: 'Mon: $27 special + $9 beer flights' },
+      { days: [2], start: '17:00', end: '23:59', description: 'Tue: $27 tacos + $10 margaritas' },
+      { days: [3], start: '17:00', end: '23:59', description: 'Wed: $27 sandwich + $30 wine bottles' },
+      { days: [4], start: '17:00', end: '23:59', description: 'Thu: $27 burger' },
+      { days: [5], start: '17:00', end: '23:59', description: 'Fri: $27 fish & chips + $36.95 prime rib' },
+      { days: [6,0], start: '11:00', end: '23:59', description: 'Sat/Sun: $7.50 caesars. Sun: kids eat free' },
+    ]},
+    { name: 'Royal Oak Elgin', address: '318 Elgin St', type: ['restaurant', 'bar'], lat: 45.4161, lng: -75.6891, deals: [
       { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun–Thu 9pm: $5.50 domestics/wine/rails + half price apps' },
       { days: [1], start: '17:00', end: '23:59', description: 'Mon: 50% off wings after 5pm' },
       { days: [3], start: '17:00', end: '23:59', description: 'Wed: 50% off wings after 5pm + trivia 7pm' },
@@ -2245,21 +2281,39 @@ export default function LiveScreen() {
       { days: [6], start: '11:00', end: '23:59', description: 'Sat: $5.95 bar rails' },
       { days: [0], start: '11:00', end: '23:59', description: 'Sun: $7.95 caesars + craft draughts' },
     ]},
-    { name: "Jack Astor's", address: 'All locations', type: ['restaurant', 'bar'], lat: 45.4270, lng: -75.6935, deals: [
+    { name: 'Royal Oak Richmond', address: '761 Richmond Rd', type: ['restaurant', 'bar'], lat: 45.3816, lng: -75.7707, deals: [
+      { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun–Thu 9pm: $5.50 domestics/wine/rails + half price apps' },
+      { days: [1], start: '17:00', end: '23:59', description: 'Mon: 50% off wings after 5pm' },
+      { days: [3], start: '17:00', end: '23:59', description: 'Wed: 50% off wings after 5pm + trivia 7pm' },
+      { days: [4], start: '11:00', end: '23:59', description: 'Thu: 50% off wine bottles' },
+      { days: [5], start: '11:00', end: '23:59', description: 'Fri: $3 off fish & chips' },
+      { days: [6], start: '11:00', end: '23:59', description: 'Sat: $5.95 bar rails' },
+      { days: [0], start: '11:00', end: '23:59', description: 'Sun: $7.95 caesars + craft draughts' },
+    ]},
+    { name: 'Royal Oak St-Laurent', address: '1220 St-Laurent Blvd', type: ['restaurant', 'bar'], lat: 45.4235, lng: -75.6370, deals: [
+      { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun–Thu 9pm: $5.50 domestics/wine/rails + half price apps' },
+      { days: [1], start: '17:00', end: '23:59', description: 'Mon: 50% off wings after 5pm' },
+      { days: [3], start: '17:00', end: '23:59', description: 'Wed: 50% off wings after 5pm + trivia 7pm' },
+      { days: [4], start: '11:00', end: '23:59', description: 'Thu: 50% off wine bottles' },
+      { days: [5], start: '11:00', end: '23:59', description: 'Fri: $3 off fish & chips' },
+      { days: [6], start: '11:00', end: '23:59', description: 'Sat: $5.95 bar rails' },
+      { days: [0], start: '11:00', end: '23:59', description: 'Sun: $7.95 caesars + craft draughts' },
+    ]},
+    { name: "Jack Astor's", address: '75 Queen St', type: ['restaurant', 'bar'], lat: 45.4230, lng: -75.6952, deals: [
       { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Happy hour daily 2–5pm' },
       { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm–close specials' },
       { days: [1,2], start: '11:00', end: '23:59', description: 'Half price wine bottles Mon & Tue' },
     ]},
-    { name: 'Shore Club', address: '11 Colonel By Dr', type: ['restaurant', 'bar'], lat: 45.4220, lng: -75.6910, deals: [
+    { name: 'Shore Club', address: '11 Colonel By Dr', type: ['restaurant', 'bar'], lat: 45.4250, lng: -75.6927, deals: [
       { days: [0,1,2,3,4,5,6], start: '15:00', end: '17:00', description: 'Daily 3–5pm: half price oysters, $2 prawns, $3.50 sliders, $9 Heineken, $12 wine' },
     ]},
-    { name: 'Drip House', address: '692 Somerset St W', type: ['bar'], lat: 45.4130, lng: -75.7170, deals: [
+    { name: 'Drip House', address: '692 Somerset St W', type: ['bar'], lat: 45.4110, lng: -75.7065, deals: [
       { days: [3,4,5], start: '16:30', end: '18:30', description: 'Wed–Fri 4:30–6:30pm: $9 cocktails, wine, and appetizers' },
     ]},
-    { name: 'Baton Rouge', address: 'All locations', type: ['restaurant', 'bar'], lat: 45.4250, lng: -75.6960, deals: [
+    { name: 'Baton Rouge', address: '50 Rideau St', type: ['restaurant', 'bar'], lat: 45.4255, lng: -75.6930, deals: [
       { days: [1,2,3,4,5], start: '15:00', end: '18:00', description: 'Mon–Fri 3–6pm: $7 pints, $7 wine, $10 cocktails' },
     ]},
-    { name: 'Craft Beer Market', address: 'All locations', type: ['bar'], lat: 45.4240, lng: -75.6950, deals: [
+    { name: 'Craft Beer Market', address: '366 King Edward Ave', type: ['bar'], lat: 45.4299, lng: -75.6868, deals: [
       { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Daily 2–5pm HH: discounted craft beer, wine, cocktails' },
       { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm–close HH' },
       { days: [0], start: '11:00', end: '23:59', description: 'All-day specials Sundays' },
@@ -2309,7 +2363,7 @@ export default function LiveScreen() {
           </View>
           {/* Tabs */}
           <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, gap: 8 }}>
-            {([{ id: 'all' as const, label: 'All' }, { id: 'bars' as const, label: 'Bars' }, { id: 'restaurants' as const, label: 'Restaurants' }, { id: 'clubs' as const, label: 'Clubs' }]).map(tab => {
+            {([{ id: 'all' as const, label: 'All' }, { id: 'bars' as const, label: 'Bars' }, { id: 'restaurants' as const, label: 'Eats' }, { id: 'clubs' as const, label: 'Clubs' }]).map(tab => {
               const active = socialTab === tab.id;
               return (
                 <TouchableOpacity key={tab.id} onPress={() => setSocialTab(tab.id)} style={{ flex: 1, height: 34, borderRadius: 17, borderWidth: 1, backgroundColor: active ? '#7b5ea7' : colours.surface, borderColor: active ? '#7b5ea7' : colours.border, alignItems: 'center', justifyContent: 'center' }}>

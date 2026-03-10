@@ -57,52 +57,59 @@ type VenuePin = {
 };
 
 const VENUE_PINS: VenuePin[] = [
-  { name: "Joey's", address: 'Any Location', type: ['bar', 'restaurant'], lat: 45.4260, lng: -75.6922, deals: [
+  { name: "Joey's", address: '1980 Ogilvie Rd', type: ['bar', 'restaurant'], lat: 45.4320, lng: -75.6096, deals: [
     { days: [0,1,2,3,4,5,6], start: '15:00', end: '18:00', description: 'Happy Hour daily 3-6pm' },
     { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun-Thu 9pm-close specials' },
     { days: [2], start: '15:00', end: '23:59', description: 'Up to 50% off wine Tuesdays' },
   ]},
-  { name: 'Local Public Eatery', address: 'Any Location', type: ['bar', 'restaurant'], lat: 45.3985, lng: -75.6837, deals: [
+  { name: 'Local Public Eatery', address: '900 Eagleson Rd, Kanata', type: ['bar', 'restaurant'], lat: 45.2711, lng: -75.8586, deals: [
     { days: [1,2,3,4,5], start: '14:00', end: '17:00', description: 'Mon-Fri 2-5pm happy hour' },
     { days: [6], start: '10:00', end: '14:00', description: 'Sat drinks only 10am-2pm' },
     { days: [0,1,2], start: '21:00', end: '23:59', description: 'Sun-Wed 9pm-close specials' },
     { days: [3,4,5,6], start: '22:00', end: '23:59', description: 'Thu-Sat 10pm-close specials' },
   ]},
-  { name: 'Pour Boy', address: '495 Somerset St W', type: ['bar', 'restaurant'], lat: 45.4152, lng: -75.7095, deals: [
+  { name: 'Pour Boy', address: '495 Somerset St W', type: ['bar', 'restaurant'], lat: 45.4138, lng: -75.7005, deals: [
     { days: [1], start: '11:00', end: '23:59', description: '25% off wings Monday' },
     { days: [2], start: '19:00', end: '23:59', description: 'Trivia night Tuesday' },
     { days: [3], start: '19:00', end: '23:59', description: 'Open Mic Wednesday' },
     { days: [4], start: '19:00', end: '23:59', description: 'Comedy night Thursday' },
     { days: [5], start: '11:00', end: '23:59', description: '25% off fish & chips + Blingo Friday' },
   ]},
-  { name: 'Rabbit Hole', address: '208 Sparks St', type: ['bar', 'restaurant', 'club'], lat: 45.4233, lng: -75.6990, deals: [
+  { name: 'Rabbit Hole', address: '208 Sparks St', type: ['bar', 'restaurant', 'club'], lat: 45.4212, lng: -75.7010, deals: [
     { days: [2], start: '16:00', end: '18:00', description: 'Tue HH 4-6pm' },
     { days: [2], start: '17:00', end: '23:59', description: 'Half off wine + half off pizzas 5pm-late Tue' },
     { days: [3], start: '16:00', end: '18:00', description: 'Wed HH 4-6pm + half price oysters' },
     { days: [4], start: '16:00', end: '18:00', description: 'Thu HH 4-6pm' },
     { days: [5,6], start: '21:00', end: '23:59', description: 'Fri/Sat Live DJ' },
   ]},
-  { name: 'Whalesbone', address: 'Elgin + other locations', type: ['restaurant', 'bar'], lat: 45.4185, lng: -75.6880, deals: [
+  { name: 'Whalesbone', address: '430 Bank St', type: ['restaurant', 'bar'], lat: 45.4122, lng: -75.6939, deals: [
     { days: [0], start: '17:00', end: '23:59', description: 'Oysters ~$2 each Sunday nights' },
   ]},
-  { name: "Lieutenant's Pump", address: '361 Elgin St', type: ['restaurant', 'bar', 'club'], lat: 45.4148, lng: -75.6867, deals: [
+  { name: "Lieutenant's Pump", address: '361 Elgin St', type: ['restaurant', 'bar', 'club'], lat: 45.4153, lng: -75.6878, deals: [
     { days: [3], start: '11:00', end: '23:59', description: 'Wednesday wing day - half price' },
     { days: [1,2,3,4,5], start: '11:00', end: '14:00', description: 'Lunch combo: pint + supper $5' },
   ]},
-  { name: 'The Standard', address: '360 Elgin St', type: ['restaurant', 'bar', 'club'], lat: 45.4150, lng: -75.6870, deals: [
+  { name: 'The Standard', address: '360 Elgin St', type: ['restaurant', 'bar', 'club'], lat: 45.4153, lng: -75.6884, deals: [
     { days: [0,1,2,3,4,5,6], start: '17:00', end: '19:00', description: 'Happy Hour 7 days a week 5-7pm' },
   ]},
-  { name: 'Heart and Crown', address: 'Any Location', type: ['restaurant', 'bar', 'club'], lat: 45.4280, lng: -75.6920, deals: [
+  { name: 'Heart and Crown ByWard', address: '67 Clarence St', type: ['restaurant', 'bar', 'club'], lat: 45.4290, lng: -75.6935, deals: [
     { days: [1], start: '11:00', end: '23:59', description: 'Mon: $5 house draught' },
     { days: [2], start: '11:00', end: '23:59', description: 'Tue: half price wine' },
     { days: [3], start: '11:00', end: '23:59', description: 'Wed: $5 rail cocktails' },
     { days: [4], start: '11:00', end: '23:59', description: 'Thu: $5 quarts and craft cans' },
     { days: [0], start: '11:00', end: '23:59', description: 'Sun: $6 bloody caesars' },
   ]},
-  { name: 'Union Local 613', address: '315 Somerset St W', type: ['restaurant', 'bar'], lat: 45.4155, lng: -75.7060, deals: [
+  { name: 'Heart and Crown Preston', address: '361 Preston St', type: ['restaurant', 'bar', 'club'], lat: 45.4011, lng: -75.7096, deals: [
+    { days: [1], start: '11:00', end: '23:59', description: 'Mon: $5 house draught' },
+    { days: [2], start: '11:00', end: '23:59', description: 'Tue: half price wine' },
+    { days: [3], start: '11:00', end: '23:59', description: 'Wed: $5 rail cocktails' },
+    { days: [4], start: '11:00', end: '23:59', description: 'Thu: $5 quarts and craft cans' },
+    { days: [0], start: '11:00', end: '23:59', description: 'Sun: $6 bloody caesars' },
+  ]},
+  { name: 'Union Local 613', address: '315 Somerset St W', type: ['restaurant', 'bar'], lat: 45.4161, lng: -75.6949, deals: [
     { days: [1,2,3,4,5], start: '16:00', end: '17:00', description: 'Mon-Fri 4-5pm: half price wine, $6 draft, cheap cocktails' },
   ]},
-  { name: 'Senate Tavern', address: 'Bank / Clarence / Wellington', type: ['restaurant', 'bar'], lat: 45.4230, lng: -75.6930, deals: [
+  { name: 'Senate Bank', address: '259 Bank St', type: ['restaurant', 'bar'], lat: 45.4162, lng: -75.6968, deals: [
     { days: [1], start: '17:00', end: '23:59', description: 'Mon: $15 wings 5pm+, $7 lagers + $5 Jameson late' },
     { days: [2], start: '11:00', end: '23:59', description: 'Tue: $5 tequila + $12 margs all day' },
     { days: [4], start: '17:00', end: '23:59', description: 'Thu: AYCE wings $28 + $15 mini pitcher' },
@@ -111,7 +118,25 @@ const VENUE_PINS: VenuePin[] = [
     { days: [0], start: '14:00', end: '17:00', description: 'Sun: $5 caesars, double HH 2-5pm' },
     { days: [0], start: '23:00', end: '23:59', description: 'Sun: double HH 11pm-2am' },
   ]},
-  { name: 'Barley Mow', address: 'All locations', type: ['restaurant', 'bar'], lat: 45.4100, lng: -75.6900, deals: [
+  { name: 'Senate Clarence', address: '83 Clarence St', type: ['restaurant', 'bar'], lat: 45.4293, lng: -75.6931, deals: [
+    { days: [1], start: '17:00', end: '23:59', description: 'Mon: $15 wings 5pm+, $7 lagers + $5 Jameson late' },
+    { days: [2], start: '11:00', end: '23:59', description: 'Tue: $5 tequila + $12 margs all day' },
+    { days: [4], start: '17:00', end: '23:59', description: 'Thu: AYCE wings $28 + $15 mini pitcher' },
+    { days: [5], start: '11:00', end: '23:59', description: 'Fri: $15 fish & chips, $5 tequila + $12 margs' },
+    { days: [6], start: '11:00', end: '23:59', description: 'Sat: $30 bottle of wine' },
+    { days: [0], start: '14:00', end: '17:00', description: 'Sun: $5 caesars, double HH 2-5pm' },
+    { days: [0], start: '23:00', end: '23:59', description: 'Sun: double HH 11pm-2am' },
+  ]},
+  { name: 'Senate Wellington', address: '93 Wellington St', type: ['restaurant', 'bar'], lat: 45.4233, lng: -75.6987, deals: [
+    { days: [1], start: '17:00', end: '23:59', description: 'Mon: $15 wings 5pm+, $7 lagers + $5 Jameson late' },
+    { days: [2], start: '11:00', end: '23:59', description: 'Tue: $5 tequila + $12 margs all day' },
+    { days: [4], start: '17:00', end: '23:59', description: 'Thu: AYCE wings $28 + $15 mini pitcher' },
+    { days: [5], start: '11:00', end: '23:59', description: 'Fri: $15 fish & chips, $5 tequila + $12 margs' },
+    { days: [6], start: '11:00', end: '23:59', description: 'Sat: $30 bottle of wine' },
+    { days: [0], start: '14:00', end: '17:00', description: 'Sun: $5 caesars, double HH 2-5pm' },
+    { days: [0], start: '23:00', end: '23:59', description: 'Sun: double HH 11pm-2am' },
+  ]},
+  { name: 'Barley Mow Merivale', address: '1326 Merivale Rd', type: ['restaurant', 'bar'], lat: 45.3681, lng: -75.7318, deals: [
     { days: [1,2,3,4,5], start: '14:00', end: '17:00', description: 'Mon-Fri 2-5pm HH' },
     { days: [3], start: '20:00', end: '23:59', description: 'Wed 8pm: 30c wings' },
     { days: [4], start: '20:00', end: '23:59', description: 'Thu 8pm: Thirsty Thursdays' },
@@ -122,7 +147,18 @@ const VENUE_PINS: VenuePin[] = [
     { days: [5], start: '17:00', end: '23:59', description: 'Fri: $27 fish & chips + $36.95 prime rib' },
     { days: [6,0], start: '11:00', end: '23:59', description: 'Sat/Sun: $7.50 caesars. Sun: kids eat free' },
   ]},
-  { name: 'Royal Oak', address: 'All locations', type: ['restaurant', 'bar'], lat: 45.4220, lng: -75.6870, deals: [
+  { name: 'Barley Mow Westboro', address: '354 Richmond Rd', type: ['restaurant', 'bar'], lat: 45.3917, lng: -75.7543, deals: [
+    { days: [1,2,3,4,5], start: '14:00', end: '17:00', description: 'Mon-Fri 2-5pm HH' },
+    { days: [3], start: '20:00', end: '23:59', description: 'Wed 8pm: 30c wings' },
+    { days: [4], start: '20:00', end: '23:59', description: 'Thu 8pm: Thirsty Thursdays' },
+    { days: [1], start: '17:00', end: '23:59', description: 'Mon: $27 special + $9 beer flights' },
+    { days: [2], start: '17:00', end: '23:59', description: 'Tue: $27 tacos + $10 margaritas' },
+    { days: [3], start: '17:00', end: '23:59', description: 'Wed: $27 sandwich + $30 wine bottles' },
+    { days: [4], start: '17:00', end: '23:59', description: 'Thu: $27 burger' },
+    { days: [5], start: '17:00', end: '23:59', description: 'Fri: $27 fish & chips + $36.95 prime rib' },
+    { days: [6,0], start: '11:00', end: '23:59', description: 'Sat/Sun: $7.50 caesars. Sun: kids eat free' },
+  ]},
+  { name: 'Royal Oak Elgin', address: '318 Elgin St', type: ['restaurant', 'bar'], lat: 45.4161, lng: -75.6891, deals: [
     { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun-Thu 9pm: $5.50 domestics/wine/rails + half price apps' },
     { days: [1], start: '17:00', end: '23:59', description: 'Mon: 50% off wings after 5pm' },
     { days: [3], start: '17:00', end: '23:59', description: 'Wed: 50% off wings after 5pm + trivia 7pm' },
@@ -131,21 +167,39 @@ const VENUE_PINS: VenuePin[] = [
     { days: [6], start: '11:00', end: '23:59', description: 'Sat: $5.95 bar rails' },
     { days: [0], start: '11:00', end: '23:59', description: 'Sun: $7.95 caesars + craft draughts' },
   ]},
-  { name: "Jack Astor's", address: 'All locations', type: ['restaurant', 'bar'], lat: 45.4270, lng: -75.6935, deals: [
+  { name: 'Royal Oak Richmond', address: '761 Richmond Rd', type: ['restaurant', 'bar'], lat: 45.3816, lng: -75.7707, deals: [
+    { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun-Thu 9pm: $5.50 domestics/wine/rails + half price apps' },
+    { days: [1], start: '17:00', end: '23:59', description: 'Mon: 50% off wings after 5pm' },
+    { days: [3], start: '17:00', end: '23:59', description: 'Wed: 50% off wings after 5pm + trivia 7pm' },
+    { days: [4], start: '11:00', end: '23:59', description: 'Thu: 50% off wine bottles' },
+    { days: [5], start: '11:00', end: '23:59', description: 'Fri: $3 off fish & chips' },
+    { days: [6], start: '11:00', end: '23:59', description: 'Sat: $5.95 bar rails' },
+    { days: [0], start: '11:00', end: '23:59', description: 'Sun: $7.95 caesars + craft draughts' },
+  ]},
+  { name: 'Royal Oak St-Laurent', address: '1220 St-Laurent Blvd', type: ['restaurant', 'bar'], lat: 45.4235, lng: -75.6370, deals: [
+    { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun-Thu 9pm: $5.50 domestics/wine/rails + half price apps' },
+    { days: [1], start: '17:00', end: '23:59', description: 'Mon: 50% off wings after 5pm' },
+    { days: [3], start: '17:00', end: '23:59', description: 'Wed: 50% off wings after 5pm + trivia 7pm' },
+    { days: [4], start: '11:00', end: '23:59', description: 'Thu: 50% off wine bottles' },
+    { days: [5], start: '11:00', end: '23:59', description: 'Fri: $3 off fish & chips' },
+    { days: [6], start: '11:00', end: '23:59', description: 'Sat: $5.95 bar rails' },
+    { days: [0], start: '11:00', end: '23:59', description: 'Sun: $7.95 caesars + craft draughts' },
+  ]},
+  { name: "Jack Astor's", address: '75 Queen St', type: ['restaurant', 'bar'], lat: 45.4230, lng: -75.6952, deals: [
     { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Happy hour daily 2-5pm' },
     { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm-close specials' },
     { days: [1,2], start: '11:00', end: '23:59', description: 'Half price wine bottles Mon & Tue' },
   ]},
-  { name: 'Shore Club', address: '11 Colonel By Dr', type: ['restaurant', 'bar'], lat: 45.4220, lng: -75.6910, deals: [
+  { name: 'Shore Club', address: '11 Colonel By Dr', type: ['restaurant', 'bar'], lat: 45.4250, lng: -75.6927, deals: [
     { days: [0,1,2,3,4,5,6], start: '15:00', end: '17:00', description: 'Daily 3-5pm: half price oysters, $2 prawns, $3.50 sliders, $9 Heineken, $12 wine' },
   ]},
-  { name: 'Drip House', address: '692 Somerset St W', type: ['bar'], lat: 45.4130, lng: -75.7170, deals: [
+  { name: 'Drip House', address: '692 Somerset St W', type: ['bar'], lat: 45.4110, lng: -75.7065, deals: [
     { days: [3,4,5], start: '16:30', end: '18:30', description: 'Wed-Fri 4:30-6:30pm: $9 cocktails, wine, and appetizers' },
   ]},
-  { name: 'Baton Rouge', address: 'All locations', type: ['restaurant', 'bar'], lat: 45.4250, lng: -75.6960, deals: [
+  { name: 'Baton Rouge', address: '50 Rideau St', type: ['restaurant', 'bar'], lat: 45.4255, lng: -75.6930, deals: [
     { days: [1,2,3,4,5], start: '15:00', end: '18:00', description: 'Mon-Fri 3-6pm: $7 pints, $7 wine, $10 cocktails' },
   ]},
-  { name: 'Craft Beer Market', address: 'All locations', type: ['bar'], lat: 45.4240, lng: -75.6950, deals: [
+  { name: 'Craft Beer Market', address: '366 King Edward Ave', type: ['bar'], lat: 45.4299, lng: -75.6868, deals: [
     { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Daily 2-5pm HH: discounted craft beer, wine, cocktails' },
     { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm-close HH' },
     { days: [0], start: '11:00', end: '23:59', description: 'All-day specials Sundays' },
@@ -154,15 +208,19 @@ const VENUE_PINS: VenuePin[] = [
 
 const VENUE_COLORS = { food: '#E67E22', happy_hour: '#8E44AD', clubs: '#E91E63' };
 
-const getVenueTodayDeals = (venue: VenuePin): string[] => {
+const getVenueTodayDeals = (venue: VenuePin): { active: string[]; upcoming: string[] } => {
   const now = new Date();
   const day = now.getDay();
-  return venue.deals.filter(d => d.days.includes(day)).map(d => d.description);
+  const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const todayDeals = venue.deals.filter(d => d.days.includes(day));
+  const active = todayDeals.filter(d => timeStr >= d.start && timeStr <= d.end).map(d => d.description);
+  const upcoming = todayDeals.filter(d => timeStr < d.start).map(d => d.description);
+  return { active, upcoming };
 };
 
-const venueHasTodayDeal = (venue: VenuePin): boolean => {
-  const day = new Date().getDay();
-  return venue.deals.some(d => d.days.includes(day));
+const venueHasActiveOrUpcomingToday = (venue: VenuePin): boolean => {
+  const { active, upcoming } = getVenueTodayDeals(venue);
+  return active.length > 0 || upcoming.length > 0;
 };
 
 // ── Today filter ─────────────────────────────────────────────────
@@ -304,8 +362,9 @@ export default function MapScreen() {
 
   const filteredVenues = VENUE_PINS.filter(v => {
     if (filter === 'bus') return false;
+    if (!venueHasActiveOrUpcomingToday(v)) return false;
     if (filter === 'food') return v.type.includes('restaurant');
-    if (filter === 'happy_hour') return v.type.includes('bar') && venueHasTodayDeal(v);
+    if (filter === 'happy_hour') return v.type.includes('bar');
     if (filter === 'clubs') return v.type.includes('club');
     return true; // 'all'
   });
@@ -446,39 +505,34 @@ export default function MapScreen() {
             : filter === 'happy_hour' ? VENUE_COLORS.happy_hour
             : filter === 'clubs' ? VENUE_COLORS.clubs
             : getVenuePinColor(v);
-          const todayDeals = getVenueTodayDeals(v);
+          const { active } = getVenueTodayDeals(v);
+          const isActive = active.length > 0;
           return (
             <Marker
               key={`venue_${i}`}
               coordinate={{ latitude: v.lat, longitude: v.lng }}
               onPress={() => openSheet(undefined, undefined, undefined, v)}
-              anchor={{ x: 0.5, y: 1.0 }}
+              anchor={{ x: 0.5, y: 0.5 }}
               tracksViewChanges={false}
             >
-              <View style={{ alignItems: 'center' }}>
-                <View style={{
-                  backgroundColor: color, borderRadius: 10,
-                  paddingHorizontal: 7, paddingVertical: 4,
-                  maxWidth: 130, minWidth: 40,
-                  borderWidth: 2, borderColor: 'white',
-                  shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4,
-                  shadowOffset: { width: 0, height: 2 }, elevation: 5,
-                }}>
-                  <Text style={{ color: 'white', fontSize: 9, fontWeight: '800' }} numberOfLines={1}>
-                    {v.name}
-                  </Text>
-                  {todayDeals.length > 0 && (
-                    <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 7, marginTop: 1 }} numberOfLines={1}>
-                      {todayDeals[0].length > 25 ? todayDeals[0].slice(0, 23) + '...' : todayDeals[0]}
-                    </Text>
-                  )}
-                </View>
-                <View style={{
-                  width: 0, height: 0,
-                  borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 6,
-                  borderLeftColor: 'transparent', borderRightColor: 'transparent',
-                  borderTopColor: color,
-                }} />
+              <View style={{
+                width: 26, height: 26, borderRadius: 13,
+                backgroundColor: color, borderWidth: 2.5, borderColor: 'white',
+                alignItems: 'center', justifyContent: 'center',
+                shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3,
+                shadowOffset: { width: 0, height: 1 }, elevation: 4,
+              }}>
+                <Ionicons
+                  name={v.type.includes('club') ? 'musical-notes-outline' : v.type.includes('restaurant') ? 'restaurant-outline' : 'wine-outline'}
+                  size={13} color="white"
+                />
+                {isActive && (
+                  <View style={{
+                    position: 'absolute', top: -2, right: -2,
+                    width: 8, height: 8, borderRadius: 4,
+                    backgroundColor: '#2ecc71', borderWidth: 1.5, borderColor: 'white',
+                  }} />
+                )}
               </View>
             </Marker>
           );
@@ -697,7 +751,7 @@ export default function MapScreen() {
 
           {/* Venue sheet */}
           {selectedVenue && (() => {
-            const todayDeals = getVenueTodayDeals(selectedVenue);
+            const { active, upcoming } = getVenueTodayDeals(selectedVenue);
             const color = getVenuePinColor(selectedVenue);
             return (
               <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 }}>
@@ -716,16 +770,26 @@ export default function MapScreen() {
                       {selectedVenue.name}
                     </Text>
                     <Text style={{ fontSize: fonts.sm, color: colours.muted, marginBottom: 6 }}>{selectedVenue.address}</Text>
-                    {todayDeals.length > 0 ? (
-                      <View style={{ gap: 4 }}>
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: color, letterSpacing: 1 }}>TODAY</Text>
-                        {todayDeals.map((deal, i) => (
-                          <Text key={i} style={{ fontSize: fonts.sm, color: colours.text }}>
-                            {deal}
-                          </Text>
+                    {active.length > 0 && (
+                      <View style={{ gap: 4, marginBottom: upcoming.length > 0 ? 8 : 0 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#2ecc71' }} />
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: '#2ecc71', letterSpacing: 1 }}>NOW</Text>
+                        </View>
+                        {active.map((deal, i) => (
+                          <Text key={`a${i}`} style={{ fontSize: fonts.sm, color: colours.text }}>{deal}</Text>
                         ))}
                       </View>
-                    ) : (
+                    )}
+                    {upcoming.length > 0 && (
+                      <View style={{ gap: 4 }}>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: color, letterSpacing: 1 }}>UPCOMING</Text>
+                        {upcoming.map((deal, i) => (
+                          <Text key={`u${i}`} style={{ fontSize: fonts.sm, color: colours.text }}>{deal}</Text>
+                        ))}
+                      </View>
+                    )}
+                    {active.length === 0 && upcoming.length === 0 && (
                       <Text style={{ fontSize: fonts.sm, color: colours.muted, fontStyle: 'italic' }}>No deals today</Text>
                     )}
                   </View>
