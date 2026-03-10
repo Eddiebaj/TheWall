@@ -50,6 +50,121 @@ const CATEGORY_COLORS: { [key: string]: string } = {
 };
 const getCatColor = (cat?: string) => CATEGORY_COLORS[cat || ''] || '#555';
 
+type VenuePin = {
+  name: string; address: string; type: ('bar' | 'restaurant' | 'club')[];
+  lat: number; lng: number;
+  deals: { days: number[]; start: string; end: string; description: string }[];
+};
+
+const VENUE_PINS: VenuePin[] = [
+  { name: "Joey's", address: 'Any Location', type: ['bar', 'restaurant'], lat: 45.4260, lng: -75.6922, deals: [
+    { days: [0,1,2,3,4,5,6], start: '15:00', end: '18:00', description: 'Happy Hour daily 3-6pm' },
+    { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun-Thu 9pm-close specials' },
+    { days: [2], start: '15:00', end: '23:59', description: 'Up to 50% off wine Tuesdays' },
+  ]},
+  { name: 'Local Public Eatery', address: 'Any Location', type: ['bar', 'restaurant'], lat: 45.3985, lng: -75.6837, deals: [
+    { days: [1,2,3,4,5], start: '14:00', end: '17:00', description: 'Mon-Fri 2-5pm happy hour' },
+    { days: [6], start: '10:00', end: '14:00', description: 'Sat drinks only 10am-2pm' },
+    { days: [0,1,2], start: '21:00', end: '23:59', description: 'Sun-Wed 9pm-close specials' },
+    { days: [3,4,5,6], start: '22:00', end: '23:59', description: 'Thu-Sat 10pm-close specials' },
+  ]},
+  { name: 'Pour Boy', address: '495 Somerset St W', type: ['bar', 'restaurant'], lat: 45.4152, lng: -75.7095, deals: [
+    { days: [1], start: '11:00', end: '23:59', description: '25% off wings Monday' },
+    { days: [2], start: '19:00', end: '23:59', description: 'Trivia night Tuesday' },
+    { days: [3], start: '19:00', end: '23:59', description: 'Open Mic Wednesday' },
+    { days: [4], start: '19:00', end: '23:59', description: 'Comedy night Thursday' },
+    { days: [5], start: '11:00', end: '23:59', description: '25% off fish & chips + Blingo Friday' },
+  ]},
+  { name: 'Rabbit Hole', address: '208 Sparks St', type: ['bar', 'restaurant', 'club'], lat: 45.4233, lng: -75.6990, deals: [
+    { days: [2], start: '16:00', end: '18:00', description: 'Tue HH 4-6pm' },
+    { days: [2], start: '17:00', end: '23:59', description: 'Half off wine + half off pizzas 5pm-late Tue' },
+    { days: [3], start: '16:00', end: '18:00', description: 'Wed HH 4-6pm + half price oysters' },
+    { days: [4], start: '16:00', end: '18:00', description: 'Thu HH 4-6pm' },
+    { days: [5,6], start: '21:00', end: '23:59', description: 'Fri/Sat Live DJ' },
+  ]},
+  { name: 'Whalesbone', address: 'Elgin + other locations', type: ['restaurant', 'bar'], lat: 45.4185, lng: -75.6880, deals: [
+    { days: [0], start: '17:00', end: '23:59', description: 'Oysters ~$2 each Sunday nights' },
+  ]},
+  { name: "Lieutenant's Pump", address: '361 Elgin St', type: ['restaurant', 'bar', 'club'], lat: 45.4148, lng: -75.6867, deals: [
+    { days: [3], start: '11:00', end: '23:59', description: 'Wednesday wing day - half price' },
+    { days: [1,2,3,4,5], start: '11:00', end: '14:00', description: 'Lunch combo: pint + supper $5' },
+  ]},
+  { name: 'The Standard', address: '360 Elgin St', type: ['restaurant', 'bar', 'club'], lat: 45.4150, lng: -75.6870, deals: [
+    { days: [0,1,2,3,4,5,6], start: '17:00', end: '19:00', description: 'Happy Hour 7 days a week 5-7pm' },
+  ]},
+  { name: 'Heart and Crown', address: 'Any Location', type: ['restaurant', 'bar', 'club'], lat: 45.4280, lng: -75.6920, deals: [
+    { days: [1], start: '11:00', end: '23:59', description: 'Mon: $5 house draught' },
+    { days: [2], start: '11:00', end: '23:59', description: 'Tue: half price wine' },
+    { days: [3], start: '11:00', end: '23:59', description: 'Wed: $5 rail cocktails' },
+    { days: [4], start: '11:00', end: '23:59', description: 'Thu: $5 quarts and craft cans' },
+    { days: [0], start: '11:00', end: '23:59', description: 'Sun: $6 bloody caesars' },
+  ]},
+  { name: 'Union Local 613', address: '315 Somerset St W', type: ['restaurant', 'bar'], lat: 45.4155, lng: -75.7060, deals: [
+    { days: [1,2,3,4,5], start: '16:00', end: '17:00', description: 'Mon-Fri 4-5pm: half price wine, $6 draft, cheap cocktails' },
+  ]},
+  { name: 'Senate Tavern', address: 'Bank / Clarence / Wellington', type: ['restaurant', 'bar'], lat: 45.4230, lng: -75.6930, deals: [
+    { days: [1], start: '17:00', end: '23:59', description: 'Mon: $15 wings 5pm+, $7 lagers + $5 Jameson late' },
+    { days: [2], start: '11:00', end: '23:59', description: 'Tue: $5 tequila + $12 margs all day' },
+    { days: [4], start: '17:00', end: '23:59', description: 'Thu: AYCE wings $28 + $15 mini pitcher' },
+    { days: [5], start: '11:00', end: '23:59', description: 'Fri: $15 fish & chips, $5 tequila + $12 margs' },
+    { days: [6], start: '11:00', end: '23:59', description: 'Sat: $30 bottle of wine' },
+    { days: [0], start: '14:00', end: '17:00', description: 'Sun: $5 caesars, double HH 2-5pm' },
+    { days: [0], start: '23:00', end: '23:59', description: 'Sun: double HH 11pm-2am' },
+  ]},
+  { name: 'Barley Mow', address: 'All locations', type: ['restaurant', 'bar'], lat: 45.4100, lng: -75.6900, deals: [
+    { days: [1,2,3,4,5], start: '14:00', end: '17:00', description: 'Mon-Fri 2-5pm HH' },
+    { days: [3], start: '20:00', end: '23:59', description: 'Wed 8pm: 30c wings' },
+    { days: [4], start: '20:00', end: '23:59', description: 'Thu 8pm: Thirsty Thursdays' },
+    { days: [1], start: '17:00', end: '23:59', description: 'Mon: $27 special + $9 beer flights' },
+    { days: [2], start: '17:00', end: '23:59', description: 'Tue: $27 tacos + $10 margaritas' },
+    { days: [3], start: '17:00', end: '23:59', description: 'Wed: $27 sandwich + $30 wine bottles' },
+    { days: [4], start: '17:00', end: '23:59', description: 'Thu: $27 burger' },
+    { days: [5], start: '17:00', end: '23:59', description: 'Fri: $27 fish & chips + $36.95 prime rib' },
+    { days: [6,0], start: '11:00', end: '23:59', description: 'Sat/Sun: $7.50 caesars. Sun: kids eat free' },
+  ]},
+  { name: 'Royal Oak', address: 'All locations', type: ['restaurant', 'bar'], lat: 45.4220, lng: -75.6870, deals: [
+    { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun-Thu 9pm: $5.50 domestics/wine/rails + half price apps' },
+    { days: [1], start: '17:00', end: '23:59', description: 'Mon: 50% off wings after 5pm' },
+    { days: [3], start: '17:00', end: '23:59', description: 'Wed: 50% off wings after 5pm + trivia 7pm' },
+    { days: [4], start: '11:00', end: '23:59', description: 'Thu: 50% off wine bottles' },
+    { days: [5], start: '11:00', end: '23:59', description: 'Fri: $3 off fish & chips' },
+    { days: [6], start: '11:00', end: '23:59', description: 'Sat: $5.95 bar rails' },
+    { days: [0], start: '11:00', end: '23:59', description: 'Sun: $7.95 caesars + craft draughts' },
+  ]},
+  { name: "Jack Astor's", address: 'All locations', type: ['restaurant', 'bar'], lat: 45.4270, lng: -75.6935, deals: [
+    { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Happy hour daily 2-5pm' },
+    { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm-close specials' },
+    { days: [1,2], start: '11:00', end: '23:59', description: 'Half price wine bottles Mon & Tue' },
+  ]},
+  { name: 'Shore Club', address: '11 Colonel By Dr', type: ['restaurant', 'bar'], lat: 45.4220, lng: -75.6910, deals: [
+    { days: [0,1,2,3,4,5,6], start: '15:00', end: '17:00', description: 'Daily 3-5pm: half price oysters, $2 prawns, $3.50 sliders, $9 Heineken, $12 wine' },
+  ]},
+  { name: 'Drip House', address: '692 Somerset St W', type: ['bar'], lat: 45.4130, lng: -75.7170, deals: [
+    { days: [3,4,5], start: '16:30', end: '18:30', description: 'Wed-Fri 4:30-6:30pm: $9 cocktails, wine, and appetizers' },
+  ]},
+  { name: 'Baton Rouge', address: 'All locations', type: ['restaurant', 'bar'], lat: 45.4250, lng: -75.6960, deals: [
+    { days: [1,2,3,4,5], start: '15:00', end: '18:00', description: 'Mon-Fri 3-6pm: $7 pints, $7 wine, $10 cocktails' },
+  ]},
+  { name: 'Craft Beer Market', address: 'All locations', type: ['bar'], lat: 45.4240, lng: -75.6950, deals: [
+    { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Daily 2-5pm HH: discounted craft beer, wine, cocktails' },
+    { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm-close HH' },
+    { days: [0], start: '11:00', end: '23:59', description: 'All-day specials Sundays' },
+  ]},
+];
+
+const VENUE_COLORS = { food: '#E67E22', happy_hour: '#8E44AD', clubs: '#E91E63' };
+
+const getVenueTodayDeals = (venue: VenuePin): string[] => {
+  const now = new Date();
+  const day = now.getDay();
+  return venue.deals.filter(d => d.days.includes(day)).map(d => d.description);
+};
+
+const venueHasTodayDeal = (venue: VenuePin): boolean => {
+  const day = new Date().getDay();
+  return venue.deals.some(d => d.days.includes(day));
+};
+
 // ── Today filter ─────────────────────────────────────────────────
 const getTodayStr = () => {
   const now = new Date();
@@ -129,7 +244,8 @@ export default function MapScreen() {
   const [lastUpdated, setLastUpdated] = useState('');
   const [selectedBus, setSelectedBus] = useState<Bus | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<MapEvent | null>(null);
-  const [filter, setFilter] = useState<'all' | 'bus'>('all');
+  const [selectedVenue, setSelectedVenue] = useState<VenuePin | null>(null);
+  const [filter, setFilter] = useState<'all' | 'bus' | 'food' | 'happy_hour' | 'clubs'>('all');
   const [showEvents, setShowEvents] = useState(true);
   const [events, setEvents] = useState<MapEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
@@ -140,16 +256,14 @@ export default function MapScreen() {
 
   const sheetAnim = useRef(new Animated.Value(0)).current;
 
-  const openSheet = (bus?: Bus, event?: MapEvent, clusterEvs?: MapEvent[]) => {
-    if (bus) { setSelectedBus(bus); setSelectedEvent(null); setSelectedCluster(null); }
-    if (event) { setSelectedEvent(event); setSelectedBus(null); setSelectedCluster(null); }
-    if (clusterEvs) { setSelectedCluster(clusterEvs); setSelectedBus(null); setSelectedEvent(null); }
+  const openSheet = (bus?: Bus, event?: MapEvent, clusterEvs?: MapEvent[], venue?: VenuePin) => {
+    setSelectedBus(bus || null); setSelectedEvent(event || null); setSelectedCluster(clusterEvs || null); setSelectedVenue(venue || null);
     Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
   };
 
   const hideSheet = () => {
     Animated.spring(sheetAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start(() => {
-      setSelectedBus(null); setSelectedEvent(null); setSelectedCluster(null);
+      setSelectedBus(null); setSelectedEvent(null); setSelectedCluster(null); setSelectedVenue(null);
     });
   };
 
@@ -182,14 +296,29 @@ export default function MapScreen() {
     return () => clearTimeout(t);
   }, [showEvents]);
 
-  const filteredBuses = buses.filter((b: Bus) => {
+  const showBuses = filter === 'all' || filter === 'bus';
+  const filteredBuses = showBuses ? buses.filter((b: Bus) => {
     if (filter === 'bus') return !isLRT(b.routeId);
-    return true; // 'all' shows buses + LRT
+    return true;
+  }) : [];
+
+  const filteredVenues = VENUE_PINS.filter(v => {
+    if (filter === 'bus') return false;
+    if (filter === 'food') return v.type.includes('restaurant');
+    if (filter === 'happy_hour') return v.type.includes('bar') && venueHasTodayDeal(v);
+    if (filter === 'clubs') return v.type.includes('club');
+    return true; // 'all'
   });
+
+  const getVenuePinColor = (v: VenuePin): string => {
+    if (v.type.includes('club')) return VENUE_COLORS.clubs;
+    if (v.type.includes('restaurant')) return VENUE_COLORS.food;
+    return VENUE_COLORS.happy_hour;
+  };
 
   const centerOnOttawa = () => mapRef.current?.animateToRegion(OTTAWA_REGION, 600);
 
-  const hasSheet = selectedBus || selectedEvent || selectedCluster;
+  const hasSheet = selectedBus || selectedEvent || selectedCluster || selectedVenue;
 
   // Upcoming events (today + next 2 days) + clustering
   const getUpcomingDates = () => {
@@ -245,7 +374,7 @@ export default function MapScreen() {
         })}
 
         {/* Event cluster markers */}
-        {showEvents && clusters.map((cluster) => {
+        {showEvents && (filter === 'all' || filter === 'bus') && clusters.map((cluster) => {
           const single = cluster.count === 1 ? cluster.events[0] : null;
           const color = single
             ? (single.source === 'ticketmaster' ? '#026CDF' : getCatColor(single.category))
@@ -310,6 +439,50 @@ export default function MapScreen() {
             </Marker>
           );
         })}
+
+        {/* Venue markers */}
+        {filteredVenues.map((v, i) => {
+          const color = filter === 'food' ? VENUE_COLORS.food
+            : filter === 'happy_hour' ? VENUE_COLORS.happy_hour
+            : filter === 'clubs' ? VENUE_COLORS.clubs
+            : getVenuePinColor(v);
+          const todayDeals = getVenueTodayDeals(v);
+          return (
+            <Marker
+              key={`venue_${i}`}
+              coordinate={{ latitude: v.lat, longitude: v.lng }}
+              onPress={() => openSheet(undefined, undefined, undefined, v)}
+              anchor={{ x: 0.5, y: 1.0 }}
+              tracksViewChanges={false}
+            >
+              <View style={{ alignItems: 'center' }}>
+                <View style={{
+                  backgroundColor: color, borderRadius: 10,
+                  paddingHorizontal: 7, paddingVertical: 4,
+                  maxWidth: 130, minWidth: 40,
+                  borderWidth: 2, borderColor: 'white',
+                  shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4,
+                  shadowOffset: { width: 0, height: 2 }, elevation: 5,
+                }}>
+                  <Text style={{ color: 'white', fontSize: 9, fontWeight: '800' }} numberOfLines={1}>
+                    {v.name}
+                  </Text>
+                  {todayDeals.length > 0 && (
+                    <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 7, marginTop: 1 }} numberOfLines={1}>
+                      {todayDeals[0].length > 25 ? todayDeals[0].slice(0, 23) + '...' : todayDeals[0]}
+                    </Text>
+                  )}
+                </View>
+                <View style={{
+                  width: 0, height: 0,
+                  borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 6,
+                  borderLeftColor: 'transparent', borderRightColor: 'transparent',
+                  borderTopColor: color,
+                }} />
+              </View>
+            </Marker>
+          );
+        })}
       </MapView>
 
       {/* Header */}
@@ -341,19 +514,28 @@ export default function MapScreen() {
         </View>
 
         {/* Filter chips */}
-        <View style={{ flexDirection: 'row', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+        <View style={{ flexDirection: 'row', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
           {([
-            { key: 'all', label_en: 'All', label_fr: 'Tous' },
-            { key: 'bus', label_en: 'Bus', label_fr: 'Bus' },
-          ] as const).map(f => (
-            <TouchableOpacity key={f.key}
-              style={{ borderRadius: 10, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: filter === f.key ? colours.accent : colours.surface, borderWidth: 1, borderColor: filter === f.key ? colours.accent : colours.border }}
-              onPress={() => setFilter(f.key)}>
-              <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: filter === f.key ? 'white' : colours.muted }}>
-                {t(f.label_en, f.label_fr)}
-              </Text>
-            </TouchableOpacity>
-          ))}
+            { key: 'all', label_en: 'All', label_fr: 'Tous', icon: 'apps-outline' as const, color: colours.accent },
+            { key: 'bus', label_en: 'Bus', label_fr: 'Bus', icon: 'bus-outline' as const, color: colours.accent },
+            { key: 'food', label_en: 'Food', label_fr: 'Restos', icon: 'restaurant-outline' as const, color: VENUE_COLORS.food },
+            { key: 'happy_hour', label_en: 'Happy Hour', label_fr: 'Happy Hour', icon: 'beer-outline' as const, color: VENUE_COLORS.happy_hour },
+            { key: 'clubs', label_en: 'Clubs', label_fr: 'Clubs', icon: 'musical-notes-outline' as const, color: VENUE_COLORS.clubs },
+          ] as const).map(f => {
+            const active = filter === f.key;
+            const bg = active ? f.color : colours.surface;
+            const border = active ? f.color : colours.border;
+            return (
+              <TouchableOpacity key={f.key}
+                style={{ borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: bg, borderWidth: 1, borderColor: border, flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                onPress={() => setFilter(f.key)}>
+                <Ionicons name={f.icon} size={12} color={active ? 'white' : colours.muted} />
+                <Text style={{ fontSize: 11, fontWeight: '700', color: active ? 'white' : colours.muted }}>
+                  {t(f.label_en, f.label_fr)}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
 
           {/* Events toggle */}
           <TouchableOpacity
@@ -512,6 +694,55 @@ export default function MapScreen() {
               </ScrollView>
             </View>
           )}
+
+          {/* Venue sheet */}
+          {selectedVenue && (() => {
+            const todayDeals = getVenueTodayDeals(selectedVenue);
+            const color = getVenuePinColor(selectedVenue);
+            return (
+              <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <View style={{ flex: 1, marginRight: 12 }}>
+                    <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+                      {selectedVenue.type.map(tp => (
+                        <View key={tp} style={{ backgroundColor: (tp === 'club' ? VENUE_COLORS.clubs : tp === 'restaurant' ? VENUE_COLORS.food : VENUE_COLORS.happy_hour) + '22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: (tp === 'club' ? VENUE_COLORS.clubs : tp === 'restaurant' ? VENUE_COLORS.food : VENUE_COLORS.happy_hour) + '44' }}>
+                          <Text style={{ fontSize: 10, fontWeight: '700', color: tp === 'club' ? VENUE_COLORS.clubs : tp === 'restaurant' ? VENUE_COLORS.food : VENUE_COLORS.happy_hour, textTransform: 'capitalize' }}>
+                            {tp}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                    <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text, marginBottom: 4 }}>
+                      {selectedVenue.name}
+                    </Text>
+                    <Text style={{ fontSize: fonts.sm, color: colours.muted, marginBottom: 6 }}>{selectedVenue.address}</Text>
+                    {todayDeals.length > 0 ? (
+                      <View style={{ gap: 4 }}>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: color, letterSpacing: 1 }}>TODAY</Text>
+                        {todayDeals.map((deal, i) => (
+                          <Text key={i} style={{ fontSize: fonts.sm, color: colours.text }}>
+                            {deal}
+                          </Text>
+                        ))}
+                      </View>
+                    ) : (
+                      <Text style={{ fontSize: fonts.sm, color: colours.muted, fontStyle: 'italic' }}>No deals today</Text>
+                    )}
+                  </View>
+                  <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} onPress={hideSheet}>
+                    <Ionicons name="close" size={16} color={colours.text} />
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity
+                  onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedVenue.name + ' ' + selectedVenue.address + ' Ottawa')}`)}
+                  style={{ marginTop: 14, backgroundColor: color, borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}>
+                  <Text style={{ color: 'white', fontWeight: '800', fontSize: fonts.md }}>
+                    {t('Open in Maps', 'Ouvrir dans Maps')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            );
+          })()}
         </Animated.View>
       )}
     </View>

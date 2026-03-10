@@ -2170,53 +2170,53 @@ export default function LiveScreen() {
   );
 
   // ── Social / Happy Hour Modal ────────────────────────────────
-  const HAPPY_HOUR_VENUES: { name: string; address: string; type: ('bar' | 'restaurant' | 'club')[]; deals: { days: number[]; start: string; end: string; description: string }[] }[] = [
-    { name: "Joey's", address: 'Any Location', type: ['bar', 'restaurant'], deals: [
+  const HAPPY_HOUR_VENUES: { name: string; address: string; type: ('bar' | 'restaurant' | 'club')[]; lat: number; lng: number; deals: { days: number[]; start: string; end: string; description: string }[] }[] = [
+    { name: "Joey's", address: 'Any Location', type: ['bar', 'restaurant'], lat: 45.4260, lng: -75.6922, deals: [
       { days: [0,1,2,3,4,5,6], start: '15:00', end: '18:00', description: 'Happy Hour daily 3–6pm' },
       { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun–Thu 9pm–close specials' },
       { days: [2], start: '15:00', end: '23:59', description: 'Up to 50% off wine Tuesdays' },
     ]},
-    { name: 'Local Public Eatery', address: 'Any Location', type: ['bar', 'restaurant'], deals: [
+    { name: 'Local Public Eatery', address: 'Any Location', type: ['bar', 'restaurant'], lat: 45.3985, lng: -75.6837, deals: [
       { days: [1,2,3,4,5], start: '14:00', end: '17:00', description: 'Mon–Fri 2–5pm happy hour' },
       { days: [6], start: '10:00', end: '14:00', description: 'Sat drinks only 10am–2pm' },
       { days: [0,1,2], start: '21:00', end: '23:59', description: 'Sun–Wed 9pm–close specials' },
       { days: [3,4,5,6], start: '22:00', end: '23:59', description: 'Thu–Sat 10pm–close specials' },
     ]},
-    { name: 'Pour Boy', address: '495 Somerset St W', type: ['bar', 'restaurant'], deals: [
+    { name: 'Pour Boy', address: '495 Somerset St W', type: ['bar', 'restaurant'], lat: 45.4152, lng: -75.7095, deals: [
       { days: [1], start: '11:00', end: '23:59', description: '25% off wings Monday' },
       { days: [2], start: '19:00', end: '23:59', description: 'Trivia night Tuesday' },
       { days: [3], start: '19:00', end: '23:59', description: 'Open Mic Wednesday' },
       { days: [4], start: '19:00', end: '23:59', description: 'Comedy night Thursday' },
       { days: [5], start: '11:00', end: '23:59', description: '25% off fish & chips + Blingo Friday' },
     ]},
-    { name: 'Rabbit Hole', address: '208 Sparks St', type: ['bar', 'restaurant', 'club'], deals: [
+    { name: 'Rabbit Hole', address: '208 Sparks St', type: ['bar', 'restaurant', 'club'], lat: 45.4233, lng: -75.6990, deals: [
       { days: [2], start: '16:00', end: '18:00', description: 'Tue HH 4–6pm' },
       { days: [2], start: '17:00', end: '23:59', description: 'Half off wine + half off pizzas 5pm–late Tue' },
       { days: [3], start: '16:00', end: '18:00', description: 'Wed HH 4–6pm + half price oysters' },
       { days: [4], start: '16:00', end: '18:00', description: 'Thu HH 4–6pm' },
       { days: [5,6], start: '21:00', end: '23:59', description: 'Fri/Sat Live DJ' },
     ]},
-    { name: 'Whalesbone', address: 'Elgin + other locations', type: ['restaurant', 'bar'], deals: [
+    { name: 'Whalesbone', address: 'Elgin + other locations', type: ['restaurant', 'bar'], lat: 45.4185, lng: -75.6880, deals: [
       { days: [0], start: '17:00', end: '23:59', description: 'Oysters ~$2 each Sunday nights' },
     ]},
-    { name: "Lieutenant's Pump", address: '361 Elgin St', type: ['restaurant', 'bar', 'club'], deals: [
+    { name: "Lieutenant's Pump", address: '361 Elgin St', type: ['restaurant', 'bar', 'club'], lat: 45.4148, lng: -75.6867, deals: [
       { days: [3], start: '11:00', end: '23:59', description: 'Wednesday wing day — half price' },
       { days: [1,2,3,4,5], start: '11:00', end: '14:00', description: 'Lunch combo: pint + supper $5' },
     ]},
-    { name: 'The Standard', address: '360 Elgin St', type: ['restaurant', 'bar', 'club'], deals: [
+    { name: 'The Standard', address: '360 Elgin St', type: ['restaurant', 'bar', 'club'], lat: 45.4150, lng: -75.6870, deals: [
       { days: [0,1,2,3,4,5,6], start: '17:00', end: '19:00', description: 'Happy Hour 7 days a week 5–7pm' },
     ]},
-    { name: 'Heart and Crown', address: 'Any Location', type: ['restaurant', 'bar', 'club'], deals: [
+    { name: 'Heart and Crown', address: 'Any Location', type: ['restaurant', 'bar', 'club'], lat: 45.4280, lng: -75.6920, deals: [
       { days: [1], start: '11:00', end: '23:59', description: 'Mon: $5 house draught' },
       { days: [2], start: '11:00', end: '23:59', description: 'Tue: half price wine' },
       { days: [3], start: '11:00', end: '23:59', description: 'Wed: $5 rail cocktails' },
       { days: [4], start: '11:00', end: '23:59', description: 'Thu: $5 quarts and craft cans' },
       { days: [0], start: '11:00', end: '23:59', description: 'Sun: $6 bloody caesars' },
     ]},
-    { name: 'Union Local 613', address: '315 Somerset St W', type: ['restaurant', 'bar'], deals: [
+    { name: 'Union Local 613', address: '315 Somerset St W', type: ['restaurant', 'bar'], lat: 45.4155, lng: -75.7060, deals: [
       { days: [1,2,3,4,5], start: '16:00', end: '17:00', description: 'Mon–Fri 4–5pm: half price wine, $6 draft, cheap cocktails' },
     ]},
-    { name: 'Senate Tavern', address: 'Bank / Clarence / Wellington', type: ['restaurant', 'bar'], deals: [
+    { name: 'Senate Tavern', address: 'Bank / Clarence / Wellington', type: ['restaurant', 'bar'], lat: 45.4230, lng: -75.6930, deals: [
       { days: [1], start: '17:00', end: '23:59', description: 'Mon: $15 wings 5pm+, $7 lagers + $5 Jameson late' },
       { days: [2], start: '11:00', end: '23:59', description: 'Tue: $5 tequila + $12 margs all day' },
       { days: [4], start: '17:00', end: '23:59', description: 'Thu: AYCE wings $28 + $15 mini pitcher' },
@@ -2225,7 +2225,7 @@ export default function LiveScreen() {
       { days: [0], start: '14:00', end: '17:00', description: 'Sun: $5 caesars, double HH 2–5pm' },
       { days: [0], start: '23:00', end: '23:59', description: 'Sun: double HH 11pm–2am' },
     ]},
-    { name: 'Barley Mow', address: 'All locations', type: ['restaurant', 'bar'], deals: [
+    { name: 'Barley Mow', address: 'All locations', type: ['restaurant', 'bar'], lat: 45.4100, lng: -75.6900, deals: [
       { days: [1,2,3,4,5], start: '14:00', end: '17:00', description: 'Mon–Fri 2–5pm HH' },
       { days: [3], start: '20:00', end: '23:59', description: 'Wed 8pm: 30¢ wings' },
       { days: [4], start: '20:00', end: '23:59', description: 'Thu 8pm: Thirsty Thursdays' },
@@ -2236,7 +2236,7 @@ export default function LiveScreen() {
       { days: [5], start: '17:00', end: '23:59', description: 'Fri: $27 fish & chips + $36.95 prime rib' },
       { days: [6,0], start: '11:00', end: '23:59', description: 'Sat/Sun: $7.50 caesars. Sun: kids eat free' },
     ]},
-    { name: 'Royal Oak', address: 'All locations', type: ['restaurant', 'bar'], deals: [
+    { name: 'Royal Oak', address: 'All locations', type: ['restaurant', 'bar'], lat: 45.4220, lng: -75.6870, deals: [
       { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun–Thu 9pm: $5.50 domestics/wine/rails + half price apps' },
       { days: [1], start: '17:00', end: '23:59', description: 'Mon: 50% off wings after 5pm' },
       { days: [3], start: '17:00', end: '23:59', description: 'Wed: 50% off wings after 5pm + trivia 7pm' },
@@ -2245,21 +2245,21 @@ export default function LiveScreen() {
       { days: [6], start: '11:00', end: '23:59', description: 'Sat: $5.95 bar rails' },
       { days: [0], start: '11:00', end: '23:59', description: 'Sun: $7.95 caesars + craft draughts' },
     ]},
-    { name: "Jack Astor's", address: 'All locations', type: ['restaurant', 'bar'], deals: [
+    { name: "Jack Astor's", address: 'All locations', type: ['restaurant', 'bar'], lat: 45.4270, lng: -75.6935, deals: [
       { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Happy hour daily 2–5pm' },
       { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm–close specials' },
       { days: [1,2], start: '11:00', end: '23:59', description: 'Half price wine bottles Mon & Tue' },
     ]},
-    { name: 'Shore Club', address: '11 Colonel By Dr', type: ['restaurant', 'bar'], deals: [
+    { name: 'Shore Club', address: '11 Colonel By Dr', type: ['restaurant', 'bar'], lat: 45.4220, lng: -75.6910, deals: [
       { days: [0,1,2,3,4,5,6], start: '15:00', end: '17:00', description: 'Daily 3–5pm: half price oysters, $2 prawns, $3.50 sliders, $9 Heineken, $12 wine' },
     ]},
-    { name: 'Drip House', address: '692 Somerset St W', type: ['bar'], deals: [
+    { name: 'Drip House', address: '692 Somerset St W', type: ['bar'], lat: 45.4130, lng: -75.7170, deals: [
       { days: [3,4,5], start: '16:30', end: '18:30', description: 'Wed–Fri 4:30–6:30pm: $9 cocktails, wine, and appetizers' },
     ]},
-    { name: 'Baton Rouge', address: 'All locations', type: ['restaurant', 'bar'], deals: [
+    { name: 'Baton Rouge', address: 'All locations', type: ['restaurant', 'bar'], lat: 45.4250, lng: -75.6960, deals: [
       { days: [1,2,3,4,5], start: '15:00', end: '18:00', description: 'Mon–Fri 3–6pm: $7 pints, $7 wine, $10 cocktails' },
     ]},
-    { name: 'Craft Beer Market', address: 'All locations', type: ['bar'], deals: [
+    { name: 'Craft Beer Market', address: 'All locations', type: ['bar'], lat: 45.4240, lng: -75.6950, deals: [
       { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Daily 2–5pm HH: discounted craft beer, wine, cocktails' },
       { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm–close HH' },
       { days: [0], start: '11:00', end: '23:59', description: 'All-day specials Sundays' },
