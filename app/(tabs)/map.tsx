@@ -57,12 +57,17 @@ type VenuePin = {
 };
 
 const VENUE_PINS: VenuePin[] = [
-  { name: "Joey's", address: '1980 Ogilvie Rd', type: ['bar', 'restaurant'], lat: 45.4320, lng: -75.6096, deals: [
+  { name: "Joey's Lansdowne", address: '825 Exhibition Way', type: ['bar', 'restaurant'], lat: 45.3998, lng: -75.6844, deals: [
     { days: [0,1,2,3,4,5,6], start: '15:00', end: '18:00', description: 'Happy Hour daily 3-6pm' },
     { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun-Thu 9pm-close specials' },
     { days: [2], start: '15:00', end: '23:59', description: 'Up to 50% off wine Tuesdays' },
   ]},
-  { name: 'Local Public Eatery', address: '900 Eagleson Rd, Kanata', type: ['bar', 'restaurant'], lat: 45.2711, lng: -75.8586, deals: [
+  { name: "Joey's Rideau", address: '50 Rideau St', type: ['bar', 'restaurant'], lat: 45.4260, lng: -75.6916, deals: [
+    { days: [0,1,2,3,4,5,6], start: '15:00', end: '18:00', description: 'Happy Hour daily 3-6pm' },
+    { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun-Thu 9pm-close specials' },
+    { days: [2], start: '15:00', end: '23:59', description: 'Up to 50% off wine Tuesdays' },
+  ]},
+  { name: 'Local Public Eatery', address: '825 Exhibition Way', type: ['bar', 'restaurant'], lat: 45.3999, lng: -75.6840, deals: [
     { days: [1,2,3,4,5], start: '14:00', end: '17:00', description: 'Mon-Fri 2-5pm happy hour' },
     { days: [6], start: '10:00', end: '14:00', description: 'Sat drinks only 10am-2pm' },
     { days: [0,1,2], start: '21:00', end: '23:59', description: 'Sun-Wed 9pm-close specials' },
@@ -136,7 +141,7 @@ const VENUE_PINS: VenuePin[] = [
     { days: [0], start: '14:00', end: '17:00', description: 'Sun: $5 caesars, double HH 2-5pm' },
     { days: [0], start: '23:00', end: '23:59', description: 'Sun: double HH 11pm-2am' },
   ]},
-  { name: 'Barley Mow Merivale', address: '1326 Merivale Rd', type: ['restaurant', 'bar'], lat: 45.3681, lng: -75.7318, deals: [
+  { name: 'Barley Mow Merivale', address: '1541 Merivale Rd', type: ['restaurant', 'bar'], lat: 45.3555, lng: -75.7352, deals: [
     { days: [1,2,3,4,5], start: '14:00', end: '17:00', description: 'Mon-Fri 2-5pm HH' },
     { days: [3], start: '20:00', end: '23:59', description: 'Wed 8pm: 30c wings' },
     { days: [4], start: '20:00', end: '23:59', description: 'Thu 8pm: Thirsty Thursdays' },
@@ -147,7 +152,7 @@ const VENUE_PINS: VenuePin[] = [
     { days: [5], start: '17:00', end: '23:59', description: 'Fri: $27 fish & chips + $36.95 prime rib' },
     { days: [6,0], start: '11:00', end: '23:59', description: 'Sat/Sun: $7.50 caesars. Sun: kids eat free' },
   ]},
-  { name: 'Barley Mow Westboro', address: '354 Richmond Rd', type: ['restaurant', 'bar'], lat: 45.3917, lng: -75.7543, deals: [
+  { name: 'Barley Mow Westboro', address: '399 Richmond Rd', type: ['restaurant', 'bar'], lat: 45.3910, lng: -75.7566, deals: [
     { days: [1,2,3,4,5], start: '14:00', end: '17:00', description: 'Mon-Fri 2-5pm HH' },
     { days: [3], start: '20:00', end: '23:59', description: 'Wed 8pm: 30c wings' },
     { days: [4], start: '20:00', end: '23:59', description: 'Thu 8pm: Thirsty Thursdays' },
@@ -158,7 +163,7 @@ const VENUE_PINS: VenuePin[] = [
     { days: [5], start: '17:00', end: '23:59', description: 'Fri: $27 fish & chips + $36.95 prime rib' },
     { days: [6,0], start: '11:00', end: '23:59', description: 'Sat/Sun: $7.50 caesars. Sun: kids eat free' },
   ]},
-  { name: 'Royal Oak Elgin', address: '318 Elgin St', type: ['restaurant', 'bar'], lat: 45.4161, lng: -75.6891, deals: [
+  { name: 'Royal Oak Wellington', address: '1217 Wellington St W', type: ['restaurant', 'bar'], lat: 45.4002, lng: -75.7313, deals: [
     { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun-Thu 9pm: $5.50 domestics/wine/rails + half price apps' },
     { days: [1], start: '17:00', end: '23:59', description: 'Mon: 50% off wings after 5pm' },
     { days: [3], start: '17:00', end: '23:59', description: 'Wed: 50% off wings after 5pm + trivia 7pm' },
@@ -167,7 +172,7 @@ const VENUE_PINS: VenuePin[] = [
     { days: [6], start: '11:00', end: '23:59', description: 'Sat: $5.95 bar rails' },
     { days: [0], start: '11:00', end: '23:59', description: 'Sun: $7.95 caesars + craft draughts' },
   ]},
-  { name: 'Royal Oak Richmond', address: '761 Richmond Rd', type: ['restaurant', 'bar'], lat: 45.3816, lng: -75.7707, deals: [
+  { name: 'Royal Oak Bank', address: '188 Bank St', type: ['restaurant', 'bar'], lat: 45.4178, lng: -75.6986, deals: [
     { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun-Thu 9pm: $5.50 domestics/wine/rails + half price apps' },
     { days: [1], start: '17:00', end: '23:59', description: 'Mon: 50% off wings after 5pm' },
     { days: [3], start: '17:00', end: '23:59', description: 'Wed: 50% off wings after 5pm + trivia 7pm' },
@@ -176,7 +181,7 @@ const VENUE_PINS: VenuePin[] = [
     { days: [6], start: '11:00', end: '23:59', description: 'Sat: $5.95 bar rails' },
     { days: [0], start: '11:00', end: '23:59', description: 'Sun: $7.95 caesars + craft draughts' },
   ]},
-  { name: 'Royal Oak St-Laurent', address: '1220 St-Laurent Blvd', type: ['restaurant', 'bar'], lat: 45.4235, lng: -75.6370, deals: [
+  { name: 'Royal Oak Slater', address: '180 Kent St', type: ['restaurant', 'bar'], lat: 45.4180, lng: -75.7017, deals: [
     { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun-Thu 9pm: $5.50 domestics/wine/rails + half price apps' },
     { days: [1], start: '17:00', end: '23:59', description: 'Mon: 50% off wings after 5pm' },
     { days: [3], start: '17:00', end: '23:59', description: 'Wed: 50% off wings after 5pm + trivia 7pm' },
@@ -185,7 +190,17 @@ const VENUE_PINS: VenuePin[] = [
     { days: [6], start: '11:00', end: '23:59', description: 'Sat: $5.95 bar rails' },
     { days: [0], start: '11:00', end: '23:59', description: 'Sun: $7.95 caesars + craft draughts' },
   ]},
-  { name: "Jack Astor's", address: '75 Queen St', type: ['restaurant', 'bar'], lat: 45.4230, lng: -75.6952, deals: [
+  { name: "Jack Astor's Lansdowne", address: '425 Marche Way', type: ['restaurant', 'bar'], lat: 45.4008, lng: -75.6830, deals: [
+    { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Happy hour daily 2-5pm' },
+    { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm-close specials' },
+    { days: [1,2], start: '11:00', end: '23:59', description: 'Half price wine bottles Mon & Tue' },
+  ]},
+  { name: "Jack Astor's Hunt Club", address: '310 W Hunt Club Rd', type: ['restaurant', 'bar'], lat: 45.3391, lng: -75.7129, deals: [
+    { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Happy hour daily 2-5pm' },
+    { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm-close specials' },
+    { days: [1,2], start: '11:00', end: '23:59', description: 'Half price wine bottles Mon & Tue' },
+  ]},
+  { name: "Jack Astor's Kanata", address: '125 Roland Michener Dr', type: ['restaurant', 'bar'], lat: 45.3085, lng: -75.9131, deals: [
     { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Happy hour daily 2-5pm' },
     { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm-close specials' },
     { days: [1,2], start: '11:00', end: '23:59', description: 'Half price wine bottles Mon & Tue' },
@@ -196,10 +211,16 @@ const VENUE_PINS: VenuePin[] = [
   { name: 'Drip House', address: '692 Somerset St W', type: ['bar'], lat: 45.4110, lng: -75.7065, deals: [
     { days: [3,4,5], start: '16:30', end: '18:30', description: 'Wed-Fri 4:30-6:30pm: $9 cocktails, wine, and appetizers' },
   ]},
-  { name: 'Baton Rouge', address: '50 Rideau St', type: ['restaurant', 'bar'], lat: 45.4255, lng: -75.6930, deals: [
+  { name: 'Baton Rouge Downtown', address: '360 Albert St', type: ['restaurant', 'bar'], lat: 45.4181, lng: -75.7038, deals: [
     { days: [1,2,3,4,5], start: '15:00', end: '18:00', description: 'Mon-Fri 3-6pm: $7 pints, $7 wine, $10 cocktails' },
   ]},
-  { name: 'Craft Beer Market', address: '366 King Edward Ave', type: ['bar'], lat: 45.4299, lng: -75.6868, deals: [
+  { name: 'Baton Rouge Hunt Club', address: '270 W Hunt Club Rd', type: ['restaurant', 'bar'], lat: 45.3396, lng: -75.7110, deals: [
+    { days: [1,2,3,4,5], start: '15:00', end: '18:00', description: 'Mon-Fri 3-6pm: $7 pints, $7 wine, $10 cocktails' },
+  ]},
+  { name: 'Baton Rouge Kanata', address: '790 Earl Grey Dr', type: ['restaurant', 'bar'], lat: 45.3106, lng: -75.9095, deals: [
+    { days: [1,2,3,4,5], start: '15:00', end: '18:00', description: 'Mon-Fri 3-6pm: $7 pints, $7 wine, $10 cocktails' },
+  ]},
+  { name: 'Craft Beer Market', address: '975 Bank St', type: ['bar'], lat: 45.3987, lng: -75.6856, deals: [
     { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Daily 2-5pm HH: discounted craft beer, wine, cocktails' },
     { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm-close HH' },
     { days: [0], start: '11:00', end: '23:59', description: 'All-day specials Sundays' },
