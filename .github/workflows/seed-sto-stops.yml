@@ -38,7 +38,7 @@ jobs:
             const lat = parseFloat(clean[latIdx]);
             const lon = parseFloat(clean[lonIdx]);
             if (id && name && !isNaN(lat)) {
-              stops.push({ stop_id: id, name, lat, lon, agency: 'STO' });
+              stops.push({ stop_id: id, stop_name: name, stop_lat: lat, stop_lon: lon, agency: 'STO' });
             }
           }
 
