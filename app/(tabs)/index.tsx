@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
 import * as Notifications from 'expo-notifications';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWindowDimensions } from 'react-native';
@@ -240,7 +241,7 @@ const SERVICES_TABS: ServicesTab[] = [
   {
     id: 'city', label_en: 'City', label_fr: 'Ville', icon: 'business',
     tiles: [
-      { id: '311',         label_en: '311 Report',   label_fr: 'Signaler 311',  icon: 'megaphone',        accent: '#cc3b2a', action: 'link',     target: 'https://ottawa.ca/en/311' },
+      { id: '311',         label_en: '311 Report',   label_fr: 'Signaler 311',  icon: 'megaphone',        accent: '#cc3b2a', action: 'alert',    target: '311' },
       { id: 'garbage',     label_en: 'Garbage Day',  label_fr: 'Collecte',      icon: 'trash',            accent: '#6b7f99', action: 'alert',    target: 'garbage' },
       { id: 'hydro',       label_en: 'Hydro Ottawa', label_fr: 'Hydro Ottawa',  icon: 'flash',            accent: '#e8a020', action: 'link',     target: 'https://hydroottawa.com/en/outages' },
       { id: 'parking_tkt', label_en: 'Pay Ticket',   label_fr: 'Payer contrav.', icon: 'card',            accent: '#cc3b2a', action: 'link',     target: 'https://www.ottawapolice.ca/en/parking-and-traffic/pay-a-parking-ticket.aspx' },
@@ -559,9 +560,21 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   // ── Bus Stop / LRT card ──
   const isLRT = item.type === 'lrt_station';
   const isLive = previewSource === 'gtfs-rt';
+  // Check if any alert routes match this stop's routes
+  const stopRouteIds = preview.map(a => a.routeId.split('-')[0]);
+  const activeAlerts = alerts.filter((a: any) => a.category !== 'accessibility');
+  const matchingAlertRoutes = activeAlerts.flatMap((a: any) => (a.routes || []).filter((r: string) => stopRouteIds.includes(r)));
+  const alertRouteSet = [...new Set(matchingAlertRoutes)];
   return (
     <ScaleDecorator>
     <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
+      {alertRouteSet.length > 0 && (
+        <View style={{ backgroundColor: '#e8a020' + '20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, marginBottom: 2 }}>
+          <Text style={{ fontSize: 9, fontWeight: '700', color: '#e8a020' }} numberOfLines={1}>
+            {'\u26A0\uFE0F'} Route {alertRouteSet.slice(0, 2).join(', ')} alert today
+          </Text>
+        </View>
+      )}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
           <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
@@ -754,6 +767,8 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
   const [submitting, setSubmitting] = useState(false);
   const [votedIds, setVotedIds] = useState<Set<string>>(new Set());
 
+  const [prevPrices, setPrevPrices] = useState<{ [station: string]: number }>({});
+
   const fetchReports = async () => {
     setLoading(true);
     const { data } = await supabase
@@ -762,6 +777,21 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
       .order('reported_at', { ascending: false })
       .limit(3);
     setReports(data || []);
+    // Fetch previous reports for each station to compute trends
+    if (data && data.length > 0) {
+      const stationNames = [...new Set(data.map((r: GasReport) => r.station_name))];
+      const prev: { [station: string]: number } = {};
+      for (const name of stationNames) {
+        const { data: older } = await supabase
+          .from('gas_prices')
+          .select('price_per_litre')
+          .eq('station_name', name)
+          .order('reported_at', { ascending: false })
+          .range(1, 1);
+        if (older && older.length > 0) prev[name] = older[0].price_per_litre;
+      }
+      setPrevPrices(prev);
+    }
     setLoading(false);
   };
 
@@ -875,6 +905,15 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
                     <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
                       {r.fuel_type.charAt(0).toUpperCase() + r.fuel_type.slice(1)} · {timeAgo(r.reported_at)}
                     </Text>
+                    {prevPrices[r.station_name] != null && prevPrices[r.station_name] !== r.price_per_litre && (() => {
+                      const diff = (r.price_per_litre - prevPrices[r.station_name]) * 100;
+                      const up = diff > 0;
+                      return (
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: up ? '#cc3b2a' : '#2d7a3a', marginTop: 2 }}>
+                          {up ? '\u2191' : '\u2193'} {Math.abs(diff).toFixed(1)}\u00A2 since last report
+                        </Text>
+                      );
+                    })()}
                   </View>
                   <Text style={{ fontSize: 20, fontWeight: '900', color: '#00A78D' }}>
                     {(r.price_per_litre * 100).toFixed(1)}¢
@@ -1208,6 +1247,13 @@ export default function LiveScreen() {
   const [garbageError, setGarbageError] = useState('');
   const [expandedBin, setExpandedBin] = useState<string | null>(null);
   const [addressSaved, setAddressSaved] = useState(false);
+
+  // 311 Report modal
+  const [show311Modal, setShow311Modal] = useState(false);
+  const [report311Category, setReport311Category] = useState('Pothole');
+  const [report311Desc, setReport311Desc] = useState('');
+  const [report311Photo, setReport311Photo] = useState<string | null>(null);
+  const [report311Location, setReport311Location] = useState('');
 
   const isLight = theme === 'light' || (theme === 'system' && colours.bg === '#f0f4f8');
   const cardShadow = isLight ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 } : {};
@@ -1773,6 +1819,39 @@ export default function LiveScreen() {
     Alert.alert(t('Thanks!', 'Merci!'), t('Reported — helps other riders.', 'Signalé — aide les autres usagers.'));
   };
 
+  const open311Modal = async () => {
+    setReport311Category('Pothole');
+    setReport311Desc('');
+    setReport311Photo(null);
+    setReport311Location('');
+    setShow311Modal(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const geo = await Location.reverseGeocodeAsync({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+        if (geo[0]) {
+          const g = geo[0];
+          setReport311Location([g.name, g.street, g.city, g.postalCode].filter(Boolean).join(', '));
+        }
+      }
+    } catch {}
+  };
+
+  const pick311Photo = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
+    if (!result.canceled && result.assets[0]) setReport311Photo(result.assets[0].uri);
+  };
+
+  const submit311 = () => {
+    const subject = encodeURIComponent(`311 Report: ${report311Category}`);
+    const body = encodeURIComponent(
+      `Category: ${report311Category}\nLocation: ${report311Location}\n\nDescription:\n${report311Desc}\n\n${report311Photo ? '[Photo attached separately]' : 'No photo attached'}`
+    );
+    Linking.openURL(`mailto:311@ottawa.ca?subject=${subject}&body=${body}`);
+    setShow311Modal(false);
+  };
+
   const handleQuickAction = (id: string, labelEn: string, labelFr: string) => {
     if (id === 'live') { router.push('/(tabs)/map'); return; }
     if (id === 'alerts') { setAlertsModalVisible(true); return; }
@@ -1786,6 +1865,7 @@ export default function LiveScreen() {
     if (tile.action === 'alert' && tile.target === 'sports') { setSportsModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'social') { setSocialModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'garbage') { setGarbageModalVisible(true); return; }
+    if (tile.action === 'alert' && tile.target === '311') { open311Modal(); return; }
     if (tile.action === 'alert' && tile.target === '511events') { fetch511Events(); setRoadEventsModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'parks') { fetchParks(); setParksModal(true); return; }
     if (tile.action === 'alert') { setAlertsModalVisible(true); return; }
@@ -3028,6 +3108,16 @@ export default function LiveScreen() {
             <Ionicons name={(weather?.icon ?? 'cloudy') as any} size={56} color={iconColor(weather?.icon ?? 'cloudy')} />
             <Text style={{ fontSize: 64, fontWeight: '200', color: colours.text, marginTop: 8 }}>{weather?.temp}°</Text>
             <Text style={{ fontSize: fonts.md, color: colours.muted, marginTop: 2 }}>{locationName}</Text>
+            {weather && (() => {
+              const cond = (weather.condition || '').toLowerCase();
+              let msg = '';
+              if (weather.temp <= -10) msg = t('Dress warm today', 'Habillez-vous chaudement');
+              else if (cond.includes('rain') || cond.includes('shower') || cond.includes('drizzle') || cond.includes('snow') || cond.includes('flurr') || cond.includes('precip')) msg = t('Precipitation likely, check shelter times', 'Pr\u00E9cipitations probables, v\u00E9rifiez les horaires d\u2019abris');
+              else if (weather.temp >= 20) msg = t('Great day to walk or bike', 'Belle journ\u00E9e pour marcher ou p\u00E9daler');
+              else if (cond.includes('wind')) msg = t('Windy today, buses may run late', 'Venteux aujourd\u2019hui, les bus peuvent \u00EAtre en retard');
+              if (!msg) return null;
+              return <Text style={{ fontSize: 13, fontWeight: '600', color: colours.accent, marginTop: 6, textAlign: 'center' }}>{msg}</Text>;
+            })()}
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12, paddingBottom: 4 }} style={{ marginBottom: 20 }}>
             {forecast.map((h, i) => { const hour = new Date(h.time).getHours(); const label = hour === 0 ? '12am' : hour < 12 ? `${hour}am` : hour === 12 ? '12pm' : `${hour - 12}pm`; return (<View key={i} style={{ alignItems: 'center', gap: 4, backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 12, paddingVertical: 10, minWidth: 56 }}><Text style={{ fontSize: fonts.sm - 2, color: colours.muted, fontWeight: '600' }}>{label}</Text><Ionicons name={h.icon as any} size={20} color={iconColor(h.icon)} /><Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.text }}>{h.temp}°</Text>{h.precip > 0 && <Text style={{ fontSize: fonts.sm - 2, color: '#1a6fbf', fontWeight: '600' }}>{h.precip}%</Text>}</View>); })}
@@ -3267,6 +3357,64 @@ export default function LiveScreen() {
         {renderEventsModal()}
         {renderRoadEventsModal()}
         {renderParksModal()}
+
+        {/* 311 Report Modal */}
+        <Modal visible={show311Modal} animationType="slide" transparent onRequestClose={() => setShow311Modal(false)}>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+              <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40 }}>
+                <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 4 }} />
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+                  <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text }}>{t('311 Report', 'Signalement 311')}</Text>
+                  <TouchableOpacity style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, alignItems: 'center', justifyContent: 'center' }} onPress={() => setShow311Modal(false)}>
+                    <Ionicons name="close" size={18} color={colours.text} />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView style={{ maxHeight: 480 }} contentContainerStyle={{ padding: 20, gap: 14 }} keyboardShouldPersistTaps="handled">
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Category', 'Cat\u00E9gorie')}</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {['Pothole', 'Graffiti', 'Broken Sign', 'Snow/Ice', 'Other'].map(cat => (
+                      <TouchableOpacity key={cat} onPress={() => setReport311Category(cat)}
+                        style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, backgroundColor: report311Category === cat ? '#cc3b2a' + '18' : colours.surface, borderColor: report311Category === cat ? '#cc3b2a' : colours.border }}>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: report311Category === cat ? '#cc3b2a' : colours.muted }}>{cat}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Location', 'Emplacement')}</Text>
+                  <TextInput
+                    value={report311Location}
+                    onChangeText={setReport311Location}
+                    placeholder={t('Auto-filled from GPS...', 'Rempli automatiquement par GPS...')}
+                    placeholderTextColor={colours.muted}
+                    style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 12, padding: 14, fontSize: fonts.md, color: colours.text, backgroundColor: colours.surface }}
+                  />
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Description', 'Description')}</Text>
+                  <TextInput
+                    value={report311Desc}
+                    onChangeText={setReport311Desc}
+                    placeholder={t('Describe the issue...', 'D\u00E9crivez le probl\u00E8me...')}
+                    placeholderTextColor={colours.muted}
+                    multiline numberOfLines={3}
+                    style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 12, padding: 14, fontSize: fonts.md, color: colours.text, backgroundColor: colours.surface, minHeight: 80, textAlignVertical: 'top' }}
+                  />
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Photo (optional)', 'Photo (optionnel)')}</Text>
+                  <TouchableOpacity onPress={pick311Photo} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, borderWidth: 1, borderColor: colours.border, borderRadius: 12, backgroundColor: colours.surface, borderStyle: 'dashed' }}>
+                    <Ionicons name={report311Photo ? 'checkmark-circle' : 'camera-outline'} size={20} color={report311Photo ? '#2d7a3a' : colours.muted} />
+                    <Text style={{ fontSize: fonts.md, color: report311Photo ? '#2d7a3a' : colours.muted, fontWeight: '600' }}>
+                      {report311Photo ? t('Photo selected', 'Photo s\u00E9lectionn\u00E9e') : t('Tap to add photo', 'Appuyez pour ajouter')}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={submit311} style={{ backgroundColor: '#cc3b2a', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 }}>
+                    <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.lg }}>{t('Send via Email to 311', 'Envoyer par courriel au 311')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => { setShow311Modal(false); Linking.openURL('https://ottawa.ca/en/311'); }} style={{ alignItems: 'center', paddingVertical: 8 }}>
+                    <Text style={{ color: colours.accent, fontWeight: '600', fontSize: fonts.sm }}>{t('Or report online at ottawa.ca/311', 'Ou signaler en ligne sur ottawa.ca/311')}</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
 
         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true} onScrollBeginDrag={() => { Keyboard.dismiss(); setSearchResults([]); }}>
 

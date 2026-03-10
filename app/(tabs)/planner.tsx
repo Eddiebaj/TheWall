@@ -421,6 +421,92 @@ export default function PlannerScreen() {
     await AsyncStorage.setItem(SAVED_ROUTES_KEY, JSON.stringify(updated));
   };
 
+  // ── Isochrone: What can I reach? ──────────────────────────────
+  const [isoStops, setIsoStops] = useState<{ name: string; travelTime: number; routes: string[] }[]>([]);
+  const [isoLoading, setIsoLoading] = useState(false);
+  const [isoVisible, setIsoVisible] = useState(false);
+
+  const fetchIsochrone = async () => {
+    setIsoLoading(true);
+    setIsoStops([]);
+    setIsoVisible(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') { Alert.alert('Location required', 'Enable location in Settings.'); setIsoLoading(false); return; }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const { latitude: lat, longitude: lng } = pos.coords;
+
+      // Use OTP isochrone endpoint to find reachable stops within 20 min
+      const d = new Date();
+      const timeStr = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+      const month = String(d.getMonth() + 1).padStart(2,'0');
+      const day = String(d.getDate()).padStart(2,'0');
+      const dateStr = `${month}-${day}-${d.getFullYear()}`;
+
+      // Query multiple nearby destinations to simulate isochrone
+      // We'll use the plan API to check reachable stops by querying known LRT + major bus stops
+      const nearbyStops = [
+        { name: 'Rideau Centre', lat: 45.4259, lng: -75.6920 },
+        { name: "Tunney's Pasture", lat: 45.4032, lng: -75.7360 },
+        { name: 'Hurdman', lat: 45.4120, lng: -75.6710 },
+        { name: 'Blair', lat: 45.4310, lng: -75.6090 },
+        { name: 'St-Laurent', lat: 45.4220, lng: -75.6260 },
+        { name: 'Parliament', lat: 45.4230, lng: -75.7000 },
+        { name: 'Bayview', lat: 45.4060, lng: -75.7250 },
+        { name: 'Lyon', lat: 45.4200, lng: -75.7050 },
+        { name: 'Pimisi', lat: 45.4110, lng: -75.7150 },
+        { name: 'uOttawa', lat: 45.4225, lng: -75.6840 },
+        { name: 'Lees', lat: 45.4160, lng: -75.6730 },
+        { name: 'Tremblay', lat: 45.4160, lng: -75.6520 },
+        { name: 'Cyrville', lat: 45.4290, lng: -75.6180 },
+        { name: 'Greenboro', lat: 45.3610, lng: -75.6350 },
+        { name: 'South Keys', lat: 45.3590, lng: -75.6500 },
+        { name: 'Carleton', lat: 45.3850, lng: -75.6960 },
+        { name: "Mooney's Bay", lat: 45.3770, lng: -75.6890 },
+        { name: 'Walkley', lat: 45.3700, lng: -75.6590 },
+        { name: 'Lansdowne', lat: 45.3990, lng: -75.6830 },
+        { name: 'Lincoln Fields', lat: 45.3540, lng: -75.7600 },
+        { name: 'Billings Bridge', lat: 45.3840, lng: -75.6800 },
+        { name: 'Place d\'Orleans', lat: 45.4770, lng: -75.5170 },
+        { name: 'Baseline', lat: 45.3530, lng: -75.7590 },
+        { name: 'Westboro', lat: 45.3930, lng: -75.7530 },
+      ];
+
+      const results: { name: string; travelTime: number; routes: string[] }[] = [];
+      const batchSize = 6;
+      for (let i = 0; i < nearbyStops.length; i += batchSize) {
+        const batch = nearbyStops.slice(i, i + batchSize);
+        const promises = batch.map(async (stop) => {
+          try {
+            const url = `${PLAN_URL}?fromLat=${lat}&fromLng=${lng}&fromLabel=Me&toLat=${stop.lat}&toLng=${stop.lng}&toLabel=${encodeURIComponent(stop.name)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=false`;
+            const resp = await fetch(url);
+            const data = await resp.json();
+            if (data.itineraries && data.itineraries.length > 0) {
+              const best = data.itineraries[0];
+              const durationMins = Math.round(best.duration / 60);
+              if (durationMins <= 20) {
+                const transitLegs = best.legs.filter((l: any) => l.mode !== 'WALK');
+                const routes = [...new Set(transitLegs.map((l: any) => l.routeShortName).filter(Boolean))] as string[];
+                return { name: stop.name, travelTime: durationMins, routes };
+              }
+            }
+          } catch {}
+          return null;
+        });
+        const batchResults = await Promise.all(promises);
+        for (const r of batchResults) {
+          if (r) results.push(r);
+        }
+      }
+
+      results.sort((a, b) => a.travelTime - b.travelTime);
+      setIsoStops(results);
+    } catch (e) {
+      Alert.alert('Error', 'Could not fetch reachable stops.');
+    }
+    setIsoLoading(false);
+  };
+
   // ── Render helpers ────────────────────────────────────────────
   const renderLegPill = (leg: Leg, i: number) => {
     const color = LEG_COLOURS[leg.mode] || colours.accent;
@@ -1068,7 +1154,7 @@ export default function PlannerScreen() {
         )}
 
         {/* Plan button */}
-        <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
+        <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
           <TouchableOpacity
             onPress={plan}
             style={{ paddingVertical: 14, borderRadius: 14, backgroundColor: colours.accent, alignItems: 'center', justifyContent: 'center' }}
@@ -1080,6 +1166,64 @@ export default function PlannerScreen() {
             }
           </TouchableOpacity>
         </View>
+
+        {/* What can I reach? */}
+        {travelMode === 'transit' && (
+          <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
+            <TouchableOpacity
+              onPress={fetchIsochrone}
+              disabled={isoLoading}
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '12' }}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="locate-outline" size={16} color={colours.accent} />
+              <Text style={{ color: colours.accent, fontWeight: '700', fontSize: 14 }}>What can I reach in 20 min?</Text>
+            </TouchableOpacity>
+
+            {isoVisible && (
+              <View style={[{ marginTop: 12, backgroundColor: colours.surface, borderRadius: 16, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }, cardShadow]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="compass-outline" size={16} color={colours.accent} />
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>Reachable in 20 min</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setIsoVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="close-circle" size={20} color={colours.muted} />
+                  </TouchableOpacity>
+                </View>
+                {isoLoading ? (
+                  <View style={{ padding: 24, alignItems: 'center' }}>
+                    <ActivityIndicator color={colours.accent} />
+                    <Text style={{ color: colours.muted, fontSize: 12, marginTop: 8 }}>Finding reachable stops...</Text>
+                  </View>
+                ) : isoStops.length === 0 ? (
+                  <View style={{ padding: 24, alignItems: 'center' }}>
+                    <Ionicons name="location-outline" size={28} color={colours.muted} />
+                    <Text style={{ color: colours.muted, fontSize: 13, marginTop: 8, textAlign: 'center' }}>No transit stops reachable within 20 minutes from your current location.</Text>
+                  </View>
+                ) : (
+                  isoStops.map((stop, i) => (
+                    <View key={stop.name} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: colours.border }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{stop.name}</Text>
+                        {stop.routes.length > 0 && (
+                          <View style={{ flexDirection: 'row', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+                            {stop.routes.map(r => (
+                              <View key={r} style={{ backgroundColor: colours.accent + '18', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                                <Text style={{ fontSize: 10, fontWeight: '800', color: colours.accent }}>{r}</Text>
+                              </View>
+                            ))}
+                          </View>
+                        )}
+                      </View>
+                      <Text style={{ fontSize: 16, fontWeight: '800', color: colours.accent, marginLeft: 12 }}>{stop.travelTime}m</Text>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Results */}
         {!loading && searched && error ? (

@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Animated, Linking,
-  ScrollView, StatusBar, Text, TouchableOpacity, View
+  ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
 import { useApp } from '../../context/AppContext';
@@ -324,7 +324,8 @@ export default function MapScreen() {
   const [selectedBus, setSelectedBus] = useState<Bus | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<MapEvent | null>(null);
   const [selectedVenue, setSelectedVenue] = useState<VenuePin | null>(null);
-  const [filter, setFilter] = useState<'all' | 'bus' | 'food' | 'happy_hour' | 'clubs'>('all');
+  const [filters, setFilters] = useState<Set<string>>(new Set(['all']));
+  const [searchText, setSearchText] = useState('');
   const [showEvents, setShowEvents] = useState(true);
   const [events, setEvents] = useState<MapEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
@@ -375,20 +376,38 @@ export default function MapScreen() {
     return () => clearTimeout(t);
   }, [showEvents]);
 
-  const showBuses = filter === 'all' || filter === 'bus';
+  const toggleFilter = (key: string) => {
+    setFilters(prev => {
+      if (key === 'all') {
+        return prev.has('all') ? new Set<string>() : new Set(['all']);
+      }
+      const next = new Set(prev);
+      next.delete('all');
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      if (next.size === 0) return new Set(['all']);
+      return next;
+    });
+  };
+
+  const hasAll = filters.has('all');
+  const showBuses = hasAll || filters.has('bus');
   const filteredBuses = showBuses ? buses.filter((b: Bus) => {
-    if (filter === 'bus') return !isLRT(b.routeId);
+    if (!hasAll && filters.has('bus')) return !isLRT(b.routeId);
     return true;
   }) : [];
 
-  const filteredVenues = VENUE_PINS.filter(v => {
-    if (filter === 'bus') return false;
+  const showVenueFilters = hasAll || filters.has('food') || filters.has('happy_hour') || filters.has('clubs');
+  const searchLower = searchText.toLowerCase();
+  const filteredVenues = showVenueFilters ? VENUE_PINS.filter(v => {
     if (!venueHasActiveOrUpcomingToday(v)) return false;
-    if (filter === 'food') return v.type.includes('restaurant');
-    if (filter === 'happy_hour') return v.type.includes('bar');
-    if (filter === 'clubs') return v.type.includes('club');
-    return true; // 'all'
-  });
+    if (searchText && !v.name.toLowerCase().includes(searchLower)) return false;
+    if (hasAll) return true;
+    if (filters.has('food') && v.type.includes('restaurant')) return true;
+    if (filters.has('happy_hour') && v.type.includes('bar')) return true;
+    if (filters.has('clubs') && v.type.includes('club')) return true;
+    return false;
+  }) : [];
 
   const getVenuePinColor = (v: VenuePin): string => {
     if (v.type.includes('club')) return VENUE_COLORS.clubs;
@@ -454,7 +473,7 @@ export default function MapScreen() {
         })}
 
         {/* Event cluster markers */}
-        {showEvents && (filter === 'all' || filter === 'bus') && clusters.map((cluster) => {
+        {showEvents && (hasAll || filters.has('bus')) && clusters.map((cluster) => {
           const single = cluster.count === 1 ? cluster.events[0] : null;
           const color = single
             ? (single.source === 'ticketmaster' ? '#026CDF' : getCatColor(single.category))
@@ -522,10 +541,7 @@ export default function MapScreen() {
 
         {/* Venue markers */}
         {filteredVenues.map((v, i) => {
-          const color = filter === 'food' ? VENUE_COLORS.food
-            : filter === 'happy_hour' ? VENUE_COLORS.happy_hour
-            : filter === 'clubs' ? VENUE_COLORS.clubs
-            : getVenuePinColor(v);
+          const color = getVenuePinColor(v);
           const { active } = getVenueTodayDeals(v);
           const isActive = active.length > 0;
           return (
@@ -588,8 +604,26 @@ export default function MapScreen() {
           </View>
         </View>
 
+        {/* Search bar */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10, backgroundColor: colours.surface, borderRadius: 10, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 10, height: 36 }}>
+          <Ionicons name="search-outline" size={16} color={colours.muted} />
+          <TextInput
+            style={{ flex: 1, marginLeft: 8, fontSize: 13, color: colours.text, padding: 0 }}
+            placeholder={t('Search venues...', 'Rechercher...')}
+            placeholderTextColor={colours.muted}
+            value={searchText}
+            onChangeText={setSearchText}
+            returnKeyType="search"
+          />
+          {searchText.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchText('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="close-circle" size={18} color={colours.muted} />
+            </TouchableOpacity>
+          )}
+        </View>
+
         {/* Filter chips */}
-        <View style={{ flexDirection: 'row', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+        <View style={{ flexDirection: 'row', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
           {([
             { key: 'all', label_en: 'All', label_fr: 'Tous', icon: 'apps-outline' as const, color: colours.accent },
             { key: 'bus', label_en: 'Bus', label_fr: 'Bus', icon: 'bus-outline' as const, color: colours.accent },
@@ -597,13 +631,13 @@ export default function MapScreen() {
             { key: 'happy_hour', label_en: 'Happy Hour', label_fr: 'Happy Hour', icon: 'beer-outline' as const, color: VENUE_COLORS.happy_hour },
             { key: 'clubs', label_en: 'Clubs', label_fr: 'Clubs', icon: 'musical-notes-outline' as const, color: VENUE_COLORS.clubs },
           ] as const).map(f => {
-            const active = filter === f.key;
+            const active = filters.has(f.key);
             const bg = active ? f.color : colours.surface;
             const border = active ? f.color : colours.border;
             return (
               <TouchableOpacity key={f.key}
                 style={{ borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: bg, borderWidth: 1, borderColor: border, flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                onPress={() => setFilter(f.key)}>
+                onPress={() => toggleFilter(f.key)}>
                 <Ionicons name={f.icon} size={12} color={active ? 'white' : colours.muted} />
                 <Text style={{ fontSize: 11, fontWeight: '700', color: active ? 'white' : colours.muted }}>
                   {t(f.label_en, f.label_fr)}
