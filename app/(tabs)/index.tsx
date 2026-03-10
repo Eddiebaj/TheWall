@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWindowDimensions } from 'react-native';
 import {
   ActivityIndicator, Alert, FlatList, Image, ImageBackground, Keyboard,
-  KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StatusBar,
+  KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, Share, StatusBar,
   StyleSheet, Text, TextInput, TouchableOpacity,
   TouchableWithoutFeedback, View
 } from 'react-native';
@@ -295,6 +295,14 @@ const resolveStopId = (publicCode: string) => STOP_MAP[String(parseInt(publicCod
 const getStopName = (publicCode: string) => STOP_NAME_MAP[resolveStopId(publicCode)] || `Stop #${publicCode}`;
 const getHeadsign = (tripId: string) => TRIP_MAP[tripId] || '';
 
+// STO (Gatineau) stops use numeric IDs in the 1xxx-5xxx range and won't be in OC Transpo maps
+const isStoStop = (id: string): boolean => {
+  // If not in OC Transpo stop map and is a short numeric ID (STO range)
+  const num = parseInt(id);
+  if (isNaN(num)) return false;
+  return num >= 1000 && num <= 5999 && !STOP_MAP[String(num)] && !STOP_NAME_MAP[id];
+};
+
 const BIN_INFO: Record<string, { dot: string; color: string; label: string; accepts: string[]; rejects: string[] }> = {
   'garbage':         { dot: '●', color: '#666',    label: 'Garbage',           accepts: ['Food-soiled paper','Non-recyclable plastics','Styrofoam','Broken glass','Diapers'], rejects: ['Recyclables','Hazardous waste','Electronics'] },
   'recycling-blue':  { dot: '●', color: '#1a6fbf', label: 'Blue Bin',          accepts: ['Paper & cardboard','Newspapers','Flyers','Milk cartons','Paper bags'], rejects: ['Plastic bags','Food waste','Styrofoam'] },
@@ -314,7 +322,7 @@ const TEAM_LOGOS: { [name: string]: any } = {
 };
 
 // ── SavedBoardCard component ─────────────────────────────────────
-function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, cardShadow, garbageEvents, alerts, sensGame, onMoveLeft, onMoveRight }: {
+function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, cardShadow, garbageEvents, alerts, sensGame, onMoveLeft, onMoveRight, timeFormat }: {
   item: SavedBoardItem; colours: any; fonts: any; t: any;
   onPress: () => void; drag: () => void; isActive: boolean; cardShadow: any;
   garbageEvents: { date: string; flags: string[] }[];
@@ -322,6 +330,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   sensGame?: { state: 'live' | 'pre' | 'none'; period?: string; homeAbbr?: string; awayAbbr?: string; homeScore?: number; awayScore?: number; startTime?: string; opponentAbbr?: string } | null;
   onMoveLeft?: () => void;
   onMoveRight?: () => void;
+  timeFormat?: 'relative' | 'absolute';
 }) {
   const [preview, setPreview] = useState<{ routeId: string; headsign: string; minsAway: number }[]>([]);
   const [previewLoading, setPreviewLoading] = useState(true);
@@ -560,6 +569,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   // ── Bus Stop / LRT card ──
   const isLRT = item.type === 'lrt_station';
   const isLive = previewSource === 'gtfs-rt';
+  const isSTO = isStoStop(item.id);
   // Check if any alert routes match this stop's routes
   const stopRouteIds = preview.map(a => a.routeId.split('-')[0]);
   const activeAlerts = alerts.filter((a: any) => a.category !== 'accessibility');
@@ -578,10 +588,10 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
           <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name={isLRT ? 'train' : 'bus'} size={12} color={isLRT ? colours.lrt : colours.accent} />
+            <Ionicons name={isLRT ? 'train' : 'bus'} size={12} color={isLRT ? colours.lrt : isSTO ? '#0072bc' : colours.accent} />
           </View>
-          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            {isLRT ? 'O-Train' : t('Stop', 'Arrêt')}
+          <Text style={{ fontSize: 10, fontWeight: '700', color: isSTO ? '#0072bc' : colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            {isLRT ? 'O-Train' : isSTO ? 'STO' : t('Stop', 'Arrêt')}
           </Text>
           {!previewLoading && preview.length > 0 && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
@@ -616,7 +626,9 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
                 <Text style={{ fontSize: 10, fontWeight: '800', color: colours.accent }}>{a.routeId.split('-')[0]}</Text>
               </View>
               <Text style={{ fontSize: 11, fontWeight: '800', color: a.minsAway <= 2 ? colours.red : colours.accent }}>
-                {a.minsAway === 0 ? t('Now', 'Maint.') : `${a.minsAway}m`}
+                {timeFormat === 'absolute'
+                  ? (() => { const d = new Date(Date.now() + a.minsAway * 60000); const h = d.getHours(); return `${h % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')}${h >= 12 ? 'p' : 'a'}`; })()
+                  : (a.minsAway === 0 ? t('Now', 'Maint.') : `${a.minsAway}m`)}
               </Text>
               <Text style={{ fontSize: 10, color: colours.muted, flex: 1 }} numberOfLines={1}>{a.headsign || ''}</Text>
             </View>
@@ -1182,6 +1194,10 @@ export default function LiveScreen() {
   const [arrivals, setArrivals] = useState<Arrival[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [timeFormat, setTimeFormat] = useState<'relative' | 'absolute'>('relative');
+  const [scheduleRoute, setScheduleRoute] = useState<{ routeId: string; headsign: string } | null>(null);
+  const [scheduleTrips, setScheduleTrips] = useState<{ time: string; tripId: string }[]>([]);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
   const [showAllArrivals, setShowAllArrivals] = useState(false);
   const [expandedStopId, setExpandedStopId] = useState<string | null>(null);
   const [isReordering, setIsReordering] = useState(false);
@@ -1317,6 +1333,7 @@ export default function LiveScreen() {
     AsyncStorage.getItem('routeo_saved_places').then(val => { if (val) setSavedPlaces(JSON.parse(val)); });
     AsyncStorage.getItem('routeo_saved_teams').then(val => { if (val) setSavedTeams(JSON.parse(val)); });
     AsyncStorage.getItem('routeo_saved_routes').then(val => { if (val) setSavedRoutes(JSON.parse(val)); });
+    AsyncStorage.getItem('routeo_time_format').then(val => { if (val === 'absolute') setTimeFormat('absolute'); });
     Promise.all([
       AsyncStorage.getItem('routeo_saved_board'),
       AsyncStorage.getItem('routeo_favs'),
@@ -3054,34 +3071,108 @@ export default function LiveScreen() {
     );
   };
 
+  const fmtAbsTime = (minsAway: number): string => {
+    const d = new Date(Date.now() + minsAway * 60000);
+    const h = d.getHours();
+    const m = String(d.getMinutes()).padStart(2, '0');
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    return `${h % 12 || 12}:${m} ${ampm}`;
+  };
+
+  const toggleTimeFormat = async () => {
+    const next = timeFormat === 'relative' ? 'absolute' : 'relative';
+    setTimeFormat(next);
+    await AsyncStorage.setItem('routeo_time_format', next);
+  };
+
+  const shareETA = async (item: Arrival) => {
+    const absTime = fmtAbsTime(item.minsAway);
+    const stopLabel = favs.find(f => f.id === expandedStopId)?.name || stopName;
+    const routeLabel = item.routeId === '1' || item.routeId === '2' ? 'O-Train' : `Route ${item.routeId}`;
+    const msg = `My ${routeLabel} bus arrives at ${stopLabel} in ${item.minsAway} min (${absTime}). Tracked with RouteO`;
+    try { await Share.share({ message: msg }); } catch {}
+  };
+
+  const fetchFullSchedule = async (routeId: string, headsign: string) => {
+    setScheduleRoute({ routeId, headsign });
+    setScheduleLoading(true);
+    setScheduleTrips([]);
+    try {
+      const sid = expandedStopId || stopId;
+      const { data } = await supabase
+        .from('stop_times')
+        .select('arrival_time, trip_id, route_id')
+        .eq('stop_id', sid)
+        .eq('route_id', routeId)
+        .order('arrival_time', { ascending: true });
+      if (data) {
+        const today = new Date();
+        const dayMap = ['sunday', 'saturday'];
+        const keyword = today.getDay() === 0 ? 'sunday' : today.getDay() === 6 ? 'saturday' : 'weekday';
+        // Get trip service IDs to filter
+        const tripIds = [...new Set(data.map((r: any) => r.trip_id).filter(Boolean))];
+        let serviceMap: { [tripId: string]: string } = {};
+        if (tripIds.length > 0) {
+          const { data: tripData } = await supabase
+            .from('trips')
+            .select('trip_id, service_id')
+            .in('trip_id', tripIds);
+          if (tripData) for (const t of tripData) serviceMap[t.trip_id] = t.service_id || '';
+        }
+        const filtered = data.filter((r: any) => {
+          const svc = serviceMap[r.trip_id] || '';
+          return !svc || svc.toLowerCase().includes(keyword);
+        });
+        const seen = new Set<string>();
+        const unique = filtered.filter((r: any) => {
+          if (seen.has(r.arrival_time)) return false;
+          seen.add(r.arrival_time);
+          return true;
+        });
+        setScheduleTrips(unique.map((r: any) => ({ time: r.arrival_time, tripId: r.trip_id })));
+      }
+    } catch {}
+    setScheduleLoading(false);
+  };
+
   const renderArrival = (item: Arrival) => {
     const isLRT = item.isScheduled || item.routeId.includes('350') || item.routeId.includes('354') || item.routeId === '1' || item.routeId === '2';
     const now = Date.now();
     const reportEntry = reports[item.routeId];
     const reportCount = reportEntry && reportEntry.expiresAt > now ? reportEntry.count : 0;
     const ghostBus = reportCount >= 2;
+    const timeDisplay = timeFormat === 'absolute'
+      ? fmtAbsTime(item.minsAway)
+      : (item.minsAway === 0 ? t('Due', 'Imminent') : `${item.minsAway}m`);
     return (
       <View key={item.id} style={[styles.arrivalRow, { borderBottomColor: colours.border, backgroundColor: colours.surface }, ghostBus && styles.ghostRow]}>
-        <View style={[styles.badge, { backgroundColor: isLRT ? colours.accentAlt + '18' : colours.accent + '18' }]}>
+        <TouchableOpacity onPress={() => fetchFullSchedule(item.routeId, item.headsign)} style={[styles.badge, { backgroundColor: isLRT ? colours.accentAlt + '18' : colours.accent + '18' }]}>
           <Text style={{ fontWeight: '800', fontSize: fonts.md, color: isLRT ? colours.lrt : colours.accent }}>{isLRT ? '🚊' : item.routeId}</Text>
-        </View>
+        </TouchableOpacity>
         <View style={styles.arrivalInfo}>
-          <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
-            {isLRT ? 'O-Train' : `${t('Route', 'Route')} ${item.routeId}`}
-            {item.delay > 0 ? <Text style={{ color: colours.orange, fontSize: fonts.sm }}> (+{item.delay}m {t('late', 'retard')})</Text> : null}
-            {ghostBus ? <Text style={{ color: colours.muted, fontSize: fonts.sm }}> {t('Ghost bus', 'Bus fantôme')}</Text> : null}
-          </Text>
+          <TouchableOpacity onPress={() => fetchFullSchedule(item.routeId, item.headsign)}>
+            <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
+              {isLRT ? 'O-Train' : `${t('Route', 'Route')} ${item.routeId}`}
+              {item.delay > 0 ? <Text style={{ color: colours.orange, fontSize: fonts.sm }}> (+{item.delay}m {t('late', 'retard')})</Text> : null}
+              {ghostBus ? <Text style={{ color: colours.muted, fontSize: fonts.sm }}> {t('Ghost bus', 'Bus fantôme')}</Text> : null}
+            </Text>
+          </TouchableOpacity>
           <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }} numberOfLines={1}>{item.headsign ? `→ ${item.headsign}` : `→ ${t('Checking route...', 'Vérification...')}`}</Text>
           {item.isScheduled && <Text style={{ fontSize: 10, color: colours.muted, marginTop: 3, fontStyle: 'italic' }}>{t('Scheduled time', 'Heure prévue')}</Text>}
           {reportCount > 0 && <Text style={{ fontSize: fonts.sm, color: colours.orange, marginTop: 3 }}>{reportCount} {t(reportCount > 1 ? 'riders say passed' : 'rider says passed', reportCount > 1 ? 'usagers disent passé' : 'usager dit passé')}</Text>}
         </View>
         <View style={styles.arrivalRight}>
-          <Text style={{ fontSize: fonts.xl, fontWeight: '700', color: item.minsAway <= 2 ? colours.red : colours.accent }}>{item.minsAway === 0 ? t('Due', 'Imminent') : `${item.minsAway}m`}</Text>
-          {!item.isScheduled && (
-            <TouchableOpacity style={[styles.reportBtn, { borderColor: colours.border, backgroundColor: colours.card }]} onPress={() => reportBusPassed(item.routeId)}>
-              <Text style={{ fontSize: fonts.sm, color: colours.orange, fontWeight: '600' }}>{t('Passed?', 'Passé?')}</Text>
+          <Text style={{ fontSize: fonts.xl, fontWeight: '700', color: item.minsAway <= 2 ? colours.red : colours.accent }}>{timeDisplay}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            {!item.isScheduled && (
+              <TouchableOpacity style={[styles.reportBtn, { borderColor: colours.border, backgroundColor: colours.card }]} onPress={() => reportBusPassed(item.routeId)}>
+                <Text style={{ fontSize: fonts.sm, color: colours.orange, fontWeight: '600' }}>{t('Passed?', 'Passé?')}</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={() => shareETA(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="share-outline" size={16} color={colours.muted} />
             </TouchableOpacity>
-          )}
+          </View>
         </View>
       </View>
     );
@@ -3367,14 +3458,24 @@ export default function LiveScreen() {
           <View style={[styles.modalHeader, { borderBottomColor: colours.border }]}>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>{expandedName}</Text>
-              <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{lastUpdated ? `${t('Updated', 'Mis à jour')} ${lastUpdated}` : t('All arrivals', 'Toutes les arrivées')}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{lastUpdated ? `${t('Updated', 'Mis \u00E0 jour')} ${lastUpdated}` : t('All arrivals', 'Toutes les arriv\u00E9es')}</Text>
+                <TouchableOpacity onPress={toggleTimeFormat} style={{ flexDirection: 'row', borderRadius: 8, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
+                  <View style={{ paddingHorizontal: 8, paddingVertical: 3, backgroundColor: timeFormat === 'relative' ? colours.accent : 'transparent' }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: timeFormat === 'relative' ? 'white' : colours.muted }}>8 min</Text>
+                  </View>
+                  <View style={{ paddingHorizontal: 8, paddingVertical: 3, backgroundColor: timeFormat === 'absolute' ? colours.accent : 'transparent' }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: timeFormat === 'absolute' ? 'white' : colours.muted }}>4:32 PM</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
             </View>
             <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
               <TouchableOpacity onPress={() => { if (expandedStopId) { isSaved ? removeFav(expandedStopId) : addFav(expandedStopId, expandedName); } }} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: isSaved ? colours.accent : colours.border, backgroundColor: isSaved ? colours.accent + '15' : colours.surface }}>
-                <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: isSaved ? colours.accent : colours.muted }}>{isSaved ? t('✓ Saved', '✓ Sauvegardé') : t('+ Save', '+ Sauvegarder')}</Text>
+                <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: isSaved ? colours.accent : colours.muted }}>{isSaved ? t('\u2713 Saved', '\u2713 Sauvegard\u00E9') : t('+ Save', '+ Sauvegarder')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => fetchArrivals(stopId)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}>
-                <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Refresh ↺', 'Actualiser ↺')}</Text>
+                <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Refresh \u21BA', 'Actualiser \u21BA')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setExpandedStopId(null)}><Ionicons name="close" size={18} color={colours.text} /></TouchableOpacity>
             </View>
@@ -3534,6 +3635,70 @@ export default function LiveScreen() {
         {renderGarbageModal()}
         {renderSwapSheet()}
         {renderExpandedArrivals()}
+
+        {/* Full Schedule Modal */}
+        <Modal visible={!!scheduleRoute} animationType="slide" transparent onRequestClose={() => setScheduleRoute(null)}>
+          <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+            <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '75%' }}>
+              <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 4 }} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text }}>
+                    {t('Route', 'Route')} {scheduleRoute?.routeId} — {t('Full Schedule', 'Horaire complet')}
+                  </Text>
+                  <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
+                    {new Date().toLocaleDateString('en-CA', { weekday: 'long', month: 'long', day: 'numeric' })}
+                    {scheduleRoute?.headsign ? ` · ${scheduleRoute.headsign}` : ''}
+                  </Text>
+                </View>
+                <TouchableOpacity style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, alignItems: 'center', justifyContent: 'center' }} onPress={() => setScheduleRoute(null)}>
+                  <Ionicons name="close" size={18} color={colours.text} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+                {scheduleLoading ? (
+                  <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+                    <ActivityIndicator color={colours.accent} />
+                    <Text style={{ color: colours.muted, marginTop: 8, fontSize: fonts.sm }}>{t('Loading schedule...', 'Chargement...')}</Text>
+                  </View>
+                ) : scheduleTrips.length === 0 ? (
+                  <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+                    <Ionicons name="calendar-outline" size={36} color={colours.muted} />
+                    <Text style={{ color: colours.muted, marginTop: 8, fontSize: fonts.md }}>{t('No trips found for today', 'Aucun trajet trouv\u00E9 aujourd\u2019hui')}</Text>
+                  </View>
+                ) : (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {scheduleTrips.map((trip, i) => {
+                      const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+                      const parts = trip.time.split(':').map(Number);
+                      const tripMins = parts[0] * 60 + (parts[1] || 0);
+                      const isPast = tripMins < nowMins;
+                      const isCurrent = Math.abs(tripMins - nowMins) <= 5;
+                      const displayTime = (() => {
+                        const h = parts[0] % 24;
+                        const m = String(parts[1] || 0).padStart(2, '0');
+                        const ampm = h >= 12 ? 'PM' : 'AM';
+                        return `${h % 12 || 12}:${m} ${ampm}`;
+                      })();
+                      return (
+                        <View key={i} style={{
+                          paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
+                          borderWidth: isCurrent ? 2 : 1,
+                          borderColor: isCurrent ? colours.accent : colours.border,
+                          backgroundColor: isCurrent ? colours.accent + '15' : isPast ? colours.bg : colours.surface,
+                          opacity: isPast ? 0.4 : 1,
+                        }}>
+                          <Text style={{ fontSize: 13, fontWeight: isCurrent ? '800' : '600', color: isCurrent ? colours.accent : colours.text }}>{displayTime}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
         {renderBoardExpandModal()}
         {renderSportsModal()}
         {renderSocialModal()}
@@ -3708,6 +3873,7 @@ export default function LiveScreen() {
                     garbageEvents={garbageEvents}
                     alerts={alerts}
                     sensGame={sensGame}
+                    timeFormat={timeFormat}
                     onMoveLeft={idx > 0 ? () => moveBoard(idx, idx - 1) : undefined}
                     onMoveRight={idx < savedBoard.length - 1 ? () => moveBoard(idx, idx + 1) : undefined}
                     onPress={() => {
