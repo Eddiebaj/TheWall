@@ -888,11 +888,23 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
             <ActivityIndicator color={colours.accent} />
           </View>
         ) : reports.length === 0 ? (
-          <View style={{ padding: 32, alignItems: 'center' }}>
-            <Ionicons name="speedometer-outline" size={36} color={colours.muted} />
-            <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.muted, marginTop: 10, textAlign: 'center' }}>
-              {t('Be the first to report a price in Ottawa', 'Soyez le premier à signaler un prix à Ottawa')}
+          <View style={{ padding: 28, alignItems: 'center' }}>
+            <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: '#00A78D' + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+              <Ionicons name="speedometer-outline" size={28} color="#00A78D" />
+            </View>
+            <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text, textAlign: 'center' }}>
+              {t('No reports yet', 'Aucun signalement')}
             </Text>
+            <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 4, textAlign: 'center', lineHeight: 18 }}>
+              {t('Help Ottawa drivers by reporting the gas price at your nearest station.', 'Aidez les automobilistes d\u2019Ottawa en signalant le prix de l\u2019essence.')}
+            </Text>
+            <TouchableOpacity
+              onPress={() => setReportModal(true)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 14, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, backgroundColor: '#00A78D' }}
+            >
+              <Ionicons name="add-circle" size={16} color="white" />
+              <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>{t('Report a Price', 'Signaler un prix')}</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           reports.map((r, i) => {
@@ -3110,13 +3122,16 @@ export default function LiveScreen() {
             <Text style={{ fontSize: fonts.md, color: colours.muted, marginTop: 2 }}>{locationName}</Text>
             {weather && (() => {
               const cond = (weather.condition || '').toLowerCase();
-              let msg = '';
-              if (weather.temp <= -10) msg = t('Dress warm today', 'Habillez-vous chaudement');
-              else if (cond.includes('rain') || cond.includes('shower') || cond.includes('drizzle') || cond.includes('snow') || cond.includes('flurr') || cond.includes('precip')) msg = t('Precipitation likely, check shelter times', 'Pr\u00E9cipitations probables, v\u00E9rifiez les horaires d\u2019abris');
-              else if (weather.temp >= 20) msg = t('Great day to walk or bike', 'Belle journ\u00E9e pour marcher ou p\u00E9daler');
-              else if (cond.includes('wind')) msg = t('Windy today, buses may run late', 'Venteux aujourd\u2019hui, les bus peuvent \u00EAtre en retard');
-              if (!msg) return null;
-              return <Text style={{ fontSize: 13, fontWeight: '600', color: colours.accent, marginTop: 6, textAlign: 'center' }}>{msg}</Text>;
+              const msgs: string[] = [];
+              if (weather.temp <= -5) msgs.push(t('Dress warm today', 'Habillez-vous chaudement'));
+              if (cond.includes('rain') || cond.includes('shower') || cond.includes('drizzle') || cond.includes('snow') || cond.includes('flurr') || cond.includes('precip')) msgs.push(t('Precipitation likely, check shelter times', 'Pr\u00E9cipitations probables, v\u00E9rifiez les horaires d\u2019abris'));
+              else if (weather.temp >= 20) msgs.push(t('Great day to walk or bike', 'Belle journ\u00E9e pour marcher ou p\u00E9daler'));
+              if (cond.includes('wind')) msgs.push(t('Windy today, buses may run late', 'Venteux aujourd\u2019hui, les bus peuvent \u00EAtre en retard'));
+              // Snow forecast tomorrow
+              const tomorrow = dailyForecast[1];
+              if (tomorrow && tomorrow.icon === 'snow' && tomorrow.precip >= 50) msgs.push(t('Snow expected tomorrow, allow extra travel time', 'Neige pr\u00E9vue demain, pr\u00E9voyez plus de temps'));
+              if (msgs.length === 0) return null;
+              return <Text style={{ fontSize: 13, fontWeight: '600', color: colours.accent, marginTop: 6, textAlign: 'center' }}>{msgs[0]}</Text>;
             })()}
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12, paddingBottom: 4 }} style={{ marginBottom: 20 }}>
