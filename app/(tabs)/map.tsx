@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Animated, Linking,
@@ -8,7 +9,12 @@ import MapView, { Marker, Region } from 'react-native-maps';
 import { useApp } from '../../context/AppContext';
 
 const VEHICLES_URL    = 'https://routeo-backend.vercel.app/api/vehicles';
+const BACKEND_URL     = 'https://routeo-backend.vercel.app/api/arrivals';
 const TM_KEY          = 'pMuGA4GIB29yxOAKrDb9Vxa3tXhXpak1';
+
+type SavedRoute = { id: string; fromLabel: string; toLabel: string; fromLat: number; fromLng: number; toLat: number; toLng: number };
+type SavedFav = { id: string; name: string; icon: string };
+type SavedPin = { id: string; name: string; lat: number; lng: number; kind: 'stop' | 'route_from' | 'route_to'; routeLabel?: string };
 
 const OTTAWA_REGION: Region = {
   latitude: 45.4215, longitude: -75.6972,
@@ -333,17 +339,26 @@ export default function MapScreen() {
   const [region, setRegion] = useState<Region>(OTTAWA_REGION);
   const [error, setError] = useState('');
   const [markersReady, setMarkersReady] = useState(false);
+  const [savedPins, setSavedPins] = useState<SavedPin[]>([]);
+  const [savedRouteIds, setSavedRouteIds] = useState<Set<string>>(new Set());
+  const [selectedSavedPin, setSelectedSavedPin] = useState<SavedPin | null>(null);
+  const [savedLoaded, setSavedLoaded] = useState(false);
 
   const sheetAnim = useRef(new Animated.Value(0)).current;
 
   const openSheet = (bus?: Bus, event?: MapEvent, clusterEvs?: MapEvent[], venue?: VenuePin) => {
     setSelectedBus(bus || null); setSelectedEvent(event || null); setSelectedCluster(clusterEvs || null); setSelectedVenue(venue || null);
+    if (!bus && !event && !clusterEvs && !venue) {
+      // saved pin — selectedSavedPin is already set
+    } else {
+      setSelectedSavedPin(null);
+    }
     Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
   };
 
   const hideSheet = () => {
     Animated.spring(sheetAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start(() => {
-      setSelectedBus(null); setSelectedEvent(null); setSelectedCluster(null); setSelectedVenue(null);
+      setSelectedBus(null); setSelectedEvent(null); setSelectedCluster(null); setSelectedVenue(null); setSelectedSavedPin(null);
     });
   };
 
@@ -376,6 +391,48 @@ export default function MapScreen() {
     return () => clearTimeout(t);
   }, [showEvents]);
 
+  // Load saved stops, routes, places when "saved" filter first activated
+  useEffect(() => {
+    if (savedLoaded) return;
+    const load = async () => {
+      const pins: SavedPin[] = [];
+      const routeIdSet = new Set<string>();
+      try {
+        // Saved routes (trip planner)
+        const routesRaw = await AsyncStorage.getItem('routeo_saved_routes');
+        if (routesRaw) {
+          const routes: SavedRoute[] = JSON.parse(routesRaw);
+          for (const r of routes) {
+            pins.push({ id: `rf_${r.id}`, name: r.fromLabel, lat: r.fromLat, lng: r.fromLng, kind: 'route_from', routeLabel: `${r.fromLabel} → ${r.toLabel}` });
+            pins.push({ id: `rt_${r.id}`, name: r.toLabel, lat: r.toLat, lng: r.toLng, kind: 'route_to', routeLabel: `${r.fromLabel} → ${r.toLabel}` });
+          }
+        }
+        // Saved bus stops — fetch arrivals to get coordinates and route IDs
+        const favsRaw = await AsyncStorage.getItem('routeo_favs');
+        if (favsRaw) {
+          const favs: SavedFav[] = JSON.parse(favsRaw);
+          for (const fav of favs) {
+            try {
+              const resp = await fetch(`${BACKEND_URL}?stop=${fav.id}`);
+              const data = await resp.json();
+              if (data.lat && data.lng) {
+                pins.push({ id: `stop_${fav.id}`, name: fav.name, lat: data.lat, lng: data.lng, kind: 'stop' });
+              }
+              for (const a of (data.arrivals || [])) {
+                const base = String(a.routeId).split('-')[0];
+                if (base) routeIdSet.add(base);
+              }
+            } catch {}
+          }
+        }
+      } catch {}
+      setSavedPins(pins);
+      setSavedRouteIds(routeIdSet);
+      setSavedLoaded(true);
+    };
+    load();
+  }, [savedLoaded]);
+
   const toggleFilter = (key: string) => {
     setFilters(prev => {
       if (key === 'all') {
@@ -391,8 +448,14 @@ export default function MapScreen() {
   };
 
   const hasAll = filters.has('all');
-  const showBuses = hasAll || filters.has('bus');
+  const hasSaved = filters.has('saved');
+  const showBuses = hasAll || filters.has('bus') || hasSaved;
   const filteredBuses = showBuses ? buses.filter((b: Bus) => {
+    if (hasSaved && !hasAll && !filters.has('bus')) {
+      // Only show buses on saved routes
+      const base = b.routeId.split('-')[0];
+      return savedRouteIds.has(base);
+    }
     if (!hasAll && filters.has('bus')) return !isLRT(b.routeId);
     return true;
   }) : [];
@@ -417,7 +480,7 @@ export default function MapScreen() {
 
   const centerOnOttawa = () => mapRef.current?.animateToRegion(OTTAWA_REGION, 600);
 
-  const hasSheet = selectedBus || selectedEvent || selectedCluster || selectedVenue;
+  const hasSheet = selectedBus || selectedEvent || selectedCluster || selectedVenue || selectedSavedPin;
 
   // Upcoming events (today + next 2 days) + clustering
   const getUpcomingDates = () => {
@@ -539,6 +602,34 @@ export default function MapScreen() {
           );
         })}
 
+        {/* Saved pin markers — only when Saved filter is explicitly on */}
+        {hasSaved && savedPins.map((pin) => {
+          const pinColor = pin.kind === 'stop' ? '#e74c3c' : pin.kind === 'route_from' ? '#2ecc71' : '#3498db';
+          const pinIcon = pin.kind === 'stop' ? 'bus' : pin.kind === 'route_from' ? 'flag' : 'location';
+          return (
+            <Marker
+              key={pin.id}
+              coordinate={{ latitude: pin.lat, longitude: pin.lng }}
+              onPress={() => {
+                setSelectedSavedPin(pin);
+                openSheet();
+              }}
+              anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges={false}
+            >
+              <View style={{
+                width: 30, height: 30, borderRadius: 15,
+                backgroundColor: pinColor, borderWidth: 2.5, borderColor: 'white',
+                alignItems: 'center', justifyContent: 'center',
+                shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3,
+                shadowOffset: { width: 0, height: 1 }, elevation: 4,
+              }}>
+                <Ionicons name={pinIcon as any} size={14} color="white" />
+              </View>
+            </Marker>
+          );
+        })}
+
         {/* Venue markers */}
         {filteredVenues.map((v, i) => {
           const color = getVenuePinColor(v);
@@ -630,6 +721,7 @@ export default function MapScreen() {
             { key: 'food', label_en: 'Food', label_fr: 'Restos', icon: 'restaurant-outline' as const, color: VENUE_COLORS.food },
             { key: 'happy_hour', label_en: 'Happy Hour', label_fr: 'Happy Hour', icon: 'beer-outline' as const, color: VENUE_COLORS.happy_hour },
             { key: 'clubs', label_en: 'Clubs', label_fr: 'Clubs', icon: 'musical-notes-outline' as const, color: VENUE_COLORS.clubs },
+            { key: 'saved', label_en: 'Saved', label_fr: 'Favoris', icon: 'heart' as const, color: '#e74c3c' },
           ] as const).map(f => {
             const active = filters.has(f.key);
             const bg = active ? f.color : colours.surface;
@@ -862,6 +954,44 @@ export default function MapScreen() {
               </View>
             );
           })()}
+
+          {/* Saved pin sheet */}
+          {selectedSavedPin && (
+            <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <View style={{ flex: 1, marginRight: 12 }}>
+                  <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+                    <View style={{ backgroundColor: (selectedSavedPin.kind === 'stop' ? '#e74c3c' : '#2ecc71') + '22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: (selectedSavedPin.kind === 'stop' ? '#e74c3c' : '#2ecc71') + '44' }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: selectedSavedPin.kind === 'stop' ? '#e74c3c' : '#2ecc71' }}>
+                        {selectedSavedPin.kind === 'stop' ? t('Saved Stop', 'Arret favori') : t('Saved Route', 'Trajet favori')}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text, marginBottom: 4 }}>
+                    {selectedSavedPin.name}
+                  </Text>
+                  {selectedSavedPin.routeLabel && (
+                    <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{selectedSavedPin.routeLabel}</Text>
+                  )}
+                  {selectedSavedPin.kind === 'stop' && (
+                    <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
+                      {t('Stop', 'Arret')} #{selectedSavedPin.id.replace('stop_', '')}
+                    </Text>
+                  )}
+                </View>
+                <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} onPress={hideSheet}>
+                  <Ionicons name="close" size={16} color={colours.text} />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity
+                onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${selectedSavedPin.lat},${selectedSavedPin.lng}`)}
+                style={{ marginTop: 14, backgroundColor: selectedSavedPin.kind === 'stop' ? '#e74c3c' : '#2ecc71', borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}>
+                <Text style={{ color: 'white', fontWeight: '800', fontSize: fonts.md }}>
+                  {t('Open in Maps', 'Ouvrir dans Maps')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </Animated.View>
       )}
     </View>
