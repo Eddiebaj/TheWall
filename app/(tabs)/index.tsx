@@ -324,6 +324,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
 }) {
   const [preview, setPreview] = useState<{ routeId: string; headsign: string; minsAway: number }[]>([]);
   const [previewLoading, setPreviewLoading] = useState(true);
+  const [previewSource, setPreviewSource] = useState<'gtfs-rt' | 'gtfs-static' | null>(null);
   const [gasPrice, setGasPrice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -336,30 +337,11 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
     let cancelled = false;
     const fetchPreview = async () => {
       try {
-        const isLRT = item.type === 'lrt_station';
-        if (isLRT) {
-          const resp = await fetch(`${BACKEND_URL}?stop=${item.id}`);
-          const data = await resp.json();
-          if (!cancelled) setPreview((data.arrivals || []).slice(0, 3).map((a: any) => ({ routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway })));
-        } else {
-          const resp = await fetch(TRIP_UPDATES, { headers: { 'Ocp-Apim-Subscription-Key': API_KEY } });
-          const data = await resp.json();
-          const now = Math.floor(Date.now() / 1000);
-          const results: any[] = [];
-          for (const ent of (data?.Entity || [])) {
-            const tu = ent.TripUpdate; if (!tu) continue;
-            for (const stu of (tu.StopTimeUpdate || [])) {
-              const stopIdsToMatch = MULTI_PLATFORM_STOPS[item.id] || [item.id];
-              if (!stopIdsToMatch.includes(String(stu.StopId))) continue;
-              const arr = stu.Arrival || stu.Departure || {};
-              const t2 = parseInt(arr.Time || 0); if (!t2) continue;
-              const secsAway = t2 - now;
-              if (secsAway < -60 || secsAway > 5400) continue;
-              const trip = tu.Trip || {};
-              results.push({ routeId: trip.RouteId || '?', headsign: getHeadsign(String(trip.TripId || '')), minsAway: Math.max(0, Math.round(secsAway / 60)) });
-            }
-          }
-          if (!cancelled) setPreview(results.sort((a, b) => a.minsAway - b.minsAway).slice(0, 3));
+        const resp = await fetch(`${BACKEND_URL}?stop=${item.id}`);
+        const data = await resp.json();
+        if (!cancelled) {
+          setPreview((data.arrivals || []).slice(0, 3).map((a: any) => ({ routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway })));
+          setPreviewSource(data.source === 'gtfs-rt' ? 'gtfs-rt' : 'gtfs-static');
         }
       } catch { if (!cancelled) setPreview([]); }
       finally { if (!cancelled) setPreviewLoading(false); }
@@ -576,6 +558,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
 
   // ── Bus Stop / LRT card ──
   const isLRT = item.type === 'lrt_station';
+  const isLive = previewSource === 'gtfs-rt';
   return (
     <ScaleDecorator>
     <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
@@ -587,6 +570,12 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
           <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
             {isLRT ? 'O-Train' : t('Stop', 'Arrêt')}
           </Text>
+          {!previewLoading && preview.length > 0 && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+              <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: isLive ? '#22c55e' : colours.muted }} />
+              <Text style={{ fontSize: 8, fontWeight: '700', color: isLive ? '#22c55e' : colours.muted }}>{isLive ? 'LIVE' : 'SCHED'}</Text>
+            </View>
+          )}
         </View>
         <View style={{ flexDirection: 'row', gap: 2 }}>
           {onMoveLeft && (
@@ -628,34 +617,16 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
 function SavedStopCard({ fav, isActive, colours, fonts, t, onPress, onLongPress, cardShadow }: any) {
   const [preview, setPreview] = useState<{ routeId: string; headsign: string; minsAway: number }[]>([]);
   const [previewLoading, setPreviewLoading] = useState(true);
+  const [previewSource, setPreviewSource] = useState<'gtfs-rt' | 'gtfs-static' | null>(null);
   useEffect(() => {
     let cancelled = false;
     const fetchPreview = async () => {
       try {
-        const isLRT = LRT_STOP_IDS.has(fav.id);
-        if (isLRT) {
-          const resp = await fetch(`${BACKEND_URL}?stop=${fav.id}`);
-          const data = await resp.json();
-          if (!cancelled) setPreview((data.arrivals || []).slice(0, 2).map((a: any) => ({ routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway })));
-        } else {
-          const resp = await fetch(TRIP_UPDATES, { headers: { 'Ocp-Apim-Subscription-Key': API_KEY } });
-          const data = await resp.json();
-          const now = Math.floor(Date.now() / 1000);
-          const results: any[] = [];
-          for (const ent of (data?.Entity || [])) {
-            const tu = ent.TripUpdate; if (!tu) continue;
-            for (const stu of (tu.StopTimeUpdate || [])) {
-              const stopIdsToMatch = MULTI_PLATFORM_STOPS[fav.id] || [fav.id];
-              if (!stopIdsToMatch.includes(String(stu.StopId))) continue;
-              const arr = stu.Arrival || stu.Departure || {};
-              const t2 = parseInt(arr.Time || 0); if (!t2) continue;
-              const secsAway = t2 - now;
-              if (secsAway < -60 || secsAway > 5400) continue;
-              const trip = tu.Trip || {};
-              results.push({ routeId: trip.RouteId || '?', headsign: getHeadsign(String(trip.TripId || '')), minsAway: Math.max(0, Math.round(secsAway / 60)) });
-            }
-          }
-          if (!cancelled) setPreview(results.sort((a, b) => a.minsAway - b.minsAway).slice(0, 2));
+        const resp = await fetch(`${BACKEND_URL}?stop=${fav.id}`);
+        const data = await resp.json();
+        if (!cancelled) {
+          setPreview((data.arrivals || []).slice(0, 2).map((a: any) => ({ routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway })));
+          setPreviewSource(data.source === 'gtfs-rt' ? 'gtfs-rt' : 'gtfs-static');
         }
       } catch { if (!cancelled) setPreview([]); }
       finally { if (!cancelled) setPreviewLoading(false); }
@@ -670,6 +641,12 @@ function SavedStopCard({ fav, isActive, colours, fonts, t, onPress, onLongPress,
           <Ionicons name="bus" size={12} color={isActive ? 'white' : colours.accent} />
         </View>
         <Text style={{ fontSize: 10, fontWeight: '700', color: isActive ? 'rgba(255,255,255,0.7)' : colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Stop', 'Arrêt')}</Text>
+        {!previewLoading && preview.length > 0 && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+            <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: previewSource === 'gtfs-rt' ? '#22c55e' : (isActive ? 'rgba(255,255,255,0.5)' : colours.muted) }} />
+            <Text style={{ fontSize: 8, fontWeight: '700', color: previewSource === 'gtfs-rt' ? '#22c55e' : (isActive ? 'rgba(255,255,255,0.5)' : colours.muted) }}>{previewSource === 'gtfs-rt' ? 'LIVE' : 'SCHED'}</Text>
+          </View>
+        )}
       </View>
       <Text style={{ fontSize: 14, fontWeight: '800', color: isActive ? 'white' : colours.text, lineHeight: 18 }} numberOfLines={2}>{fav.name}</Text>
       <View style={{ gap: 5 }}>
@@ -1234,22 +1211,6 @@ export default function LiveScreen() {
 
   const isLight = theme === 'light' || (theme === 'system' && colours.bg === '#f0f4f8');
   const cardShadow = isLight ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 } : {};
-
-  // ── TEMP DEBUG: log raw NHL schedule API ──
-  useEffect(() => {
-    fetch('https://api-web.nhle.com/v1/schedule/now')
-      .then(r => r.json())
-      .then(d => {
-        const today = new Date().toLocaleDateString('en-CA');
-        const todayEntry = (d.gameWeek || []).find((w: any) => w.date === today);
-        const games = todayEntry?.games || [];
-        console.log('NHL DEBUG today:', today, 'games count:', games.length);
-        games.forEach((g: any, i: number) => console.log(`NHL GAME ${i}:`, g.awayTeam?.abbrev, '@', g.homeTeam?.abbrev, 'state:', g.gameState, 'start:', g.startTimeUTC));
-        const sensGame = games.find((g: any) => g.awayTeam?.abbrev === 'OTT' || g.homeTeam?.abbrev === 'OTT');
-        console.log('NHL SENS MATCH:', sensGame ? JSON.stringify(sensGame) : 'NOT FOUND');
-      })
-      .catch(e => console.log('NHL API ERROR:', e.message));
-  }, []);
 
   // ── Fetch Senators live game for board card ──
   useEffect(() => {
@@ -3262,7 +3223,7 @@ export default function LiveScreen() {
             </View>
             {(searchResults.length > 0 || addressResults.length > 0) && (
               <View style={[styles.dropdown, { backgroundColor: colours.surface, borderColor: colours.border, ...cardShadow }]}>
-                {searchResults.map(result => (<TouchableOpacity key={result.internalId} style={[styles.dropdownItem, { borderBottomColor: colours.border }]} onPress={() => { Keyboard.dismiss(); loadStop(result.id, result.name); setSearchText(''); setSearchResults([]); setAddressResults([]); }}><Text style={{ color: colours.text, fontSize: fonts.md, fontWeight: '600', flex: 1 }} numberOfLines={1}>{result.name}  <Text style={{ color: colours.muted, fontSize: fonts.sm }}>·  #{result.id}</Text></Text></TouchableOpacity>))}
+                {searchResults.map(result => (<TouchableOpacity key={result.internalId} style={[styles.dropdownItem, { borderBottomColor: colours.border }]} onPress={() => { Keyboard.dismiss(); loadStop(result.id, result.name); setExpandedStopId(result.id); setSearchText(''); setSearchResults([]); setAddressResults([]); }}><Text style={{ color: colours.text, fontSize: fonts.md, fontWeight: '600', flex: 1 }} numberOfLines={1}>{result.name}  <Text style={{ color: colours.muted, fontSize: fonts.sm }}>·  #{result.id}</Text></Text></TouchableOpacity>))}
                 {searchResults.length === 0 && addressResults.map((addr, i) => (<TouchableOpacity key={`addr-${i}`} style={[styles.dropdownItem, { borderBottomColor: colours.border }]} onPress={() => { Keyboard.dismiss(); setSearchText(''); setSearchResults([]); setAddressResults([]); router.push({ pathname: '/(tabs)/planner', params: { toLabel: addr.label, toLat: String(addr.lat), toLng: String(addr.lng) } } as any); }}><Text style={{ color: colours.text, fontSize: fonts.md, flex: 1 }} numberOfLines={1}>{addr.label}</Text><Text style={{ color: colours.accent, fontSize: fonts.sm, marginLeft: 8 }}>→ Plan</Text></TouchableOpacity>))}
               </View>
             )}
