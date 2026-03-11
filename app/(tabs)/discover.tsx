@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator, Alert, ScrollView,
+    ActivityIndicator, Alert, AppState, ScrollView,
     StatusBar, Text, TouchableOpacity, View
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
@@ -48,13 +48,14 @@ export default function SavedScreen() {
   useEffect(() => { if (favs.length > 0) fetchAllArrivals(); }, [favs]);
 
   useEffect(() => {
-    const interval = setInterval(() => { if (favs.length > 0) fetchAllArrivals(); }, 30000);
+    const interval = setInterval(() => { if (AppState.currentState === 'active' && favs.length > 0) fetchAllArrivals(); }, 30000);
     return () => clearInterval(interval);
   }, [favs]);
 
   const fetchAllArrivals = async () => {
     try {
-      const resp = await fetch(TRIP_UPDATES, { headers: { 'Ocp-Apim-Subscription-Key': OC_TRANSPO_API_KEY } });
+      const resp = await fetch(TRIP_UPDATES, { headers: { 'Ocp-Apim-Subscription-Key': OC_TRANSPO_API_KEY }, signal: AbortSignal.timeout(10000) });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       const now = Math.floor(Date.now() / 1000);
       const newArrivals: StopArrivals = {};
@@ -86,7 +87,7 @@ export default function SavedScreen() {
       }
       setArrivals(newArrivals);
       const now2 = new Date();
-      setLastUpdated(`${now2.getHours()}:${String(now2.getMinutes()).padStart(2, '0')}`);
+      setLastUpdated(`${String(now2.getHours()).padStart(2, '0')}:${String(now2.getMinutes()).padStart(2, '0')}`);
     } catch (e) { console.error(e); }
   };
 

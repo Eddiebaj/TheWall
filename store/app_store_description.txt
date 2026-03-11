@@ -1,0 +1,55 @@
+App Name: RouteO
+Subtitle: Ottawa's Real Transit Routing
+Promotional Text (170 chars): Real-time transit routing for Ottawa & Gatineau. Live buses, service alerts, saved trips, and more — all in one app.
+
+---
+
+FULL DESCRIPTION
+
+RouteO is the transit app Ottawa deserves. Plan cross-border trips across OC Transpo and STO with real-time routing powered by OpenTripPlanner. See live bus positions on the map, get instant service alerts, and save your favourite stops and routes for one-tap access. Whether you ride the LRT, take the bus, or bike across the city, RouteO keeps you moving.
+
+Your home screen is fully customizable. Drag and drop bus stops, LRT stations, service alerts, sports scores, gas prices, and more onto your personal board. Pick departure times down to the minute, choose your date up to 30 days out, and toggle between "Depart at" and "Arrive by" to plan trips your way. Saved routes let you re-plan frequent commutes in a single tap.
+
+Beyond transit, RouteO puts Ottawa at your fingertips. Check live gas prices crowdsourced by the community, browse nearby parks and road closures from Ottawa Open Data, find VeloGo bike share availability, discover local events on the map via Ticketmaster, and follow your favourite NHL, CFL, and MLS teams with live scores right on your board.
+
+RouteO is bilingual (English and French), works in light and dark mode, and respects your privacy — no accounts, no ads, no tracking. Just open the app and go.
+
+---
+
+KEYWORDS (100 chars max)
+ottawa,transit,bus,oc transpo,sto,lrt,trip planner,real-time,gatineau,bike,routeo
+
+---
+
+WHAT'S NEW (Version 1.0.0)
+Initial release. Plan cross-border trips, track live buses, view service alerts, customize your board, and explore Ottawa — all in one app.
+
+---
+
+CATEGORIES
+Primary: Navigation
+Secondary: Travel
+
+---
+
+AGE RATING
+4+ (No objectionable content)
+
+---
+
+APP STORE INFORMATION
+
+Copyright: 2026 Eddie Bajovic
+Support URL: https://github.com/Eddiebaj/RouteO/issues
+Privacy Policy URL: [hosted privacy_policy.md URL]
+
+---
+
+SCREENSHOTS (recommended captions)
+
+1. "Your board, your way" — Home screen with customizable cards
+2. "Plan any trip" — Trip planner with time/date picker and route results
+3. "Live on the map" — Bus positions, events, and venue deals
+4. "Never miss an alert" — Service alerts with category filters
+5. "Cross-border routing" — OC Transpo + STO trip with fare info
+6. "Dark mode" — Full app in dark theme

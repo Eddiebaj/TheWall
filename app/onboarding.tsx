@@ -76,7 +76,7 @@ export default function OnboardingScreen() {
   const finish = async () => {
     try {
       await AsyncStorage.setItem('routeo_onboarded', 'true');
-    } catch {}
+    } catch (e) { console.warn('AsyncStorage error:', e); }
     router.replace('/(tabs)');
   };
 

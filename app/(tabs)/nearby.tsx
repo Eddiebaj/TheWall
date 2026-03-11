@@ -119,7 +119,8 @@ export default function ExploreScreen() {
         }
         if (!nearest || nearestDist > 2000) return; // skip if > 2km
         try {
-          const resp = await fetch(`${ARRIVALS_URL}?stop=${nearest.stop_id}`);
+          const resp = await fetch(`${ARRIVALS_URL}?stop=${nearest.stop_id}`, { signal: AbortSignal.timeout(10000) });
+          if (!resp.ok) throw new Error('HTTP ' + resp.status);
           const data = await resp.json();
           const first = (data.arrivals || [])[0];
           if (first) {
@@ -131,7 +132,7 @@ export default function ExploreScreen() {
               minsAway: first.minsAway,
             };
           }
-        } catch {}
+        } catch (e) { console.warn('fetch nearby arrivals failed:', e); }
       }));
       if (Object.keys(updates).length > 0) {
         setTransitMap(prev => ({ ...prev, ...updates }));
@@ -190,7 +191,8 @@ export default function ExploreScreen() {
       for (const type of types) {
         // Use radius instead of rankby=distance so we capture everything within the area
         const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${FETCH_RADIUS}&type=${type}&key=${GOOGLE_PLACES_API_KEY}`;
-        const resp = await fetch(url);
+        const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
         (data.results || []).forEach((p: any) => {
           if (results.find(r => r.id === p.place_id)) return;

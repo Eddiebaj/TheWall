@@ -190,6 +190,7 @@ export default function PlannerScreen() {
 
   // Holds Expo notification IDs so we can cancel them on stopTracking
   const transitNotifIds = useRef<string[]>([]);
+  const autoCompleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isLight = colours.bg === '#f0f4f8';
   const cardShadow = isLight ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 } : {};
@@ -198,7 +199,7 @@ export default function PlannerScreen() {
   // ── Load saved routes ─────────────────────────────────────────
   useEffect(() => {
     AsyncStorage.getItem(SAVED_ROUTES_KEY).then(val => {
-      try { if (val) setSavedRoutes(JSON.parse(val)); } catch {}
+      try { if (val) setSavedRoutes(JSON.parse(val)); } catch (e) { console.warn('JSON parse saved routes failed:', e); }
     }).catch(() => {});
   }, []);
 
@@ -252,7 +253,7 @@ export default function PlannerScreen() {
             setFromPlace(from); setFromText(label);
             // Auto-trigger plan
             setTimeout(() => planWithPlaces(from, to), 100);
-          } catch {}
+          } catch (e) { console.warn('get current location failed:', e); }
         })();
       }
     }
@@ -265,28 +266,30 @@ export default function PlannerScreen() {
       return;
     }
     try {
-      const resp = await fetch(`${GEOCODE_URL}?input=${encodeURIComponent(text)}`);
+      const resp = await fetch(`${GEOCODE_URL}?input=${encodeURIComponent(text)}`, { signal: AbortSignal.timeout(10000) });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       const results: PlaceResult[] = data.results || [];
       field === 'from' ? setFromResults(results) : setToResults(results);
-    } catch {}
+    } catch (e) { console.warn('autocomplete fetch failed:', e); }
   }, []);
 
   const resolvePlace = async (place: PlaceResult): Promise<PlaceResult> => {
     if (place.lat && place.lng) return place;
     try {
-      const resp = await fetch(`${GEOCODE_URL}?input=${encodeURIComponent(place.label)}&type=geocode`);
+      const resp = await fetch(`${GEOCODE_URL}?input=${encodeURIComponent(place.label)}&type=geocode`, { signal: AbortSignal.timeout(10000) });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       const result = data.results?.[0];
       if (result?.lat) return { ...place, lat: result.lat, lng: result.lng, label: result.label };
-    } catch {}
+    } catch (e) { console.warn('geocode resolve failed:', e); }
     return place;
   };
 
   const useMyLocation = async (field: 'from' | 'to') => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') { Alert.alert('Location required', 'Enable location in Settings.'); return; }
+      if (status !== 'granted') { Alert.alert(t('Location required', 'Position requise'), t('Enable location in Settings.', 'Activez la localisation dans les Reglages.')); return; }
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const { latitude: lat, longitude: lng } = pos.coords;
       const geo = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
@@ -294,7 +297,7 @@ export default function PlannerScreen() {
       const place: PlaceResult = { placeId: 'current', label, lat, lng };
       if (field === 'from') { setFromPlace(place); setFromText(label); setFromResults([]); }
       else { setToPlace(place); setToText(label); setToResults([]); }
-    } catch { Alert.alert('Error', 'Could not get location.'); }
+    } catch { Alert.alert(t('Error', 'Erreur'), t('Could not get location.', 'Impossible d\'obtenir la position.')); }
   };
 
   const swap = () => {
@@ -318,10 +321,11 @@ export default function PlannerScreen() {
     const url = `${PLAN_URL}?fromLat=${resolvedFrom.lat}&fromLng=${resolvedFrom.lng}&fromLabel=${encodeURIComponent(resolvedFrom.label)}&toLat=${resolvedTo.lat}&toLng=${resolvedTo.lng}&toLabel=${encodeURIComponent(resolvedTo.label)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=${arriveBy}`;
 
     try {
-      const resp = await fetch(url);
+      const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       if (data.error) { setError(data.error); }
-      else if (!data.itineraries?.length) { setError('No routes found. Try a different time or destination.'); }
+      else if (!data.itineraries?.length) { setError(t('No routes found. Try a different time or destination.', 'Aucun trajet trouve. Essayez une autre heure ou destination.')); }
       else {
         try {
           const sorted = [...data.itineraries].sort((a: any, b: any) => {
@@ -330,8 +334,8 @@ export default function PlannerScreen() {
             if (aWalkOnly !== bWalkOnly) return aWalkOnly ? 1 : -1;
             return (a.endTime ?? 0) - (b.endTime ?? 0);
           });
-          const transitItins = sorted.filter((i: any) => i.legs.some((l: any) => l.mode !== 'WALK'));
-          const walkOnlyItins = sorted.filter((i: any) => i.legs.every((l: any) => l.mode === 'WALK'));
+          const transitItins = sorted.filter((i: any) => (i.legs || []).some((l: any) => l.mode !== 'WALK'));
+          const walkOnlyItins = sorted.filter((i: any) => (i.legs || []).every((l: any) => l.mode === 'WALK'));
           const bestTransitEnd = transitItins[0]?.endTime ?? Infinity;
           const bestWalkDuration = walkOnlyItins[0]?.duration ?? Infinity;
           const bestWalkEnd = walkOnlyItins[0]?.endTime ?? Infinity;
@@ -344,7 +348,7 @@ export default function PlannerScreen() {
         }
       }
     } catch (e) {
-      setError('Could not connect to trip planner. Check your connection.');
+      setError(t('Could not connect to trip planner. Check your connection.', 'Connexion au planificateur impossible. Verifiez votre connexion.'));
     }
     setLoading(false);
   };
@@ -360,23 +364,25 @@ export default function PlannerScreen() {
 
     if (fromText && !fromPlace?.lat) {
       try {
-        const r = await fetch(`${GEOCODE_URL}?input=${encodeURIComponent(fromText)}&type=geocode`);
+        const r = await fetch(`${GEOCODE_URL}?input=${encodeURIComponent(fromText)}&type=geocode`, { signal: AbortSignal.timeout(10000) });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
         const d = await r.json();
         const result = d.results?.[0];
         if (result?.lat) { resolvedFrom = { placeId: 'geo', label: result.label, lat: result.lat, lng: result.lng }; setFromPlace(resolvedFrom); setFromText(result.label); }
-      } catch {}
+      } catch (e) { console.warn('geocode from-address failed:', e); }
     }
     if (toText && !toPlace?.lat) {
       try {
-        const r = await fetch(`${GEOCODE_URL}?input=${encodeURIComponent(toText)}&type=geocode`);
+        const r = await fetch(`${GEOCODE_URL}?input=${encodeURIComponent(toText)}&type=geocode`, { signal: AbortSignal.timeout(10000) });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
         const d = await r.json();
         const result = d.results?.[0];
         if (result?.lat) { resolvedTo = { placeId: 'geo', label: result.label, lat: result.lat, lng: result.lng }; setToPlace(resolvedTo); setToText(result.label); }
-      } catch {}
+      } catch (e) { console.warn('geocode to-address failed:', e); }
     }
 
     if (!resolvedFrom?.lat || !resolvedTo?.lat) {
-      Alert.alert('Missing locations', 'Could not find one or both addresses. Try selecting from the dropdown.');
+      Alert.alert(t('Missing locations', 'Adresses manquantes'), t('Could not find one or both addresses. Try selecting from the dropdown.', 'Impossible de trouver une ou les deux adresses. Essayez de selectionner dans la liste.'));
       return;
     }
 
@@ -437,7 +443,7 @@ export default function PlannerScreen() {
     setIsoVisible(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') { Alert.alert('Location required', 'Enable location in Settings.'); setIsoLoading(false); return; }
+      if (status !== 'granted') { Alert.alert(t('Location required', 'Position requise'), t('Enable location in Settings.', 'Activez la localisation dans les Reglages.')); setIsoLoading(false); return; }
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const { latitude: lat, longitude: lng } = pos.coords;
 
@@ -484,18 +490,19 @@ export default function PlannerScreen() {
         const promises = batch.map(async (stop) => {
           try {
             const url = `${PLAN_URL}?fromLat=${lat}&fromLng=${lng}&fromLabel=Me&toLat=${stop.lat}&toLng=${stop.lng}&toLabel=${encodeURIComponent(stop.name)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=false`;
-            const resp = await fetch(url);
+            const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
             const data = await resp.json();
             if (data.itineraries && data.itineraries.length > 0) {
               const best = data.itineraries[0];
               const durationMins = Math.round(best.duration / 60);
               if (durationMins <= 20) {
-                const transitLegs = best.legs.filter((l: any) => l.mode !== 'WALK');
+                const transitLegs = (best.legs || []).filter((l: any) => l.mode !== 'WALK');
                 const routes = [...new Set(transitLegs.map((l: any) => l.routeShortName).filter(Boolean))] as string[];
                 return { name: stop.name, travelTime: durationMins, routes };
               }
             }
-          } catch {}
+          } catch (e) { console.warn('isochrone stop query failed:', e); }
           return null;
         });
         const batchResults = await Promise.all(promises);
@@ -507,7 +514,7 @@ export default function PlannerScreen() {
       results.sort((a, b) => a.travelTime - b.travelTime);
       setIsoStops(results);
     } catch (e) {
-      Alert.alert('Error', 'Could not fetch reachable stops.');
+      Alert.alert(t('Error', 'Erreur'), t('Could not fetch reachable stops.', 'Impossible de trouver les arrets accessibles.'));
     }
     setIsoLoading(false);
   };
@@ -534,12 +541,12 @@ export default function PlannerScreen() {
 
   // Detect cross-border trips (OC Transpo + STO)
   const hasCrossBorderTrip = (itin: Itinerary): boolean => {
-    const agencies = new Set(itin.legs.map(leg => leg.agencyId).filter(Boolean));
+    const agencies = new Set((itin.legs || []).map(leg => leg.agencyId).filter(Boolean));
     return agencies.has('1:STO') && agencies.has('2:1');
   };
 
   const renderItinerary = (itin: Itinerary, idx: number) => {
-    const isWalkOnly = itin.legs.every(l => l.mode === 'WALK');
+    const isWalkOnly = (itin.legs || []).every(l => l.mode === 'WALK');
     // BEST = first non-walk itinerary (already sorted by earliest arrival)
     const isFirst = idx === 0 && !isWalkOnly;
     const transferCount = itin.transfers;
@@ -561,12 +568,12 @@ export default function PlannerScreen() {
         {/* Badge */}
         {isFirst && (
           <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: colours.accent, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
-            <Text style={{ color: 'white', fontSize: 9, fontWeight: '800' }}>FASTEST</Text>
+            <Text style={{ color: 'white', fontSize: 9, fontWeight: '800' }}>{t('FASTEST', 'PLUS RAPIDE')}</Text>
           </View>
         )}
         {isWalkOnly && (
           <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: '#34c759' + '20', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#34c759' + '40' }}>
-            <Text style={{ color: '#34c759', fontSize: 9, fontWeight: '800' }}>FREE</Text>
+            <Text style={{ color: '#34c759', fontSize: 9, fontWeight: '800' }}>{t('FREE', 'GRATUIT')}</Text>
           </View>
         )}
 
@@ -580,14 +587,14 @@ export default function PlannerScreen() {
 
         {/* Leg pills */}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
-          {itin.legs.map((leg, i) => renderLegPill(leg, i))}
+          {(itin.legs || []).map((leg, i) => renderLegPill(leg, i))}
         </View>
 
         {/* Cross-border warning */}
         {hasCrossBorderTrip(itin) && (
           <View style={{ backgroundColor: '#ff9500' + '15', borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, marginBottom: 10 }}>
-            <Text style={{ fontSize: 12, color: '#ff9500', fontWeight: '600' }}>⚠️ Cross-Border Trip</Text>
-            <Text style={{ fontSize: 11, color: colours.muted, marginTop: 4 }}>Separate Presto tap required ($4.10 each)</Text>
+            <Text style={{ fontSize: 12, color: '#ff9500', fontWeight: '600' }}>{t('Cross-Border Trip', 'Trajet interregional')}</Text>
+            <Text style={{ fontSize: 11, color: colours.muted, marginTop: 4 }}>{t('Separate Presto tap required ($4.10 each)', 'Paiement Presto distinct requis (4,10 $ chacun)')}</Text>
           </View>
         )}
 
@@ -595,7 +602,7 @@ export default function PlannerScreen() {
         <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
           {!isWalkOnly && (
             <Text style={{ fontSize: 11, color: colours.muted }}>
-              <Text style={{ fontWeight: '700' }}>{transferCount}</Text> transfer{transferCount !== 1 ? 's' : ''}
+              <Text style={{ fontWeight: '700' }}>{transferCount}</Text> {t(transferCount !== 1 ? 'transfers' : 'transfer', transferCount !== 1 ? 'correspondances' : 'correspondance')}
             </Text>
           )}
           <Text style={{ fontSize: 11, color: colours.muted }}>{fmtWalk(itin.walkDistance)}</Text>
@@ -665,7 +672,7 @@ export default function PlannerScreen() {
           },
         });
         ids.push(id);
-      } catch {}
+      } catch (e) { console.warn('schedule departure notification failed:', e); }
 
       // Also fire a heads-up at boarding time itself ("time to board")
       try {
@@ -682,7 +689,7 @@ export default function PlannerScreen() {
           },
         });
         ids.push(id2);
-      } catch {}
+      } catch (e) { console.warn('schedule boarding notification failed:', e); }
     }
 
     // Arrival notification
@@ -702,7 +709,7 @@ export default function PlannerScreen() {
           },
         });
         ids.push(id3);
-      } catch {}
+      } catch (e) { console.warn('schedule arrival notification failed:', e); }
     }
 
     transitNotifIds.current = ids;
@@ -738,14 +745,14 @@ export default function PlannerScreen() {
           const { latitude, longitude } = pos.coords;
           setUserLocation({ latitude, longitude });
           setActiveLeg(prev => {
-            const leg = itin.legs[prev];
-            if (!leg) return prev;
+            const leg = (itin.legs || [])[prev];
+            if (!leg?.to) return prev;
             const dest = { latitude: leg.to.lat, longitude: leg.to.lon };
             const dist = Math.sqrt(
               Math.pow((latitude - dest.latitude) * 111000, 2) +
               Math.pow((longitude - dest.longitude) * 111000 * Math.cos(dest.latitude * Math.PI / 180), 2)
             );
-            if (dist < 40 && prev < itin.legs.length - 1) {
+            if (dist < 40 && prev < (itin.legs || []).length - 1) {
               stepsScrollRef.current?.scrollTo({ y: (prev + 1) * 120, animated: true });
               return prev + 1;
             }
@@ -757,12 +764,12 @@ export default function PlannerScreen() {
           }, 500);
         }
       );
-    } catch {}
+    } catch (e) { console.warn('start location tracking failed:', e); }
   };
 
   const renderExpandedItinerary = () => {
     if (!expandedItinerary) return null;
-    const allCoords = expandedItinerary.legs.flatMap(leg => legCoords(leg));
+    const allCoords = (expandedItinerary.legs || []).flatMap(leg => legCoords(leg));
     const initialRegion = getBounds(allCoords);
 
     return (
@@ -794,7 +801,7 @@ export default function PlannerScreen() {
               {tracking && transitNotifIds.current.length > 0 && (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, backgroundColor: '#34c759' + '18', borderWidth: 1, borderColor: '#34c759' + '50' }}>
                   <Ionicons name="notifications" size={12} color="#34c759" />
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#34c759' }}>Notifying</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#34c759' }}>{t('Notifying', 'Notifications')}</Text>
                 </View>
               )}
               <TouchableOpacity
@@ -803,7 +810,7 @@ export default function PlannerScreen() {
               >
                 <Ionicons name={tracking ? 'stop-circle' : 'navigate'} size={14} color={tracking ? '#ff3b30' : colours.accent} />
                 <Text style={{ fontSize: 12, fontWeight: '700', color: tracking ? '#ff3b30' : colours.accent }}>
-                  {tracking ? 'Stop' : 'Go'}
+                  {tracking ? t('Stop', 'Arreter') : t('Go', 'Aller')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={closeExpandedModal} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }}>
@@ -831,7 +838,7 @@ export default function PlannerScreen() {
                 }
               }}
             >
-              {expandedItinerary.legs.map((leg, i) => {
+              {(expandedItinerary.legs || []).map((leg, i) => {
                 const coords = legCoords(leg);
                 const color = LEG_COLOURS[leg.mode] || colours.accent;
                 const isActive = tracking && i === activeLeg;
@@ -845,13 +852,13 @@ export default function PlannerScreen() {
                   />
                 );
               })}
-              {expandedItinerary.legs.map((leg, i) => (
+              {(expandedItinerary.legs || []).map((leg, i) => (
                 <Marker key={`m${i}`} coordinate={{ latitude: leg.from.lat, longitude: leg.from.lon }} anchor={{ x: 0.5, y: 0.5 }}>
                   <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: LEG_COLOURS[leg.mode] || colours.accent, borderWidth: 2, borderColor: 'white' }} />
                 </Marker>
               ))}
               <Marker
-                coordinate={{ latitude: expandedItinerary.legs[expandedItinerary.legs.length - 1].to.lat, longitude: expandedItinerary.legs[expandedItinerary.legs.length - 1].to.lon }}
+                coordinate={{ latitude: (expandedItinerary.legs || [])[((expandedItinerary.legs || []).length - 1)]?.to?.lat ?? 0, longitude: (expandedItinerary.legs || [])[((expandedItinerary.legs || []).length - 1)]?.to?.lon ?? 0 }}
                 anchor={{ x: 0.5, y: 1 }}
               >
                 <View style={{ alignItems: 'center' }}>
@@ -879,9 +886,9 @@ export default function PlannerScreen() {
               <View style={{ position: 'absolute', top: 12, left: 12, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colours.surface + 'EE', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: colours.border }}>
                 <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#34c759' }} />
                 <Text style={{ fontSize: 12, fontWeight: '700', color: colours.text }}>
-                  {activeLeg < expandedItinerary.legs.length
-                    ? `${expandedItinerary.legs[activeLeg].mode === 'WALK' ? 'Walking' : `Route ${expandedItinerary.legs[activeLeg].routeShortName}`}`
-                    : 'Arrived'}
+                  {activeLeg < (expandedItinerary.legs || []).length
+                    ? `${(expandedItinerary.legs || [])[activeLeg]?.mode === 'WALK' ? t('Walking', 'Marche') : `Route ${(expandedItinerary.legs || [])[activeLeg]?.routeShortName}`}`
+                    : t('Arrived', 'Arrive')}
                 </Text>
               </View>
             )}
@@ -889,7 +896,7 @@ export default function PlannerScreen() {
 
           {/* Steps */}
           <ScrollView ref={stepsScrollRef} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-            {expandedItinerary.legs.map((leg, i) => {
+            {(expandedItinerary.legs || []).map((leg, i) => {
               const color = LEG_COLOURS[leg.mode] || colours.accent;
               const icon = LEG_ICONS[leg.mode] || 'bus';
               const isExpanded = expandedLeg === i;
@@ -908,7 +915,7 @@ export default function PlannerScreen() {
                       </View>
                       <View style={{ flex: 1 }}>
                         {isWalk ? (
-                          <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>Walk {fmtDistance(leg.distance)}</Text>
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{t('Walk', 'Marche')} {fmtDistance(leg.distance)}</Text>
                         ) : (
                           <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>
                             {leg.routeShortName ? `Route ${leg.routeShortName}` : leg.mode}
@@ -916,7 +923,7 @@ export default function PlannerScreen() {
                           </Text>
                         )}
                         <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>
-                          {leg.from.name.replace(/ O-TRAIN (EAST|WEST|NORTH|SOUTH).*$/i, '').replace(/ \/ EST$| \/ OUEST$/i, '')} → {leg.to.name.replace(/ O-TRAIN (EAST|WEST|NORTH|SOUTH).*$/i, '').replace(/ \/ EST$| \/ OUEST$/i, '')}
+                          {(leg.from?.name || '').replace(/ O-TRAIN (EAST|WEST|NORTH|SOUTH).*$/i, '').replace(/ \/ EST$| \/ OUEST$/i, '')} → {(leg.to?.name || '').replace(/ O-TRAIN (EAST|WEST|NORTH|SOUTH).*$/i, '').replace(/ \/ EST$| \/ OUEST$/i, '')}
                         </Text>
                       </View>
                       <View style={{ alignItems: 'flex-end', gap: 2 }}>
@@ -924,28 +931,28 @@ export default function PlannerScreen() {
                         <Text style={{ fontSize: 11, color: colours.muted }}>{fmtDuration(leg.duration)}</Text>
                       </View>
                     </View>
-                    {!isWalk && leg.intermediateStops.length > 0 && (
+                    {!isWalk && (leg.intermediateStops || []).length > 0 && (
                       <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                         <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={12} color={colours.muted} />
-                        <Text style={{ fontSize: 11, color: colours.muted }}>{leg.intermediateStops.length} stop{leg.intermediateStops.length !== 1 ? 's' : ''}</Text>
+                        <Text style={{ fontSize: 11, color: colours.muted }}>{(leg.intermediateStops || []).length} {t((leg.intermediateStops || []).length !== 1 ? 'stops' : 'stop', (leg.intermediateStops || []).length !== 1 ? 'arrets' : 'arret')}</Text>
                       </View>
                     )}
-                    {!isWalk && isExpanded && leg.intermediateStops.length > 0 && (
+                    {!isWalk && isExpanded && (leg.intermediateStops || []).length > 0 && (
                       <View style={{ marginTop: 10, paddingLeft: 12, borderLeftWidth: 2, borderLeftColor: color + '40', gap: 6 }}>
-                        {leg.intermediateStops.map((stop, si) => (
+                        {(leg.intermediateStops || []).map((stop, si) => (
                           <Text key={si} style={{ fontSize: 12, color: colours.muted }}>• {stop}</Text>
                         ))}
                       </View>
                     )}
-                    {isWalk && leg.steps.length > 0 && (
+                    {isWalk && (leg.steps || []).length > 0 && (
                       <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                         <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={12} color={colours.muted} />
-                        <Text style={{ fontSize: 11, color: colours.muted }}>{isExpanded ? 'Hide' : 'Show'} walking directions</Text>
+                        <Text style={{ fontSize: 11, color: colours.muted }}>{isExpanded ? t('Hide walking directions', 'Masquer les directions a pied') : t('Show walking directions', 'Afficher les directions a pied')}</Text>
                       </View>
                     )}
-                    {isWalk && isExpanded && leg.steps.length > 0 && (
+                    {isWalk && isExpanded && (leg.steps || []).length > 0 && (
                       <View style={{ marginTop: 10, gap: 6 }}>
-                        {leg.steps.map((step, si) => {
+                        {(leg.steps || []).map((step, si) => {
                           const isGeneric = !step.streetName || ['path', 'sidewalk', 'footway', 'steps', 'pedestrian'].includes(step.streetName?.toLowerCase());
                           const dirLabel: Record<string, string> = {
                             DEPART: 'Head', CONTINUE: 'Continue', LEFT: 'Turn left onto', RIGHT: 'Turn right onto',
@@ -972,7 +979,7 @@ export default function PlannerScreen() {
                       </View>
                     )}
                   </TouchableOpacity>
-                  {i < expandedItinerary.legs.length - 1 && (
+                  {i < (expandedItinerary.legs || []).length - 1 && (
                     <View style={{ alignItems: 'center', paddingVertical: 4 }}>
                       <View style={{ width: 2, height: 14, backgroundColor: colours.border }} />
                     </View>
@@ -983,7 +990,7 @@ export default function PlannerScreen() {
             <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, backgroundColor: colours.accent + '12', borderRadius: 14, borderWidth: 1, borderColor: colours.accent + '30' }}>
               <Ionicons name="location" size={18} color={colours.accent} />
               <View>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>Arrive {fmtTime(expandedItinerary.endTime)}</Text>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>{t('Arrive', 'Arrivee')} {fmtTime(expandedItinerary.endTime)}</Text>
                 <Text style={{ fontSize: 12, color: colours.muted, marginTop: 1 }}>{toPlace ? shortenLabel(toPlace.label) : ''}</Text>
               </View>
             </View>
@@ -1004,9 +1011,9 @@ export default function PlannerScreen() {
         {/* Header */}
         <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 }}>
           <Text style={{ fontSize: 26, fontWeight: '900', color: colours.text, letterSpacing: -0.5 }}>
-            Trip <Text style={{ color: colours.accent }}>Planner</Text>
+            {t('Trip', 'Planificateur')} <Text style={{ color: colours.accent }}>{t('Planner', 'de trajet')}</Text>
           </Text>
-          <Text style={{ fontSize: 13, color: colours.muted, marginTop: 2 }}>OC Transpo · Real transit routing</Text>
+          <Text style={{ fontSize: 13, color: colours.muted, marginTop: 2 }}>{t('OC Transpo · Real transit routing', 'OC Transpo · Itineraires en temps reel')}</Text>
         </View>
 
         {/* Input card */}
@@ -1016,15 +1023,16 @@ export default function PlannerScreen() {
             <View style={{ width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: colours.accent, backgroundColor: colours.bg }} />
             <TextInput
               style={{ flex: 1, fontSize: 15, color: colours.text, paddingVertical: 10 }}
-              placeholder="From..."
+              placeholder={t('From...', 'De...')}
               placeholderTextColor={colours.muted}
               value={fromText}
               onChangeText={text => {
                 setFromText(text);
                 setFromPlace(null);
-                setFromResults([]);   // ✅ was setToResults([]) — fixed
-                setToResults([]);     // also clear to results when from changes
-                autocomplete(text, 'from');
+                setFromResults([]);
+                setToResults([]);
+                if (autoCompleteTimer.current) clearTimeout(autoCompleteTimer.current);
+                autoCompleteTimer.current = setTimeout(() => { autocomplete(text, 'from'); }, 300);
               }}
               onFocus={() => {
                 setActiveInput('from');
@@ -1051,14 +1059,15 @@ export default function PlannerScreen() {
             <Ionicons name="location" size={12} color={colours.accent} style={{ marginLeft: -1 }} />
             <TextInput
               style={{ flex: 1, fontSize: 15, color: colours.text, paddingVertical: 10 }}
-              placeholder="To..."
+              placeholder={t('To...', 'Vers...')}
               placeholderTextColor={colours.muted}
               value={toText}
               onChangeText={text => {
                 setToText(text);
                 setToPlace(null);
-                setFromResults([]);   // hide from-results when to changes
-                autocomplete(text, 'to');
+                setFromResults([]);
+                if (autoCompleteTimer.current) clearTimeout(autoCompleteTimer.current);
+                autoCompleteTimer.current = setTimeout(() => { autocomplete(text, 'to'); }, 300);
               }}
               onFocus={() => {
                 setActiveInput('to');
@@ -1114,11 +1123,11 @@ export default function PlannerScreen() {
         <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {([
-              { key: 'transit', icon: 'bus-outline', label: 'Transit' },
-              { key: 'driving', icon: 'car-outline', label: 'Drive' },
-              { key: 'bicycling', icon: 'bicycle-outline', label: 'Cycle' },
-              { key: 'walking', icon: 'walk-outline', label: 'Walk' },
-            ] as const).map(m => {
+              { key: 'transit' as const, icon: 'bus-outline', label_en: 'Transit', label_fr: 'Transport' },
+              { key: 'driving' as const, icon: 'car-outline', label_en: 'Drive', label_fr: 'Auto' },
+              { key: 'bicycling' as const, icon: 'bicycle-outline', label_en: 'Cycle', label_fr: 'Velo' },
+              { key: 'walking' as const, icon: 'walk-outline', label_en: 'Walk', label_fr: 'Marche' },
+            ]).map(m => {
               const active = travelMode === m.key;
               return (
                 <TouchableOpacity
@@ -1127,7 +1136,7 @@ export default function PlannerScreen() {
                   style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 9, borderRadius: 12, borderWidth: 1, borderColor: active ? colours.accent : colours.border, backgroundColor: active ? colours.accent + '15' : colours.surface }}
                 >
                   <Ionicons name={m.icon as any} size={15} color={active ? colours.accent : colours.muted} />
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: active ? colours.accent : colours.muted }}>{m.label}</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: active ? colours.accent : colours.muted }}>{t(m.label_en, m.label_fr)}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -1146,7 +1155,7 @@ export default function PlannerScreen() {
                   style={[{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: active ? colours.accent : colours.border, backgroundColor: active ? colours.accent + '15' : colours.surface }, cardShadow]}
                 >
                   <Ionicons name={ab ? 'flag-outline' : 'time-outline'} size={14} color={active ? colours.accent : colours.muted} />
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: active ? colours.accent : colours.muted }}>{ab ? 'Arrive by' : 'Depart at'}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: active ? colours.accent : colours.muted }}>{ab ? t('Arrive by', 'Arriver avant') : t('Depart at', 'Depart a')}</Text>
                   {active && <Text style={{ fontSize: 13, fontWeight: '800', color: colours.accent }}>{fmtTime(departTime.getTime())}{departTime.toLocaleDateString('en-CA') !== new Date().toLocaleDateString('en-CA') ? ` ${departTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}</Text>}
                 </TouchableOpacity>
               );
@@ -1164,14 +1173,14 @@ export default function PlannerScreen() {
                 style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15', marginBottom: 12 }}
               >
                 <Ionicons name="locate-outline" size={13} color={colours.accent} />
-                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accent }}>Now</Text>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accent }}>{t('Now', 'Maintenant')}</Text>
               </TouchableOpacity>
 
               {/* Hour & Minute pickers */}
               <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
                 {/* Hours */}
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, marginBottom: 6 }}>HOUR</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, marginBottom: 6 }}>{t('HOUR', 'HEURE')}</Text>
                   <ScrollView style={{ maxHeight: 140 }} showsVerticalScrollIndicator={false}>
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
                       {Array.from({ length: 24 }, (_, i) => i).map(h => {
@@ -1191,7 +1200,7 @@ export default function PlannerScreen() {
                 </View>
                 {/* Minutes */}
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, marginBottom: 6 }}>MINUTE</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, marginBottom: 6 }}>{t('MINUTE', 'MINUTE')}</Text>
                   <ScrollView style={{ maxHeight: 140 }} showsVerticalScrollIndicator={false}>
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
                       {Array.from({ length: 12 }, (_, i) => i * 5).map(m => {
@@ -1212,7 +1221,7 @@ export default function PlannerScreen() {
               </View>
 
               {/* Date picker strip */}
-              <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, marginBottom: 6 }}>DATE</Text>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, marginBottom: 6 }}>{t('DATE', 'DATE')}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={{ flexDirection: 'row', gap: 6 }}>
                   {Array.from({ length: 31 }, (_, i) => {
@@ -1220,8 +1229,8 @@ export default function PlannerScreen() {
                     d.setDate(d.getDate() + i);
                     d.setHours(departTime.getHours(), departTime.getMinutes(), 0, 0);
                     const isActive = departTime.toLocaleDateString('en-CA') === d.toLocaleDateString('en-CA');
-                    const dayName = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.toLocaleDateString('en-US', { weekday: 'short' });
-                    const dateLabel = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    const dayName = i === 0 ? t('Today', 'Aujourd\'hui') : i === 1 ? t('Tomorrow', 'Demain') : d.toLocaleDateString(language === 'fr' ? 'fr-CA' : 'en-US', { weekday: 'short' });
+                    const dateLabel = d.toLocaleDateString(language === 'fr' ? 'fr-CA' : 'en-US', { month: 'short', day: 'numeric' });
                     return (
                       <TouchableOpacity
                         key={i}
@@ -1245,7 +1254,7 @@ export default function PlannerScreen() {
                 onPress={() => setShowTimePicker(false)}
                 style={{ marginTop: 12, alignSelf: 'center', paddingHorizontal: 24, paddingVertical: 8, borderRadius: 20, backgroundColor: colours.accent }}
               >
-                <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>Done</Text>
+                <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>{t('Done', 'Termine')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1260,7 +1269,7 @@ export default function PlannerScreen() {
           >
             {loading
               ? <ActivityIndicator color="white" size="small" />
-              : <Text style={{ color: 'white', fontWeight: '800', fontSize: 16 }}>{travelMode === 'transit' ? 'Plan Trip' : 'Open in Google Maps'}</Text>
+              : <Text style={{ color: 'white', fontWeight: '800', fontSize: 16 }}>{travelMode === 'transit' ? t('Plan Trip', 'Planifier le trajet') : t('Open in Google Maps', 'Ouvrir dans Google Maps')}</Text>
             }
           </TouchableOpacity>
         </View>
@@ -1275,7 +1284,7 @@ export default function PlannerScreen() {
               activeOpacity={0.85}
             >
               <Ionicons name="locate-outline" size={16} color={colours.accent} />
-              <Text style={{ color: colours.accent, fontWeight: '700', fontSize: 14 }}>What can I reach in 20 min?</Text>
+              <Text style={{ color: colours.accent, fontWeight: '700', fontSize: 14 }}>{t('What can I reach in 20 min?', 'Que puis-je atteindre en 20 min?')}</Text>
             </TouchableOpacity>
 
             {isoVisible && (
@@ -1283,7 +1292,7 @@ export default function PlannerScreen() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderBottomWidth: 1, borderBottomColor: colours.border }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Ionicons name="compass-outline" size={16} color={colours.accent} />
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>Reachable in 20 min</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>{t('Reachable in 20 min', 'Accessible en 20 min')}</Text>
                   </View>
                   <TouchableOpacity onPress={() => setIsoVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                     <Ionicons name="close-circle" size={20} color={colours.muted} />
@@ -1292,12 +1301,12 @@ export default function PlannerScreen() {
                 {isoLoading ? (
                   <View style={{ padding: 24, alignItems: 'center' }}>
                     <ActivityIndicator color={colours.accent} />
-                    <Text style={{ color: colours.muted, fontSize: 12, marginTop: 8 }}>Finding reachable stops...</Text>
+                    <Text style={{ color: colours.muted, fontSize: 12, marginTop: 8 }}>{t('Finding reachable stops...', 'Recherche des arrets accessibles...')}</Text>
                   </View>
                 ) : isoStops.length === 0 ? (
                   <View style={{ padding: 24, alignItems: 'center' }}>
                     <Ionicons name="location-outline" size={28} color={colours.muted} />
-                    <Text style={{ color: colours.muted, fontSize: 13, marginTop: 8, textAlign: 'center' }}>No transit stops reachable within 20 minutes from your current location.</Text>
+                    <Text style={{ color: colours.muted, fontSize: 13, marginTop: 8, textAlign: 'center' }}>{t('No transit stops reachable within 20 minutes from your current location.', 'Aucun arret de transport en commun accessible en 20 minutes depuis votre position.')}</Text>
                   </View>
                 ) : (
                   isoStops.map((stop, i) => (
@@ -1327,14 +1336,14 @@ export default function PlannerScreen() {
         {!loading && searched && error ? (
           <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 }}>
             <Ionicons name="map-outline" size={40} color={colours.muted} />
-            <Text style={{ color: colours.text, fontSize: 16, fontWeight: '700', marginTop: 12, textAlign: 'center' }}>No routes found</Text>
+            <Text style={{ color: colours.text, fontSize: 16, fontWeight: '700', marginTop: 12, textAlign: 'center' }}>{t('No routes found', 'Aucun trajet trouve')}</Text>
             <Text style={{ color: colours.muted, fontSize: 13, marginTop: 6, textAlign: 'center' }}>{error}</Text>
           </View>
         ) : !loading && itineraries.length > 0 ? (
           <View style={{ paddingHorizontal: 20 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>
-                {itineraries.length} route{itineraries.length !== 1 ? 's' : ''} found
+                {itineraries.length} {t(itineraries.length !== 1 ? 'routes found' : 'route found', itineraries.length !== 1 ? 'trajets trouves' : 'trajet trouve')}
               </Text>
               <TouchableOpacity
                 onPress={toggleSaveRoute}
@@ -1343,7 +1352,7 @@ export default function PlannerScreen() {
               >
                 <Ionicons name={isRouteSaved() ? 'bookmark' : 'bookmark-outline'} size={14} color={isRouteSaved() ? colours.accent : colours.muted} />
                 <Text style={{ fontSize: 12, fontWeight: '700', color: isRouteSaved() ? colours.accent : colours.muted }}>
-                  {isRouteSaved() ? 'Saved' : 'Save route'}
+                  {isRouteSaved() ? t('Saved', 'Enregistre') : t('Save route', 'Enregistrer le trajet')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1354,9 +1363,9 @@ export default function PlannerScreen() {
             <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
               <Ionicons name="navigate" size={28} color={colours.accent} />
             </View>
-            <Text style={{ fontSize: 17, fontWeight: '800', color: colours.text, textAlign: 'center' }}>Plan your trip</Text>
+            <Text style={{ fontSize: 17, fontWeight: '800', color: colours.text, textAlign: 'center' }}>{t('Plan your trip', 'Planifiez votre trajet')}</Text>
             <Text style={{ fontSize: 13, color: colours.muted, textAlign: 'center', marginTop: 6, lineHeight: 19 }}>
-              Real OC Transpo routing with transfers,{'\n'}walk times, and live schedules.
+              {t('Real OC Transpo routing with transfers,\nwalk times, and live schedules.', 'Itineraires OC Transpo reels avec correspondances,\ntemps de marche et horaires en direct.')}
             </Text>
           </View>
         ) : loading ? (

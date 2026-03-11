@@ -100,9 +100,12 @@ export default function AccountScreen() {
 
   useEffect(() => {
     AsyncStorage.getItem(NOTIF_SETTINGS_KEY).then(val => {
-      if (val) setNotifSettings({ ...DEFAULT_NOTIF_SETTINGS, ...JSON.parse(val) });
-    });
-    Notifications.getPermissionsAsync().then(({ status }) => setNotifPermission(status as any));
+      if (val) {
+        try { setNotifSettings({ ...DEFAULT_NOTIF_SETTINGS, ...JSON.parse(val) }); }
+        catch (e) { console.warn('Failed to parse notif settings:', e); }
+      }
+    }).catch(e => console.warn('AsyncStorage notif read error:', e));
+    Notifications.getPermissionsAsync().then(({ status }) => setNotifPermission(status as any)).catch(e => console.warn('Notification permission check failed:', e));
   }, []);
 
   const saveNotifSettings = async (updated: NotifSettings) => {
@@ -596,7 +599,7 @@ export default function AccountScreen() {
                 <Ionicons name="bus" size={18} color={colours.accent} />
               </View>
               <View>
-                <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>RouteO v0.3.0</Text>
+                <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>RouteO v{require('../../app.json').expo.version}</Text>
                 <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Built in Ottawa for Ottawa', 'Fait à Ottawa pour Ottawa')}</Text>
               </View>
             </View>

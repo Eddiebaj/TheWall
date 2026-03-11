@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useColorScheme } from 'react-native';
 
 type Theme = 'dark' | 'light' | 'system';
@@ -128,13 +128,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ? (systemScheme === 'light' ? 'light' : 'dark')
     : theme;
 
-  const colours = resolvedTheme === 'light'
+  const colours = useMemo(() => resolvedTheme === 'light'
     ? (highContrast ? HIGH_CONTRAST_LIGHT : LIGHT_COLOURS)
-    : (highContrast ? HIGH_CONTRAST_DARK : DARK_COLOURS);
+    : (highContrast ? HIGH_CONTRAST_DARK : DARK_COLOURS), [resolvedTheme, highContrast]);
 
-  const fonts = largeText ? LARGE_FONTS : BASE_FONTS;
+  const fonts = useMemo(() => largeText ? LARGE_FONTS : BASE_FONTS, [largeText]);
 
-  const t = (en: string, fr: string) => language === 'fr' ? fr : en;
+  const t = useCallback((en: string, fr: string) => language === 'fr' ? fr : en, [language]);
 
   return (
     <AppContext.Provider value={{

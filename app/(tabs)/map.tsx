@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Animated, Linking,
   ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
@@ -294,7 +294,7 @@ const fetchAllEvents = async (): Promise<MapEvent[]> => {
 
   let events: MapEvent[] = [];
   try {
-    const tmResp = await fetch(`https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TICKETMASTER_API_KEY}&city=Ottawa&countryCode=CA&size=20&sort=date,asc`);
+    const tmResp = await fetch(`https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TICKETMASTER_API_KEY}&city=Ottawa&countryCode=CA&size=20&sort=date,asc`, { signal: AbortSignal.timeout(10000) });
     if (tmResp.ok) {
       const d = await tmResp.json();
       const tmEvents: MapEvent[] = (d._embedded?.events || []).map((e: any) => ({
@@ -313,7 +313,7 @@ const fetchAllEvents = async (): Promise<MapEvent[]> => {
       })).filter((e: MapEvent) => e.lat && e.lng && !isNaN(e.lat) && !isNaN(e.lng));
       events.push(...tmEvents);
     }
-  } catch (_) {}
+  } catch (_) { console.warn('fetch events failed:', _); }
   _eventsCache = events;
   _eventsCacheTime = Date.now();
   return events;
@@ -367,7 +367,8 @@ export default function MapScreen() {
 
   const fetchBuses = async () => {
     try {
-      const resp = await fetch(`${VEHICLES_URL}?t=${Date.now()}`, { headers: { 'Accept': 'application/json' } });
+      const resp = await fetch(`${VEHICLES_URL}?t=${Date.now()}`, { headers: { 'Accept': 'application/json' }, signal: AbortSignal.timeout(10000) });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       setBuses((data.vehicles || []).slice(0, 30));
       setError('');
@@ -414,7 +415,8 @@ export default function MapScreen() {
           const favs: SavedFav[] = JSON.parse(favsRaw);
           for (const fav of favs) {
             try {
-              const resp = await fetch(`${BACKEND_URL}?stop=${fav.id}`);
+              const resp = await fetch(`${BACKEND_URL}?stop=${fav.id}`, { signal: AbortSignal.timeout(10000) });
+              if (!resp.ok) throw new Error('HTTP ' + resp.status);
               const data = await resp.json();
               if (data.lat && data.lng) {
                 pins.push({ id: `stop_${fav.id}`, name: fav.name, lat: data.lat, lng: data.lng, kind: 'stop' });
@@ -423,10 +425,10 @@ export default function MapScreen() {
                 const base = String(a.routeId).split('-')[0];
                 if (base) routeIdSet.add(base);
               }
-            } catch {}
+            } catch (e) { console.warn('fetch stop arrivals failed:', e); }
           }
         }
-      } catch {}
+      } catch (e) { console.warn('load saved pins failed:', e); }
       setSavedPins(pins);
       setSavedRouteIds(routeIdSet);
       setSavedLoaded(true);
@@ -451,7 +453,7 @@ export default function MapScreen() {
   const hasAll = filters.has('all');
   const hasSaved = filters.has('saved');
   const showBuses = hasAll || filters.has('bus') || hasSaved;
-  const filteredBuses = showBuses ? buses.filter((b: Bus) => {
+  const filteredBuses = useMemo(() => showBuses ? buses.filter((b: Bus) => {
     if (hasSaved && !hasAll && !filters.has('bus')) {
       // Only show buses on saved routes
       const base = b.routeId.split('-')[0];
@@ -459,11 +461,11 @@ export default function MapScreen() {
     }
     if (!hasAll && filters.has('bus')) return !isLRT(b.routeId);
     return true;
-  }) : [];
+  }) : [], [showBuses, buses, hasAll, hasSaved, filters, savedRouteIds]);
 
   const showVenueFilters = hasAll || filters.has('food') || filters.has('happy_hour') || filters.has('clubs');
   const searchLower = searchText.toLowerCase();
-  const filteredVenues = showVenueFilters ? VENUE_PINS.filter(v => {
+  const filteredVenues = useMemo(() => showVenueFilters ? VENUE_PINS.filter(v => {
     if (!venueHasActiveOrUpcomingToday(v)) return false;
     if (searchText && !v.name.toLowerCase().includes(searchLower)) return false;
     if (hasAll) return true;
@@ -471,7 +473,7 @@ export default function MapScreen() {
     if (filters.has('happy_hour') && v.type.includes('bar')) return true;
     if (filters.has('clubs') && v.type.includes('club')) return true;
     return false;
-  }) : [];
+  }) : [], [showVenueFilters, searchLower, hasAll, filters]);
 
   const getVenuePinColor = (v: VenuePin): string => {
     if (v.type.includes('club')) return VENUE_COLORS.clubs;
@@ -484,7 +486,7 @@ export default function MapScreen() {
   const hasSheet = selectedBus || selectedEvent || selectedCluster || selectedVenue || selectedSavedPin;
 
   // Upcoming events (today + next 2 days) + clustering
-  const getUpcomingDates = () => {
+  const upcomingDates = useMemo(() => {
     const dates = new Set<string>();
     const now = new Date();
     for (let i = 0; i < 3; i++) {
@@ -493,10 +495,9 @@ export default function MapScreen() {
       dates.add(d.toLocaleDateString('en-CA', { timeZone: 'America/Toronto' }));
     }
     return dates;
-  };
-  const upcomingDates = getUpcomingDates();
-  const todayEvents = events.filter(e => upcomingDates.has(e.date));
-  const clusters = clusterEvents(todayEvents, region.latitudeDelta);
+  }, []);
+  const todayEvents = useMemo(() => events.filter(e => upcomingDates.has(e.date)), [events, upcomingDates]);
+  const clusters = useMemo(() => clusterEvents(todayEvents, region.latitudeDelta), [todayEvents, region.latitudeDelta]);
 
   return (
     <View style={{ flex: 1, backgroundColor: colours.bg }}>
@@ -587,7 +588,7 @@ export default function MapScreen() {
                         {single!.name.length > 30 ? single!.name.slice(0, 28) + '…' : single!.name}
                       </Text>
                       <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 8, marginTop: 1 }}>
-                        {single!.source === 'ticketmaster' ? '🎟' : '📅'} Today
+                        {single!.source === 'ticketmaster' ? '🎟' : '📅'} {t('Today', 'Aujourd\'hui')}
                       </Text>
                     </View>
                     <View style={{
@@ -839,7 +840,7 @@ export default function MapScreen() {
                     </View>
                     {selectedEvent.free && (
                       <View style={{ backgroundColor: '#2d7a3a22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: '#2d7a3a44' }}>
-                        <Text style={{ fontSize: 10, fontWeight: '700', color: '#2d7a3a' }}>FREE</Text>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: '#2d7a3a' }}>{t('FREE', 'GRATUIT')}</Text>
                       </View>
                     )}
                   </View>
@@ -864,7 +865,7 @@ export default function MapScreen() {
                   onPress={() => Linking.openURL(selectedEvent.url)}
                   style={{ marginTop: 14, backgroundColor: selectedEvent.source === 'ticketmaster' ? '#026CDF' : getCatColor(selectedEvent.category), borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}>
                   <Text style={{ color: 'white', fontWeight: '800', fontSize: fonts.md }}>
-                    {selectedEvent.source === 'ticketmaster' ? 'Get Tickets →' : 'View Event →'}
+                    {selectedEvent.source === 'ticketmaster' ? t('Get Tickets', 'Acheter des billets') : t('View Event', 'Voir l\'evenement')} →
                   </Text>
                 </TouchableOpacity>
               )}
@@ -875,7 +876,7 @@ export default function MapScreen() {
             <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>
-                  {selectedCluster.length} Events Here
+                  {selectedCluster.length} {t('Events Here', 'evenements ici')}
                 </Text>
                 <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} onPress={hideSheet}>
                   <Ionicons name="close" size={16} color={colours.text} />
@@ -922,7 +923,7 @@ export default function MapScreen() {
                       <View style={{ gap: 4, marginBottom: upcoming.length > 0 ? 8 : 0 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                           <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#2ecc71' }} />
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: '#2ecc71', letterSpacing: 1 }}>NOW</Text>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: '#2ecc71', letterSpacing: 1 }}>{t('NOW', 'MAINTENANT')}</Text>
                         </View>
                         {active.map((deal, i) => (
                           <Text key={`a${i}`} style={{ fontSize: fonts.sm, color: colours.text }}>{deal}</Text>
@@ -931,14 +932,14 @@ export default function MapScreen() {
                     )}
                     {upcoming.length > 0 && (
                       <View style={{ gap: 4 }}>
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: color, letterSpacing: 1 }}>UPCOMING</Text>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: color, letterSpacing: 1 }}>{t('UPCOMING', 'A VENIR')}</Text>
                         {upcoming.map((deal, i) => (
                           <Text key={`u${i}`} style={{ fontSize: fonts.sm, color: colours.text }}>{deal}</Text>
                         ))}
                       </View>
                     )}
                     {active.length === 0 && upcoming.length === 0 && (
-                      <Text style={{ fontSize: fonts.sm, color: colours.muted, fontStyle: 'italic' }}>No deals today</Text>
+                      <Text style={{ fontSize: fonts.sm, color: colours.muted, fontStyle: 'italic' }}>{t('No deals today', 'Aucune offre aujourd\'hui')}</Text>
                     )}
                   </View>
                   <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} onPress={hideSheet}>

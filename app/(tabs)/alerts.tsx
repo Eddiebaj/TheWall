@@ -48,7 +48,8 @@ export default function AlertsScreen() {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const resp = await fetch(ALERTS_URL);
+      const resp = await fetch(ALERTS_URL, { signal: AbortSignal.timeout(10000) });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       setAlerts(data.alerts || []);
       const now = new Date();
@@ -135,7 +136,7 @@ export default function AlertsScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             {alert.description ? (
               <Text style={{ fontSize: 11, color: colours.accent, fontWeight: '600' }}>
-                {isExpanded ? 'Less ▲' : 'Details ▼'}
+                {isExpanded ? t('Less', 'Moins') + ' ▲' : t('Details', 'Details') + ' ▼'}
               </Text>
             ) : null}
             {alert.link ? (
@@ -169,10 +170,10 @@ export default function AlertsScreen() {
         <View style={styles.header}>
           <View>
             <Text style={{ fontSize: fonts.xxl, fontWeight: '800', color: colours.text, letterSpacing: -0.5 }}>
-              Alerts
+              {t('Alerts', 'Alertes')}
             </Text>
             <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
-              {lastUpdated ? `Updated ${lastUpdated} · Pull to refresh` : 'OC Transpo · Live'}
+              {lastUpdated ? t(`Updated ${lastUpdated} · Pull to refresh`, `Mis a jour ${lastUpdated} · Tirer pour rafraichir`) : t('OC Transpo · Live', 'OC Transpo · En direct')}
             </Text>
           </View>
           <TouchableOpacity
@@ -201,16 +202,16 @@ export default function AlertsScreen() {
             <View>
               <Text style={{ fontSize: fonts.md, fontWeight: '800', color: statusColor }}>
                 {!hasAlerts
-                  ? 'All Systems Normal'
+                  ? t('All Systems Normal', 'Tous les systemes normaux')
                   : criticalCount > 0
-                    ? `${criticalCount} Critical Alert${criticalCount > 1 ? 's' : ''}`
-                    : `${activeAlerts.length} Active Alert${activeAlerts.length > 1 ? 's' : ''}`
+                    ? `${criticalCount} ${t(criticalCount > 1 ? 'Critical Alerts' : 'Critical Alert', criticalCount > 1 ? 'alertes critiques' : 'alerte critique')}`
+                    : `${activeAlerts.length} ${t(activeAlerts.length > 1 ? 'Active Alerts' : 'Active Alert', activeAlerts.length > 1 ? 'alertes actives' : 'alerte active')}`
                 }
               </Text>
               <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>
                 {!hasAlerts
-                  ? 'No active disruptions on OC Transpo'
-                  : `${accessibilityAlerts.length > 0 ? ` · ${accessibilityAlerts.length} accessibility notice${accessibilityAlerts.length > 1 ? 's' : ''}` : ''}`
+                  ? t('No active disruptions on OC Transpo', 'Aucune perturbation active sur OC Transpo')
+                  : `${accessibilityAlerts.length > 0 ? ` · ${accessibilityAlerts.length} ${t(accessibilityAlerts.length > 1 ? 'accessibility notices' : 'accessibility notice', accessibilityAlerts.length > 1 ? 'avis d\'accessibilite' : 'avis d\'accessibilite')}` : ''}`
                 }
               </Text>
             </View>
@@ -220,7 +221,7 @@ export default function AlertsScreen() {
             onPress={() => Linking.openURL('https://occasionaltransport.ca')}
             style={[styles.lrtCommunityBtn, { backgroundColor: colours.bg, borderColor: colours.border }]}
           >
-            <Text style={{ fontSize: 9, fontWeight: '800', color: '#00A78D', textAlign: 'center' }}>LRT{'\n'}STATUS</Text>
+            <Text style={{ fontSize: 9, fontWeight: '800', color: '#00A78D', textAlign: 'center' }}>{t('LRT', 'TLR')}{'\n'}{t('STATUS', 'STATUT')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -245,7 +246,7 @@ export default function AlertsScreen() {
                   }]}
                 >
                   <Text style={{ fontSize: 12, fontWeight: '700', color: active ? 'white' : colours.text, textTransform: 'capitalize' }}>
-                    {cat === 'all' ? 'All' : cat}
+                    {cat === 'all' ? t('All', 'Tous') : cat}
                     {cat !== 'all' && ` (${alerts.filter(a => a.category === cat).length})`}
                   </Text>
                 </TouchableOpacity>
@@ -260,7 +261,7 @@ export default function AlertsScreen() {
             <View style={styles.centerState}>
               <ActivityIndicator color={colours.accent} size="large" />
               <Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.sm }}>
-                Loading alerts...
+                {t('Loading alerts...', 'Chargement des alertes...')}
               </Text>
             </View>
           ) : filtered.length === 0 ? (
@@ -273,12 +274,12 @@ export default function AlertsScreen() {
             }, cardShadow]}>
               <Ionicons name="checkmark-circle" size={48} color="#34c759" />
               <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text, marginTop: 12 }}>
-                All Clear
+                {t('All Clear', 'Tout est normal')}
               </Text>
               <Text style={{ fontSize: fonts.sm, color: colours.muted, textAlign: 'center', marginTop: 6, lineHeight: 20 }}>
                 {activeFilter
-                  ? `No ${activeFilter} alerts right now.`
-                  : 'No active service alerts on OC Transpo.'
+                  ? t(`No ${activeFilter} alerts right now.`, `Aucune alerte ${activeFilter} en ce moment.`)
+                  : t('No active service alerts on OC Transpo.', 'Aucune alerte de service active sur OC Transpo.')
                 }
               </Text>
             </View>
