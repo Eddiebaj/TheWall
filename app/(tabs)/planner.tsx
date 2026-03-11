@@ -171,7 +171,6 @@ export default function PlannerScreen() {
   const [departTime, setDepartTime] = useState<Date>(new Date());
   const [arriveBy, setArriveBy] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [timeInputText, setTimeInputText] = useState('');
   const [travelMode, setTravelMode] = useState<'transit' | 'driving' | 'bicycling' | 'walking'>('transit');
 
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
@@ -196,9 +195,6 @@ export default function PlannerScreen() {
   const isLight = colours.bg === '#f0f4f8';
   const cardShadow = isLight ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 } : {};
 
-  useEffect(() => {
-    setTimeInputText(fmtTime(departTime.getTime()));
-  }, [departTime]);
 
   // ── Load saved routes ─────────────────────────────────────────
   useEffect(() => {
@@ -1143,27 +1139,106 @@ export default function PlannerScreen() {
                 >
                   <Ionicons name={ab ? 'flag-outline' : 'time-outline'} size={14} color={active ? colours.accent : colours.muted} />
                   <Text style={{ fontSize: 13, fontWeight: '700', color: active ? colours.accent : colours.muted }}>{ab ? 'Arrive by' : 'Depart at'}</Text>
-                  {active && <Text style={{ fontSize: 13, fontWeight: '800', color: colours.accent }}>{fmtTime(departTime.getTime())}</Text>}
+                  {active && <Text style={{ fontSize: 13, fontWeight: '800', color: colours.accent }}>{fmtTime(departTime.getTime())}{departTime.toLocaleDateString('en-CA') !== new Date().toLocaleDateString('en-CA') ? ` ${departTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}</Text>}
                 </TouchableOpacity>
               );
             })}
           </View>
         </View>}
 
-        {/* Quick time picks */}
+        {/* Time & Date picker */}
         {travelMode === 'transit' && showTimePicker && (
           <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
             <View style={[{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, padding: 12 }, cardShadow]}>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {generateQuickTimes().map(({ label, date }) => {
-                  const isActive = fmtTime(departTime.getTime()) === fmtTime(date.getTime());
-                  return (
-                    <TouchableOpacity key={label} onPress={() => { setDepartTime(date); setShowTimePicker(false); }} style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, backgroundColor: isActive ? colours.accent + '15' : colours.bg }}>
-                      <Text style={{ fontSize: 12, fontWeight: '600', color: isActive ? colours.accent : colours.text }}>{label}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
+              {/* Now button */}
+              <TouchableOpacity
+                onPress={() => { setDepartTime(new Date()); setShowTimePicker(false); }}
+                style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15', marginBottom: 12 }}
+              >
+                <Ionicons name="locate-outline" size={13} color={colours.accent} />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accent }}>Now</Text>
+              </TouchableOpacity>
+
+              {/* Hour & Minute pickers */}
+              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+                {/* Hours */}
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, marginBottom: 6 }}>HOUR</Text>
+                  <ScrollView style={{ maxHeight: 140 }} showsVerticalScrollIndicator={false}>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                      {Array.from({ length: 24 }, (_, i) => i).map(h => {
+                        const isActive = departTime.getHours() === h;
+                        return (
+                          <TouchableOpacity
+                            key={h}
+                            onPress={() => { const d = new Date(departTime); d.setHours(h); setDepartTime(d); }}
+                            style={{ width: 40, paddingVertical: 6, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, backgroundColor: isActive ? colours.accent + '18' : colours.bg }}
+                          >
+                            <Text style={{ fontSize: 13, fontWeight: isActive ? '800' : '500', color: isActive ? colours.accent : colours.text }}>{String(h).padStart(2, '0')}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </ScrollView>
+                </View>
+                {/* Minutes */}
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, marginBottom: 6 }}>MINUTE</Text>
+                  <ScrollView style={{ maxHeight: 140 }} showsVerticalScrollIndicator={false}>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                      {Array.from({ length: 12 }, (_, i) => i * 5).map(m => {
+                        const isActive = departTime.getMinutes() === m;
+                        return (
+                          <TouchableOpacity
+                            key={m}
+                            onPress={() => { const d = new Date(departTime); d.setMinutes(m, 0, 0); setDepartTime(d); }}
+                            style={{ width: 40, paddingVertical: 6, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, backgroundColor: isActive ? colours.accent + '18' : colours.bg }}
+                          >
+                            <Text style={{ fontSize: 13, fontWeight: isActive ? '800' : '500', color: isActive ? colours.accent : colours.text }}>{String(m).padStart(2, '0')}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </ScrollView>
+                </View>
               </View>
+
+              {/* Date picker strip */}
+              <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, marginBottom: 6 }}>DATE</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  {Array.from({ length: 31 }, (_, i) => {
+                    const d = new Date();
+                    d.setDate(d.getDate() + i);
+                    d.setHours(departTime.getHours(), departTime.getMinutes(), 0, 0);
+                    const isActive = departTime.toLocaleDateString('en-CA') === d.toLocaleDateString('en-CA');
+                    const dayName = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.toLocaleDateString('en-US', { weekday: 'short' });
+                    const dateLabel = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    return (
+                      <TouchableOpacity
+                        key={i}
+                        onPress={() => {
+                          const updated = new Date(departTime);
+                          updated.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
+                          setDepartTime(updated);
+                        }}
+                        style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, backgroundColor: isActive ? colours.accent + '18' : colours.bg, alignItems: 'center', minWidth: 64 }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: isActive ? colours.accent : colours.muted }}>{dayName}</Text>
+                        <Text style={{ fontSize: 12, fontWeight: isActive ? '800' : '500', color: isActive ? colours.accent : colours.text, marginTop: 2 }}>{dateLabel}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+
+              {/* Done button */}
+              <TouchableOpacity
+                onPress={() => setShowTimePicker(false)}
+                style={{ marginTop: 12, alignSelf: 'center', paddingHorizontal: 24, paddingVertical: 8, borderRadius: 20, backgroundColor: colours.accent }}
+              >
+                <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>Done</Text>
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -1294,23 +1369,3 @@ export default function PlannerScreen() {
   );
 }
 
-function generateQuickTimes(): { label: string; date: Date }[] {
-  const now = new Date();
-  const results = [];
-  results.push({ label: 'Now', date: now });
-  for (const addMins of [15, 30, 60]) {
-    const d = new Date(now.getTime() + addMins * 60000);
-    d.setSeconds(0, 0);
-    results.push({ label: `+${addMins}m`, date: d });
-  }
-  for (const [h, m] of [[8,0],[9,0],[12,0],[17,0],[18,0],[20,0]]) {
-    const d = new Date(now);
-    d.setHours(h, m, 0, 0);
-    if (d > now) {
-      const ampm = h >= 12 ? 'pm' : 'am';
-      const hh = h % 12 || 12;
-      results.push({ label: `${hh}:${String(m).padStart(2,'0')}${ampm}`, date: d });
-    }
-  }
-  return results.slice(0, 8);
-}
