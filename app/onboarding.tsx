@@ -8,6 +8,7 @@ import {
   Text, TouchableOpacity, View
 } from 'react-native';
 import { useApp } from '../context/AppContext';
+import { SK_ONBOARDED } from '../lib/storageKeys';
 
 const { width } = Dimensions.get('window');
 
@@ -75,7 +76,7 @@ export default function OnboardingScreen() {
 
   const finish = async () => {
     try {
-      await AsyncStorage.setItem('routeo_onboarded', 'true');
+      await AsyncStorage.setItem(SK_ONBOARDED, 'true');
     } catch (e) { console.warn('AsyncStorage error:', e); }
     router.replace('/(tabs)');
   };

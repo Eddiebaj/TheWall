@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import * as Notifications from 'expo-notifications';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useWindowDimensions } from 'react-native';
 import {
   ActivityIndicator, Alert, AppState, FlatList, Image, ImageBackground, Keyboard,
@@ -40,12 +40,18 @@ import {
   TICKETMASTER_API_KEY, EVENTBRITE_API_KEY, FOURSQUARE_API_KEY, UNSPLASH_API_KEY,
 } from '../../lib/keys';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
+import {
+  SK_FAVS, SK_SAVED_BOARD, SK_SAVED_TEAMS, SK_SAVED_ROUTES, SK_SAVED_PLACES,
+  SK_GARBAGE_ADDRESS, SK_GARBAGE_LAT, SK_GARBAGE_LNG, SK_GARBAGE_PLACE_ID,
+  SK_GARBAGE_NOTIF_ID, SK_SEEN_ALERT_IDS, SK_TIME_FORMAT, SK_GHOST_REPORTS,
+  SK_SECTION_ORDER, SK_QUICK_ACTIONS, SK_OTTAWA_LIFE, SK_TODAY_EVENTS,
+} from '../../lib/storageKeys';
 
 const TRIP_UPDATES = 'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt-tp/beta/v1/TripUpdates?format=json';
 const BACKEND_URL = 'https://routeo-backend.vercel.app/api/arrivals';
 const ALERTS_URL = 'https://routeo-backend.vercel.app/api/alerts';
 const GAS_URL = 'https://routeo-backend.vercel.app/api/gas';
-const EC_WEATHER_URL = 'https://dd.weather.gc.ca/citypage_weather/xml/ON/s0000430_e.xml';
+const EC_WEATHER_URL = 'https://dd.weather.gc.ca/today/citypage_weather/ON/';
 const ONTARIO_511_URL = 'https://511on.ca/api/v2';
 const OTTAWA_OPEN_DATA_URL = 'https://open.ottawa.ca/api/explore/v2.1/catalog/datasets';
 
@@ -1107,10 +1113,10 @@ async function scheduleGarbageNotification(
   if (!(await ensureNotifPermission())) return;
 
   // Cancel any existing garbage reminder
-  const existingId = await AsyncStorage.getItem('routeo_garbage_notif_id');
+  const existingId = await AsyncStorage.getItem(SK_GARBAGE_NOTIF_ID);
   if (existingId) {
     await Notifications.cancelScheduledNotificationAsync(existingId).catch(() => {});
-    await AsyncStorage.removeItem('routeo_garbage_notif_id');
+    await AsyncStorage.removeItem(SK_GARBAGE_NOTIF_ID);
   }
 
   const next = events[0];
@@ -1144,7 +1150,7 @@ async function scheduleGarbageNotification(
         date: reminderDate,
       },
     });
-    await AsyncStorage.setItem('routeo_garbage_notif_id', id);
+    await AsyncStorage.setItem(SK_GARBAGE_NOTIF_ID, id);
   } catch (e) { console.warn('schedule garbage notification failed:', e); }
 }
 
@@ -1162,9 +1168,9 @@ async function checkAndNotifyCriticalAlerts(): Promise<void> {
     const critical = allAlerts.filter(a => a.category !== 'accessibility');
     if (critical.length === 0) return;
 
-    const seenRaw = await AsyncStorage.getItem('routeo_seen_alert_ids');
+    const seenRaw = await AsyncStorage.getItem(SK_SEEN_ALERT_IDS);
     let seenIds: number[] = [];
-    try { if (seenRaw) seenIds = JSON.parse(seenRaw); } catch { await AsyncStorage.removeItem('routeo_seen_alert_ids'); }
+    try { if (seenRaw) seenIds = JSON.parse(seenRaw); } catch { await AsyncStorage.removeItem(SK_SEEN_ALERT_IDS); }
 
     const unseen = critical.filter(a => !seenIds.includes(a.id));
     if (unseen.length === 0) return;
@@ -1190,12 +1196,44 @@ async function checkAndNotifyCriticalAlerts(): Promise<void> {
 
     // Mark all current critical alerts as seen
     const nowSeen = [...seenIds, ...critical.map(a => a.id)].slice(-100);
-    await AsyncStorage.setItem('routeo_seen_alert_ids', JSON.stringify(nowSeen));
+    await AsyncStorage.setItem(SK_SEEN_ALERT_IDS, JSON.stringify(nowSeen));
   } catch (e) { console.warn('alert notification failed:', e); }
 }
 
+// ── Error Boundary ───────────────────────────────────────────────
+class HomeErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error: Error) { console.warn('HomeErrorBoundary caught:', error); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, backgroundColor: '#0e1621', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+          <Ionicons name="alert-circle-outline" size={48} color="#7a8a9e" />
+          <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
+            Something went wrong
+          </Text>
+          <Text style={{ color: '#7a8a9e', fontSize: 14, marginTop: 8, textAlign: 'center' }}>
+            An unexpected error occurred. Tap below to try again.
+          </Text>
+          <TouchableOpacity
+            onPress={() => this.setState({ hasError: false })}
+            style={{ marginTop: 20, backgroundColor: '#cc3b2a', borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Tap to retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // ── Main Screen ──────────────────────────────────────────────────
-export default function LiveScreen() {
+function LiveScreenInner() {
   const { colours, theme, language, t, fonts } = useApp();
   const router = useRouter();
   const { width: screenWidth } = useWindowDimensions();
@@ -1205,6 +1243,8 @@ export default function LiveScreen() {
   const [arrivals, setArrivals] = useState<Arrival[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [weatherFetchFailed, setWeatherFetchFailed] = useState(false);
+  const [arrivalsFetchFailed, setArrivalsFetchFailed] = useState(false);
   const [timeFormat, setTimeFormat] = useState<'relative' | 'absolute'>('relative');
   const [scheduleRoute, setScheduleRoute] = useState<{ routeId: string; headsign: string } | null>(null);
   const [scheduleTrips, setScheduleTrips] = useState<{ time: string; tripId: string }[]>([]);
@@ -1262,6 +1302,7 @@ export default function LiveScreen() {
   const [events, setEvents] = useState<{ id: string; name: string; date: string; time?: string; venue: string; address?: string; url: string; image?: string; category?: string; free?: boolean; source?: string }[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const eventsCacheTime = useRef<{ ticketmaster: number; eventbrite: number }>({ ticketmaster: 0, eventbrite: 0 });
+  const weatherCacheTime = useRef<number>(0);
   const [eventsSearch, setEventsSearch] = useState('');
   const [eventsCategory, setEventsCategory] = useState<string | null>(null);
   const [eventsFreeOnly, setEventsFreeOnly] = useState(false);
@@ -1337,7 +1378,7 @@ export default function LiveScreen() {
   }, []);
 
   useEffect(() => {
-    AsyncStorage.getItem('routeo_favs').then(val => {
+    AsyncStorage.getItem(SK_FAVS).then(val => {
       try {
         const savedFavs: Fav[] = val ? JSON.parse(val) : [];
         setFavs(savedFavs);
@@ -1345,14 +1386,14 @@ export default function LiveScreen() {
         else fetchArrivals('CD995');
       } catch { fetchArrivals('CD995'); }
     });
-    AsyncStorage.getItem('routeo_saved_places').then(val => { try { if (val) setSavedPlaces(JSON.parse(val)); } catch (e) { console.warn('JSON parse saved places failed:', e); } });
-    AsyncStorage.getItem('routeo_saved_teams').then(val => { try { if (val) setSavedTeams(JSON.parse(val)); } catch (e) { console.warn('JSON parse saved teams failed:', e); } });
-    AsyncStorage.getItem('routeo_saved_routes').then(val => { try { if (val) setSavedRoutes(JSON.parse(val)); } catch (e) { console.warn('JSON parse saved routes failed:', e); } });
-    AsyncStorage.getItem('routeo_time_format').then(val => { if (val === 'absolute') setTimeFormat('absolute'); });
+    AsyncStorage.getItem(SK_SAVED_PLACES).then(val => { try { if (val) setSavedPlaces(JSON.parse(val)); } catch (e) { console.warn('JSON parse saved places failed:', e); } });
+    AsyncStorage.getItem(SK_SAVED_TEAMS).then(val => { try { if (val) setSavedTeams(JSON.parse(val)); } catch (e) { console.warn('JSON parse saved teams failed:', e); } });
+    AsyncStorage.getItem(SK_SAVED_ROUTES).then(val => { try { if (val) setSavedRoutes(JSON.parse(val)); } catch (e) { console.warn('JSON parse saved routes failed:', e); } });
+    AsyncStorage.getItem(SK_TIME_FORMAT).then(val => { if (val === 'absolute') setTimeFormat('absolute'); });
     Promise.all([
-      AsyncStorage.getItem('routeo_saved_board'),
-      AsyncStorage.getItem('routeo_favs'),
-      AsyncStorage.getItem('routeo_garbage_address'),
+      AsyncStorage.getItem(SK_SAVED_BOARD),
+      AsyncStorage.getItem(SK_FAVS),
+      AsyncStorage.getItem(SK_GARBAGE_ADDRESS),
     ]).then(([boardVal, favsVal, garbageAddr]) => {
       try {
         const board: SavedBoardItem[] = boardVal ? JSON.parse(boardVal) : [];
@@ -1369,13 +1410,13 @@ export default function LiveScreen() {
           board.push({ type: 'garbage' });
           changed = true;
         }
-        if (changed) AsyncStorage.setItem('routeo_saved_board', JSON.stringify(board));
+        if (changed) AsyncStorage.setItem(SK_SAVED_BOARD, JSON.stringify(board));
         setSavedBoard(board);
       } catch {
         setSavedBoard([]);
       }
     }).catch(() => {});
-    AsyncStorage.getItem('routeo_ghost_reports').then(val => {
+    AsyncStorage.getItem(SK_GHOST_REPORTS).then(val => {
       try {
         if (val) {
           const saved: Reports = JSON.parse(val);
@@ -1386,7 +1427,7 @@ export default function LiveScreen() {
         }
       } catch (e) { console.warn('JSON parse reports failed:', e); }
     });
-    AsyncStorage.getItem('routeo_section_order').then(val => {
+    AsyncStorage.getItem(SK_SECTION_ORDER).then(val => {
       try {
         if (val) {
           let saved: string[] = JSON.parse(val);
@@ -1398,12 +1439,12 @@ export default function LiveScreen() {
             else saved.push('services');
           }
           setSectionOrder(saved);
-          AsyncStorage.setItem('routeo_section_order', JSON.stringify(saved));
+          AsyncStorage.setItem(SK_SECTION_ORDER, JSON.stringify(saved));
         }
       } catch (e) { console.warn('JSON parse section order failed:', e); }
     });
-    AsyncStorage.removeItem('routeo_quick_actions');
-    AsyncStorage.removeItem('routeo_ottawa_life');
+    AsyncStorage.removeItem(SK_QUICK_ACTIONS);
+    AsyncStorage.removeItem(SK_OTTAWA_LIFE);
     fetchDiscoverPhotos();
     fetchAlerts();
     fetchWeather();
@@ -1413,9 +1454,9 @@ export default function LiveScreen() {
   }, []);
 
   const saveCustomization = async (order: string[], qaIds: string[], olIds: string[]) => {
-    await AsyncStorage.setItem('routeo_section_order', JSON.stringify(order));
-    await AsyncStorage.setItem('routeo_quick_actions', JSON.stringify(qaIds));
-    await AsyncStorage.setItem('routeo_ottawa_life', JSON.stringify(olIds));
+    await AsyncStorage.setItem(SK_SECTION_ORDER, JSON.stringify(order));
+    await AsyncStorage.setItem(SK_QUICK_ACTIONS, JSON.stringify(qaIds));
+    await AsyncStorage.setItem(SK_OTTAWA_LIFE, JSON.stringify(olIds));
   };
 
   const moveSectionUp = (id: string) => {
@@ -1444,7 +1485,7 @@ export default function LiveScreen() {
 
   const saveBoardItems = (items: SavedBoardItem[]) => {
     setSavedBoard(items);
-    AsyncStorage.setItem('routeo_saved_board', JSON.stringify(items));
+    AsyncStorage.setItem(SK_SAVED_BOARD, JSON.stringify(items));
   };
 
   const addToBoardIfMissing = (item: SavedBoardItem) => {
@@ -1459,7 +1500,7 @@ export default function LiveScreen() {
       });
       if (exists) return prev;
       const updated = [...prev, item];
-      AsyncStorage.setItem('routeo_saved_board', JSON.stringify(updated));
+      AsyncStorage.setItem(SK_SAVED_BOARD, JSON.stringify(updated));
       return updated;
     });
   };
@@ -1474,7 +1515,7 @@ export default function LiveScreen() {
         if (item.type === 'external_link' && i.type === 'external_link') return i.id !== item.id;
         return true;
       });
-      AsyncStorage.setItem('routeo_saved_board', JSON.stringify(updated));
+      AsyncStorage.setItem(SK_SAVED_BOARD, JSON.stringify(updated));
       return updated;
     });
   };
@@ -1511,6 +1552,7 @@ export default function LiveScreen() {
   };
 
   const fetchWeather = async () => {
+    if (weather && Date.now() - weatherCacheTime.current < 10 * 60 * 1000) return;
     try {
       let lat = 45.4215, lng = -75.6972;
       let locLabel = 'Ottawa, Ontario';
@@ -1524,66 +1566,34 @@ export default function LiveScreen() {
         }
       } catch (e) { console.warn('get weather location failed:', e); }
       setLocationName(locLabel);
-      // ── Environment Canada XML feed (Ottawa station s0000430) ──
-      const ecResp = await fetchWithTimeout(EC_WEATHER_URL);
-      if (!ecResp.ok) throw new Error('HTTP ' + ecResp.status);
-      const ecText = await ecResp.text();
-      // Parse temperature
-      const tempMatch = ecText.match(/<temperature[^>]*units="C"[^>]*>([^<]+)<\/temperature>/);
-      const temp = tempMatch ? Math.round(parseFloat(tempMatch[1])) : 0;
-      // Parse condition code
-      const condMatch = ecText.match(/<condition>([^<]+)<\/condition>/);
-      const condition = condMatch ? condMatch[1].trim() : '';
-      // Map EC condition string to icon
-      const ecIcon = (cond: string): string => {
-        const c = cond.toLowerCase();
-        if (c.includes('sunny') || c.includes('clear')) return 'sunny';
-        if (c.includes('partly cloudy') || c.includes('mainly sunny')) return 'partly-sunny';
-        if (c.includes('cloudy') || c.includes('overcast')) return 'cloudy';
-        if (c.includes('rain') || c.includes('shower') || c.includes('drizzle')) return 'rainy';
-        if (c.includes('snow') || c.includes('flurr')) return 'snow';
-        if (c.includes('thunder') || c.includes('storm')) return 'thunderstorm';
-        if (c.includes('fog') || c.includes('mist')) return 'cloudy';
-        return 'partly-sunny';
-      };
-      setWeather({ temp, condition, icon: ecIcon(condition) });
-      // ── Hourly forecast from EC ──
-      const hourlyMatches = [...ecText.matchAll(/<period start="([^"]+)"[\s\S]*?<temperature[^>]*>([^<]+)<\/temperature>[\s\S]*?<abbreviatedCondition>([^<]*)<\/abbreviatedCondition>[\s\S]*?<precipitation[^>]*>([^<]*)<\/precipitation>/g)];
-      const ecForecast = hourlyMatches.slice(0, 12).map(m => ({
-        time: m[1], temp: Math.round(parseFloat(m[2])), icon: ecIcon(m[3]), precip: parseFloat(m[4] || '0') || 0,
-      }));
-      if (ecForecast.length > 0) setForecast(ecForecast);
-      // ── Daily forecast from EC ──
-      const dailyMatches = [...ecText.matchAll(/<dateTime[^>]*name="forecast"[^>]*>[\s\S]*?<name>([^<]+)<\/name>[\s\S]*?<temperature[^>]*class="high"[^>]*>([^<]+)<\/temperature>[\s\S]*?<temperature[^>]*class="low"[^>]*>([^<]+)<\/temperature>[\s\S]*?<abbreviatedCondition>([^<]*)<\/abbreviatedCondition>/g)];
-      const ecDaily = dailyMatches.slice(0, 5).map((m, i) => ({
-        day: i === 0 ? 'Today' : m[1].trim(), high: Math.round(parseFloat(m[2])), low: Math.round(parseFloat(m[3])), icon: ecIcon(m[4]), precip: 0,
-      }));
-      if (ecDaily.length > 0) setDailyForecast(ecDaily);
-      // ── Fallback to Open-Meteo for hourly/daily if EC parsing incomplete ──
-      if (ecForecast.length === 0 || ecDaily.length === 0) {
-        const resp = await fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,weathercode&hourly=temperature_2m,weathercode,precipitation_probability&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max&timezone=auto&forecast_days=5`);
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const data = await resp.json();
-        const wmoIcon = (c: number): string => { if (c === 0) return 'sunny'; if (c <= 2) return 'partly-sunny'; if (c <= 3) return 'cloudy'; if (c <= 49) return 'cloudy'; if (c <= 67) return 'rainy'; if (c <= 77) return 'snow'; if (c <= 82) return 'rainy'; if (c <= 86) return 'snow'; return 'thunderstorm'; };
-        if (ecForecast.length === 0) {
-          const now = new Date();
-          const hourlyTimes: string[] = data.hourly?.time ?? [];
-          const hourlyTemps: number[] = data.hourly?.temperature_2m ?? [];
-          const hourlyCodes: number[] = data.hourly?.weathercode ?? [];
-          const hourlyPrecip: number[] = data.hourly?.precipitation_probability ?? [];
-          setForecast(hourlyTimes.map((t, i) => ({ time: t, temp: Math.round(hourlyTemps[i]), icon: wmoIcon(hourlyCodes[i]), precip: hourlyPrecip[i] ?? 0 })).filter(h => new Date(h.time) > now).slice(0, 12));
-        }
-        if (ecDaily.length === 0) {
-          const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-          const dailyTimes: string[] = data.daily?.time ?? [];
-          const dailyHigh: number[] = data.daily?.temperature_2m_max ?? [];
-          const dailyLow: number[] = data.daily?.temperature_2m_min ?? [];
-          const dailyCodes: number[] = data.daily?.weathercode ?? [];
-          const dailyPrecip: number[] = data.daily?.precipitation_probability_max ?? [];
-          setDailyForecast(dailyTimes.map((t, i) => ({ day: i === 0 ? 'Today' : days[new Date(t + 'T12:00:00').getDay()], high: Math.round(dailyHigh[i]), low: Math.round(dailyLow[i]), icon: wmoIcon(dailyCodes[i]), precip: dailyPrecip[i] ?? 0 })));
-        }
-      }
-    } catch (e) { console.warn('fetch weather failed:', e); }
+      // ── Open-Meteo (primary source — EC XML feed moved to dynamic hourly paths) ──
+      const wmoIcon = (c: number): string => { if (c === 0) return 'sunny'; if (c <= 2) return 'partly-sunny'; if (c <= 3) return 'cloudy'; if (c <= 49) return 'cloudy'; if (c <= 67) return 'rainy'; if (c <= 77) return 'snow'; if (c <= 82) return 'rainy'; if (c <= 86) return 'snow'; return 'thunderstorm'; };
+      const wmoCondition = (c: number): string => { if (c === 0) return 'Clear'; if (c <= 2) return 'Partly cloudy'; if (c <= 3) return 'Cloudy'; if (c <= 48) return 'Fog'; if (c <= 55) return 'Drizzle'; if (c <= 57) return 'Freezing drizzle'; if (c <= 65) return 'Rain'; if (c <= 67) return 'Freezing rain'; if (c <= 75) return 'Snow'; if (c <= 77) return 'Snow grains'; if (c <= 82) return 'Rain showers'; if (c <= 86) return 'Snow showers'; if (c >= 95) return 'Thunderstorm'; return 'Cloudy'; };
+      const resp = await fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,weathercode&hourly=temperature_2m,weathercode,precipitation_probability&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max&timezone=auto&forecast_days=5`);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      // Current conditions
+      const curTemp = Math.round(data.current?.temperature_2m ?? 0);
+      const curCode = data.current?.weathercode ?? 3;
+      setWeather({ temp: curTemp, condition: wmoCondition(curCode), icon: wmoIcon(curCode) });
+      // Hourly forecast
+      const now = new Date();
+      const hourlyTimes: string[] = data.hourly?.time ?? [];
+      const hourlyTemps: number[] = data.hourly?.temperature_2m ?? [];
+      const hourlyCodes: number[] = data.hourly?.weathercode ?? [];
+      const hourlyPrecip: number[] = data.hourly?.precipitation_probability ?? [];
+      setForecast(hourlyTimes.map((t, i) => ({ time: t, temp: Math.round(hourlyTemps[i]), icon: wmoIcon(hourlyCodes[i]), precip: hourlyPrecip[i] ?? 0 })).filter(h => new Date(h.time) > now).slice(0, 12));
+      // Daily forecast
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const dailyTimes: string[] = data.daily?.time ?? [];
+      const dailyHigh: number[] = data.daily?.temperature_2m_max ?? [];
+      const dailyLow: number[] = data.daily?.temperature_2m_min ?? [];
+      const dailyCodes: number[] = data.daily?.weathercode ?? [];
+      const dailyPrecip: number[] = data.daily?.precipitation_probability_max ?? [];
+      setDailyForecast(dailyTimes.map((t, i) => ({ day: i === 0 ? 'Today' : days[new Date(t + 'T12:00:00').getDay()], high: Math.round(dailyHigh[i]), low: Math.round(dailyLow[i]), icon: wmoIcon(dailyCodes[i]), precip: dailyPrecip[i] ?? 0 })));
+      weatherCacheTime.current = Date.now();
+      setWeatherFetchFailed(false);
+    } catch (e) { console.warn('fetch weather failed:', e); setWeatherFetchFailed(true); }
   };
 
   const garbageFlagLabel: Record<string, string> = { 'garbage': 'Garbage', 'recycling-black': 'Black Bin (recycling)', 'recycling-blue': 'Blue Bin (recycling)', 'green-bin': 'Green Bin (organics)', 'yard-waste': 'Yard Waste' };
@@ -1616,9 +1626,9 @@ export default function LiveScreen() {
       const lat = parseFloat(result.lat); const lng = parseFloat(result.lon);
       const displayAddress = result.display_name?.split(',').slice(0, 3).join(',') || q;
       setGarbageAddress(displayAddress);
-      await AsyncStorage.setItem('routeo_garbage_address', displayAddress);
-      await AsyncStorage.setItem('routeo_garbage_lat', String(lat));
-      await AsyncStorage.setItem('routeo_garbage_lng', String(lng));
+      await AsyncStorage.setItem(SK_GARBAGE_ADDRESS, displayAddress);
+      await AsyncStorage.setItem(SK_GARBAGE_LAT, String(lat));
+      await AsyncStorage.setItem(SK_GARBAGE_LNG, String(lng));
       await fetchGarbageEvents(lat, lng);
     } catch { setGarbageError('Could not search address. Check your connection.'); }
     setGarbageLoading(false);
@@ -1657,10 +1667,10 @@ export default function LiveScreen() {
   };
 
   const loadSavedGarbageAddress = async () => {
-    const address = await AsyncStorage.getItem('routeo_garbage_address');
-    const lat = await AsyncStorage.getItem('routeo_garbage_lat');
-    const lng = await AsyncStorage.getItem('routeo_garbage_lng');
-    const placeId = await AsyncStorage.getItem('routeo_garbage_place_id');
+    const address = await AsyncStorage.getItem(SK_GARBAGE_ADDRESS);
+    const lat = await AsyncStorage.getItem(SK_GARBAGE_LAT);
+    const lng = await AsyncStorage.getItem(SK_GARBAGE_LNG);
+    const placeId = await AsyncStorage.getItem(SK_GARBAGE_PLACE_ID);
     if (address) { setGarbageAddress(address); setAddressSaved(true); }
     if (lat && lng) { fetchGarbageEvents(parseFloat(lat), parseFloat(lng)); }
     else if (placeId) { setGarbagePlaceId(placeId); fetchGarbageEventsReCollect(placeId); }
@@ -1818,7 +1828,7 @@ export default function LiveScreen() {
       // Store today's events with addresses for the map tab
       const today = new Date().toLocaleDateString('en-CA');
       const todayEvents = allEvents.filter((e: any) => e.date === today && e.address);
-      AsyncStorage.setItem('routeo_today_events', JSON.stringify(todayEvents));
+      AsyncStorage.setItem(SK_TODAY_EVENTS, JSON.stringify(todayEvents));
     } catch { setEvents([]); }
     setEventsLoading(false);
   };
@@ -1855,6 +1865,8 @@ export default function LiveScreen() {
   const fetchDiscoverPhotos = async () => {
     const photos: { [id: string]: string } = {};
     await Promise.all(DISCOVER_CARDS.map(async card => {
+      // Skip cards that already have a hardcoded photoUrl or have no search query
+      if ((card as any).photoUrl || !card.query) return;
       try {
         const resp = await fetchWithTimeout(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(card.query)}&per_page=1&orientation=landscape`, { headers: { Authorization: `Client-ID ${UNSPLASH_API_KEY}` } });
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -1865,7 +1877,7 @@ export default function LiveScreen() {
     setDiscoverPhotos(photos);
   };
 
-  const saveFavs = (newFavs: Fav[]) => { setFavs(newFavs); AsyncStorage.setItem('routeo_favs', JSON.stringify(newFavs)); };
+  const saveFavs = (newFavs: Fav[]) => { setFavs(newFavs); AsyncStorage.setItem(SK_FAVS, JSON.stringify(newFavs)); };
 
   const addFav = (id: string, name: string) => {
     if (favs.find(f => f.id === id)) return;
@@ -1885,7 +1897,7 @@ export default function LiveScreen() {
   const removeSavedPlace = async (id: string) => {
     const updated = savedPlaces.filter(p => p.id !== id);
     setSavedPlaces(updated);
-    await AsyncStorage.setItem('routeo_saved_places', JSON.stringify(updated));
+    await AsyncStorage.setItem(SK_SAVED_PLACES, JSON.stringify(updated));
   };
 
   const fetchArrivals = useCallback(async (id: string) => {
@@ -1923,7 +1935,8 @@ export default function LiveScreen() {
       setArrivals(parseGTFS(data, internalId));
       const now = new Date();
       setLastUpdated(`${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`);
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Unknown error'); }
+      setArrivalsFetchFailed(false);
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Unknown error'); setArrivalsFetchFailed(true); }
     finally { setLoading(false); }
   }, []);
 
@@ -2009,7 +2022,7 @@ export default function LiveScreen() {
     setReports(prev => {
       const existing = prev[routeId];
       const updated: Reports = { ...prev, [routeId]: { count: (existing && existing.expiresAt > now ? existing.count : 0) + 1, expiresAt: now + TWO_HOURS } };
-      AsyncStorage.setItem('routeo_ghost_reports', JSON.stringify(updated));
+      AsyncStorage.setItem(SK_GHOST_REPORTS, JSON.stringify(updated));
       return updated;
     });
     Alert.alert(t('Thanks!', 'Merci!'), t('Reported — helps other riders.', 'Signalé — aide les autres usagers.'));
@@ -2088,7 +2101,7 @@ export default function LiveScreen() {
 
   const saveGarbageAddress = async () => {
     if (!garbageAddress) return;
-    await AsyncStorage.setItem('routeo_garbage_address', garbageAddress);
+    await AsyncStorage.setItem(SK_GARBAGE_ADDRESS, garbageAddress);
     setAddressSaved(true);
     addToBoardIfMissing({ type: 'garbage' });
   };
@@ -2116,7 +2129,7 @@ export default function LiveScreen() {
     const removing = savedTeams.includes(name);
     setSavedTeams(prev => {
       const updated = removing ? prev.filter(n => n !== name) : [...prev, name];
-      AsyncStorage.setItem('routeo_saved_teams', JSON.stringify(updated));
+      AsyncStorage.setItem(SK_SAVED_TEAMS, JSON.stringify(updated));
       return updated;
     });
     if (removing) {
@@ -3167,7 +3180,7 @@ export default function LiveScreen() {
   const toggleTimeFormat = async () => {
     const next = timeFormat === 'relative' ? 'absolute' : 'relative';
     setTimeFormat(next);
-    await AsyncStorage.setItem('routeo_time_format', next);
+    await AsyncStorage.setItem(SK_TIME_FORMAT, next);
   };
 
   const shareETA = async (item: Arrival) => {
@@ -3868,6 +3881,21 @@ export default function LiveScreen() {
             </View>
           </View>
 
+          {/* Offline / connection error banner */}
+          {weatherFetchFailed && arrivalsFetchFailed && (
+            <TouchableOpacity
+              onPress={() => { fetchWeather(); fetchArrivals(stopId); }}
+              style={{ marginHorizontal: 20, marginBottom: 12, padding: 12, borderRadius: 12, backgroundColor: '#cc3b2a' + '18', borderWidth: 1, borderColor: '#cc3b2a' + '40', flexDirection: 'row', alignItems: 'center', gap: 10 }}
+            >
+              <Ionicons name="cloud-offline-outline" size={20} color="#cc3b2a" />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: fonts.md, fontWeight: '700', color: '#cc3b2a' }}>{t('No internet connection', 'Aucune connexion Internet')}</Text>
+                <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Tap to retry', 'Appuyez pour reessayer')}</Text>
+              </View>
+              <Ionicons name="refresh" size={18} color="#cc3b2a" />
+            </TouchableOpacity>
+          )}
+
           {editMode && (<View style={{ marginHorizontal: 20, marginBottom: 12, padding: 12, borderRadius: 12, backgroundColor: colours.accent + '15', borderWidth: 1, borderColor: colours.accent + '40', flexDirection: 'row', alignItems: 'center', gap: 8 }}><Ionicons name="reorder-three" size={18} color={colours.accent} /><Text style={{ flex: 1, fontSize: fonts.sm, color: colours.accent, fontWeight: '600' }}>{t('Use ↑↓ arrows to reorder sections. Long press Ottawa Life tiles to swap.', 'Utilisez les flèches ↑↓ pour réorganiser. Appui long sur les tuiles pour changer.')}</Text></View>)}
 
           {/* Search */}
@@ -3933,7 +3961,7 @@ export default function LiveScreen() {
                 style={{ marginBottom: 16 }}
                 onDragEnd={({ data }) => {
                   setSavedBoard(data);
-                  AsyncStorage.setItem('routeo_saved_board', JSON.stringify(data));
+                  AsyncStorage.setItem(SK_SAVED_BOARD, JSON.stringify(data));
                 }}
                 renderItem={({ item, drag, isActive, getIndex }: RenderItemParams<SavedBoardItem>) => {
                   const idx = getIndex() ?? -1;
@@ -3942,7 +3970,7 @@ export default function LiveScreen() {
                       const next = [...prev];
                       const [moved] = next.splice(from, 1);
                       next.splice(to, 0, moved);
-                      AsyncStorage.setItem('routeo_saved_board', JSON.stringify(next));
+                      AsyncStorage.setItem(SK_SAVED_BOARD, JSON.stringify(next));
                       return next;
                     });
                   };
@@ -3989,6 +4017,14 @@ export default function LiveScreen() {
         </ScrollView>
       </View>
     </KeyboardAvoidingView>
+  );
+}
+
+export default function LiveScreen() {
+  return (
+    <HomeErrorBoundary>
+      <LiveScreenInner />
+    </HomeErrorBoundary>
   );
 }
 

@@ -9,6 +9,7 @@ import {
     TouchableOpacity, View
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
+import { SK_NOTIF_SETTINGS } from '../../lib/storageKeys';
 
 const isNightTime = () => { const h = new Date().getHours(); return h >= 21 || h < 4; };
 
@@ -59,7 +60,7 @@ const DEFAULT_NOTIF_SETTINGS: NotifSettings = {
   delayAlerts: false,
 };
 
-const NOTIF_SETTINGS_KEY = 'routeo_notif_settings';
+const NOTIF_SETTINGS_KEY = SK_NOTIF_SETTINGS;
 
 export default function AccountScreen() {
   const {

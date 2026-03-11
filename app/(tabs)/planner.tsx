@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
+import { SK_SAVED_ROUTES } from '../../lib/storageKeys';
 
 const PLAN_URL = 'https://routeo-backend.vercel.app/api/plan';
 const GEOCODE_URL = 'https://routeo-backend.vercel.app/api/geocode';
@@ -52,7 +53,7 @@ type SavedRoute = {
   savedAt: number;
 };
 
-const SAVED_ROUTES_KEY = 'routeo_saved_routes';
+const SAVED_ROUTES_KEY = SK_SAVED_ROUTES;
 
 const LEG_COLOURS: Record<string, string> = {
   WALK: '#9aaabb',

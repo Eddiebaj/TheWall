@@ -6,6 +6,7 @@ import {
   StatusBar, Text, TouchableOpacity, View
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
+import { SK_FAVS } from '../../lib/storageKeys';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { OC_TRANSPO_API_KEY } from '../../lib/keys';
 import stopMap from './stopmap.json';
@@ -41,7 +42,7 @@ export default function SavedScreen() {
   const [lastUpdated, setLastUpdated] = useState('');
 
   useEffect(() => {
-    AsyncStorage.getItem('routeo_favs').then(val => {
+    AsyncStorage.getItem(SK_FAVS).then(val => {
       if (val) setFavs(JSON.parse(val));
       setLoading(false);
     });
@@ -99,7 +100,7 @@ export default function SavedScreen() {
       { text: t('Remove', 'Retirer'), style: 'destructive', onPress: () => {
         const newFavs = favs.filter(f => f.id !== id);
         setFavs(newFavs);
-        AsyncStorage.setItem('routeo_favs', JSON.stringify(newFavs));
+        AsyncStorage.setItem(SK_FAVS, JSON.stringify(newFavs));
       }}
     ]);
   };

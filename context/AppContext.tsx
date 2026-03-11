@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useColorScheme } from 'react-native';
+import { SK_THEME, SK_LARGE_TEXT, SK_CONTRAST, SK_MOTION, SK_LANGUAGE } from '../lib/storageKeys';
 
 type Theme = 'dark' | 'light' | 'system';
 type Language = 'en' | 'fr';
@@ -86,8 +87,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     AsyncStorage.multiGet([
-      'routeo_theme', 'routeo_largetext', 'routeo_contrast',
-      'routeo_motion', 'routeo_language'
+      SK_THEME, SK_LARGE_TEXT, SK_CONTRAST,
+      SK_MOTION, SK_LANGUAGE
     ]).then(vals => {
       try {
         const themeVal = vals[0][1];
@@ -105,23 +106,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setTheme = (t: Theme) => {
     setThemeState(t);
-    AsyncStorage.setItem('routeo_theme', t);
+    AsyncStorage.setItem(SK_THEME, t);
   };
   const setLargeText = (v: boolean) => {
     setLargeTextState(v);
-    AsyncStorage.setItem('routeo_largetext', String(v));
+    AsyncStorage.setItem(SK_LARGE_TEXT, String(v));
   };
   const setHighContrast = (v: boolean) => {
     setHighContrastState(v);
-    AsyncStorage.setItem('routeo_contrast', String(v));
+    AsyncStorage.setItem(SK_CONTRAST, String(v));
   };
   const setReducedMotion = (v: boolean) => {
     setReducedMotionState(v);
-    AsyncStorage.setItem('routeo_motion', String(v));
+    AsyncStorage.setItem(SK_MOTION, String(v));
   };
   const setLanguage = (l: Language) => {
     setLanguageState(l);
-    AsyncStorage.setItem('routeo_language', l);
+    AsyncStorage.setItem(SK_LANGUAGE, l);
   };
 
   const resolvedTheme = theme === 'system'

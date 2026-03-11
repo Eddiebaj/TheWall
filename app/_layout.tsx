@@ -2,10 +2,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, router } from 'expo-router';
 import { useEffect } from 'react';
 import { AppProvider } from '../context/AppContext';
+import { SK_ONBOARDED } from '../lib/storageKeys';
 
 function RootNav() {
   useEffect(() => {
-    AsyncStorage.getItem('routeo_onboarded').then(val => {
+    AsyncStorage.getItem(SK_ONBOARDED).then(val => {
       if (!val) {
         router.replace('/onboarding' as any);
       }

@@ -2,11 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Animated, Keyboard, Linking,
+  ActivityIndicator, Animated, AppState, Keyboard, Linking,
   ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
 import { useApp } from '../../context/AppContext';
+import { SK_SAVED_ROUTES, SK_FAVS } from '../../lib/storageKeys';
 
 // Error boundary to catch AIRMap native crashes and show a recoverable fallback
 class MapErrorBoundary extends React.Component<
@@ -430,6 +431,8 @@ export default function MapScreen() {
   const [eventsLoading, setEventsLoading] = useState(false);
   const [selectedCluster, setSelectedCluster] = useState<MapEvent[] | null>(null);
   const [region, setRegion] = useState<Region>(OTTAWA_REGION);
+  const [debouncedDelta, setDebouncedDelta] = useState(OTTAWA_REGION.latitudeDelta);
+  const appIsActive = useRef(true);
   const [error, setError] = useState('');
   const [markersReady, setMarkersReady] = useState(false);
   const [mapReady, setMapReady] = useState(false);
@@ -472,11 +475,33 @@ export default function MapScreen() {
     finally { setBusLoading(false); }
   };
 
+  // Pause bus polling when app is backgrounded, resume when foregrounded
   useEffect(() => {
     fetchBuses();
-    const interval = setInterval(fetchBuses, 30000);
-    return () => clearInterval(interval);
+    let interval = setInterval(fetchBuses, 30000);
+
+    const sub = AppState.addEventListener('change', (nextState) => {
+      const active = nextState === 'active';
+      appIsActive.current = active;
+      if (active) {
+        fetchBuses();
+        interval = setInterval(fetchBuses, 30000);
+      } else {
+        clearInterval(interval);
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      sub.remove();
+    };
   }, []);
+
+  // Debounce latitudeDelta so clusters don't recompute on every zoom frame
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedDelta(region.latitudeDelta), 400);
+    return () => clearTimeout(timer);
+  }, [region.latitudeDelta]);
 
   useEffect(() => {
     if (!showEvents) return;
@@ -495,7 +520,7 @@ export default function MapScreen() {
       const routeIdSet = new Set<string>();
       try {
         // Saved routes (trip planner)
-        const routesRaw = await AsyncStorage.getItem('routeo_saved_routes');
+        const routesRaw = await AsyncStorage.getItem(SK_SAVED_ROUTES);
         if (routesRaw) {
           const routes: SavedRoute[] = JSON.parse(routesRaw);
           for (const r of routes) {
@@ -504,7 +529,7 @@ export default function MapScreen() {
           }
         }
         // Saved bus stops — fetch arrivals to get coordinates and route IDs
-        const favsRaw = await AsyncStorage.getItem('routeo_favs');
+        const favsRaw = await AsyncStorage.getItem(SK_FAVS);
         if (favsRaw) {
           const favs: SavedFav[] = JSON.parse(favsRaw);
           for (const fav of favs) {
@@ -687,7 +712,7 @@ export default function MapScreen() {
     return dates;
   }, []);
   const todayEvents = useMemo(() => events.filter(e => upcomingDates.has(e.date)), [events, upcomingDates]);
-  const clusters = useMemo(() => clusterEvents(todayEvents, region.latitudeDelta), [todayEvents, region.latitudeDelta]);
+  const clusters = useMemo(() => clusterEvents(todayEvents, debouncedDelta), [todayEvents, debouncedDelta]);
 
   return (
     <MapErrorBoundary colours={colours} fonts={fonts} t={t}>
