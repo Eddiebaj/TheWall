@@ -671,7 +671,7 @@ export default function MapScreen() {
   const searchPlaces = useCallback(async (query: string) => {
     if (query.length < 3) { setPlaceSuggestions([]); return; }
     try {
-      const r = await fetch(`https://routeo-backend.vercel.app/api/places-autocomplete?input=${encodeURIComponent(query)}&location=45.4215,-75.6972&radius=50000`);
+      const r = await fetch(`https://routeo-backend.vercel.app/api/places?action=autocomplete&input=${encodeURIComponent(query)}&location=45.4215,-75.6972&radius=50000`);
       const data = await r.json();
       if (data.predictions) {
         setPlaceSuggestions(data.predictions.slice(0, 5).map((p: any) => ({
@@ -687,7 +687,7 @@ export default function MapScreen() {
     Keyboard.dismiss();
     setPlaceSuggestions([]);
     try {
-      const r = await fetch(`https://routeo-backend.vercel.app/api/places-details?place_id=${suggestion.placeId}&fields=geometry,name,formatted_address`);
+      const r = await fetch(`https://routeo-backend.vercel.app/api/places?action=details&place_id=${suggestion.placeId}&fields=geometry,name,formatted_address`);
       const data = await r.json();
       if (data.result?.geometry?.location) {
         const { lat, lng } = data.result.geometry.location;

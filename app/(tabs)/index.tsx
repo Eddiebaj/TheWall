@@ -1067,7 +1067,7 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
 
 
 function SavedPlaceCard({ place, colours, fonts, language, t, onPress, onLongPress, cardShadow }: any) {
-  const photoUrl = place.photoRef ? `https://routeo-backend.vercel.app/api/places-photo?photo_reference=${place.photoRef}&maxwidth=400` : null;
+  const photoUrl = place.photoRef ? `https://routeo-backend.vercel.app/api/places?action=photo&photo_reference=${place.photoRef}&maxwidth=400` : null;
   const label = language === 'fr' ? place.categoryLabel_fr : place.categoryLabel_en;
   return (
     <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 16, overflow: 'hidden', backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }, cardShadow]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>

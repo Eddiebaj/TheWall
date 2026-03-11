@@ -190,7 +190,7 @@ export default function ExploreScreen() {
       const results: Place[] = [];
       for (const type of types) {
         // Use radius instead of rankby=distance so we capture everything within the area
-        const url = `https://routeo-backend.vercel.app/api/places-nearby?location=${location.lat},${location.lng}&radius=${FETCH_RADIUS}&type=${type}`;
+        const url = `https://routeo-backend.vercel.app/api/places?action=nearby&location=${location.lat},${location.lng}&radius=${FETCH_RADIUS}&type=${type}`;
         const resp = await fetchWithTimeout(url);
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
@@ -248,7 +248,7 @@ export default function ExploreScreen() {
   };
 
   const getPhotoUrl = (ref: string) =>
-    `https://routeo-backend.vercel.app/api/places-photo?photo_reference=${ref}&maxwidth=600`;
+    `https://routeo-backend.vercel.app/api/places?action=photo&photo_reference=${ref}&maxwidth=600`;
 
   const openInMaps = (name: string, vicinity: string) =>
     Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(`${name} ${vicinity}`)}`);
