@@ -317,13 +317,21 @@ const VENUE_PINS: VenuePin[] = [
 
 const VENUE_COLORS = { food: '#E67E22', happy_hour: '#8E44AD', clubs: '#E91E63', fitness: '#2ECC71' };
 
+const venueTypeColor = (tp: string): string =>
+  tp === 'fitness' ? VENUE_COLORS.fitness : tp === 'club' ? VENUE_COLORS.clubs : tp === 'restaurant' ? VENUE_COLORS.food : VENUE_COLORS.happy_hour;
+
+const isTimeInRange = (time: string, start: string, end: string): boolean => {
+  if (end < start) return time >= start || time <= end; // crosses midnight
+  return time >= start && time <= end;
+};
+
 const getVenueTodayDeals = (venue: VenuePin): { active: string[]; upcoming: string[] } => {
   const now = new Date();
   const day = now.getDay();
   const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   const todayDeals = venue.deals.filter(d => d.days.includes(day));
-  const active = todayDeals.filter(d => timeStr >= d.start && timeStr <= d.end).map(d => d.description);
-  const upcoming = todayDeals.filter(d => timeStr < d.start).map(d => d.description);
+  const active = todayDeals.filter(d => isTimeInRange(timeStr, d.start, d.end)).map(d => d.description);
+  const upcoming = todayDeals.filter(d => !isTimeInRange(timeStr, d.start, d.end) && timeStr < d.start).map(d => d.description);
   return { active, upcoming };
 };
 
@@ -597,7 +605,8 @@ export default function MapScreen() {
 
   const showVenueFilters = hasAll || filters.has('food') || filters.has('happy_hour') || filters.has('clubs') || filters.has('fitness');
   const searchLower = searchText.toLowerCase();
-  const filteredVenues = useMemo(() => showVenueFilters ? VENUE_PINS.filter(v => {
+  const venuesTooFar = region.latitudeDelta > 0.08;
+  const filteredVenues = useMemo(() => showVenueFilters && !venuesTooFar ? VENUE_PINS.filter(v => {
     if (!venueHasActiveOrUpcomingToday(v)) return false;
     if (searchText && !v.name.toLowerCase().includes(searchLower)) return false;
     if (hasAll) return true;
@@ -606,7 +615,7 @@ export default function MapScreen() {
     if (filters.has('clubs') && v.type.includes('club')) return true;
     if (filters.has('fitness') && v.type.includes('fitness')) return true;
     return false;
-  }) : [], [showVenueFilters, searchLower, hasAll, filters]);
+  }) : [], [showVenueFilters, venuesTooFar, searchLower, hasAll, filters]);
 
   const getVenuePinColor = (v: VenuePin): string => {
     if (v.type.includes('fitness')) return VENUE_COLORS.fitness;
@@ -1059,8 +1068,8 @@ export default function MapScreen() {
                   <View style={{ flex: 1, marginRight: 12 }}>
                     <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
                       {selectedVenue.type.map(tp => (
-                        <View key={tp} style={{ backgroundColor: (tp === 'fitness' ? VENUE_COLORS.fitness : tp === 'club' ? VENUE_COLORS.clubs : tp === 'restaurant' ? VENUE_COLORS.food : VENUE_COLORS.happy_hour) + '22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: (tp === 'fitness' ? VENUE_COLORS.fitness : tp === 'club' ? VENUE_COLORS.clubs : tp === 'restaurant' ? VENUE_COLORS.food : VENUE_COLORS.happy_hour) + '44' }}>
-                          <Text style={{ fontSize: 10, fontWeight: '700', color: tp === 'fitness' ? VENUE_COLORS.fitness : tp === 'club' ? VENUE_COLORS.clubs : tp === 'restaurant' ? VENUE_COLORS.food : VENUE_COLORS.happy_hour, textTransform: 'capitalize' }}>
+                        <View key={tp} style={{ backgroundColor: venueTypeColor(tp) + '22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: venueTypeColor(tp) + '44' }}>
+                          <Text style={{ fontSize: 10, fontWeight: '700', color: venueTypeColor(tp), textTransform: 'capitalize' }}>
                             {tp}
                           </Text>
                         </View>
