@@ -5,7 +5,7 @@ import {
   ActivityIndicator, Animated, Linking,
   ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
-import MapView, { Callout, Marker, Region } from 'react-native-maps';
+import MapView, { Marker, Region } from 'react-native-maps';
 import { useApp } from '../../context/AppContext';
 
 // Error boundary to catch AIRMap native crashes and show a recoverable fallback
@@ -83,8 +83,7 @@ const isLRT = (routeId: string) => {
          base === 'confederation' || base === 'trillium' || routeId.toLowerCase().includes('lrt');
 };
 
-// Native-only bus marker — NO custom View/Text children to avoid AIRMap crash
-// Callout is safe (only one renders at a time when tapped)
+// Native-only bus marker — NO children whatsoever to avoid AIRMap insertReactSubview crash
 const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) => void }) => {
   const isSTO = bus.agency === 'STO';
   const label = isLRT(bus.routeId) ? 'LRT' : bus.routeId.split('-')[0];
@@ -92,29 +91,11 @@ const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) =>
     <Marker
       coordinate={{ latitude: bus.lat, longitude: bus.lng }}
       pinColor={isSTO ? '#1abc9c' : '#FF3B30'}
+      title={`Route ${label}`}
+      description={isSTO ? 'STO Gatineau' : 'OC Transpo'}
       tracksViewChanges={false}
       onPress={() => onPress(bus)}
-    >
-      <Callout tooltip>
-        <View style={{
-          backgroundColor: '#fff', borderRadius: 10, padding: 10,
-          minWidth: 120, alignItems: 'center',
-          borderWidth: 1, borderColor: '#ddd',
-        }}>
-          <Text style={{ fontSize: 18, fontWeight: '800', color: isSTO ? '#1abc9c' : '#FF3B30' }}>
-            {label}
-          </Text>
-          <Text style={{ fontSize: 11, fontWeight: '600', color: '#555', marginTop: 2 }}>
-            {isSTO ? 'STO Gatineau' : 'OC Transpo'}
-          </Text>
-          {bus.toStop ? (
-            <Text style={{ fontSize: 10, color: '#888', marginTop: 3 }} numberOfLines={1}>
-              → {bus.toStop}
-            </Text>
-          ) : null}
-        </View>
-      </Callout>
-    </Marker>
+    />
   );
 });
 
@@ -637,134 +618,63 @@ export default function MapScreen() {
           <BusMarker key={bus.id} bus={bus} onPress={openSheet} />
         ))}
 
-        {/* Event cluster markers */}
+        {/* Event cluster markers — native only, no children */}
         {showEvents && (hasAll || filters.has('bus')) && clusters.map((cluster) => {
           const single = cluster.count === 1 ? cluster.events[0] : null;
-          const color = single
-            ? (single.source === 'ticketmaster' ? '#026CDF' : getCatColor(single.category))
-            : '#026CDF';
+          const title = cluster.count > 1
+            ? `${cluster.count} events`
+            : single!.name;
+          const desc = cluster.count > 1
+            ? cluster.events.map(e => e.name).slice(0, 3).join(', ')
+            : single!.venue;
           return (
             <Marker
               key={cluster.id}
               coordinate={{ latitude: cluster.lat, longitude: cluster.lng }}
-              onPress={() => cluster.count > 1 ? openSheet(undefined, undefined, cluster.events) : openSheet(undefined, single!)}
-              anchor={{ x: 0.5, y: 1.0 }}
+              pinColor="#026CDF"
+              title={title}
+              description={desc}
               tracksViewChanges={false}
-            >
-              <View style={{ alignItems: 'center' }}>
-                {cluster.count > 1 ? (
-                  // Cluster bubble
-                  <View style={{
-                    backgroundColor: '#026CDF',
-                    borderRadius: 20, width: 40, height: 40,
-                    alignItems: 'center', justifyContent: 'center',
-                    borderWidth: 2.5, borderColor: 'white',
-                    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4,
-                    shadowOffset: { width: 0, height: 2 }, elevation: 5,
-                  }}>
-                    <Text style={{ color: 'white', fontSize: 13, fontWeight: '900' }}>{cluster.count}</Text>
-                  </View>
-                ) : region.latitudeDelta > 0.04 ? (
-                  // Zoomed out — simple dot pin, no card
-                  <View style={{
-                    width: 14, height: 14, borderRadius: 7,
-                    backgroundColor: color,
-                    borderWidth: 2, borderColor: 'white',
-                    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3,
-                    shadowOffset: { width: 0, height: 1 }, elevation: 4,
-                  }} />
-                ) : (
-                  // Zoomed in — mini card with tail
-                  <View style={{ alignItems: 'center' }}>
-                    <View style={{
-                      backgroundColor: color, borderRadius: 10,
-                      paddingHorizontal: 8, paddingVertical: 5,
-                      maxWidth: 140, minWidth: 60,
-                      borderWidth: 2, borderColor: 'white',
-                      shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4,
-                      shadowOffset: { width: 0, height: 2 }, elevation: 5,
-                    }}>
-                      <Text style={{ color: 'white', fontSize: 9, fontWeight: '800' }} numberOfLines={2}>
-                        {single!.name.length > 30 ? single!.name.slice(0, 28) + '…' : single!.name}
-                      </Text>
-                      <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 8, marginTop: 1 }}>
-                        {single!.source === 'ticketmaster' ? '🎟' : '📅'} {t('Today', 'Aujourd\'hui')}
-                      </Text>
-                    </View>
-                    <View style={{
-                      width: 0, height: 0,
-                      borderLeftWidth: 6, borderRightWidth: 6, borderTopWidth: 8,
-                      borderLeftColor: 'transparent', borderRightColor: 'transparent',
-                      borderTopColor: color,
-                    }} />
-                  </View>
-                )}
-              </View>
-            </Marker>
+              onPress={() => cluster.count > 1 ? openSheet(undefined, undefined, cluster.events) : openSheet(undefined, single!)}
+            />
           );
         })}
 
-        {/* Saved pin markers — only when Saved filter is explicitly on */}
+        {/* Saved pin markers — native only, no children */}
         {hasSaved && savedPins.map((pin) => {
-          const pinColor = pin.kind === 'stop' ? '#e74c3c' : pin.kind === 'route_from' ? '#2ecc71' : '#3498db';
-          const pinIcon = pin.kind === 'stop' ? 'bus' : pin.kind === 'route_from' ? 'flag' : 'location';
+          const color = pin.kind === 'stop' ? '#e74c3c' : pin.kind === 'route_from' ? '#2ecc71' : '#3498db';
+          const kindLabel = pin.kind === 'stop' ? 'Stop' : pin.kind === 'route_from' ? 'Origin' : 'Destination';
           return (
             <Marker
               key={pin.id}
               coordinate={{ latitude: pin.lat, longitude: pin.lng }}
+              pinColor={color}
+              title={pin.name}
+              description={pin.routeLabel ? `${kindLabel} — ${pin.routeLabel}` : kindLabel}
+              tracksViewChanges={false}
               onPress={() => {
                 setSelectedSavedPin(pin);
                 openSheet();
               }}
-              anchor={{ x: 0.5, y: 0.5 }}
-              tracksViewChanges={false}
-            >
-              <View style={{
-                width: 30, height: 30, borderRadius: 15,
-                backgroundColor: pinColor, borderWidth: 2.5, borderColor: 'white',
-                alignItems: 'center', justifyContent: 'center',
-                shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3,
-                shadowOffset: { width: 0, height: 1 }, elevation: 4,
-              }}>
-                <Ionicons name={pinIcon as any} size={14} color="white" />
-              </View>
-            </Marker>
+            />
           );
         })}
 
-        {/* Venue markers */}
+        {/* Venue markers — native only, no children */}
         {filteredVenues.map((v, i) => {
           const color = getVenuePinColor(v);
           const { active } = getVenueTodayDeals(v);
-          const isActive = active.length > 0;
+          const dealDesc = active.length > 0 ? active[0].description : v.type.join(', ');
           return (
             <Marker
               key={`venue_${i}`}
               coordinate={{ latitude: v.lat, longitude: v.lng }}
-              onPress={() => openSheet(undefined, undefined, undefined, v)}
-              anchor={{ x: 0.5, y: 0.5 }}
+              pinColor={color}
+              title={v.name}
+              description={dealDesc}
               tracksViewChanges={false}
-            >
-              <View style={{
-                width: 26, height: 26, borderRadius: 13,
-                backgroundColor: color, borderWidth: 2.5, borderColor: 'white',
-                alignItems: 'center', justifyContent: 'center',
-                shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3,
-                shadowOffset: { width: 0, height: 1 }, elevation: 4,
-              }}>
-                <Ionicons
-                  name={v.type.includes('club') ? 'musical-notes-outline' : v.type.includes('restaurant') ? 'restaurant-outline' : 'wine-outline'}
-                  size={13} color="white"
-                />
-                {isActive && (
-                  <View style={{
-                    position: 'absolute', top: -2, right: -2,
-                    width: 8, height: 8, borderRadius: 4,
-                    backgroundColor: '#2ecc71', borderWidth: 1.5, borderColor: 'white',
-                  }} />
-                )}
-              </View>
-            </Marker>
+              onPress={() => openSheet(undefined, undefined, undefined, v)}
+            />
           );
         })}
       </MapView>
