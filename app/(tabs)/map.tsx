@@ -88,7 +88,10 @@ const isLRT = (routeId: string) => {
 };
 
 // Native-only bus marker — NO children whatsoever to avoid AIRMap insertReactSubview crash
+const validCoord = (lat: any, lng: any) => lat != null && lng != null && !isNaN(lat) && !isNaN(lng);
+
 const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) => void }) => {
+  if (!validCoord(bus.lat, bus.lng)) return null;
   const isSTO = bus.agency === 'STO';
   const label = isLRT(bus.routeId) ? 'LRT' : bus.routeId.split('-')[0];
   return (
@@ -755,6 +758,7 @@ export default function MapScreen() {
 
           {/* Event cluster markers */}
           {showEvents && (hasAll || filters.has('bus')) && clusters.map((cluster) => {
+            if (!validCoord(cluster.lat, cluster.lng)) return null;
             const single = cluster.count === 1 ? cluster.events[0] : null;
             const title = cluster.count > 1
               ? `${cluster.count} events`
@@ -777,6 +781,7 @@ export default function MapScreen() {
 
           {/* Saved pin markers */}
           {hasSaved && savedPins.map((pin) => {
+            if (!validCoord(pin.lat, pin.lng)) return null;
             const color = pin.kind === 'stop' ? '#e74c3c' : pin.kind === 'route_from' ? '#2ecc71' : '#3498db';
             const kindLabel = pin.kind === 'stop' ? 'Stop' : pin.kind === 'route_from' ? 'Origin' : 'Destination';
             return (
@@ -797,6 +802,7 @@ export default function MapScreen() {
 
           {/* Venue markers */}
           {filteredVenues.map((v, i) => {
+            if (!validCoord(v.lat, v.lng)) return null;
             const color = getVenuePinColor(v);
             const { active, upcoming } = getVenueTodayDeals(v);
             const hasDeals = active.length > 0 || upcoming.length > 0;
@@ -816,7 +822,7 @@ export default function MapScreen() {
         </>}
 
         {/* Searched place marker */}
-        {searchedPlace && (
+        {searchedPlace && validCoord(searchedPlace.lat, searchedPlace.lng) && (
           <Marker
             coordinate={{ latitude: searchedPlace.lat, longitude: searchedPlace.lng }}
             pinColor="#3498db"
