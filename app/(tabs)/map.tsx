@@ -483,9 +483,13 @@ export default function MapScreen() {
   const hasAll = filters.has('all');
   const hasSaved = filters.has('saved');
   const showBuses = hasAll || filters.has('bus') || hasSaved;
-  // Viewport bounds for culling (with padding)
+  // Zoom level thresholds for bus visibility
+  const zoomTooFar = region.latitudeDelta > 0.05;
+  const zoomNeighborhood = region.latitudeDelta >= 0.02 && region.latitudeDelta <= 0.05;
+
+  // Viewport bounds for culling (with 10% padding so buses don't pop in/out abruptly)
   const viewBounds = useMemo(() => {
-    const pad = region.latitudeDelta * 0.15;
+    const pad = region.latitudeDelta * 0.10;
     return {
       minLat: region.latitude - region.latitudeDelta / 2 - pad,
       maxLat: region.latitude + region.latitudeDelta / 2 + pad,
@@ -494,17 +498,24 @@ export default function MapScreen() {
     };
   }, [region]);
 
-  const filteredBuses = useMemo(() => showBuses ? buses.filter((b: Bus) => {
-    // Viewport culling
-    if (b.lat < viewBounds.minLat || b.lat > viewBounds.maxLat ||
-        b.lng < viewBounds.minLng || b.lng > viewBounds.maxLng) return false;
-    if (hasSaved && !hasAll && !filters.has('bus')) {
-      const base = b.routeId.split('-')[0];
-      return savedRouteIds.has(base);
-    }
-    if (!hasAll && filters.has('bus')) return !isLRT(b.routeId);
-    return true;
-  }) : [], [showBuses, buses, hasAll, hasSaved, filters, savedRouteIds, viewBounds]);
+  const filteredBuses = useMemo(() => {
+    // Hide all buses when zoomed out to city-wide view
+    if (!showBuses || zoomTooFar) return [];
+    let result = buses.filter((b: Bus) => {
+      // Viewport culling
+      if (b.lat < viewBounds.minLat || b.lat > viewBounds.maxLat ||
+          b.lng < viewBounds.minLng || b.lng > viewBounds.maxLng) return false;
+      if (hasSaved && !hasAll && !filters.has('bus')) {
+        const base = b.routeId.split('-')[0];
+        return savedRouteIds.has(base);
+      }
+      if (!hasAll && filters.has('bus')) return !isLRT(b.routeId);
+      return true;
+    });
+    // Cap at 40 markers when at neighborhood zoom level
+    if (zoomNeighborhood && result.length > 40) result = result.slice(0, 40);
+    return result;
+  }, [showBuses, zoomTooFar, zoomNeighborhood, buses, hasAll, hasSaved, filters, savedRouteIds, viewBounds]);
 
   const showVenueFilters = hasAll || filters.has('food') || filters.has('happy_hour') || filters.has('clubs');
   const searchLower = searchText.toLowerCase();
@@ -711,9 +722,9 @@ export default function MapScreen() {
           <View style={{ alignItems: 'flex-end', gap: 4 }}>
             {busLoading ? <ActivityIndicator color={colours.accent} size="small" /> : (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colours.accent + '18', borderWidth: 1, borderColor: colours.accent + '40', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 }}>
-                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colours.accent }} />
-                <Text style={{ color: colours.accent, fontSize: fonts.sm, fontWeight: '700' }}>
-                  {filteredBuses.length} {t('buses', 'bus')}
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: zoomTooFar ? colours.muted : colours.accent }} />
+                <Text style={{ color: zoomTooFar ? colours.muted : colours.accent, fontSize: fonts.sm, fontWeight: '700' }}>
+                  {zoomTooFar ? t('Zoom in for buses', 'Zoomez pour les bus') : `${filteredBuses.length} ${t('buses nearby', 'bus proches')}`}
                 </Text>
               </View>
             )}
