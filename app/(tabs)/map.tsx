@@ -108,7 +108,7 @@ const CATEGORY_COLORS: { [key: string]: string } = {
 const getCatColor = (cat?: string) => CATEGORY_COLORS[cat || ''] || '#555';
 
 type VenuePin = {
-  name: string; address: string; type: ('bar' | 'restaurant' | 'club')[];
+  name: string; address: string; type: ('bar' | 'restaurant' | 'club' | 'fitness')[];
   lat: number; lng: number;
   deals: { days: number[]; start: string; end: string; description: string }[];
 };
@@ -282,9 +282,40 @@ const VENUE_PINS: VenuePin[] = [
     { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm-close HH' },
     { days: [0], start: '11:00', end: '23:59', description: 'All-day specials Sundays' },
   ]},
+  { name: 'The Waverly', address: '339 Elgin St', type: ['bar', 'club'], lat: 45.4148, lng: -75.6882, deals: [
+    { days: [5,6], start: '22:00', end: '23:30', description: 'Fri/Sat 10-11:30pm: $5 bar rail' },
+  ]},
+  { name: 'House of Targ', address: '1077 Bank St', type: ['restaurant', 'bar', 'club'], lat: 45.3928, lng: -75.6835, deals: [
+    { days: [2], start: '17:00', end: '23:00', description: 'Tue: Arcade night $12.50' },
+    { days: [3], start: '17:00', end: '23:00', description: 'Wed: live music 8pm' },
+    { days: [4], start: '17:00', end: '23:00', description: 'Thu: live music 8pm' },
+    { days: [5], start: '17:00', end: '01:00', description: 'Fri: live music + events' },
+    { days: [6], start: '12:00', end: '01:00', description: 'Sat: live music + events' },
+    { days: [0], start: '12:00', end: '23:59', description: 'Sun: Free-Play Sunday' },
+  ]},
+  { name: 'Level One Game Pub', address: '14 Waller St', type: ['restaurant', 'bar'], lat: 45.4275, lng: -75.6920, deals: [
+    { days: [1], start: '18:30', end: '20:00', description: 'Mon: Geek Trivia 6:30-8pm' },
+    { days: [2], start: '17:30', end: '20:00', description: 'Tue: TKO fight night 5:30-8pm ($6)' },
+    { days: [4], start: '18:00', end: '23:00', description: 'Thu: Reddit board game meetup 6pm' },
+    { days: [0], start: '17:00', end: '23:00', description: 'Sun: Magic: The Gathering 5pm ($6)' },
+  ]},
+  { name: 'Happy Fish', address: '330 Elgin St', type: ['bar', 'club'], lat: 45.4150, lng: -75.6883, deals: [
+    { days: [4], start: '21:00', end: '23:59', description: 'Thu: $5 Jagerbombs + $5 draught' },
+    { days: [5,6], start: '21:00', end: '23:59', description: 'Fri/Sat: open 9pm-2am' },
+  ]},
+  { name: 'REFORM Health + Fitness', address: '317 McRae Ave #300', type: ['fitness'], lat: 45.3883, lng: -75.7540, deals: [
+    { days: [1,2,3,4,5], start: '06:00', end: '19:00', description: 'Indoor cycling, pilates, high-intensity classes' },
+    { days: [6,0], start: '09:00', end: '12:00', description: 'Weekend classes: cycling, pilates, full-body' },
+  ]},
+  { name: 'Pure Yoga Westboro', address: '279 Richmond Rd', type: ['fitness'], lat: 45.3906, lng: -75.7558, deals: [
+    { days: [0,1,2,3,4,5,6], start: '06:00', end: '21:00', description: 'Yoga classes + special workshops' },
+  ]},
+  { name: 'Pure Yoga Centretown', address: '359 Bank St', type: ['fitness'], lat: 45.4140, lng: -75.6955, deals: [
+    { days: [0,1,2,3,4,5,6], start: '06:00', end: '21:00', description: 'Yoga classes + special workshops' },
+  ]},
 ];
 
-const VENUE_COLORS = { food: '#E67E22', happy_hour: '#8E44AD', clubs: '#E91E63' };
+const VENUE_COLORS = { food: '#E67E22', happy_hour: '#8E44AD', clubs: '#E91E63', fitness: '#2ECC71' };
 
 const getVenueTodayDeals = (venue: VenuePin): { active: string[]; upcoming: string[] } => {
   const now = new Date();
@@ -561,7 +592,7 @@ export default function MapScreen() {
 
   const visibleBuses = useMemo(() => filteredBuses.slice(0, visibleBusCount), [filteredBuses, visibleBusCount]);
 
-  const showVenueFilters = hasAll || filters.has('food') || filters.has('happy_hour') || filters.has('clubs');
+  const showVenueFilters = hasAll || filters.has('food') || filters.has('happy_hour') || filters.has('clubs') || filters.has('fitness');
   const searchLower = searchText.toLowerCase();
   const filteredVenues = useMemo(() => showVenueFilters ? VENUE_PINS.filter(v => {
     if (!venueHasActiveOrUpcomingToday(v)) return false;
@@ -570,10 +601,12 @@ export default function MapScreen() {
     if (filters.has('food') && v.type.includes('restaurant')) return true;
     if (filters.has('happy_hour') && v.type.includes('bar')) return true;
     if (filters.has('clubs') && v.type.includes('club')) return true;
+    if (filters.has('fitness') && v.type.includes('fitness')) return true;
     return false;
   }) : [], [showVenueFilters, searchLower, hasAll, filters]);
 
   const getVenuePinColor = (v: VenuePin): string => {
+    if (v.type.includes('fitness')) return VENUE_COLORS.fitness;
     if (v.type.includes('club')) return VENUE_COLORS.clubs;
     if (v.type.includes('restaurant')) return VENUE_COLORS.food;
     return VENUE_COLORS.happy_hour;
@@ -737,6 +770,7 @@ export default function MapScreen() {
             { key: 'food', label_en: 'Food', label_fr: 'Restos', icon: 'restaurant-outline' as const, color: VENUE_COLORS.food },
             { key: 'happy_hour', label_en: 'Happy Hour', label_fr: 'Happy Hour', icon: 'beer-outline' as const, color: VENUE_COLORS.happy_hour },
             { key: 'clubs', label_en: 'Clubs', label_fr: 'Clubs', icon: 'musical-notes-outline' as const, color: VENUE_COLORS.clubs },
+            { key: 'fitness', label_en: 'Fitness', label_fr: 'Fitness', icon: 'barbell-outline' as const, color: VENUE_COLORS.fitness },
             { key: 'saved', label_en: 'Saved', label_fr: 'Favoris', icon: 'heart' as const, color: '#e74c3c' },
           ] as const).map(f => {
             const active = filters.has(f.key);
@@ -934,8 +968,8 @@ export default function MapScreen() {
                   <View style={{ flex: 1, marginRight: 12 }}>
                     <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
                       {selectedVenue.type.map(tp => (
-                        <View key={tp} style={{ backgroundColor: (tp === 'club' ? VENUE_COLORS.clubs : tp === 'restaurant' ? VENUE_COLORS.food : VENUE_COLORS.happy_hour) + '22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: (tp === 'club' ? VENUE_COLORS.clubs : tp === 'restaurant' ? VENUE_COLORS.food : VENUE_COLORS.happy_hour) + '44' }}>
-                          <Text style={{ fontSize: 10, fontWeight: '700', color: tp === 'club' ? VENUE_COLORS.clubs : tp === 'restaurant' ? VENUE_COLORS.food : VENUE_COLORS.happy_hour, textTransform: 'capitalize' }}>
+                        <View key={tp} style={{ backgroundColor: (tp === 'fitness' ? VENUE_COLORS.fitness : tp === 'club' ? VENUE_COLORS.clubs : tp === 'restaurant' ? VENUE_COLORS.food : VENUE_COLORS.happy_hour) + '22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: (tp === 'fitness' ? VENUE_COLORS.fitness : tp === 'club' ? VENUE_COLORS.clubs : tp === 'restaurant' ? VENUE_COLORS.food : VENUE_COLORS.happy_hour) + '44' }}>
+                          <Text style={{ fontSize: 10, fontWeight: '700', color: tp === 'fitness' ? VENUE_COLORS.fitness : tp === 'club' ? VENUE_COLORS.clubs : tp === 'restaurant' ? VENUE_COLORS.food : VENUE_COLORS.happy_hour, textTransform: 'capitalize' }}>
                             {tp}
                           </Text>
                         </View>
