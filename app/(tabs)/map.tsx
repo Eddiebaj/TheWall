@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Animated, Linking,
   ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
@@ -50,6 +50,34 @@ const isLRT = (routeId: string) => {
   return base === '1' || base === '2' || base === 'o1' || base === 'o2' ||
          base === 'confederation' || base === 'trillium' || routeId.toLowerCase().includes('lrt');
 };
+
+// Memoized bus marker to prevent re-renders of all markers when one changes
+const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) => void }) => {
+  const lrt = isLRT(bus.routeId);
+  const isSTO = bus.agency === 'STO';
+  const bgColor = lrt ? getRouteColour(bus.routeId) : isSTO ? '#ffffff' : '#FF3B30';
+  const textColor = isSTO ? '#1abc9c' : '#ffffff';
+  const borderColor = isSTO ? '#1abc9c' : '#ffffff';
+  return (
+    <Marker
+      coordinate={{ latitude: bus.lat, longitude: bus.lng }}
+      onPress={() => onPress(bus)}
+      anchor={{ x: 0.5, y: 0.5 }}
+      tracksViewChanges={false}
+    >
+      <View style={{
+        backgroundColor: bgColor, borderRadius: lrt ? 8 : 12,
+        paddingHorizontal: lrt ? 7 : 6, paddingVertical: lrt ? 4 : 3,
+        borderWidth: isSTO ? 1.5 : 2, borderColor,
+        minWidth: 28, alignItems: 'center',
+      }}>
+        <Text style={{ color: lrt ? '#ffffff' : textColor, fontSize: lrt ? 11 : 10, fontWeight: '800' }}>
+          {lrt ? '🚊' : bus.routeId.split('-')[0]}
+        </Text>
+      </View>
+    </Marker>
+  );
+});
 
 const CATEGORY_COLORS: { [key: string]: string } = {
   'Music': '#6c3fc7', 'Food & Drink': '#1a7a4a', 'Arts & Culture': '#b5450b',
@@ -349,7 +377,7 @@ export default function MapScreen() {
 
   const sheetAnim = useRef(new Animated.Value(0)).current;
 
-  const openSheet = (bus?: Bus, event?: MapEvent, clusterEvs?: MapEvent[], venue?: VenuePin) => {
+  const openSheet = useCallback((bus?: Bus, event?: MapEvent, clusterEvs?: MapEvent[], venue?: VenuePin) => {
     setSelectedBus(bus || null); setSelectedEvent(event || null); setSelectedCluster(clusterEvs || null); setSelectedVenue(venue || null);
     if (!bus && !event && !clusterEvs && !venue) {
       // saved pin — selectedSavedPin is already set
@@ -357,7 +385,7 @@ export default function MapScreen() {
       setSelectedSavedPin(null);
     }
     Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
-  };
+  }, [sheetAnim]);
 
   const hideSheet = () => {
     Animated.spring(sheetAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start(() => {
@@ -372,7 +400,7 @@ export default function MapScreen() {
       const resp = await fetchWithTimeout(`${VEHICLES_URL}?t=${Date.now()}`, { headers: { 'Accept': 'application/json' } });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
-      setBuses((data.vehicles || []).slice(0, 30));
+      setBuses(data.vehicles || []);
       setError('');
       const now = new Date();
       setLastUpdated(`${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`);
@@ -455,15 +483,28 @@ export default function MapScreen() {
   const hasAll = filters.has('all');
   const hasSaved = filters.has('saved');
   const showBuses = hasAll || filters.has('bus') || hasSaved;
+  // Viewport bounds for culling (with padding)
+  const viewBounds = useMemo(() => {
+    const pad = region.latitudeDelta * 0.15;
+    return {
+      minLat: region.latitude - region.latitudeDelta / 2 - pad,
+      maxLat: region.latitude + region.latitudeDelta / 2 + pad,
+      minLng: region.longitude - region.longitudeDelta / 2 - pad,
+      maxLng: region.longitude + region.longitudeDelta / 2 + pad,
+    };
+  }, [region]);
+
   const filteredBuses = useMemo(() => showBuses ? buses.filter((b: Bus) => {
+    // Viewport culling
+    if (b.lat < viewBounds.minLat || b.lat > viewBounds.maxLat ||
+        b.lng < viewBounds.minLng || b.lng > viewBounds.maxLng) return false;
     if (hasSaved && !hasAll && !filters.has('bus')) {
-      // Only show buses on saved routes
       const base = b.routeId.split('-')[0];
       return savedRouteIds.has(base);
     }
     if (!hasAll && filters.has('bus')) return !isLRT(b.routeId);
     return true;
-  }) : [], [showBuses, buses, hasAll, hasSaved, filters, savedRouteIds]);
+  }) : [], [showBuses, buses, hasAll, hasSaved, filters, savedRouteIds, viewBounds]);
 
   const showVenueFilters = hasAll || filters.has('food') || filters.has('happy_hour') || filters.has('clubs');
   const searchLower = searchText.toLowerCase();
@@ -516,31 +557,9 @@ export default function MapScreen() {
         onRegionChangeComplete={(r) => setRegion(r)}
       >
         {/* Bus markers */}
-        {filteredBuses.map((bus: Bus) => {
-          const lrt = isLRT(bus.routeId);
-          const isSTO = bus.agency === 'STO';
-          const bgColor = lrt ? getRouteColour(bus.routeId) : isSTO ? '#ffffff' : '#FF3B30';
-          const textColor = isSTO ? '#1abc9c' : '#ffffff';
-          const borderColor = isSTO ? '#1abc9c' : '#ffffff';
-          return (
-            <Marker key={bus.id} coordinate={{ latitude: bus.lat, longitude: bus.lng }}
-              onPress={() => openSheet(bus)} anchor={{ x: 0.5, y: 0.5 }}
-              tracksViewChanges={false}>
-              <View style={{
-                backgroundColor: bgColor, borderRadius: lrt ? 8 : 12,
-                paddingHorizontal: lrt ? 7 : 6, paddingVertical: lrt ? 4 : 3,
-                borderWidth: isSTO ? 1.5 : 2, borderColor,
-                shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 3,
-                shadowOffset: { width: 0, height: 1 }, elevation: 4,
-                minWidth: 28, alignItems: 'center',
-              }}>
-                <Text style={{ color: lrt ? '#ffffff' : textColor, fontSize: lrt ? 11 : 10, fontWeight: '800' }}>
-                  {lrt ? '🚊' : bus.routeId.split('-')[0]}
-                </Text>
-              </View>
-            </Marker>
-          );
-        })}
+        {filteredBuses.map((bus: Bus) => (
+          <BusMarker key={bus.id} bus={bus} onPress={openSheet} />
+        ))}
 
         {/* Event cluster markers */}
         {showEvents && (hasAll || filters.has('bus')) && clusters.map((cluster) => {
