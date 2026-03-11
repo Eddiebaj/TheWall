@@ -11,6 +11,7 @@ import {
   TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
+import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 
 const PLAN_URL = 'https://routeo-backend.vercel.app/api/plan';
 const GEOCODE_URL = 'https://routeo-backend.vercel.app/api/geocode';
@@ -266,7 +267,7 @@ export default function PlannerScreen() {
       return;
     }
     try {
-      const resp = await fetch(`${GEOCODE_URL}?input=${encodeURIComponent(text)}`, { signal: AbortSignal.timeout(10000) });
+      const resp = await fetchWithTimeout(`${GEOCODE_URL}?input=${encodeURIComponent(text)}`);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       const results: PlaceResult[] = data.results || [];
@@ -277,7 +278,7 @@ export default function PlannerScreen() {
   const resolvePlace = async (place: PlaceResult): Promise<PlaceResult> => {
     if (place.lat && place.lng) return place;
     try {
-      const resp = await fetch(`${GEOCODE_URL}?input=${encodeURIComponent(place.label)}&type=geocode`, { signal: AbortSignal.timeout(10000) });
+      const resp = await fetchWithTimeout(`${GEOCODE_URL}?input=${encodeURIComponent(place.label)}&type=geocode`);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       const result = data.results?.[0];
@@ -321,7 +322,7 @@ export default function PlannerScreen() {
     const url = `${PLAN_URL}?fromLat=${resolvedFrom.lat}&fromLng=${resolvedFrom.lng}&fromLabel=${encodeURIComponent(resolvedFrom.label)}&toLat=${resolvedTo.lat}&toLng=${resolvedTo.lng}&toLabel=${encodeURIComponent(resolvedTo.label)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=${arriveBy}`;
 
     try {
-      const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      const resp = await fetchWithTimeout(url);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       if (data.error) { setError(data.error); }
@@ -364,7 +365,7 @@ export default function PlannerScreen() {
 
     if (fromText && !fromPlace?.lat) {
       try {
-        const r = await fetch(`${GEOCODE_URL}?input=${encodeURIComponent(fromText)}&type=geocode`, { signal: AbortSignal.timeout(10000) });
+        const r = await fetchWithTimeout(`${GEOCODE_URL}?input=${encodeURIComponent(fromText)}&type=geocode`);
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const d = await r.json();
         const result = d.results?.[0];
@@ -373,7 +374,7 @@ export default function PlannerScreen() {
     }
     if (toText && !toPlace?.lat) {
       try {
-        const r = await fetch(`${GEOCODE_URL}?input=${encodeURIComponent(toText)}&type=geocode`, { signal: AbortSignal.timeout(10000) });
+        const r = await fetchWithTimeout(`${GEOCODE_URL}?input=${encodeURIComponent(toText)}&type=geocode`);
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const d = await r.json();
         const result = d.results?.[0];
@@ -490,7 +491,7 @@ export default function PlannerScreen() {
         const promises = batch.map(async (stop) => {
           try {
             const url = `${PLAN_URL}?fromLat=${lat}&fromLng=${lng}&fromLabel=Me&toLat=${stop.lat}&toLng=${stop.lng}&toLabel=${encodeURIComponent(stop.name)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=false`;
-            const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
+            const resp = await fetchWithTimeout(url);
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             const data = await resp.json();
             if (data.itineraries && data.itineraries.length > 0) {

@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
 import { GOOGLE_PLACES_API_KEY } from '../../lib/keys';
+import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { supabase } from '../../lib/supabase';
 const ARRIVALS_URL = 'https://routeo-backend.vercel.app/api/arrivals';
 
@@ -119,7 +120,7 @@ export default function ExploreScreen() {
         }
         if (!nearest || nearestDist > 2000) return; // skip if > 2km
         try {
-          const resp = await fetch(`${ARRIVALS_URL}?stop=${nearest.stop_id}`, { signal: AbortSignal.timeout(10000) });
+          const resp = await fetchWithTimeout(`${ARRIVALS_URL}?stop=${nearest.stop_id}`);
           if (!resp.ok) throw new Error('HTTP ' + resp.status);
           const data = await resp.json();
           const first = (data.arrivals || [])[0];
@@ -191,7 +192,7 @@ export default function ExploreScreen() {
       for (const type of types) {
         // Use radius instead of rankby=distance so we capture everything within the area
         const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${FETCH_RADIUS}&type=${type}&key=${GOOGLE_PLACES_API_KEY}`;
-        const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
+        const resp = await fetchWithTimeout(url);
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
         (data.results || []).forEach((p: any) => {

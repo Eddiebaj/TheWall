@@ -6,6 +6,7 @@ import {
   StatusBar, Text, TouchableOpacity, View
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
+import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { OC_TRANSPO_API_KEY } from '../../lib/keys';
 import stopMap from './stopmap.json';
 import tripMap from './tripmap.json';
@@ -55,7 +56,7 @@ export default function SavedScreen() {
 
   const fetchAllArrivals = async () => {
     try {
-      const resp = await fetch(TRIP_UPDATES, { headers: { 'Ocp-Apim-Subscription-Key': OC_TRANSPO_API_KEY }, signal: AbortSignal.timeout(10000) });
+      const resp = await fetchWithTimeout(TRIP_UPDATES, { headers: { 'Ocp-Apim-Subscription-Key': OC_TRANSPO_API_KEY } });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       const now = Math.floor(Date.now() / 1000);

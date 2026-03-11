@@ -6,6 +6,7 @@ import {
   ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
+import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 
 // ── Constants ────────────────────────────────────────────────────
 const ALERTS_URL = 'https://routeo-backend.vercel.app/api/alerts';
@@ -48,7 +49,7 @@ export default function AlertsScreen() {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const resp = await fetch(ALERTS_URL, { signal: AbortSignal.timeout(10000) });
+      const resp = await fetchWithTimeout(ALERTS_URL);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       setAlerts(data.alerts || []);

@@ -8,6 +8,7 @@ import {
 import MapView, { Marker, Region } from 'react-native-maps';
 import { useApp } from '../../context/AppContext';
 
+import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { TICKETMASTER_API_KEY } from '../../lib/keys';
 
 const VEHICLES_URL    = 'https://routeo-backend.vercel.app/api/vehicles';
@@ -25,6 +26,7 @@ const OTTAWA_REGION: Region = {
 type Bus = {
   id: string; routeId: string; lat: number; lng: number;
   fromStop: string; toStop: string; progress: number;
+  agency?: 'OC_TRANSPO' | 'STO';
 };
 
 type MapEvent = {
@@ -294,7 +296,7 @@ const fetchAllEvents = async (): Promise<MapEvent[]> => {
 
   let events: MapEvent[] = [];
   try {
-    const tmResp = await fetch(`https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TICKETMASTER_API_KEY}&city=Ottawa&countryCode=CA&size=20&sort=date,asc`, { signal: AbortSignal.timeout(10000) });
+    const tmResp = await fetchWithTimeout(`https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TICKETMASTER_API_KEY}&city=Ottawa&countryCode=CA&size=20&sort=date,asc`);
     if (tmResp.ok) {
       const d = await tmResp.json();
       const tmEvents: MapEvent[] = (d._embedded?.events || []).map((e: any) => ({
@@ -367,7 +369,7 @@ export default function MapScreen() {
 
   const fetchBuses = async () => {
     try {
-      const resp = await fetch(`${VEHICLES_URL}?t=${Date.now()}`, { headers: { 'Accept': 'application/json' }, signal: AbortSignal.timeout(10000) });
+      const resp = await fetchWithTimeout(`${VEHICLES_URL}?t=${Date.now()}`, { headers: { 'Accept': 'application/json' } });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       setBuses((data.vehicles || []).slice(0, 30));
@@ -415,7 +417,7 @@ export default function MapScreen() {
           const favs: SavedFav[] = JSON.parse(favsRaw);
           for (const fav of favs) {
             try {
-              const resp = await fetch(`${BACKEND_URL}?stop=${fav.id}`, { signal: AbortSignal.timeout(10000) });
+              const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${fav.id}`);
               if (!resp.ok) throw new Error('HTTP ' + resp.status);
               const data = await resp.json();
               if (data.lat && data.lng) {
@@ -515,21 +517,24 @@ export default function MapScreen() {
       >
         {/* Bus markers */}
         {filteredBuses.map((bus: Bus) => {
-          const colour = getRouteColour(bus.routeId);
           const lrt = isLRT(bus.routeId);
+          const isSTO = bus.agency === 'STO';
+          const bgColor = lrt ? getRouteColour(bus.routeId) : isSTO ? '#ffffff' : '#FF3B30';
+          const textColor = isSTO ? '#1abc9c' : '#ffffff';
+          const borderColor = isSTO ? '#1abc9c' : '#ffffff';
           return (
             <Marker key={bus.id} coordinate={{ latitude: bus.lat, longitude: bus.lng }}
               onPress={() => openSheet(bus)} anchor={{ x: 0.5, y: 0.5 }}
               tracksViewChanges={false}>
               <View style={{
-                backgroundColor: colour, borderRadius: lrt ? 8 : 12,
+                backgroundColor: bgColor, borderRadius: lrt ? 8 : 12,
                 paddingHorizontal: lrt ? 7 : 6, paddingVertical: lrt ? 4 : 3,
-                borderWidth: 2, borderColor: 'white',
+                borderWidth: isSTO ? 1.5 : 2, borderColor,
                 shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 3,
                 shadowOffset: { width: 0, height: 1 }, elevation: 4,
                 minWidth: 28, alignItems: 'center',
               }}>
-                <Text style={{ color: 'white', fontSize: lrt ? 11 : 10, fontWeight: '800' }}>
+                <Text style={{ color: lrt ? '#ffffff' : textColor, fontSize: lrt ? 11 : 10, fontWeight: '800' }}>
                   {lrt ? '🚊' : bus.routeId.split('-')[0]}
                 </Text>
               </View>
@@ -788,16 +793,23 @@ export default function MapScreen() {
           </View>
 
           {/* Bus sheet */}
-          {selectedBus && (
+          {selectedBus && (() => {
+            const busLrt = isLRT(selectedBus.routeId);
+            const busIsSTO = selectedBus.agency === 'STO';
+            const sheetIconBg = busLrt ? getRouteColour(selectedBus.routeId) : busIsSTO ? '#ffffff' : '#FF3B30';
+            const sheetIconBorder = busIsSTO ? '#1abc9c' : undefined;
+            const sheetIconText = busIsSTO ? '#1abc9c' : '#ffffff';
+            const agencyLabel = busIsSTO ? 'STO' : 'OC Transpo';
+            return (
             <View>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                  <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: getRouteColour(selectedBus.routeId), alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ color: 'white', fontSize: 18 }}>{isLRT(selectedBus.routeId) ? '🚊' : '🚌'}</Text>
+                  <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: sheetIconBg, alignItems: 'center', justifyContent: 'center', borderWidth: busIsSTO ? 1.5 : 0, borderColor: sheetIconBorder }}>
+                    <Text style={{ color: busLrt ? '#ffffff' : sheetIconText, fontSize: 18 }}>{busLrt ? '🚊' : '🚌'}</Text>
                   </View>
                   <View>
                     <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>
-                      {isLRT(selectedBus.routeId) ? 'O-Train' : `${t('Route', 'Route')} ${selectedBus.routeId.split('-')[0]}`}
+                      {busLrt ? 'O-Train' : `${t('Route', 'Route')} ${selectedBus.routeId.split('-')[0]}`}
                     </Text>
                     <Text style={{ fontSize: fonts.sm, color: colours.muted }}>
                       {t('En route', 'En route')} · {selectedBus.progress}% {t('to next stop', 'vers prochain arrêt')}
@@ -814,17 +826,22 @@ export default function MapScreen() {
                   <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Stop', 'Arrêt')} #{selectedBus.toStop}</Text>
                 </View>
                 <View style={{ height: 6, backgroundColor: colours.border, borderRadius: 3 }}>
-                  <View style={{ height: 6, borderRadius: 3, backgroundColor: getRouteColour(selectedBus.routeId), width: `${selectedBus.progress}%` as any }} />
+                  <View style={{ height: 6, borderRadius: 3, backgroundColor: busIsSTO ? '#1abc9c' : '#FF3B30', width: `${selectedBus.progress}%` as any }} />
                 </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
-                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colours.accent }} />
-                  <Text style={{ fontSize: fonts.sm, color: colours.accent, fontWeight: '700' }}>
-                    {t('Live · Updates every 15s', 'En direct · Mise à jour toutes les 15s')}
-                  </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colours.accent }} />
+                    <Text style={{ fontSize: fonts.sm, color: colours.accent, fontWeight: '700' }}>
+                      {t('Live · Updates every 15s', 'En direct · Mise à jour toutes les 15s')}
+                    </Text>
+                  </View>
+                  <View style={{ backgroundColor: busIsSTO ? '#1abc9c' + '18' : '#FF3B30' + '18', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1, borderColor: busIsSTO ? '#1abc9c' + '40' : '#FF3B30' + '40' }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: busIsSTO ? '#1abc9c' : '#FF3B30' }}>{agencyLabel}</Text>
+                  </View>
                 </View>
               </View>
             </View>
-          )}
+          ); })()}
 
           {/* Event sheet */}
           {selectedEvent && (

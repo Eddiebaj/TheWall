@@ -39,6 +39,7 @@ import {
   OC_TRANSPO_API_KEY, GOOGLE_PLACES_API_KEY,
   TICKETMASTER_API_KEY, EVENTBRITE_API_KEY, FOURSQUARE_API_KEY, UNSPLASH_API_KEY,
 } from '../../lib/keys';
+import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 
 const TRIP_UPDATES = 'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt-tp/beta/v1/TripUpdates?format=json';
 const BACKEND_URL = 'https://routeo-backend.vercel.app/api/arrivals';
@@ -345,7 +346,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
     let cancelled = false;
     const fetchPreview = async () => {
       try {
-        const resp = await fetch(`${BACKEND_URL}?stop=${item.id}`, { signal: AbortSignal.timeout(10000) });
+        const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${item.id}`);
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
         if (!cancelled) {
@@ -652,7 +653,7 @@ function SavedStopCard({ fav, isActive, colours, fonts, t, onPress, onLongPress,
     let cancelled = false;
     const fetchPreview = async () => {
       try {
-        const resp = await fetch(`${BACKEND_URL}?stop=${fav.id}`, { signal: AbortSignal.timeout(10000) });
+        const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${fav.id}`);
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
         if (!cancelled) {
@@ -1154,7 +1155,7 @@ async function scheduleGarbageNotification(
  */
 async function checkAndNotifyCriticalAlerts(): Promise<void> {
   try {
-    const resp = await fetch(ALERTS_URL, { signal: AbortSignal.timeout(10000) });
+    const resp = await fetchWithTimeout(ALERTS_URL);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const data = await resp.json();
     const allAlerts: ServiceAlert[] = data.alerts || [];
@@ -1305,7 +1306,7 @@ export default function LiveScreen() {
   useEffect(() => {
     const fetchSensGame = async () => {
       try {
-        const resp = await fetch('https://api-web.nhle.com/v1/schedule/now', { signal: AbortSignal.timeout(10000) });
+        const resp = await fetchWithTimeout('https://api-web.nhle.com/v1/schedule/now');
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
         const today = new Date().toLocaleDateString('en-CA');
@@ -1524,7 +1525,7 @@ export default function LiveScreen() {
       } catch (e) { console.warn('get weather location failed:', e); }
       setLocationName(locLabel);
       // ── Environment Canada XML feed (Ottawa station s0000430) ──
-      const ecResp = await fetch(EC_WEATHER_URL, { signal: AbortSignal.timeout(10000) });
+      const ecResp = await fetchWithTimeout(EC_WEATHER_URL);
       if (!ecResp.ok) throw new Error('HTTP ' + ecResp.status);
       const ecText = await ecResp.text();
       // Parse temperature
@@ -1560,7 +1561,7 @@ export default function LiveScreen() {
       if (ecDaily.length > 0) setDailyForecast(ecDaily);
       // ── Fallback to Open-Meteo for hourly/daily if EC parsing incomplete ──
       if (ecForecast.length === 0 || ecDaily.length === 0) {
-        const resp = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,weathercode&hourly=temperature_2m,weathercode,precipitation_probability&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max&timezone=auto&forecast_days=5`, { signal: AbortSignal.timeout(10000) });
+        const resp = await fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,weathercode&hourly=temperature_2m,weathercode,precipitation_probability&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max&timezone=auto&forecast_days=5`);
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
         const wmoIcon = (c: number): string => { if (c === 0) return 'sunny'; if (c <= 2) return 'partly-sunny'; if (c <= 3) return 'cloudy'; if (c <= 49) return 'cloudy'; if (c <= 67) return 'rainy'; if (c <= 77) return 'snow'; if (c <= 82) return 'rainy'; if (c <= 86) return 'snow'; return 'thunderstorm'; };
@@ -1591,7 +1592,7 @@ export default function LiveScreen() {
   const fetchGarbageEvents = async (lat: number, lng: number) => {
     try {
       const geometry = JSON.stringify({ x: lng, y: lat, spatialReference: { wkid: 4326 } });
-      const resp = await fetch(`${WASTE_QUERY}?geometry=${encodeURIComponent(geometry)}&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects&outFields=GCD,SCHEDULE,C_ZONE&returnGeometry=false&f=json&inSR=4326`, { signal: AbortSignal.timeout(10000) });
+      const resp = await fetchWithTimeout(`${WASTE_QUERY}?geometry=${encodeURIComponent(geometry)}&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects&outFields=GCD,SCHEDULE,C_ZONE&returnGeometry=false&f=json&inSR=4326`);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       const feature = data?.features?.[0]?.attributes;
@@ -1607,7 +1608,7 @@ export default function LiveScreen() {
     if (!q.trim()) return;
     setGarbageLoading(true); setGarbageError(''); setAddressSaved(false);
     try {
-      const geoResp = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ', Ottawa, Ontario, Canada')}&format=json&limit=1`, { headers: { 'User-Agent': 'RouteO/1.0' }, signal: AbortSignal.timeout(10000) });
+      const geoResp = await fetchWithTimeout(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ', Ottawa, Ontario, Canada')}&format=json&limit=1`, { headers: { 'User-Agent': 'RouteO/1.0' } });
       if (!geoResp.ok) throw new Error('HTTP ' + geoResp.status);
       const geoData = await geoResp.json();
       const result = geoData?.[0];
@@ -1628,7 +1629,7 @@ export default function LiveScreen() {
       const now = new Date();
       const after = now.toISOString().split('T')[0];
       const before = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      const resp = await fetch(`https://api.recollect.net/api/places/${placeId}/services/257/events?after=${after}&before=${before}&locale=en`, { signal: AbortSignal.timeout(10000) });
+      const resp = await fetchWithTimeout(`https://api.recollect.net/api/places/${placeId}/services/257/events?after=${after}&before=${before}&locale=en`);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       const events = (data?.events ?? []).map((e: any) => ({ date: e.day, flags: (e.flags ?? []).map((f: any) => f.event_type), label: (e.flags ?? []).map((f: any) => garbageFlagLabel[f.event_type] ?? f.event_type).join(' · ') })).filter((e: any) => e.flags.length > 0).slice(0, 8);
@@ -1666,7 +1667,7 @@ export default function LiveScreen() {
   };
 
   const fetchAlerts = async () => {
-    try { setAlertsLoading(true); const resp = await fetch(ALERTS_URL, { signal: AbortSignal.timeout(10000) }); if (!resp.ok) throw new Error('HTTP ' + resp.status); const data = await resp.json(); setAlerts(data.alerts || []); }
+    try { setAlertsLoading(true); const resp = await fetchWithTimeout(ALERTS_URL); if (!resp.ok) throw new Error('HTTP ' + resp.status); const data = await resp.json(); setAlerts(data.alerts || []); }
     catch { setAlerts([]); } finally { setAlertsLoading(false); }
   };
 
@@ -1695,7 +1696,7 @@ export default function LiveScreen() {
     setRoadEventsLoading(true);
     try {
       const coords = await getUserCoords();
-      const resp = await fetch('https://maps.ottawa.ca/arcgis/rest/services/Road_Closures/MapServer/0/query?where=1%3D1&outFields=*&f=json', { signal: AbortSignal.timeout(10000) });
+      const resp = await fetchWithTimeout('https://maps.ottawa.ca/arcgis/rest/services/Road_Closures/MapServer/0/query?where=1%3D1&outFields=*&f=json');
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       const features = data.features || [];
@@ -1726,7 +1727,7 @@ export default function LiveScreen() {
   const fetchParks = async () => {
     setParksLoading(true);
     try {
-      const resp = await fetch('https://maps.ottawa.ca/arcgis/rest/services/Parks_Inventory/MapServer/13/query?where=1%3D1&outFields=RINK_PARK_NAME,MAJOR_CROSSSTREETS,FACILITY,ACCESSIBLE,BOARDS,TOILET&f=json', { signal: AbortSignal.timeout(10000) });
+      const resp = await fetchWithTimeout('https://maps.ottawa.ca/arcgis/rest/services/Parks_Inventory/MapServer/13/query?where=1%3D1&outFields=RINK_PARK_NAME,MAJOR_CROSSSTREETS,FACILITY,ACCESSIBLE,BOARDS,TOILET&f=json');
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       const features = data.features || [];
@@ -1751,8 +1752,8 @@ export default function LiveScreen() {
     try {
       const coords = await getUserCoords();
       const [infoResp, statusResp] = await Promise.all([
-        fetch('https://velogo.ca/opendata/station_information.json', { signal: AbortSignal.timeout(10000) }),
-        fetch('https://velogo.ca/opendata/station_status.json', { signal: AbortSignal.timeout(10000) }),
+        fetchWithTimeout('https://velogo.ca/opendata/station_information.json'),
+        fetchWithTimeout('https://velogo.ca/opendata/station_status.json'),
       ]);
       if (!infoResp.ok) throw new Error('HTTP ' + infoResp.status);
       if (!statusResp.ok) throw new Error('HTTP ' + statusResp.status);
@@ -1785,7 +1786,7 @@ export default function LiveScreen() {
     if (events.length > 0 && Date.now() - eventsCacheTime.current.ticketmaster < 30 * 60 * 1000) return;
     setEventsLoading(true);
     try {
-      const resp = await fetch(`https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TICKETMASTER_API_KEY}&city=Ottawa&countryCode=CA&size=40&sort=date,asc`, { signal: AbortSignal.timeout(10000) });
+      const resp = await fetchWithTimeout(`https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TICKETMASTER_API_KEY}&city=Ottawa&countryCode=CA&size=40&sort=date,asc`);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       const evs = (data?._embedded?.events || []).map((e: any) => ({
@@ -1808,7 +1809,7 @@ export default function LiveScreen() {
     if (events.length > 0 && Date.now() - eventsCacheTime.current.eventbrite < 30 * 60 * 1000) return;
     setEventsLoading(true);
     try {
-      const resp = await fetch('https://routeo-backend.vercel.app/api/ebevents', { signal: AbortSignal.timeout(10000) });
+      const resp = await fetchWithTimeout('https://routeo-backend.vercel.app/api/ebevents');
       if (!resp.ok) throw new Error(`${resp.status}`);
       const data = await resp.json();
       const allEvents = data.events || [];
@@ -1840,7 +1841,7 @@ export default function LiveScreen() {
       const newCache = { ...eventsGeoCache };
       await Promise.all(toGeocode.map(async e => {
         try {
-          const r = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(e.address + ', Ottawa, ON')}&key=${GOOGLE_PLACES_API_KEY}`, { signal: AbortSignal.timeout(10000) });
+          const r = await fetchWithTimeout(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(e.address + ', Ottawa, ON')}&key=${GOOGLE_PLACES_API_KEY}`);
           if (!r.ok) throw new Error('HTTP ' + r.status);
           const d = await r.json();
           if (d.results?.[0]?.geometry?.location) newCache[e.address!] = { lat: d.results[0].geometry.location.lat, lng: d.results[0].geometry.location.lng };
@@ -1855,7 +1856,7 @@ export default function LiveScreen() {
     const photos: { [id: string]: string } = {};
     await Promise.all(DISCOVER_CARDS.map(async card => {
       try {
-        const resp = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(card.query)}&per_page=1&orientation=landscape`, { headers: { Authorization: `Client-ID ${UNSPLASH_API_KEY}` }, signal: AbortSignal.timeout(10000) });
+        const resp = await fetchWithTimeout(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(card.query)}&per_page=1&orientation=landscape`, { headers: { Authorization: `Client-ID ${UNSPLASH_API_KEY}` } });
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
         if (data.results?.[0]?.urls?.regular) photos[card.id] = data.results[0].urls.regular;
@@ -1894,7 +1895,7 @@ export default function LiveScreen() {
       const internalId = isNumericOnly ? resolveStopId(id) : id;
       // STO stops — route through backend which handles STO GTFS-RT
       if (isStoStop(id)) {
-        const resp = await fetch(`${BACKEND_URL}?stop=${id}`, { signal: AbortSignal.timeout(10000) });
+        const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${id}`);
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
         setArrivals((data.arrivals || []).map((a: any) => ({ id: `${a.stopId || id}-${a.scheduledTime || Math.random()}`, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway, delay: 0, secsAway: a.minsAway * 60, isScheduled: false })));
@@ -1907,7 +1908,7 @@ export default function LiveScreen() {
         const rawId = LRT_STOP_IDS.has(id) ? id : internalId;
         const platforms = MULTI_PLATFORM_STOPS[rawId];
         const lrtId = platforms ? (platforms.find(p => /^[A-Z]/.test(p)) || rawId) : rawId;
-        const resp = await fetch(`${BACKEND_URL}?stop=${lrtId}`, { signal: AbortSignal.timeout(10000) });
+        const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${lrtId}`);
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
         setArrivals((data.arrivals || []).map((a: any) => ({ id: `${a.stopId}-${a.scheduledTime}`, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway, delay: 0, secsAway: a.minsAway * 60, isScheduled: true })));
@@ -1916,7 +1917,7 @@ export default function LiveScreen() {
         setLoading(false);
         return;
       }
-      const resp = await fetch(TRIP_UPDATES, { headers: { 'Ocp-Apim-Subscription-Key': OC_TRANSPO_API_KEY }, signal: AbortSignal.timeout(10000) });
+      const resp = await fetchWithTimeout(TRIP_UPDATES, { headers: { 'Ocp-Apim-Subscription-Key': OC_TRANSPO_API_KEY } });
       if (!resp.ok) throw new Error(`API error ${resp.status}`);
       const data = await resp.json();
       setArrivals(parseGTFS(data, internalId));
@@ -2133,7 +2134,7 @@ export default function LiveScreen() {
       try {
         if (team.nhl) {
           // NHL Schedule API
-          const resp = await fetch('https://api-web.nhle.com/v1/schedule/now', { signal: AbortSignal.timeout(10000) });
+          const resp = await fetchWithTimeout('https://api-web.nhle.com/v1/schedule/now');
           if (!resp.ok) throw new Error('HTTP ' + resp.status);
           const data = await resp.json();
           const today = new Date().toLocaleDateString('en-CA');
@@ -2159,7 +2160,7 @@ export default function LiveScreen() {
           }
         } else if (team.espn) {
           // ESPN API
-          const resp = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${team.espn.sport}/${team.espn.league}/scoreboard`, { signal: AbortSignal.timeout(10000) });
+          const resp = await fetchWithTimeout(`https://site.api.espn.com/apis/site/v2/sports/${team.espn.sport}/${team.espn.league}/scoreboard`);
           if (!resp.ok) throw new Error('HTTP ' + resp.status);
           const data = await resp.json();
           const game = (data.events || []).find((ev: any) =>
@@ -2201,7 +2202,7 @@ export default function LiveScreen() {
       try {
         if (team.nhl) {
           // NHL API
-          const resp = await fetch(`https://api-web.nhle.com/v1/club-schedule-season/${team.nhl}/now`, { signal: AbortSignal.timeout(10000) });
+          const resp = await fetchWithTimeout(`https://api-web.nhle.com/v1/club-schedule-season/${team.nhl}/now`);
           if (!resp.ok) throw new Error('HTTP ' + resp.status);
           const data = await resp.json();
           const now = new Date();
@@ -2222,7 +2223,7 @@ export default function LiveScreen() {
           results.push({ team: team.name, games: upcoming });
         } else if (team.espn) {
           // ESPN API
-          const resp = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${team.espn.sport}/${team.espn.league}/teams/${team.espn.abbr}/schedule`, { signal: AbortSignal.timeout(10000) });
+          const resp = await fetchWithTimeout(`https://site.api.espn.com/apis/site/v2/sports/${team.espn.sport}/${team.espn.league}/teams/${team.espn.abbr}/schedule`);
           if (!resp.ok) throw new Error('HTTP ' + resp.status);
           const data = await resp.json();
           const now = new Date();
