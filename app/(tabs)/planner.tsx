@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
@@ -7,9 +6,11 @@ import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, Dimensions, Keyboard, KeyboardAvoidingView,
-  Linking, Modal, Platform, ScrollView, Share, StyleSheet, Text,
-  TextInput, TouchableOpacity, View,
+  Linking, Modal, Platform, ScrollView, Share,
+  Text,
+  TextInput, TouchableOpacity, View
 } from 'react-native';
+import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useApp } from '../../context/AppContext';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { SK_SAVED_ROUTES } from '../../lib/storageKeys';
