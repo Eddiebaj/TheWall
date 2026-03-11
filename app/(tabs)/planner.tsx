@@ -261,6 +261,47 @@ export default function PlannerScreen() {
     }
   }, [params.toLabel, params.toLat]);
 
+  // ── Handle deep-link text params (routeo://planner?from=X&to=Y) ──
+  useEffect(() => {
+    if (params.from || params.to) {
+      // Only handle text-only deep links (no lat/lng already handled above)
+      if (params.toLabel || params.toLat) return;
+      const geocodeAndFill = async () => {
+        try {
+          if (params.from) {
+            const fromStr = params.from as string;
+            setFromText(fromStr);
+            const resp = await fetchWithTimeout(`${GEOCODE_URL}?input=${encodeURIComponent(fromStr)}`);
+            if (resp.ok) {
+              const data = await resp.json();
+              const result = data.results?.[0];
+              if (result) {
+                const from: PlaceResult = { placeId: result.placeId || 'deeplink', label: result.label || fromStr, lat: result.lat, lng: result.lng };
+                setFromPlace(from);
+                setFromText(from.label);
+              }
+            }
+          }
+          if (params.to) {
+            const toStr = params.to as string;
+            setToText(toStr);
+            const resp = await fetchWithTimeout(`${GEOCODE_URL}?input=${encodeURIComponent(toStr)}`);
+            if (resp.ok) {
+              const data = await resp.json();
+              const result = data.results?.[0];
+              if (result) {
+                const to: PlaceResult = { placeId: result.placeId || 'deeplink', label: result.label || toStr, lat: result.lat, lng: result.lng };
+                setToPlace(to);
+                setToText(to.label);
+              }
+            }
+          }
+        } catch (e) { console.warn('deep-link geocode failed:', e); }
+      };
+      geocodeAndFill();
+    }
+  }, [params.from, params.to]);
+
   // ── Autocomplete ─────────────────────────────────────────────
   const autocomplete = useCallback(async (text: string, field: 'from' | 'to') => {
     if (text.length < 2) {
@@ -796,6 +837,8 @@ export default function PlannerScreen() {
                   Share.share({ message });
                 }}
                 style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }}
+                accessibilityRole="button"
+                accessibilityLabel={t('Share trip', 'Partager le trajet')}
               >
                 <Ionicons name="share-social-outline" size={16} color={colours.accent} />
               </TouchableOpacity>
@@ -809,13 +852,15 @@ export default function PlannerScreen() {
               <TouchableOpacity
                 onPress={() => tracking ? stopTracking() : startTracking(expandedItinerary)}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: tracking ? '#ff3b30' + '18' : colours.accent + '18', borderWidth: 1, borderColor: tracking ? '#ff3b30' : colours.accent }}
+                accessibilityRole="button"
+                accessibilityLabel={tracking ? t('Stop tracking trip', 'Arreter le suivi du trajet') : t('Start tracking trip', 'Commencer le suivi du trajet')}
               >
                 <Ionicons name={tracking ? 'stop-circle' : 'navigate'} size={14} color={tracking ? '#ff3b30' : colours.accent} />
                 <Text style={{ fontSize: 12, fontWeight: '700', color: tracking ? '#ff3b30' : colours.accent }}>
                   {tracking ? t('Stop', 'Arreter') : t('Go', 'Aller')}
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={closeExpandedModal} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }}>
+              <TouchableOpacity onPress={closeExpandedModal} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Close trip details', 'Fermer les details du trajet')}>
                 <Ionicons name="close" size={18} color={colours.text} />
               </TouchableOpacity>
             </View>
@@ -1027,6 +1072,8 @@ export default function PlannerScreen() {
               style={{ flex: 1, fontSize: 15, color: colours.text, paddingVertical: 10 }}
               placeholder={t('From...', 'De...')}
               placeholderTextColor={colours.muted}
+              accessibilityLabel={t('Starting location', 'Lieu de depart')}
+              accessibilityRole="search"
               value={fromText}
               onChangeText={text => {
                 setFromText(text);
@@ -1042,7 +1089,7 @@ export default function PlannerScreen() {
               }}
               onBlur={() => setActiveInput(null)}
             />
-            <TouchableOpacity onPress={() => useMyLocation('from')} style={{ padding: 6 }}>
+            <TouchableOpacity onPress={() => useMyLocation('from')} style={{ padding: 6 }} accessibilityRole="button" accessibilityLabel={t('Use my location as start', 'Utiliser ma position comme depart')}>
               <Ionicons name="locate" size={18} color={colours.accent} />
             </TouchableOpacity>
           </View>
@@ -1050,7 +1097,7 @@ export default function PlannerScreen() {
           {/* Divider + swap */}
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 }}>
             <View style={{ flex: 1, height: 1, backgroundColor: colours.border }} />
-            <TouchableOpacity onPress={swap} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center', marginHorizontal: 8 }}>
+            <TouchableOpacity onPress={swap} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center', marginHorizontal: 8 }} accessibilityRole="button" accessibilityLabel={t('Swap start and destination', 'Inverser depart et destination')}>
               <Ionicons name="swap-vertical" size={14} color={colours.muted} />
             </TouchableOpacity>
             <View style={{ flex: 1, height: 1, backgroundColor: colours.border }} />
@@ -1063,6 +1110,8 @@ export default function PlannerScreen() {
               style={{ flex: 1, fontSize: 15, color: colours.text, paddingVertical: 10 }}
               placeholder={t('To...', 'Vers...')}
               placeholderTextColor={colours.muted}
+              accessibilityLabel={t('Destination', 'Destination')}
+              accessibilityRole="search"
               value={toText}
               onChangeText={text => {
                 setToText(text);
@@ -1077,7 +1126,7 @@ export default function PlannerScreen() {
               }}
               onBlur={() => setActiveInput(null)}
             />
-            <TouchableOpacity onPress={() => useMyLocation('to')} style={{ padding: 6 }}>
+            <TouchableOpacity onPress={() => useMyLocation('to')} style={{ padding: 6 }} accessibilityRole="button" accessibilityLabel={t('Use my location as destination', 'Utiliser ma position comme destination')}>
               <Ionicons name="locate" size={18} color={colours.accent} />
             </TouchableOpacity>
           </View>
@@ -1136,6 +1185,9 @@ export default function PlannerScreen() {
                   key={m.key}
                   onPress={() => setTravelMode(m.key)}
                   style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 9, borderRadius: 12, borderWidth: 1, borderColor: active ? colours.accent : colours.border, backgroundColor: active ? colours.accent + '15' : colours.surface }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t(m.label_en, m.label_fr)}
+                  accessibilityState={{ selected: active }}
                 >
                   <Ionicons name={m.icon as any} size={15} color={active ? colours.accent : colours.muted} />
                   <Text style={{ fontSize: 12, fontWeight: '700', color: active ? colours.accent : colours.muted }}>{t(m.label_en, m.label_fr)}</Text>
@@ -1155,6 +1207,9 @@ export default function PlannerScreen() {
                   key={String(ab)}
                   onPress={() => { setArriveBy(ab); setShowTimePicker(true); }}
                   style={[{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: active ? colours.accent : colours.border, backgroundColor: active ? colours.accent + '15' : colours.surface }, cardShadow]}
+                  accessibilityRole="button"
+                  accessibilityLabel={ab ? t('Arrive by', 'Arriver avant') : t('Depart at', 'Depart a')}
+                  accessibilityState={{ selected: active }}
                 >
                   <Ionicons name={ab ? 'flag-outline' : 'time-outline'} size={14} color={active ? colours.accent : colours.muted} />
                   <Text style={{ fontSize: 13, fontWeight: '700', color: active ? colours.accent : colours.muted }}>{ab ? t('Arrive by', 'Arriver avant') : t('Depart at', 'Depart a')}</Text>
@@ -1173,6 +1228,8 @@ export default function PlannerScreen() {
               <TouchableOpacity
                 onPress={() => { setDepartTime(new Date()); setShowTimePicker(false); }}
                 style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15', marginBottom: 12 }}
+                accessibilityRole="button"
+                accessibilityLabel={t('Set time to now', 'Mettre a maintenant')}
               >
                 <Ionicons name="locate-outline" size={13} color={colours.accent} />
                 <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accent }}>{t('Now', 'Maintenant')}</Text>
@@ -1255,6 +1312,8 @@ export default function PlannerScreen() {
               <TouchableOpacity
                 onPress={() => setShowTimePicker(false)}
                 style={{ marginTop: 12, alignSelf: 'center', paddingHorizontal: 24, paddingVertical: 8, borderRadius: 20, backgroundColor: colours.accent }}
+                accessibilityRole="button"
+                accessibilityLabel={t('Done selecting time', 'Termine la selection de l\'heure')}
               >
                 <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>{t('Done', 'Termine')}</Text>
               </TouchableOpacity>
@@ -1268,6 +1327,8 @@ export default function PlannerScreen() {
             onPress={plan}
             style={{ paddingVertical: 14, borderRadius: 14, backgroundColor: colours.accent, alignItems: 'center', justifyContent: 'center' }}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={travelMode === 'transit' ? t('Plan Trip', 'Planifier le trajet') : t('Open in Google Maps', 'Ouvrir dans Google Maps')}
           >
             {loading
               ? <ActivityIndicator color="white" size="small" />
@@ -1284,6 +1345,8 @@ export default function PlannerScreen() {
               disabled={isoLoading}
               style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '12' }}
               activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={t('What can I reach in 20 minutes', 'Que puis-je atteindre en 20 minutes')}
             >
               <Ionicons name="locate-outline" size={16} color={colours.accent} />
               <Text style={{ color: colours.accent, fontWeight: '700', fontSize: 14 }}>{t('What can I reach in 20 min?', 'Que puis-je atteindre en 20 min?')}</Text>
@@ -1296,7 +1359,7 @@ export default function PlannerScreen() {
                     <Ionicons name="compass-outline" size={16} color={colours.accent} />
                     <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>{t('Reachable in 20 min', 'Accessible en 20 min')}</Text>
                   </View>
-                  <TouchableOpacity onPress={() => setIsoVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <TouchableOpacity onPress={() => setIsoVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Close reachable stops', 'Fermer les arrets accessibles')}>
                     <Ionicons name="close-circle" size={20} color={colours.muted} />
                   </TouchableOpacity>
                 </View>
@@ -1351,6 +1414,9 @@ export default function PlannerScreen() {
                 onPress={toggleSaveRoute}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: isRouteSaved() ? colours.accent : colours.border, backgroundColor: isRouteSaved() ? colours.accent + '15' : colours.surface }}
                 activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={isRouteSaved() ? t('Remove saved route', 'Retirer le trajet enregistre') : t('Save route', 'Enregistrer le trajet')}
+                accessibilityState={{ selected: isRouteSaved() }}
               >
                 <Ionicons name={isRouteSaved() ? 'bookmark' : 'bookmark-outline'} size={14} color={isRouteSaved() ? colours.accent : colours.muted} />
                 <Text style={{ fontSize: 12, fontWeight: '700', color: isRouteSaved() ? colours.accent : colours.muted }}>

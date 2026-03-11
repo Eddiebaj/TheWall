@@ -175,6 +175,8 @@ export default function SavedScreen() {
                   </View>
                   <TouchableOpacity
                     onPress={() => removeFav(fav.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t(`Remove stop ${fav.name}`, `Retirer l'arrêt ${fav.name}`)}
                     style={{
                       backgroundColor: colours.red + '15',
                       borderWidth: 1,

@@ -188,7 +188,7 @@ export default function OnboardingScreen() {
         {/* Dot indicators */}
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 28 }}>
           {SLIDES.map((_, i) => (
-            <TouchableOpacity key={i} onPress={() => goToSlide(i)} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+            <TouchableOpacity key={i} onPress={() => goToSlide(i)} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }} accessibilityRole="button" accessibilityLabel={t(`Go to slide ${i + 1}`, `Aller à la diapositive ${i + 1}`)} accessibilityState={{ selected: i === currentIndex }}>
               <View style={{
                 width: i === currentIndex ? 28 : 8,
                 height: 8, borderRadius: 4,
@@ -208,6 +208,8 @@ export default function OnboardingScreen() {
           }}
           onPress={() => isLast ? finish() : goToSlide(currentIndex + 1)}
           activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={isLast ? t('Get Started', 'Commencer') : t('Next slide', 'Diapositive suivante')}
         >
           <Text style={{ color: 'white', fontWeight: '800', fontSize: 17 }}>
             {isLast
@@ -222,6 +224,8 @@ export default function OnboardingScreen() {
           <TouchableOpacity
             style={{ paddingVertical: 14, alignItems: 'center' }}
             onPress={finish}
+            accessibilityRole="button"
+            accessibilityLabel={t('Skip onboarding', 'Passer la présentation')}
           >
             <Text style={{ color: '#5a6a7a', fontSize: 14, fontWeight: '600' }}>
               {t('Skip', 'Passer')}

@@ -21,6 +21,8 @@ function RootNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
       <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="stop/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="route/[id]" options={{ headerShown: false }} />
     </Stack>
   );
 }

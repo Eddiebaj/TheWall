@@ -1003,6 +1003,7 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
                     value={stationQuery}
                     onChangeText={handleStationSearch}
                     style={{ borderWidth: 1, borderColor: stationName ? '#00A78D' : colours.border, borderRadius: 12, padding: 14, fontSize: fonts.md, color: colours.text, backgroundColor: colours.surface }}
+                    accessibilityLabel={t('Search gas station', 'Chercher une station')}
                   />
                   {stationName ? (
                     <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 4, marginLeft: 4 }} numberOfLines={1}>{stationAddress}</Text>
@@ -3157,10 +3158,10 @@ function LiveScreenInner() {
       <View style={{ position: 'relative' }}>
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderWidth: 2, borderColor: colours.accent + '40', borderRadius: 16, margin: 8, borderStyle: 'dashed', zIndex: 1, pointerEvents: 'none' }} />
         <View style={{ position: 'absolute', right: 16, top: 8, flexDirection: 'row', gap: 4, zIndex: 10 }}>
-          <TouchableOpacity onPress={() => moveSectionUp(id)} style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }}>
+          <TouchableOpacity onPress={() => moveSectionUp(id)} style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Move section up', 'Deplacer la section vers le haut')}>
             <Ionicons name="chevron-up" size={14} color={idx === 0 ? colours.muted : colours.accent} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => moveSectionDown(id)} style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }}>
+          <TouchableOpacity onPress={() => moveSectionDown(id)} style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Move section down', 'Deplacer la section vers le bas')}>
             <Ionicons name="chevron-down" size={14} color={idx === sectionOrder.length - 1 ? colours.muted : colours.accent} />
           </TouchableOpacity>
         </View>
@@ -3263,11 +3264,11 @@ function LiveScreenInner() {
           <Text style={{ fontSize: fonts.xl, fontWeight: '700', color: item.minsAway <= 2 ? colours.red : colours.accent }}>{timeDisplay}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             {!item.isScheduled && (
-              <TouchableOpacity style={[styles.reportBtn, { borderColor: colours.border, backgroundColor: colours.card }]} onPress={() => reportBusPassed(item.routeId)}>
+              <TouchableOpacity style={[styles.reportBtn, { borderColor: colours.border, backgroundColor: colours.card }]} onPress={() => reportBusPassed(item.routeId)} accessibilityRole="button" accessibilityLabel={t('Report bus passed', 'Signaler le bus passe')}>
                 <Text style={{ fontSize: fonts.sm, color: colours.orange, fontWeight: '600' }}>{t('Passed?', 'Passé?')}</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={() => shareETA(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity onPress={() => shareETA(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Share arrival time', 'Partager l\'heure d\'arrivee')}>
               <Ionicons name="share-outline" size={16} color={colours.muted} />
             </TouchableOpacity>
           </View>
@@ -3428,8 +3429,8 @@ function LiveScreenInner() {
             <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 16 }} />
             <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text, paddingHorizontal: 20, marginBottom: 12 }}>Garbage Day</Text>
             <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginBottom: 8 }}>
-              <TextInput style={{ flex: 1, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, color: colours.text, fontSize: fonts.md }} placeholder="Enter your Ottawa address..." placeholderTextColor={colours.muted} value={garbageAddressInput} onChangeText={setGarbageAddressInput} onSubmitEditing={() => searchGarbageAddress(garbageAddressInput)} returnKeyType="search" />
-              <TouchableOpacity onPress={() => searchGarbageAddress(garbageAddressInput)} style={{ backgroundColor: colours.accent, borderRadius: 12, paddingHorizontal: 14, justifyContent: 'center' }}>
+              <TextInput style={{ flex: 1, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, color: colours.text, fontSize: fonts.md }} placeholder="Enter your Ottawa address..." placeholderTextColor={colours.muted} value={garbageAddressInput} onChangeText={setGarbageAddressInput} onSubmitEditing={() => searchGarbageAddress(garbageAddressInput)} returnKeyType="search" accessibilityLabel={t('Enter your Ottawa address', 'Entrez votre adresse a Ottawa')} />
+              <TouchableOpacity onPress={() => searchGarbageAddress(garbageAddressInput)} style={{ backgroundColor: colours.accent, borderRadius: 12, paddingHorizontal: 14, justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Search address', 'Rechercher l\'adresse')}>
                 <Ionicons name="search" size={18} color="white" />
               </TouchableOpacity>
             </View>
@@ -3459,7 +3460,7 @@ function LiveScreenInner() {
                 <Text style={{ fontSize: fonts.md, color: colours.muted, textAlign: 'center', marginTop: 12 }}>Enter your Ottawa address to see your collection schedule.</Text>
               </View>
             )}
-            <TouchableOpacity onPress={() => { setGarbageModalVisible(false); setExpandedBin(null); }} style={{ marginHorizontal: 20, marginTop: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: colours.accent, alignItems: 'center' }}>
+            <TouchableOpacity onPress={() => { setGarbageModalVisible(false); setExpandedBin(null); }} style={{ marginHorizontal: 20, marginTop: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: colours.accent, alignItems: 'center' }} accessibilityRole="button" accessibilityLabel={t('Done', 'Termine')}>
               <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>Done</Text>
             </TouchableOpacity>
           </View>
@@ -3497,7 +3498,7 @@ function LiveScreenInner() {
           <View style={{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 16, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
             {dailyForecast.map((d, i) => (<View key={i} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: i < dailyForecast.length - 1 ? 1 : 0, borderBottomColor: colours.border }}><Text style={{ flex: 1, fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{d.day}</Text><Ionicons name={d.icon as any} size={20} color={iconColor(d.icon)} style={{ marginRight: 8 }} />{d.precip > 0 && <Text style={{ fontSize: fonts.sm, color: '#1a6fbf', fontWeight: '600', minWidth: 36, textAlign: 'right', marginRight: 8 }}>{d.precip}%</Text>}<Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, minWidth: 32, textAlign: 'right' }}>{d.high}°</Text><Text style={{ fontSize: fonts.md, color: colours.muted, minWidth: 32, textAlign: 'right' }}>{d.low}°</Text></View>))}
           </View>
-          <TouchableOpacity onPress={() => setWeatherModalVisible(false)} style={{ marginHorizontal: 20, marginTop: 16, paddingVertical: 14, borderRadius: 14, backgroundColor: colours.accent, alignItems: 'center' }}>
+          <TouchableOpacity onPress={() => setWeatherModalVisible(false)} style={{ marginHorizontal: 20, marginTop: 16, paddingVertical: 14, borderRadius: 14, backgroundColor: colours.accent, alignItems: 'center' }} accessibilityRole="button" accessibilityLabel={t('Close weather', 'Fermer la meteo')}>
             <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>Done</Text>
           </TouchableOpacity>
         </View>
@@ -3558,7 +3559,7 @@ function LiveScreenInner() {
               <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>{expandedName}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
                 <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{lastUpdated ? `${t('Updated', 'Mis \u00E0 jour')} ${lastUpdated}` : t('All arrivals', 'Toutes les arriv\u00E9es')}</Text>
-                <TouchableOpacity onPress={toggleTimeFormat} style={{ flexDirection: 'row', borderRadius: 8, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
+                <TouchableOpacity onPress={toggleTimeFormat} style={{ flexDirection: 'row', borderRadius: 8, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }} accessibilityRole="button" accessibilityLabel={t('Toggle time format', 'Changer le format de l\'heure')}>
                   <View style={{ paddingHorizontal: 8, paddingVertical: 3, backgroundColor: timeFormat === 'relative' ? colours.accent : 'transparent' }}>
                     <Text style={{ fontSize: 10, fontWeight: '700', color: timeFormat === 'relative' ? 'white' : colours.muted }}>8 min</Text>
                   </View>
@@ -3686,11 +3687,11 @@ function LiveScreenInner() {
         <SectionWrapper key="alerts" id="alerts">
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 6 }}>
             <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, letterSpacing: 1, textTransform: 'uppercase' }}>{t('Service Alerts', 'Alertes')}</Text>
-            <TouchableOpacity onPress={() => { const item: SavedBoardItem = { type: 'service_alert' }; isBoardSaved(item) ? removeFromBoard(item) : addToBoardIfMissing(item); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity onPress={() => { const item: SavedBoardItem = { type: 'service_alert' }; isBoardSaved(item) ? removeFromBoard(item) : addToBoardIfMissing(item); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Save alerts to board', 'Sauvegarder les alertes au tableau')} accessibilityState={{ selected: isBoardSaved({ type: 'service_alert' }) }}>
               <Ionicons name={isBoardSaved({ type: 'service_alert' }) ? 'bookmark' : 'bookmark-outline'} size={18} color={isBoardSaved({ type: 'service_alert' }) ? colours.accent : colours.muted} />
             </TouchableOpacity>
           </View>
-          <TouchableOpacity style={[styles.notifBar, { backgroundColor: hasAlerts ? alertDotColour() + '12' : colours.surface, borderColor: hasAlerts ? alertDotColour() : colours.border, ...cardShadow }]} onPress={() => setAlertsModalVisible(true)}>
+          <TouchableOpacity style={[styles.notifBar, { backgroundColor: hasAlerts ? alertDotColour() + '12' : colours.surface, borderColor: hasAlerts ? alertDotColour() : colours.border, ...cardShadow }]} onPress={() => setAlertsModalVisible(true)} accessibilityRole="button" accessibilityLabel={t('View service alerts', 'Voir les alertes de service')}>
             <View style={styles.notifLeft}>
               {alertsLoading ? <ActivityIndicator size="small" color={colours.muted} style={{ marginRight: 8 }} /> : <View style={[styles.notifDot, { backgroundColor: alertDotColour() }]} />}
               <Text style={{ color: colours.text, fontSize: fonts.md, fontWeight: '500', flex: 1 }} numberOfLines={1}>{alertBarText()}</Text>
@@ -3707,7 +3708,7 @@ function LiveScreenInner() {
           <View style={styles.discoverHeader}>
             <Text style={[styles.sectionLabel, { color: colours.muted, fontSize: fonts.sm, marginBottom: 0 }]}>{t('Discover Ottawa', 'Découvrir Ottawa')}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <TouchableOpacity onPress={() => { const item: SavedBoardItem = { type: 'discover' }; isBoardSaved(item) ? removeFromBoard(item) : addToBoardIfMissing(item); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity onPress={() => { const item: SavedBoardItem = { type: 'discover' }; isBoardSaved(item) ? removeFromBoard(item) : addToBoardIfMissing(item); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Save discover to board', 'Sauvegarder decouvrir au tableau')} accessibilityState={{ selected: isBoardSaved({ type: 'discover' }) }}>
                 <Ionicons name={isBoardSaved({ type: 'discover' }) ? 'bookmark' : 'bookmark-outline'} size={18} color={isBoardSaved({ type: 'discover' }) ? colours.accent : colours.muted} />
               </TouchableOpacity>
               <TouchableOpacity onPress={() => Alert.alert(t('Discover', 'Découvrir'), t('More coming soon!', 'Plus à venir!'))}><Text style={{ color: colours.accent, fontSize: fonts.sm, fontWeight: '600' }}>{t('See all →', 'Voir tout →')}</Text></TouchableOpacity>
@@ -3822,7 +3823,8 @@ function LiveScreenInner() {
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                     {['Pothole', 'Graffiti', 'Broken Sign', 'Snow/Ice', 'Other'].map(cat => (
                       <TouchableOpacity key={cat} onPress={() => setReport311Category(cat)}
-                        style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, backgroundColor: report311Category === cat ? '#cc3b2a' + '18' : colours.surface, borderColor: report311Category === cat ? '#cc3b2a' : colours.border }}>
+                        style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, backgroundColor: report311Category === cat ? '#cc3b2a' + '18' : colours.surface, borderColor: report311Category === cat ? '#cc3b2a' : colours.border }}
+                        accessibilityRole="button" accessibilityLabel={cat} accessibilityState={{ selected: report311Category === cat }}>
                         <Text style={{ fontSize: 13, fontWeight: '700', color: report311Category === cat ? '#cc3b2a' : colours.muted }}>{cat}</Text>
                       </TouchableOpacity>
                     ))}
@@ -3834,6 +3836,7 @@ function LiveScreenInner() {
                     placeholder={t('Auto-filled from GPS...', 'Rempli automatiquement par GPS...')}
                     placeholderTextColor={colours.muted}
                     style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 12, padding: 14, fontSize: fonts.md, color: colours.text, backgroundColor: colours.surface }}
+                    accessibilityLabel={t('Report location', 'Emplacement du signalement')}
                   />
                   <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Description', 'Description')}</Text>
                   <TextInput
@@ -3843,18 +3846,19 @@ function LiveScreenInner() {
                     placeholderTextColor={colours.muted}
                     multiline numberOfLines={3}
                     style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 12, padding: 14, fontSize: fonts.md, color: colours.text, backgroundColor: colours.surface, minHeight: 80, textAlignVertical: 'top' }}
+                    accessibilityLabel={t('Describe the issue', 'Decrivez le probleme')}
                   />
                   <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Photo (optional)', 'Photo (optionnel)')}</Text>
-                  <TouchableOpacity onPress={pick311Photo} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, borderWidth: 1, borderColor: colours.border, borderRadius: 12, backgroundColor: colours.surface, borderStyle: 'dashed' }}>
+                  <TouchableOpacity onPress={pick311Photo} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, borderWidth: 1, borderColor: colours.border, borderRadius: 12, backgroundColor: colours.surface, borderStyle: 'dashed' }} accessibilityRole="button" accessibilityLabel={t('Add photo', 'Ajouter une photo')}>
                     <Ionicons name={report311Photo ? 'checkmark-circle' : 'camera-outline'} size={20} color={report311Photo ? '#2d7a3a' : colours.muted} />
                     <Text style={{ fontSize: fonts.md, color: report311Photo ? '#2d7a3a' : colours.muted, fontWeight: '600' }}>
                       {report311Photo ? t('Photo selected', 'Photo s\u00E9lectionn\u00E9e') : t('Tap to add photo', 'Appuyez pour ajouter')}
                     </Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={submit311} style={{ backgroundColor: '#cc3b2a', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 }}>
+                  <TouchableOpacity onPress={submit311} style={{ backgroundColor: '#cc3b2a', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 }} accessibilityRole="button" accessibilityLabel={t('Send report via email to 311', 'Envoyer le signalement par courriel au 311')}>
                     <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.lg }}>{t('Send via Email to 311', 'Envoyer par courriel au 311')}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => { setShow311Modal(false); Linking.openURL('https://ottawa.ca/en/311'); }} style={{ alignItems: 'center', paddingVertical: 8 }}>
+                  <TouchableOpacity onPress={() => { setShow311Modal(false); Linking.openURL('https://ottawa.ca/en/311'); }} style={{ alignItems: 'center', paddingVertical: 8 }} accessibilityRole="link" accessibilityLabel={t('Report online at ottawa.ca/311', 'Signaler en ligne sur ottawa.ca/311')}>
                     <Text style={{ color: colours.accent, fontWeight: '600', fontSize: fonts.sm }}>{t('Or report online at ottawa.ca/311', 'Ou signaler en ligne sur ottawa.ca/311')}</Text>
                   </TouchableOpacity>
                 </ScrollView>
