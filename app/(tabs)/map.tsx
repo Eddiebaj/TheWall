@@ -83,22 +83,35 @@ const isLRT = (routeId: string) => {
          base === 'confederation' || base === 'trillium' || routeId.toLowerCase().includes('lrt');
 };
 
-// Native-only bus marker (no custom View children) to prevent AIRMap insertReactSubview crash
+// Custom styled bus marker — safe with tracksViewChanges=false, incremental rendering, and marker cap
 const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) => void }) => {
   const lrt = isLRT(bus.routeId);
   const isSTO = bus.agency === 'STO';
-  const pinColor = lrt ? getRouteColour(bus.routeId) : isSTO ? '#1abc9c' : '#FF3B30';
   const label = lrt ? 'LRT' : bus.routeId.split('-')[0];
-  const agency = isSTO ? 'STO' : 'OC Transpo';
+  const bgColor = lrt ? getRouteColour(bus.routeId) : isSTO ? '#fff' : '#FF3B30';
+  const textColor = lrt ? '#fff' : isSTO ? '#1abc9c' : '#fff';
   return (
     <Marker
       coordinate={{ latitude: bus.lat, longitude: bus.lng }}
-      title={label}
-      description={agency}
-      pinColor={pinColor}
       tracksViewChanges={false}
+      anchor={{ x: 0.5, y: 0.5 }}
       onPress={() => onPress(bus)}
-    />
+    >
+      <View style={{
+        backgroundColor: bgColor,
+        borderRadius: 10,
+        paddingHorizontal: 5,
+        paddingVertical: 2,
+        borderWidth: isSTO ? 1.5 : 0,
+        borderColor: '#1abc9c',
+        minWidth: 24,
+        alignItems: 'center',
+      }}>
+        <Text style={{ color: textColor, fontSize: 9, fontWeight: '800' }}>
+          {label}
+        </Text>
+      </View>
+    </Marker>
   );
 });
 
@@ -537,8 +550,8 @@ export default function MapScreen() {
       if (!hasAll && filters.has('bus')) return !isLRT(b.routeId);
       return true;
     });
-    // Cap at 40 markers when at neighborhood zoom level
-    if (zoomNeighborhood && result.length > 40) result = result.slice(0, 40);
+    // Cap at 25 markers when at neighborhood zoom level
+    if (zoomNeighborhood && result.length > 25) result = result.slice(0, 25);
     return result;
   }, [showBuses, zoomTooFar, zoomNeighborhood, buses, hasAll, hasSaved, filters, savedRouteIds, viewBounds]);
 
