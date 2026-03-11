@@ -26,6 +26,7 @@ type Leg = {
   distance: number;
   from: { name: string; lat: number; lon: number };
   to: { name: string; lat: number; lon: number };
+  agencyId?: string;
   routeShortName: string | null;
   routeLongName: string | null;
   headsign: string | null;
@@ -527,6 +528,12 @@ export default function PlannerScreen() {
     );
   };
 
+  // Detect cross-border trips (OC Transpo + STO)
+  const hasCrossBorderTrip = (itin: Itinerary): boolean => {
+    const agencies = new Set(itin.legs.map(leg => leg.agencyId).filter(Boolean));
+    return agencies.has('1:OC_TRANSPO') && agencies.has('1:STO');
+  };
+
   const renderItinerary = (itin: Itinerary, idx: number) => {
     const isWalkOnly = itin.legs.every(l => l.mode === 'WALK');
     // BEST = first non-walk itinerary (already sorted by earliest arrival)
@@ -571,6 +578,14 @@ export default function PlannerScreen() {
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
           {itin.legs.map((leg, i) => renderLegPill(leg, i))}
         </View>
+
+        {/* Cross-border warning */}
+        {hasCrossBorderTrip(itin) && (
+          <View style={{ backgroundColor: '#ff9500' + '15', borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, marginBottom: 10 }}>
+            <Text style={{ fontSize: 12, color: '#ff9500', fontWeight: '600' }}>⚠️ Cross-Border Trip</Text>
+            <Text style={{ fontSize: 11, color: colours.muted, marginTop: 4 }}>Separate Presto tap required ($4.10 each)</Text>
+          </View>
+        )}
 
         {/* Footer row */}
         <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
