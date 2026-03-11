@@ -5,7 +5,7 @@ import {
   ActivityIndicator, Animated, Linking,
   ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
-import MapView, { Marker, Region } from 'react-native-maps';
+import MapView, { Callout, Marker, Region } from 'react-native-maps';
 import { useApp } from '../../context/AppContext';
 
 // Error boundary to catch AIRMap native crashes and show a recoverable fallback
@@ -83,34 +83,37 @@ const isLRT = (routeId: string) => {
          base === 'confederation' || base === 'trillium' || routeId.toLowerCase().includes('lrt');
 };
 
-// Custom styled bus marker — safe with tracksViewChanges=false, incremental rendering, and marker cap
+// Native-only bus marker — NO custom View/Text children to avoid AIRMap crash
+// Callout is safe (only one renders at a time when tapped)
 const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) => void }) => {
-  const lrt = isLRT(bus.routeId);
   const isSTO = bus.agency === 'STO';
-  const label = lrt ? 'LRT' : bus.routeId.split('-')[0];
-  const bgColor = lrt ? getRouteColour(bus.routeId) : isSTO ? '#fff' : '#FF3B30';
-  const textColor = lrt ? '#fff' : isSTO ? '#1abc9c' : '#fff';
+  const label = isLRT(bus.routeId) ? 'LRT' : bus.routeId.split('-')[0];
   return (
     <Marker
       coordinate={{ latitude: bus.lat, longitude: bus.lng }}
+      pinColor={isSTO ? '#1abc9c' : '#FF3B30'}
       tracksViewChanges={false}
-      anchor={{ x: 0.5, y: 0.5 }}
       onPress={() => onPress(bus)}
     >
-      <View style={{
-        backgroundColor: bgColor,
-        borderRadius: 10,
-        paddingHorizontal: 5,
-        paddingVertical: 2,
-        borderWidth: isSTO ? 1.5 : 0,
-        borderColor: '#1abc9c',
-        minWidth: 24,
-        alignItems: 'center',
-      }}>
-        <Text style={{ color: textColor, fontSize: 9, fontWeight: '800' }}>
-          {label}
-        </Text>
-      </View>
+      <Callout tooltip>
+        <View style={{
+          backgroundColor: '#fff', borderRadius: 10, padding: 10,
+          minWidth: 120, alignItems: 'center',
+          borderWidth: 1, borderColor: '#ddd',
+        }}>
+          <Text style={{ fontSize: 18, fontWeight: '800', color: isSTO ? '#1abc9c' : '#FF3B30' }}>
+            {label}
+          </Text>
+          <Text style={{ fontSize: 11, fontWeight: '600', color: '#555', marginTop: 2 }}>
+            {isSTO ? 'STO Gatineau' : 'OC Transpo'}
+          </Text>
+          {bus.toStop ? (
+            <Text style={{ fontSize: 10, color: '#888', marginTop: 3 }} numberOfLines={1}>
+              → {bus.toStop}
+            </Text>
+          ) : null}
+        </View>
+      </Callout>
     </Marker>
   );
 });
