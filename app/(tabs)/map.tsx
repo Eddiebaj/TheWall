@@ -613,70 +613,73 @@ export default function MapScreen() {
         onPress={() => hasSheet && hideSheet()}
         onRegionChangeComplete={(r) => setRegion(r)}
       >
-        {/* Bus markers — rendered incrementally to prevent AIRMap crash */}
-        {visibleBuses.map((bus: Bus) => (
-          <BusMarker key={bus.id} bus={bus} onPress={openSheet} />
-        ))}
+        {/* ALL markers deferred until native map is ready to prevent AIRMap crash */}
+        {mapReady && <>
+          {/* Bus markers — rendered incrementally */}
+          {visibleBuses.map((bus: Bus) => (
+            <BusMarker key={bus.id} bus={bus} onPress={openSheet} />
+          ))}
 
-        {/* Event cluster markers — native only, no children */}
-        {showEvents && (hasAll || filters.has('bus')) && clusters.map((cluster) => {
-          const single = cluster.count === 1 ? cluster.events[0] : null;
-          const title = cluster.count > 1
-            ? `${cluster.count} events`
-            : single!.name;
-          const desc = cluster.count > 1
-            ? cluster.events.map(e => e.name).slice(0, 3).join(', ')
-            : single!.venue;
-          return (
-            <Marker
-              key={cluster.id}
-              coordinate={{ latitude: cluster.lat, longitude: cluster.lng }}
-              pinColor="#026CDF"
-              title={title}
-              description={desc}
-              tracksViewChanges={false}
-              onPress={() => cluster.count > 1 ? openSheet(undefined, undefined, cluster.events) : openSheet(undefined, single!)}
-            />
-          );
-        })}
+          {/* Event cluster markers */}
+          {showEvents && (hasAll || filters.has('bus')) && clusters.map((cluster) => {
+            const single = cluster.count === 1 ? cluster.events[0] : null;
+            const title = cluster.count > 1
+              ? `${cluster.count} events`
+              : single!.name;
+            const desc = cluster.count > 1
+              ? cluster.events.map(e => e.name).slice(0, 3).join(', ')
+              : single!.venue;
+            return (
+              <Marker
+                key={cluster.id}
+                coordinate={{ latitude: cluster.lat, longitude: cluster.lng }}
+                pinColor="#026CDF"
+                title={title}
+                description={desc}
+                tracksViewChanges={false}
+                onPress={() => cluster.count > 1 ? openSheet(undefined, undefined, cluster.events) : openSheet(undefined, single!)}
+              />
+            );
+          })}
 
-        {/* Saved pin markers — native only, no children */}
-        {hasSaved && savedPins.map((pin) => {
-          const color = pin.kind === 'stop' ? '#e74c3c' : pin.kind === 'route_from' ? '#2ecc71' : '#3498db';
-          const kindLabel = pin.kind === 'stop' ? 'Stop' : pin.kind === 'route_from' ? 'Origin' : 'Destination';
-          return (
-            <Marker
-              key={pin.id}
-              coordinate={{ latitude: pin.lat, longitude: pin.lng }}
-              pinColor={color}
-              title={pin.name}
-              description={pin.routeLabel ? `${kindLabel} — ${pin.routeLabel}` : kindLabel}
-              tracksViewChanges={false}
-              onPress={() => {
-                setSelectedSavedPin(pin);
-                openSheet();
-              }}
-            />
-          );
-        })}
+          {/* Saved pin markers */}
+          {hasSaved && savedPins.map((pin) => {
+            const color = pin.kind === 'stop' ? '#e74c3c' : pin.kind === 'route_from' ? '#2ecc71' : '#3498db';
+            const kindLabel = pin.kind === 'stop' ? 'Stop' : pin.kind === 'route_from' ? 'Origin' : 'Destination';
+            return (
+              <Marker
+                key={pin.id}
+                coordinate={{ latitude: pin.lat, longitude: pin.lng }}
+                pinColor={color}
+                title={pin.name}
+                description={pin.routeLabel ? `${kindLabel} — ${pin.routeLabel}` : kindLabel}
+                tracksViewChanges={false}
+                onPress={() => {
+                  setSelectedSavedPin(pin);
+                  openSheet();
+                }}
+              />
+            );
+          })}
 
-        {/* Venue markers — native only, no children */}
-        {filteredVenues.map((v, i) => {
-          const color = getVenuePinColor(v);
-          const { active } = getVenueTodayDeals(v);
-          const dealDesc = active.length > 0 ? active[0].description : v.type.join(', ');
-          return (
-            <Marker
-              key={`venue_${i}`}
-              coordinate={{ latitude: v.lat, longitude: v.lng }}
-              pinColor={color}
-              title={v.name}
-              description={dealDesc}
-              tracksViewChanges={false}
-              onPress={() => openSheet(undefined, undefined, undefined, v)}
-            />
-          );
-        })}
+          {/* Venue markers */}
+          {filteredVenues.map((v, i) => {
+            const color = getVenuePinColor(v);
+            const { active } = getVenueTodayDeals(v);
+            const dealDesc = active.length > 0 ? active[0].description : v.type.join(', ');
+            return (
+              <Marker
+                key={`venue_${i}`}
+                coordinate={{ latitude: v.lat, longitude: v.lng }}
+                pinColor={color}
+                title={v.name}
+                description={dealDesc}
+                tracksViewChanges={false}
+                onPress={() => openSheet(undefined, undefined, undefined, v)}
+              />
+            );
+          })}
+        </>}
       </MapView>
 
       {/* Header */}

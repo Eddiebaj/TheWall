@@ -1,0 +1,34 @@
+diff --git a/node_modules/react-native-maps/ios/AirMaps/AIRMap.m b/node_modules/react-native-maps/ios/AirMaps/AIRMap.m
+index 07a4638..0822f90 100644
+--- a/node_modules/react-native-maps/ios/AirMaps/AIRMap.m
++++ b/node_modules/react-native-maps/ios/AirMaps/AIRMap.m
+@@ -104,6 +104,9 @@ -(void)addSubview:(UIView *)view {
+ #pragma clang diagnostic push
+ #pragma clang diagnostic ignored "-Wobjc-missing-super-calls"
+ - (void)insertReactSubview:(id<RCTComponent>)subview atIndex:(NSInteger)atIndex {
++    // Nil guard to prevent NSInvalidArgumentException crash (PR #5230 backport)
++    if (subview == nil) return;
++
+     // Our desired API is to pass up markers/overlays as children to the mapview component.
+     // This is where we intercept them and do the appropriate underlying mapview action.
+     if ([subview isKindOfClass:[AIRMapMarker class]]) {
+@@ -135,13 +138,18 @@ - (void)insertReactSubview:(id<RCTComponent>)subview atIndex:(NSInteger)atIndex
+             [self insertReactSubview:(UIView *)childSubviews[i] atIndex:atIndex];
+         }
+     }
+-    [_reactSubviews insertObject:(UIView *)subview atIndex:(NSUInteger) atIndex];
++    // Clamp index to prevent out-of-bounds crash (PR #5230 backport)
++    NSUInteger safeIndex = MIN((NSUInteger)atIndex, _reactSubviews.count);
++    [_reactSubviews insertObject:(UIView *)subview atIndex:safeIndex];
+ }
+ #pragma clang diagnostic pop
+ 
+ #pragma clang diagnostic push
+ #pragma clang diagnostic ignored "-Wobjc-missing-super-calls"
+ - (void)removeReactSubview:(id<RCTComponent>)subview {
++    // Nil guard (PR #5230 backport)
++    if (subview == nil) return;
++
+     // similarly, when the children are being removed we have to do the appropriate
+     // underlying mapview action here.
+     if ([subview isKindOfClass:[AIRMapMarker class]]) {
