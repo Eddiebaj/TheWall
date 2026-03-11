@@ -383,7 +383,7 @@ export default function MapScreen() {
   const [selectedVenue, setSelectedVenue] = useState<VenuePin | null>(null);
   const [filters, setFilters] = useState<Set<string>>(new Set(['all']));
   const [searchText, setSearchText] = useState('');
-  const [showEvents, setShowEvents] = useState(true);
+  const [showEvents, setShowEvents] = useState(false);
   const [events, setEvents] = useState<MapEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [selectedCluster, setSelectedCluster] = useState<MapEvent[] | null>(null);
