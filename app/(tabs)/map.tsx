@@ -51,31 +51,22 @@ const isLRT = (routeId: string) => {
          base === 'confederation' || base === 'trillium' || routeId.toLowerCase().includes('lrt');
 };
 
-// Memoized bus marker to prevent re-renders of all markers when one changes
+// Native-only bus marker (no custom View children) to prevent AIRMap insertReactSubview crash
 const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) => void }) => {
   const lrt = isLRT(bus.routeId);
   const isSTO = bus.agency === 'STO';
-  const bgColor = lrt ? getRouteColour(bus.routeId) : isSTO ? '#ffffff' : '#FF3B30';
-  const textColor = isSTO ? '#1abc9c' : '#ffffff';
-  const borderColor = isSTO ? '#1abc9c' : '#ffffff';
+  const pinColor = lrt ? getRouteColour(bus.routeId) : isSTO ? '#1abc9c' : '#FF3B30';
+  const label = lrt ? 'LRT' : bus.routeId.split('-')[0];
+  const agency = isSTO ? 'STO' : 'OC Transpo';
   return (
     <Marker
       coordinate={{ latitude: bus.lat, longitude: bus.lng }}
-      onPress={() => onPress(bus)}
-      anchor={{ x: 0.5, y: 0.5 }}
+      title={label}
+      description={agency}
+      pinColor={pinColor}
       tracksViewChanges={false}
-    >
-      <View style={{
-        backgroundColor: bgColor, borderRadius: lrt ? 8 : 12,
-        paddingHorizontal: lrt ? 7 : 6, paddingVertical: lrt ? 4 : 3,
-        borderWidth: isSTO ? 1.5 : 2, borderColor,
-        minWidth: 28, alignItems: 'center',
-      }}>
-        <Text style={{ color: lrt ? '#ffffff' : textColor, fontSize: lrt ? 11 : 10, fontWeight: '800' }}>
-          {lrt ? '🚊' : bus.routeId.split('-')[0]}
-        </Text>
-      </View>
-    </Marker>
+      onPress={() => onPress(bus)}
+    />
   );
 });
 
