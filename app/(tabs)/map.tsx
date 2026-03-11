@@ -665,14 +665,15 @@ export default function MapScreen() {
           {/* Venue markers */}
           {filteredVenues.map((v, i) => {
             const color = getVenuePinColor(v);
-            const { active } = getVenueTodayDeals(v);
-            const dealDesc = active.length > 0 ? active[0].description : v.type.join(', ');
+            const { active, upcoming } = getVenueTodayDeals(v);
+            const hasDeals = active.length > 0 || upcoming.length > 0;
+            const dealDesc = active.length > 0 ? active[0] : upcoming.length > 0 ? upcoming[0] : undefined;
             return (
               <Marker
                 key={`venue_${i}`}
                 coordinate={{ latitude: v.lat, longitude: v.lng }}
                 pinColor={color}
-                title={v.name}
+                title={hasDeals ? v.name : undefined}
                 description={dealDesc}
                 tracksViewChanges={false}
                 onPress={() => openSheet(undefined, undefined, undefined, v)}
