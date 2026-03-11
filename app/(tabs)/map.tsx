@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Animated, Linking,
+  ActivityIndicator, Animated, Keyboard, Linking,
   ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
@@ -41,7 +41,7 @@ class MapErrorBoundary extends React.Component<
 }
 
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
-import { TICKETMASTER_API_KEY } from '../../lib/keys';
+import { TICKETMASTER_API_KEY, GOOGLE_PLACES_API_KEY } from '../../lib/keys';
 
 const VEHICLES_URL    = 'https://routeo-backend.vercel.app/api/vehicles';
 const BACKEND_URL     = 'https://routeo-backend.vercel.app/api/arrivals';
@@ -282,10 +282,10 @@ const VENUE_PINS: VenuePin[] = [
     { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm-close HH' },
     { days: [0], start: '11:00', end: '23:59', description: 'All-day specials Sundays' },
   ]},
-  { name: 'The Waverly', address: '339 Elgin St', type: ['bar', 'club'], lat: 45.4148, lng: -75.6882, deals: [
+  { name: 'The Waverly', address: '339 Elgin St', type: ['bar', 'club'], lat: 45.4161, lng: -75.6881, deals: [
     { days: [5,6], start: '22:00', end: '23:30', description: 'Fri/Sat 10-11:30pm: $5 bar rail' },
   ]},
-  { name: 'House of Targ', address: '1077 Bank St', type: ['restaurant', 'bar', 'club'], lat: 45.3928, lng: -75.6835, deals: [
+  { name: 'House of Targ', address: '1077 Bank St', type: ['restaurant', 'bar', 'club'], lat: 45.3946, lng: -75.6831, deals: [
     { days: [2], start: '17:00', end: '23:00', description: 'Tue: Arcade night $12.50' },
     { days: [3], start: '17:00', end: '23:00', description: 'Wed: live music 8pm' },
     { days: [4], start: '17:00', end: '23:00', description: 'Thu: live music 8pm' },
@@ -293,24 +293,24 @@ const VENUE_PINS: VenuePin[] = [
     { days: [6], start: '12:00', end: '01:00', description: 'Sat: live music + events' },
     { days: [0], start: '12:00', end: '23:59', description: 'Sun: Free-Play Sunday' },
   ]},
-  { name: 'Level One Game Pub', address: '14 Waller St', type: ['restaurant', 'bar'], lat: 45.4275, lng: -75.6920, deals: [
+  { name: 'Level One Game Pub', address: '14 Waller St', type: ['restaurant', 'bar'], lat: 45.4270, lng: -75.6887, deals: [
     { days: [1], start: '18:30', end: '20:00', description: 'Mon: Geek Trivia 6:30-8pm' },
     { days: [2], start: '17:30', end: '20:00', description: 'Tue: TKO fight night 5:30-8pm ($6)' },
     { days: [4], start: '18:00', end: '23:00', description: 'Thu: Reddit board game meetup 6pm' },
     { days: [0], start: '17:00', end: '23:00', description: 'Sun: Magic: The Gathering 5pm ($6)' },
   ]},
-  { name: 'Happy Fish', address: '330 Elgin St', type: ['bar', 'club'], lat: 45.4150, lng: -75.6883, deals: [
+  { name: 'Happy Fish', address: '330 Elgin St', type: ['bar', 'club'], lat: 45.4159, lng: -75.6890, deals: [
     { days: [4], start: '21:00', end: '23:59', description: 'Thu: $5 Jagerbombs + $5 draught' },
     { days: [5,6], start: '21:00', end: '23:59', description: 'Fri/Sat: open 9pm-2am' },
   ]},
-  { name: 'REFORM Health + Fitness', address: '317 McRae Ave #300', type: ['fitness'], lat: 45.3883, lng: -75.7540, deals: [
+  { name: 'REFORM Health + Fitness', address: '317 McRae Ave #300', type: ['fitness'], lat: 45.3961, lng: -75.7497, deals: [
     { days: [1,2,3,4,5], start: '06:00', end: '19:00', description: 'Indoor cycling, pilates, high-intensity classes' },
     { days: [6,0], start: '09:00', end: '12:00', description: 'Weekend classes: cycling, pilates, full-body' },
   ]},
-  { name: 'Pure Yoga Westboro', address: '279 Richmond Rd', type: ['fitness'], lat: 45.3906, lng: -75.7558, deals: [
+  { name: 'Pure Yoga Westboro', address: '279 Richmond Rd', type: ['fitness'], lat: 45.3935, lng: -75.7520, deals: [
     { days: [0,1,2,3,4,5,6], start: '06:00', end: '21:00', description: 'Yoga classes + special workshops' },
   ]},
-  { name: 'Pure Yoga Centretown', address: '359 Bank St', type: ['fitness'], lat: 45.4140, lng: -75.6955, deals: [
+  { name: 'Pure Yoga Centretown', address: '359 Bank St', type: ['fitness'], lat: 45.4143, lng: -75.6950, deals: [
     { days: [0,1,2,3,4,5,6], start: '06:00', end: '21:00', description: 'Yoga classes + special workshops' },
   ]},
 ];
@@ -414,6 +414,9 @@ export default function MapScreen() {
   const [selectedVenue, setSelectedVenue] = useState<VenuePin | null>(null);
   const [filters, setFilters] = useState<Set<string>>(new Set(['all']));
   const [searchText, setSearchText] = useState('');
+  const [placeSuggestions, setPlaceSuggestions] = useState<{ placeId: string; name: string; address: string }[]>([]);
+  const [searchedPlace, setSearchedPlace] = useState<{ placeId: string; name: string; address: string; lat: number; lng: number } | null>(null);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showEvents, setShowEvents] = useState(false);
   const [events, setEvents] = useState<MapEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
@@ -614,7 +617,54 @@ export default function MapScreen() {
 
   const centerOnOttawa = () => mapRef.current?.animateToRegion(OTTAWA_REGION, 600);
 
-  const hasSheet = selectedBus || selectedEvent || selectedCluster || selectedVenue || selectedSavedPin;
+  // Google Places autocomplete search
+  const searchPlaces = useCallback(async (query: string) => {
+    if (query.length < 3 || !GOOGLE_PLACES_API_KEY) { setPlaceSuggestions([]); return; }
+    try {
+      const r = await fetch(`https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&location=45.4215,-75.6972&radius=50000&key=${GOOGLE_PLACES_API_KEY}`);
+      const data = await r.json();
+      if (data.predictions) {
+        setPlaceSuggestions(data.predictions.slice(0, 5).map((p: any) => ({
+          placeId: p.place_id,
+          name: p.structured_formatting?.main_text || p.description,
+          address: p.structured_formatting?.secondary_text || '',
+        })));
+      }
+    } catch (_) { setPlaceSuggestions([]); }
+  }, []);
+
+  const selectPlace = useCallback(async (suggestion: { placeId: string; name: string; address: string }) => {
+    Keyboard.dismiss();
+    setPlaceSuggestions([]);
+    try {
+      const r = await fetch(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${suggestion.placeId}&fields=geometry,name,formatted_address&key=${GOOGLE_PLACES_API_KEY}`);
+      const data = await r.json();
+      if (data.result?.geometry?.location) {
+        const { lat, lng } = data.result.geometry.location;
+        const place = {
+          placeId: suggestion.placeId,
+          name: data.result.name || suggestion.name,
+          address: data.result.formatted_address || suggestion.address,
+          lat, lng,
+        };
+        setSearchedPlace(place);
+        setSearchText(place.name);
+        mapRef.current?.animateToRegion({ latitude: lat, longitude: lng, latitudeDelta: 0.005, longitudeDelta: 0.005 }, 600);
+        // Open sheet for this place
+        setSelectedBus(null); setSelectedEvent(null); setSelectedCluster(null); setSelectedVenue(null); setSelectedSavedPin(null);
+        Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
+      }
+    } catch (_) { console.warn('Place details failed:', _); }
+  }, [sheetAnim]);
+
+  const clearSearch = useCallback(() => {
+    setSearchText('');
+    setPlaceSuggestions([]);
+    setSearchedPlace(null);
+    hideSheet();
+  }, []);
+
+  const hasSheet = selectedBus || selectedEvent || selectedCluster || selectedVenue || selectedSavedPin || searchedPlace;
 
   // Upcoming events (today + next 2 days) + clustering
   const upcomingDates = useMemo(() => {
@@ -714,11 +764,26 @@ export default function MapScreen() {
             );
           })}
         </>}
+
+        {/* Searched place marker */}
+        {searchedPlace && (
+          <Marker
+            coordinate={{ latitude: searchedPlace.lat, longitude: searchedPlace.lng }}
+            pinColor="#3498db"
+            title={searchedPlace.name}
+            description={searchedPlace.address}
+            tracksViewChanges={false}
+            onPress={() => {
+              setSelectedBus(null); setSelectedEvent(null); setSelectedCluster(null); setSelectedVenue(null); setSelectedSavedPin(null);
+              Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
+            }}
+          />
+        )}
       </MapView>
 
       {/* Header */}
       <View style={{
-        position: 'absolute', top: 0, left: 0, right: 0,
+        position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
         paddingTop: 60, paddingHorizontal: 20, paddingBottom: 12,
         backgroundColor: isLight ? 'rgba(240,244,248,0.92)' : 'rgba(15,20,30,0.92)',
       }}>
@@ -745,20 +810,46 @@ export default function MapScreen() {
         </View>
 
         {/* Search bar */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10, backgroundColor: colours.surface, borderRadius: 10, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 10, height: 36 }}>
-          <Ionicons name="search-outline" size={16} color={colours.muted} />
-          <TextInput
-            style={{ flex: 1, marginLeft: 8, fontSize: 13, color: colours.text, padding: 0 }}
-            placeholder={t('Search venues...', 'Rechercher...')}
-            placeholderTextColor={colours.muted}
-            value={searchText}
-            onChangeText={setSearchText}
-            returnKeyType="search"
-          />
-          {searchText.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchText('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Ionicons name="close-circle" size={18} color={colours.muted} />
-            </TouchableOpacity>
+        <View style={{ marginTop: 10, zIndex: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 10, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 10, height: 36 }}>
+            <Ionicons name="search-outline" size={16} color={colours.muted} />
+            <TextInput
+              style={{ flex: 1, marginLeft: 8, fontSize: 13, color: colours.text, padding: 0 }}
+              placeholder={t('Search anywhere...', 'Rechercher partout...')}
+              placeholderTextColor={colours.muted}
+              value={searchText}
+              onChangeText={(text) => {
+                setSearchText(text);
+                if (searchTimer.current) clearTimeout(searchTimer.current);
+                if (text.length >= 3) {
+                  searchTimer.current = setTimeout(() => searchPlaces(text), 300);
+                } else {
+                  setPlaceSuggestions([]);
+                }
+              }}
+              returnKeyType="search"
+            />
+            {searchText.length > 0 && (
+              <TouchableOpacity onPress={clearSearch} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Ionicons name="close-circle" size={18} color={colours.muted} />
+              </TouchableOpacity>
+            )}
+          </View>
+          {placeSuggestions.length > 0 && (
+            <View style={{ backgroundColor: colours.surface, borderRadius: 10, borderWidth: 1, borderColor: colours.border, marginTop: 4, overflow: 'hidden' }}>
+              {placeSuggestions.map((s, i) => (
+                <TouchableOpacity
+                  key={s.placeId}
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: colours.border }}
+                  onPress={() => selectPlace(s)}>
+                  <Ionicons name="location-outline" size={16} color={colours.accent} style={{ marginRight: 10 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: colours.text }} numberOfLines={1}>{s.name}</Text>
+                    <Text style={{ fontSize: 11, color: colours.muted }} numberOfLines={1}>{s.address}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
           )}
         </View>
 
@@ -1016,6 +1107,36 @@ export default function MapScreen() {
               </View>
             );
           })()}
+
+          {/* Searched place sheet */}
+          {searchedPlace && !selectedBus && !selectedEvent && !selectedCluster && !selectedVenue && !selectedSavedPin && (
+            <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <View style={{ flex: 1, marginRight: 12 }}>
+                  <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+                    <View style={{ backgroundColor: '#3498db22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: '#3498db44' }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: '#3498db' }}>{t('Place', 'Lieu')}</Text>
+                    </View>
+                  </View>
+                  <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text, marginBottom: 4 }}>
+                    {searchedPlace.name}
+                  </Text>
+                  <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{searchedPlace.address}</Text>
+                </View>
+                <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} onPress={clearSearch}>
+                  <Ionicons name="close" size={16} color={colours.text} />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity
+                onPress={() => Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${searchedPlace.lat},${searchedPlace.lng}&destination_place_id=${searchedPlace.placeId}&travelmode=transit`)}
+                style={{ marginTop: 14, backgroundColor: '#3498db', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
+                <Ionicons name="navigate" size={16} color="white" />
+                <Text style={{ color: 'white', fontWeight: '800', fontSize: fonts.md }}>
+                  {t('Directions', 'Itineraire')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Saved pin sheet */}
           {selectedSavedPin && (
