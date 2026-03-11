@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Animated, AppState, Keyboard, Linking,
@@ -31,6 +32,8 @@ class MapErrorBoundary extends React.Component<
           <TouchableOpacity
             onPress={() => this.setState({ hasError: false })}
             style={{ marginTop: 20, backgroundColor: colours.accent, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel={t('Tap to retry loading map', 'Appuyez pour reessayer la carte')}
           >
             <Text style={{ color: '#fff', fontWeight: '700', fontSize: fonts.md }}>{t('Tap to retry', 'Appuyez pour reessayer')}</Text>
           </TouchableOpacity>
@@ -42,7 +45,7 @@ class MapErrorBoundary extends React.Component<
 }
 
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
-import { TICKETMASTER_API_KEY, GOOGLE_PLACES_API_KEY } from '../../lib/keys';
+import { TICKETMASTER_API_KEY } from '../../lib/keys';
 
 const VEHICLES_URL    = 'https://routeo-backend.vercel.app/api/vehicles';
 const BACKEND_URL     = 'https://routeo-backend.vercel.app/api/arrivals';
@@ -414,6 +417,7 @@ export default function MapScreen() {
   const { colours, theme, t, fonts } = useApp();
   const isLight = theme === 'light';
   const mapRef = useRef<MapView>(null);
+  const deepLinkParams = useLocalSearchParams();
 
   const [buses, setBuses] = useState<Bus[]>([]);
   const [busLoading, setBusLoading] = useState(true);
@@ -422,6 +426,7 @@ export default function MapScreen() {
   const [selectedEvent, setSelectedEvent] = useState<MapEvent | null>(null);
   const [selectedVenue, setSelectedVenue] = useState<VenuePin | null>(null);
   const [filters, setFilters] = useState<Set<string>>(new Set(['all']));
+  const [highlightRoute, setHighlightRoute] = useState<string | null>(null);
   const [searchText, setSearchText] = useState('');
   const [placeSuggestions, setPlaceSuggestions] = useState<{ placeId: string; name: string; address: string }[]>([]);
   const [searchedPlace, setSearchedPlace] = useState<{ placeId: string; name: string; address: string; lat: number; lng: number } | null>(null);
@@ -496,6 +501,17 @@ export default function MapScreen() {
       sub.remove();
     };
   }, []);
+
+  // Handle deep-link highlightRoute param
+  useEffect(() => {
+    if (deepLinkParams.highlightRoute) {
+      const routeId = deepLinkParams.highlightRoute as string;
+      setHighlightRoute(routeId);
+      // Switch filter to bus so the route is visible
+      setFilters(new Set(['bus']));
+      setSearchText(routeId);
+    }
+  }, [deepLinkParams.highlightRoute]);
 
   // Debounce latitudeDelta so clusters don't recompute on every zoom frame
   useEffect(() => {
@@ -651,11 +667,11 @@ export default function MapScreen() {
 
   const centerOnOttawa = () => mapRef.current?.animateToRegion(OTTAWA_REGION, 600);
 
-  // Google Places autocomplete search
+  // Google Places autocomplete search (proxied through backend)
   const searchPlaces = useCallback(async (query: string) => {
-    if (query.length < 3 || !GOOGLE_PLACES_API_KEY) { setPlaceSuggestions([]); return; }
+    if (query.length < 3) { setPlaceSuggestions([]); return; }
     try {
-      const r = await fetch(`https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&location=45.4215,-75.6972&radius=50000&key=${GOOGLE_PLACES_API_KEY}`);
+      const r = await fetch(`https://routeo-backend.vercel.app/api/places-autocomplete?input=${encodeURIComponent(query)}&location=45.4215,-75.6972&radius=50000`);
       const data = await r.json();
       if (data.predictions) {
         setPlaceSuggestions(data.predictions.slice(0, 5).map((p: any) => ({
@@ -671,7 +687,7 @@ export default function MapScreen() {
     Keyboard.dismiss();
     setPlaceSuggestions([]);
     try {
-      const r = await fetch(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${suggestion.placeId}&fields=geometry,name,formatted_address&key=${GOOGLE_PLACES_API_KEY}`);
+      const r = await fetch(`https://routeo-backend.vercel.app/api/places-details?place_id=${suggestion.placeId}&fields=geometry,name,formatted_address`);
       const data = await r.json();
       if (data.result?.geometry?.location) {
         const { lat, lng } = data.result.geometry.location;
@@ -851,6 +867,8 @@ export default function MapScreen() {
               style={{ flex: 1, marginLeft: 8, fontSize: 13, color: colours.text, padding: 0 }}
               placeholder={t('Search anywhere...', 'Rechercher partout...')}
               placeholderTextColor={colours.muted}
+              accessibilityLabel={t('Search places on map', 'Rechercher des lieux sur la carte')}
+              accessibilityRole="search"
               value={searchText}
               onChangeText={(text) => {
                 setSearchText(text);
@@ -864,7 +882,7 @@ export default function MapScreen() {
               returnKeyType="search"
             />
             {searchText.length > 0 && (
-              <TouchableOpacity onPress={clearSearch} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <TouchableOpacity onPress={clearSearch} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel={t('Clear search', 'Effacer la recherche')}>
                 <Ionicons name="close-circle" size={18} color={colours.muted} />
               </TouchableOpacity>
             )}
@@ -904,7 +922,10 @@ export default function MapScreen() {
             return (
               <TouchableOpacity key={f.key}
                 style={{ borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: bg, borderWidth: 1, borderColor: border, flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                onPress={() => toggleFilter(f.key)}>
+                onPress={() => toggleFilter(f.key)}
+                accessibilityRole="button"
+                accessibilityLabel={t(`Filter by ${f.label_en}`, `Filtrer par ${f.label_fr}`)}
+                accessibilityState={{ selected: active }}>
                 <Ionicons name={f.icon} size={12} color={active ? 'white' : colours.muted} />
                 <Text style={{ fontSize: 11, fontWeight: '700', color: active ? 'white' : colours.muted }}>
                   {t(f.label_en, f.label_fr)}
@@ -916,7 +937,10 @@ export default function MapScreen() {
           {/* Events toggle */}
           <TouchableOpacity
             style={{ borderRadius: 10, paddingHorizontal: 14, paddingVertical: 7, flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: showEvents ? '#026CDF' : colours.surface, borderWidth: 1, borderColor: showEvents ? '#026CDF' : colours.border }}
-            onPress={() => setShowEvents((v: boolean) => !v)}>
+            onPress={() => setShowEvents((v: boolean) => !v)}
+            accessibilityRole="button"
+            accessibilityLabel={t('Toggle today\'s events', 'Afficher les evenements du jour')}
+            accessibilityState={{ selected: showEvents }}>
             {eventsLoading
               ? <ActivityIndicator size="small" color="white" />
               : <Ionicons name="ticket-outline" size={13} color={showEvents ? 'white' : colours.muted} />}
@@ -939,7 +963,9 @@ export default function MapScreen() {
           shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6,
           shadowOffset: { width: 0, height: 2 }, elevation: 4,
         }}
-        onPress={centerOnOttawa}>
+        onPress={centerOnOttawa}
+        accessibilityRole="button"
+        accessibilityLabel={t('Re-center map on Ottawa', 'Recentrer la carte sur Ottawa')}>
         <Ionicons name="locate" size={20} color={colours.accent} />
       </TouchableOpacity>
 
@@ -984,7 +1010,7 @@ export default function MapScreen() {
                     </Text>
                   </View>
                 </View>
-                <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} onPress={hideSheet}>
+                <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} onPress={hideSheet} accessibilityRole="button" accessibilityLabel={t('Close panel', 'Fermer le panneau')}>
                   <Ionicons name="close" size={16} color={colours.text} />
                 </TouchableOpacity>
               </View>
@@ -1041,14 +1067,16 @@ export default function MapScreen() {
                   {selectedEvent.venue ? <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{selectedEvent.venue}</Text> : null}
                   {selectedEvent.address ? <Text style={{ fontSize: 11, color: colours.muted, marginTop: 1 }} numberOfLines={1}>{selectedEvent.address}</Text> : null}
                 </View>
-                <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} onPress={hideSheet}>
+                <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} onPress={hideSheet} accessibilityRole="button" accessibilityLabel={t('Close panel', 'Fermer le panneau')}>
                   <Ionicons name="close" size={16} color={colours.text} />
                 </TouchableOpacity>
               </View>
               {selectedEvent.url && (
                 <TouchableOpacity
                   onPress={() => Linking.openURL(selectedEvent.url)}
-                  style={{ marginTop: 14, backgroundColor: selectedEvent.source === 'ticketmaster' ? '#026CDF' : getCatColor(selectedEvent.category), borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}>
+                  style={{ marginTop: 14, backgroundColor: selectedEvent.source === 'ticketmaster' ? '#026CDF' : getCatColor(selectedEvent.category), borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
+                  accessibilityRole="link"
+                  accessibilityLabel={selectedEvent.source === 'ticketmaster' ? t('Get tickets', 'Acheter des billets') : t('View event', 'Voir l\'evenement')}>
                   <Text style={{ color: 'white', fontWeight: '800', fontSize: fonts.md }}>
                     {selectedEvent.source === 'ticketmaster' ? t('Get Tickets', 'Acheter des billets') : t('View Event', 'Voir l\'evenement')} →
                   </Text>
@@ -1063,7 +1091,7 @@ export default function MapScreen() {
                 <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>
                   {selectedCluster.length} {t('Events Here', 'evenements ici')}
                 </Text>
-                <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} onPress={hideSheet}>
+                <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} onPress={hideSheet} accessibilityRole="button" accessibilityLabel={t('Close panel', 'Fermer le panneau')}>
                   <Ionicons name="close" size={16} color={colours.text} />
                 </TouchableOpacity>
               </View>
@@ -1127,13 +1155,15 @@ export default function MapScreen() {
                       <Text style={{ fontSize: fonts.sm, color: colours.muted, fontStyle: 'italic' }}>{t('No deals today', 'Aucune offre aujourd\'hui')}</Text>
                     )}
                   </View>
-                  <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} onPress={hideSheet}>
+                  <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} onPress={hideSheet} accessibilityRole="button" accessibilityLabel={t('Close panel', 'Fermer le panneau')}>
                     <Ionicons name="close" size={16} color={colours.text} />
                   </TouchableOpacity>
                 </View>
                 <TouchableOpacity
                   onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedVenue.name + ' ' + selectedVenue.address + ' Ottawa')}`)}
-                  style={{ marginTop: 14, backgroundColor: color, borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}>
+                  style={{ marginTop: 14, backgroundColor: color, borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
+                  accessibilityRole="link"
+                  accessibilityLabel={t('Open in Maps', 'Ouvrir dans Maps')}>
                   <Text style={{ color: 'white', fontWeight: '800', fontSize: fonts.md }}>
                     {t('Open in Maps', 'Ouvrir dans Maps')}
                   </Text>
@@ -1157,13 +1187,15 @@ export default function MapScreen() {
                   </Text>
                   <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{searchedPlace.address}</Text>
                 </View>
-                <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} onPress={clearSearch}>
+                <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} onPress={clearSearch} accessibilityRole="button" accessibilityLabel={t('Close panel', 'Fermer le panneau')}>
                   <Ionicons name="close" size={16} color={colours.text} />
                 </TouchableOpacity>
               </View>
               <TouchableOpacity
                 onPress={() => Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${searchedPlace.lat},${searchedPlace.lng}&destination_place_id=${searchedPlace.placeId}&travelmode=transit`)}
-                style={{ marginTop: 14, backgroundColor: '#3498db', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
+                style={{ marginTop: 14, backgroundColor: '#3498db', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+                accessibilityRole="link"
+                accessibilityLabel={t('Get directions', 'Obtenir l\'itineraire')}>
                 <Ionicons name="navigate" size={16} color="white" />
                 <Text style={{ color: 'white', fontWeight: '800', fontSize: fonts.md }}>
                   {t('Directions', 'Itineraire')}
@@ -1196,13 +1228,15 @@ export default function MapScreen() {
                     </Text>
                   )}
                 </View>
-                <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} onPress={hideSheet}>
+                <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} onPress={hideSheet} accessibilityRole="button" accessibilityLabel={t('Close panel', 'Fermer le panneau')}>
                   <Ionicons name="close" size={16} color={colours.text} />
                 </TouchableOpacity>
               </View>
               <TouchableOpacity
                 onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${selectedSavedPin.lat},${selectedSavedPin.lng}`)}
-                style={{ marginTop: 14, backgroundColor: selectedSavedPin.kind === 'stop' ? '#e74c3c' : '#2ecc71', borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}>
+                style={{ marginTop: 14, backgroundColor: selectedSavedPin.kind === 'stop' ? '#e74c3c' : '#2ecc71', borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
+                accessibilityRole="link"
+                accessibilityLabel={t('Open in Maps', 'Ouvrir dans Maps')}>
                 <Text style={{ color: 'white', fontWeight: '800', fontSize: fonts.md }}>
                   {t('Open in Maps', 'Ouvrir dans Maps')}
                 </Text>

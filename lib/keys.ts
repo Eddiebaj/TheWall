@@ -3,7 +3,6 @@
 // The .env.local file is git-ignored and must not be committed.
 
 export const OC_TRANSPO_API_KEY = process.env.EXPO_PUBLIC_OC_TRANSPO_API_KEY ?? '';
-export const GOOGLE_PLACES_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY ?? '';
 export const TICKETMASTER_API_KEY = process.env.EXPO_PUBLIC_TICKETMASTER_API_KEY ?? '';
 export const EVENTBRITE_API_KEY = process.env.EXPO_PUBLIC_EVENTBRITE_API_KEY ?? '';
 export const FOURSQUARE_API_KEY = process.env.EXPO_PUBLIC_FOURSQUARE_API_KEY ?? '';

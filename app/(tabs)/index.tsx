@@ -36,7 +36,7 @@ type SavedBoardItem =
   | { type: 'external_link'; id: string; label_en: string; label_fr: string; icon: string; accent: string; url: string };
 
 import {
-  OC_TRANSPO_API_KEY, GOOGLE_PLACES_API_KEY,
+  OC_TRANSPO_API_KEY,
   TICKETMASTER_API_KEY, EVENTBRITE_API_KEY, FOURSQUARE_API_KEY, UNSPLASH_API_KEY,
 } from '../../lib/keys';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
@@ -991,7 +991,7 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
               <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 4 }} />
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colours.border }}>
                 <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text }}>{t('Report Gas Price', 'Signaler un prix')}</Text>
-                <TouchableOpacity style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, alignItems: 'center', justifyContent: 'center' }} onPress={() => setReportModal(false)}>
+                <TouchableOpacity style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, alignItems: 'center', justifyContent: 'center' }} onPress={() => setReportModal(false)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
                   <Ionicons name="close" size={18} color={colours.text} />
                 </TouchableOpacity>
               </View>
@@ -1066,7 +1066,7 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
 
 
 function SavedPlaceCard({ place, colours, fonts, language, t, onPress, onLongPress, cardShadow }: any) {
-  const photoUrl = place.photoRef ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${place.photoRef}&key=${GOOGLE_PLACES_API_KEY}` : null;
+  const photoUrl = place.photoRef ? `https://routeo-backend.vercel.app/api/places-photo?photo_reference=${place.photoRef}&maxwidth=400` : null;
   const label = language === 'fr' ? place.categoryLabel_fr : place.categoryLabel_en;
   return (
     <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 16, overflow: 'hidden', backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }, cardShadow]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
@@ -1851,10 +1851,10 @@ function LiveScreenInner() {
       const newCache = { ...eventsGeoCache };
       await Promise.all(toGeocode.map(async e => {
         try {
-          const r = await fetchWithTimeout(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(e.address + ', Ottawa, ON')}&key=${GOOGLE_PLACES_API_KEY}`);
+          const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/geocode?input=${encodeURIComponent(e.address)}&type=geocode`);
           if (!r.ok) throw new Error('HTTP ' + r.status);
           const d = await r.json();
-          if (d.results?.[0]?.geometry?.location) newCache[e.address!] = { lat: d.results[0].geometry.location.lat, lng: d.results[0].geometry.location.lng };
+          if (d.results?.[0]?.lat) newCache[e.address!] = { lat: d.results[0].lat, lng: d.results[0].lng };
         } catch (e2) { console.warn('geocode event address failed:', e2); }
       }));
       setEventsGeoCache(newCache);
@@ -2842,7 +2842,7 @@ function LiveScreenInner() {
               {eventsSource === 'ticketmaster' ? 'Ticketmaster · Ottawa' : 'Arts & Community · Ottawa'}
             </Text>
           </View>
-          <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => { setEventsModal(false); setEventsSearch(''); setEventsCategory(null); }}>
+          <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => { setEventsModal(false); setEventsSearch(''); setEventsCategory(null); }} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
             <Ionicons name="close" size={18} color={colours.text} />
           </TouchableOpacity>
         </View>
@@ -2991,7 +2991,7 @@ function LiveScreenInner() {
             <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>{t('Road Closures', 'Fermetures de routes')}</Text>
             <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Ottawa Open Data · Sorted by distance', 'Donn\u00E9es ouvertes · Tri\u00E9 par distance')}</Text>
           </View>
-          <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setRoadEventsModal(false)}>
+          <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setRoadEventsModal(false)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
             <Ionicons name="close" size={18} color={colours.text} />
           </TouchableOpacity>
         </View>
@@ -3032,7 +3032,7 @@ function LiveScreenInner() {
             <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>{t('Parks & Rinks', 'Parcs et patinoires')}</Text>
             <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Ottawa Open Data', 'Donn\u00E9es ouvertes d\u2019Ottawa')}</Text>
           </View>
-          <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setParksModal(false)}>
+          <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setParksModal(false)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
             <Ionicons name="close" size={18} color={colours.text} />
           </TouchableOpacity>
         </View>
@@ -3092,7 +3092,7 @@ function LiveScreenInner() {
             <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>{t('Bike Share', 'V\u00E9lopartage')}</Text>
             <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('VeloGo · Nearest stations', 'VeloGo · Stations les plus proches')}</Text>
           </View>
-          <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setBikeShareModal(false)}>
+          <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setBikeShareModal(false)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
             <Ionicons name="close" size={18} color={colours.text} />
           </TouchableOpacity>
         </View>
@@ -3337,7 +3337,7 @@ function LiveScreenInner() {
                     <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accent }}>GasBuddy ↗</Text>
                   </TouchableOpacity>
                 )}
-                <TouchableOpacity style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, alignItems: 'center', justifyContent: 'center' }} onPress={() => setBoardExpandItem(null)}>
+                <TouchableOpacity style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, alignItems: 'center', justifyContent: 'center' }} onPress={() => setBoardExpandItem(null)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
                   <Ionicons name="close" size={18} color={colours.text} />
                 </TouchableOpacity>
               </View>
@@ -3510,7 +3510,7 @@ function LiveScreenInner() {
       <View style={[styles.modalContainer, { backgroundColor: colours.bg }]}>
         <View style={[styles.modalHeader, { borderBottomColor: colours.border }]}>
           <View><Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>{t('Service Alerts', 'Alertes de service')}</Text><Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('OC Transpo · Live', 'OC Transpo · En direct')}</Text></View>
-          <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setAlertsModalVisible(false)}><Ionicons name="close" size={18} color={colours.text} /></TouchableOpacity>
+          <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setAlertsModalVisible(false)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}><Ionicons name="close" size={18} color={colours.text} /></TouchableOpacity>
         </View>
         <TouchableOpacity style={[styles.lrtStatusCard, { backgroundColor: colours.lrt + '12', borderColor: colours.lrt }]} onPress={() => { setAlertsModalVisible(false); Linking.openURL('https://occasionaltransport.ca'); }}>
           <View style={{ flex: 1 }}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}><Text style={{ fontSize: 16 }}>🚊</Text><Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.lrt }}>{t('LRT Community Status', 'Statut communautaire du TLR')}</Text></View><Text style={{ fontSize: fonts.sm, color: colours.muted, lineHeight: 18 }}>{t('Real-time LRT incident reports from Ottawa riders — faster than official alerts.', "Rapports d'incidents TLR en temps réel des usagers d'Ottawa.")}</Text></View>
@@ -3575,7 +3575,7 @@ function LiveScreenInner() {
               <TouchableOpacity onPress={() => fetchArrivals(stopId)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}>
                 <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Refresh \u21BA', 'Actualiser \u21BA')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setExpandedStopId(null)}><Ionicons name="close" size={18} color={colours.text} /></TouchableOpacity>
+              <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setExpandedStopId(null)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}><Ionicons name="close" size={18} color={colours.text} /></TouchableOpacity>
             </View>
           </View>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }}>
@@ -3657,14 +3657,14 @@ function LiveScreenInner() {
             <View style={{ flexDirection: 'row', paddingHorizontal: 20, gap: 8, marginBottom: 12 }}>
               {SERVICES_TABS.map(tab => {
                 const active = activeServicesTab === tab.id;
-                return (<TouchableOpacity key={tab.id} onPress={() => setActiveServicesTab(tab.id)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, flex: 1, height: 34, borderRadius: 17, borderWidth: 1, backgroundColor: active ? colours.accent : colours.surface, borderColor: active ? colours.accent : colours.border }}><Ionicons name={tab.icon as any} size={13} color={active ? 'white' : colours.muted} /><Text style={{ fontSize: fonts.sm, fontWeight: '700', color: active ? 'white' : colours.muted }}>{language === 'fr' ? tab.label_fr : tab.label_en}</Text></TouchableOpacity>);
+                return (<TouchableOpacity key={tab.id} onPress={() => setActiveServicesTab(tab.id)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, flex: 1, height: 34, borderRadius: 17, borderWidth: 1, backgroundColor: active ? colours.accent : colours.surface, borderColor: active ? colours.accent : colours.border }} accessibilityRole="tab" accessibilityLabel={language === 'fr' ? tab.label_fr : tab.label_en} accessibilityState={{ selected: active }}><Ionicons name={tab.icon as any} size={13} color={active ? 'white' : colours.muted} /><Text style={{ fontSize: fonts.sm, fontWeight: '700', color: active ? 'white' : colours.muted }}>{language === 'fr' ? tab.label_fr : tab.label_en}</Text></TouchableOpacity>);
               })}
             </View>
             <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
               {[0, 1].map(row => (
                 <View key={row} style={{ flexDirection: 'row', gap: 10, marginBottom: row === 0 ? 10 : 0 }}>
                   {currentTab.tiles.slice(row * 4, row * 4 + 4).map(tile => (
-                      <TouchableOpacity key={tile.id} onPress={() => handleServiceTile(tile)} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, borderTopWidth: 3, borderTopColor: tile.accent, paddingVertical: 14, paddingHorizontal: 4, ...cardShadow }} activeOpacity={0.75}>
+                      <TouchableOpacity key={tile.id} onPress={() => handleServiceTile(tile)} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, borderTopWidth: 3, borderTopColor: tile.accent, paddingVertical: 14, paddingHorizontal: 4, ...cardShadow }} activeOpacity={0.75} accessibilityRole="button" accessibilityLabel={language === 'fr' ? tile.label_fr : tile.label_en}>
                         <Ionicons name={tile.icon as any} size={22} color={tile.accent} />
                         <Text style={{ fontSize: 10, fontWeight: '600', color: colours.text, textAlign: 'center', lineHeight: 13 }} numberOfLines={2}>{language === 'fr' ? tile.label_fr : tile.label_en}</Text>
                       </TouchableOpacity>
@@ -3749,7 +3749,7 @@ function LiveScreenInner() {
                     {scheduleRoute?.headsign ? ` · ${scheduleRoute.headsign}` : ''}
                   </Text>
                 </View>
-                <TouchableOpacity style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, alignItems: 'center', justifyContent: 'center' }} onPress={() => setScheduleRoute(null)}>
+                <TouchableOpacity style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, alignItems: 'center', justifyContent: 'center' }} onPress={() => setScheduleRoute(null)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
                   <Ionicons name="close" size={18} color={colours.text} />
                 </TouchableOpacity>
               </View>
@@ -3813,7 +3813,7 @@ function LiveScreenInner() {
                 <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 4 }} />
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colours.border }}>
                   <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text }}>{t('311 Report', 'Signalement 311')}</Text>
-                  <TouchableOpacity style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, alignItems: 'center', justifyContent: 'center' }} onPress={() => setShow311Modal(false)}>
+                  <TouchableOpacity style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, alignItems: 'center', justifyContent: 'center' }} onPress={() => setShow311Modal(false)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
                     <Ionicons name="close" size={18} color={colours.text} />
                   </TouchableOpacity>
                 </View>
@@ -3873,9 +3873,9 @@ function LiveScreenInner() {
             </View>
             <View style={styles.headerRight}>
               {isNight && (<View style={[styles.nightBadge, { backgroundColor: colours.accentAlt + '22', borderColor: colours.accentAlt }]}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Ionicons name="moon" size={12} color={colours.accentAlt} /><Text style={{ color: colours.accentAlt, fontSize: fonts.sm, fontWeight: '700' }}>{t('Night', 'Nuit')}</Text></View></View>)}
-              {weather && (<TouchableOpacity onPress={() => setWeatherModalVisible(true)} style={[styles.nightBadge, { backgroundColor: colours.surface, borderColor: colours.border, flexDirection: 'row', alignItems: 'center', gap: 4 }]}><Ionicons name={weather.icon as any} size={13} color={iconColor(weather.icon)} /><Text style={{ color: colours.text, fontSize: fonts.sm, fontWeight: '700' }}>{weather.temp}°</Text></TouchableOpacity>)}
+              {weather && (<TouchableOpacity onPress={() => setWeatherModalVisible(true)} style={[styles.nightBadge, { backgroundColor: colours.surface, borderColor: colours.border, flexDirection: 'row', alignItems: 'center', gap: 4 }]} accessibilityRole="button" accessibilityLabel={t(`Weather ${weather.temp} degrees`, `Meteo ${weather.temp} degres`)}><Ionicons name={weather.icon as any} size={13} color={iconColor(weather.icon)} /><Text style={{ color: colours.text, fontSize: fonts.sm, fontWeight: '700' }}>{weather.temp}°</Text></TouchableOpacity>)}
               <View style={[styles.liveBadge, { backgroundColor: colours.accent + '18', borderColor: colours.accent + '40' }]}><View style={[styles.liveDot, { backgroundColor: colours.accent }]} /><Text style={{ color: colours.accent, fontSize: fonts.sm, fontWeight: '700' }}>LIVE</Text></View>
-              <TouchableOpacity onPress={() => { if (editMode) { saveCustomization(sectionOrder, quickActionIds, ottawaLifeIds); } setEditMode(!editMode); }} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: editMode ? colours.accent : colours.border, backgroundColor: editMode ? colours.accent : colours.surface }}>
+              <TouchableOpacity onPress={() => { if (editMode) { saveCustomization(sectionOrder, quickActionIds, ottawaLifeIds); } setEditMode(!editMode); }} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: editMode ? colours.accent : colours.border, backgroundColor: editMode ? colours.accent : colours.surface }} accessibilityRole="button" accessibilityLabel={editMode ? t('Done editing', 'Terminer la modification') : t('Edit layout', 'Modifier la disposition')}>
                 <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: editMode ? 'white' : colours.text }}>{editMode ? t('Done', 'Terminé') : t('Edit', 'Modifier')}</Text>
               </TouchableOpacity>
             </View>
@@ -3886,6 +3886,8 @@ function LiveScreenInner() {
             <TouchableOpacity
               onPress={() => { fetchWeather(); fetchArrivals(stopId); }}
               style={{ marginHorizontal: 20, marginBottom: 12, padding: 12, borderRadius: 12, backgroundColor: '#cc3b2a' + '18', borderWidth: 1, borderColor: '#cc3b2a' + '40', flexDirection: 'row', alignItems: 'center', gap: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('Retry connection', 'Reessayer la connexion')}
             >
               <Ionicons name="cloud-offline-outline" size={20} color="#cc3b2a" />
               <View style={{ flex: 1 }}>
@@ -3901,8 +3903,8 @@ function LiveScreenInner() {
           {/* Search */}
           <View style={styles.searchContainer}>
             <View style={styles.searchRow}>
-              <TextInput style={[styles.searchInput, { backgroundColor: colours.surface, borderColor: colours.border, color: colours.text, fontSize: fonts.lg, ...cardShadow }]} placeholder={t('Street name or stop number...', "Nom de rue ou numéro d'arrêt...")} placeholderTextColor={colours.muted} value={searchText} onChangeText={handleSearchChange} keyboardType="default" returnKeyType="search" onSubmitEditing={handleSearch} />
-              <TouchableOpacity style={[styles.searchBtn, { backgroundColor: colours.accent }]} onPress={handleSearch}>
+              <TextInput style={[styles.searchInput, { backgroundColor: colours.surface, borderColor: colours.border, color: colours.text, fontSize: fonts.lg, ...cardShadow }]} placeholder={t('Street name or stop number...', "Nom de rue ou numéro d'arrêt...")} placeholderTextColor={colours.muted} value={searchText} onChangeText={handleSearchChange} keyboardType="default" returnKeyType="search" onSubmitEditing={handleSearch} accessibilityLabel={t('Search for a stop or street', 'Rechercher un arret ou une rue')} accessibilityRole="search" />
+              <TouchableOpacity style={[styles.searchBtn, { backgroundColor: colours.accent }]} onPress={handleSearch} accessibilityRole="button" accessibilityLabel={t('Search', 'Rechercher')}>
                 <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>{t('Go', 'Aller')}</Text>
               </TouchableOpacity>
             </View>

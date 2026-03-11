@@ -7,7 +7,6 @@ import {
   ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
-import { GOOGLE_PLACES_API_KEY } from '../../lib/keys';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { supabase } from '../../lib/supabase';
 const ARRIVALS_URL = 'https://routeo-backend.vercel.app/api/arrivals';
@@ -191,7 +190,7 @@ export default function ExploreScreen() {
       const results: Place[] = [];
       for (const type of types) {
         // Use radius instead of rankby=distance so we capture everything within the area
-        const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${FETCH_RADIUS}&type=${type}&key=${GOOGLE_PLACES_API_KEY}`;
+        const url = `https://routeo-backend.vercel.app/api/places-nearby?location=${location.lat},${location.lng}&radius=${FETCH_RADIUS}&type=${type}`;
         const resp = await fetchWithTimeout(url);
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
@@ -249,7 +248,7 @@ export default function ExploreScreen() {
   };
 
   const getPhotoUrl = (ref: string) =>
-    `https://maps.googleapis.com/maps/api/place/photo?maxwidth=600&photo_reference=${ref}&key=${GOOGLE_PLACES_API_KEY}`;
+    `https://routeo-backend.vercel.app/api/places-photo?photo_reference=${ref}&maxwidth=600`;
 
   const openInMaps = (name: string, vicinity: string) =>
     Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(`${name} ${vicinity}`)}`);
