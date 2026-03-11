@@ -531,7 +531,7 @@ export default function PlannerScreen() {
   // Detect cross-border trips (OC Transpo + STO)
   const hasCrossBorderTrip = (itin: Itinerary): boolean => {
     const agencies = new Set(itin.legs.map(leg => leg.agencyId).filter(Boolean));
-    return agencies.has('1:OC_TRANSPO') && agencies.has('1:STO');
+    return agencies.has('1:STO') && agencies.has('2:1');
   };
 
   const renderItinerary = (itin: Itinerary, idx: number) => {
