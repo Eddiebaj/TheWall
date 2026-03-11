@@ -8,6 +8,38 @@ import {
 import MapView, { Marker, Region } from 'react-native-maps';
 import { useApp } from '../../context/AppContext';
 
+// Error boundary to catch AIRMap native crashes and show a recoverable fallback
+class MapErrorBoundary extends React.Component<
+  { children: React.ReactNode; colours: any; fonts: any; t: (en: string, fr: string) => string },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  render() {
+    if (this.state.hasError) {
+      const { colours, fonts, t } = this.props;
+      return (
+        <View style={{ flex: 1, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+          <Ionicons name="map-outline" size={48} color={colours.muted} />
+          <Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
+            {t('Map temporarily unavailable', 'Carte temporairement indisponible')}
+          </Text>
+          <Text style={{ color: colours.muted, fontSize: fonts.sm, marginTop: 8, textAlign: 'center' }}>
+            {t('Something went wrong with the map view', 'Un probleme est survenu avec la carte')}
+          </Text>
+          <TouchableOpacity
+            onPress={() => this.setState({ hasError: false })}
+            style={{ marginTop: 20, backgroundColor: colours.accent, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: fonts.md }}>{t('Tap to retry', 'Appuyez pour reessayer')}</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { TICKETMASTER_API_KEY } from '../../lib/keys';
 
@@ -361,6 +393,8 @@ export default function MapScreen() {
   const [region, setRegion] = useState<Region>(OTTAWA_REGION);
   const [error, setError] = useState('');
   const [markersReady, setMarkersReady] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
+  const [visibleBusCount, setVisibleBusCount] = useState(0);
   const [savedPins, setSavedPins] = useState<SavedPin[]>([]);
   const [savedRouteIds, setSavedRouteIds] = useState<Set<string>>(new Set());
   const [selectedSavedPin, setSelectedSavedPin] = useState<SavedPin | null>(null);
@@ -508,6 +542,28 @@ export default function MapScreen() {
     return result;
   }, [showBuses, zoomTooFar, zoomNeighborhood, buses, hasAll, hasSaved, filters, savedRouteIds, viewBounds]);
 
+  // Incrementally render buses in batches of 5 to prevent AIRMap crash on mount
+  useEffect(() => {
+    if (!mapReady || filteredBuses.length === 0) { setVisibleBusCount(0); return; }
+    setVisibleBusCount(0);
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const timeoutId = setTimeout(() => {
+      let count = 0;
+      intervalId = setInterval(() => {
+        count += 5;
+        if (count >= filteredBuses.length) {
+          setVisibleBusCount(filteredBuses.length);
+          if (intervalId) clearInterval(intervalId);
+        } else {
+          setVisibleBusCount(count);
+        }
+      }, 100);
+    }, 500);
+    return () => { clearTimeout(timeoutId); if (intervalId) clearInterval(intervalId); };
+  }, [mapReady, filteredBuses.length]);
+
+  const visibleBuses = useMemo(() => filteredBuses.slice(0, visibleBusCount), [filteredBuses, visibleBusCount]);
+
   const showVenueFilters = hasAll || filters.has('food') || filters.has('happy_hour') || filters.has('clubs');
   const searchLower = searchText.toLowerCase();
   const filteredVenues = useMemo(() => showVenueFilters ? VENUE_PINS.filter(v => {
@@ -545,6 +601,7 @@ export default function MapScreen() {
   const clusters = useMemo(() => clusterEvents(todayEvents, region.latitudeDelta), [todayEvents, region.latitudeDelta]);
 
   return (
+    <MapErrorBoundary colours={colours} fonts={fonts} t={t}>
     <View style={{ flex: 1, backgroundColor: colours.bg }}>
       <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
 
@@ -555,11 +612,12 @@ export default function MapScreen() {
         userInterfaceStyle={isLight ? 'light' : 'dark'}
         showsUserLocation
         showsCompass={false}
+        onMapReady={() => setMapReady(true)}
         onPress={() => hasSheet && hideSheet()}
         onRegionChangeComplete={(r) => setRegion(r)}
       >
-        {/* Bus markers */}
-        {filteredBuses.map((bus: Bus) => (
+        {/* Bus markers — rendered incrementally to prevent AIRMap crash */}
+        {visibleBuses.map((bus: Bus) => (
           <BusMarker key={bus.id} bus={bus} onPress={openSheet} />
         ))}
 
@@ -715,7 +773,7 @@ export default function MapScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colours.accent + '18', borderWidth: 1, borderColor: colours.accent + '40', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 }}>
                 <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: zoomTooFar ? colours.muted : colours.accent }} />
                 <Text style={{ color: zoomTooFar ? colours.muted : colours.accent, fontSize: fonts.sm, fontWeight: '700' }}>
-                  {zoomTooFar ? t('Zoom in for buses', 'Zoomez pour les bus') : `${filteredBuses.length} ${t('buses nearby', 'bus proches')}`}
+                  {zoomTooFar ? t('Zoom in for buses', 'Zoomez pour les bus') : `${visibleBuses.length} ${t('buses nearby', 'bus proches')}`}
                 </Text>
               </View>
             )}
@@ -1035,5 +1093,6 @@ export default function MapScreen() {
         </Animated.View>
       )}
     </View>
+    </MapErrorBoundary>
   );
 }
