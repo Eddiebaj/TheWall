@@ -74,7 +74,9 @@ export default function OnboardingScreen() {
   };
 
   const finish = async () => {
-    await AsyncStorage.setItem('routeo_onboarded', 'true');
+    try {
+      await AsyncStorage.setItem('routeo_onboarded', 'true');
+    } catch {}
     router.replace('/(tabs)');
   };
 

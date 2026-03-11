@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
 
-const PLACES_API_KEY = 'AIzaSyCKwAVVCbxHKsKViJ4Dq0ZQ5r6k-arue3E';
 const PLAN_URL = 'https://routeo-backend.vercel.app/api/plan';
 const GEOCODE_URL = 'https://routeo-backend.vercel.app/api/geocode';
 
@@ -199,8 +198,17 @@ export default function PlannerScreen() {
   // ── Load saved routes ─────────────────────────────────────────
   useEffect(() => {
     AsyncStorage.getItem(SAVED_ROUTES_KEY).then(val => {
-      if (val) setSavedRoutes(JSON.parse(val));
-    });
+      try { if (val) setSavedRoutes(JSON.parse(val)); } catch {}
+    }).catch(() => {});
+  }, []);
+
+  // ── Cleanup location subscription on unmount ──────────────────
+  useEffect(() => {
+    return () => {
+      locationSubRef.current?.remove();
+      locationSubRef.current = null;
+      cancelTransitNotifications();
+    };
   }, []);
 
   // ── Handle deep-link params from home screen ──────────────────

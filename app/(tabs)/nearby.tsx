@@ -7,9 +7,8 @@ import {
   ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
+import { GOOGLE_PLACES_API_KEY } from '../../lib/keys';
 import { supabase } from '../../lib/supabase';
-
-const PLACES_KEY = 'AIzaSyCKwAVVCbxHKsKViJ4Dq0ZQ5r6k-arue3E';
 const ARRIVALS_URL = 'https://routeo-backend.vercel.app/api/arrivals';
 
 const CATEGORIES = [
@@ -190,7 +189,7 @@ export default function ExploreScreen() {
       const results: Place[] = [];
       for (const type of types) {
         // Use radius instead of rankby=distance so we capture everything within the area
-        const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${FETCH_RADIUS}&type=${type}&key=${PLACES_KEY}`;
+        const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${FETCH_RADIUS}&type=${type}&key=${GOOGLE_PLACES_API_KEY}`;
         const resp = await fetch(url);
         const data = await resp.json();
         (data.results || []).forEach((p: any) => {
@@ -247,7 +246,7 @@ export default function ExploreScreen() {
   };
 
   const getPhotoUrl = (ref: string) =>
-    `https://maps.googleapis.com/maps/api/place/photo?maxwidth=600&photo_reference=${ref}&key=${PLACES_KEY}`;
+    `https://maps.googleapis.com/maps/api/place/photo?maxwidth=600&photo_reference=${ref}&key=${GOOGLE_PLACES_API_KEY}`;
 
   const openInMaps = (name: string, vicinity: string) =>
     Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(`${name} ${vicinity}`)}`);

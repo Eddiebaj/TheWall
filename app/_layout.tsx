@@ -9,6 +9,9 @@ function RootNav() {
       if (!val) {
         router.replace('/onboarding' as any);
       }
+    }).catch(() => {
+      // Storage error — show onboarding as safe default
+      router.replace('/onboarding' as any);
     });
   }, []);
 

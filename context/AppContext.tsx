@@ -89,12 +89,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       'routeo_theme', 'routeo_largetext', 'routeo_contrast',
       'routeo_motion', 'routeo_language'
     ]).then(vals => {
-      if (vals[0][1]) setThemeState(vals[0][1] as Theme);
-      if (vals[1][1]) setLargeTextState(vals[1][1] === 'true');
-      if (vals[2][1]) setHighContrastState(vals[2][1] === 'true');
-      if (vals[3][1]) setReducedMotionState(vals[3][1] === 'true');
-      if (vals[4][1]) setLanguageState(vals[4][1] as Language);
-    });
+      try {
+        const themeVal = vals[0][1];
+        if (themeVal === 'dark' || themeVal === 'light' || themeVal === 'system') setThemeState(themeVal);
+        if (vals[1][1]) setLargeTextState(vals[1][1] === 'true');
+        if (vals[2][1]) setHighContrastState(vals[2][1] === 'true');
+        if (vals[3][1]) setReducedMotionState(vals[3][1] === 'true');
+        const langVal = vals[4][1];
+        if (langVal === 'en' || langVal === 'fr') setLanguageState(langVal);
+      } catch {
+        // Corrupted storage — keep defaults
+      }
+    }).catch(() => {});
   }, []);
 
   const setTheme = (t: Theme) => {

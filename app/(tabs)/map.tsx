@@ -8,9 +8,10 @@ import {
 import MapView, { Marker, Region } from 'react-native-maps';
 import { useApp } from '../../context/AppContext';
 
+import { TICKETMASTER_API_KEY } from '../../lib/keys';
+
 const VEHICLES_URL    = 'https://routeo-backend.vercel.app/api/vehicles';
 const BACKEND_URL     = 'https://routeo-backend.vercel.app/api/arrivals';
-const TM_KEY          = 'pMuGA4GIB29yxOAKrDb9Vxa3tXhXpak1';
 
 type SavedRoute = { id: string; fromLabel: string; toLabel: string; fromLat: number; fromLng: number; toLat: number; toLng: number };
 type SavedFav = { id: string; name: string; icon: string };
@@ -293,7 +294,7 @@ const fetchAllEvents = async (): Promise<MapEvent[]> => {
 
   let events: MapEvent[] = [];
   try {
-    const tmResp = await fetch(`https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TM_KEY}&city=Ottawa&countryCode=CA&size=20&sort=date,asc`);
+    const tmResp = await fetch(`https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TICKETMASTER_API_KEY}&city=Ottawa&countryCode=CA&size=20&sort=date,asc`);
     if (tmResp.ok) {
       const d = await tmResp.json();
       const tmEvents: MapEvent[] = (d._embedded?.events || []).map((e: any) => ({

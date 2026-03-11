@@ -35,16 +35,15 @@ type SavedBoardItem =
   | { type: 'saved_team'; id: string; name: string }
   | { type: 'external_link'; id: string; label_en: string; label_fr: string; icon: string; accent: string; url: string };
 
-const API_KEY = 'e85c07c79cfc45f1b429ce62dcfbab30';
-const UNSPLASH_KEY = 'af-d0y-v_SK3tSea1xQYM3059juIQERP5wnRQ5gul9w';
+import {
+  OC_TRANSPO_API_KEY, GOOGLE_PLACES_API_KEY,
+  TICKETMASTER_API_KEY, EVENTBRITE_API_KEY, FOURSQUARE_API_KEY, UNSPLASH_API_KEY,
+} from '../../lib/keys';
+
 const TRIP_UPDATES = 'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt-tp/beta/v1/TripUpdates?format=json';
 const BACKEND_URL = 'https://routeo-backend.vercel.app/api/arrivals';
 const ALERTS_URL = 'https://routeo-backend.vercel.app/api/alerts';
 const GAS_URL = 'https://routeo-backend.vercel.app/api/gas';
-const PLACES_API_KEY = 'AIzaSyCKwAVVCbxHKsKViJ4Dq0ZQ5r6k-arue3E';
-const TICKETMASTER_KEY = 'pMuGA4GIB29yxOAKrDb9Vxa3tXhXpak1';
-const EVENTBRITE_KEY = 'THZPF2PNV6AADGI572CV';
-const FOURSQUARE_KEY = 'NB52CD0NX1URELFA3R345EAHJRBFRPC542YYRE2PADZRXOHQ';
 const EC_WEATHER_URL = 'https://dd.weather.gc.ca/citypage_weather/xml/ON/s0000430_e.xml';
 const ONTARIO_511_URL = 'https://511on.ca/api/v2';
 const OTTAWA_OPEN_DATA_URL = 'https://open.ottawa.ca/api/explore/v2.1/catalog/datasets';
@@ -1058,7 +1057,7 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
 
 
 function SavedPlaceCard({ place, colours, fonts, language, t, onPress, onLongPress, cardShadow }: any) {
-  const photoUrl = place.photoRef ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${place.photoRef}&key=${PLACES_API_KEY}` : null;
+  const photoUrl = place.photoRef ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${place.photoRef}&key=${GOOGLE_PLACES_API_KEY}` : null;
   const label = language === 'fr' ? place.categoryLabel_fr : place.categoryLabel_en;
   return (
     <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 16, overflow: 'hidden', backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }, cardShadow]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
@@ -1160,7 +1159,8 @@ async function checkAndNotifyCriticalAlerts(): Promise<void> {
     if (critical.length === 0) return;
 
     const seenRaw = await AsyncStorage.getItem('routeo_seen_alert_ids');
-    const seenIds: number[] = seenRaw ? JSON.parse(seenRaw) : [];
+    let seenIds: number[] = [];
+    try { if (seenRaw) seenIds = JSON.parse(seenRaw); } catch { await AsyncStorage.removeItem('routeo_seen_alert_ids'); }
 
     const unseen = critical.filter(a => !seenIds.includes(a.id));
     if (unseen.length === 0) return;
@@ -1332,59 +1332,69 @@ export default function LiveScreen() {
 
   useEffect(() => {
     AsyncStorage.getItem('routeo_favs').then(val => {
-      const savedFavs: Fav[] = val ? JSON.parse(val) : [];
-      setFavs(savedFavs);
-      if (savedFavs.length > 0) { setStopId(savedFavs[0].id); setStopName(savedFavs[0].name); fetchArrivals(savedFavs[0].id); }
-      else fetchArrivals('CD995');
+      try {
+        const savedFavs: Fav[] = val ? JSON.parse(val) : [];
+        setFavs(savedFavs);
+        if (savedFavs.length > 0) { setStopId(savedFavs[0].id); setStopName(savedFavs[0].name); fetchArrivals(savedFavs[0].id); }
+        else fetchArrivals('CD995');
+      } catch { fetchArrivals('CD995'); }
     });
-    AsyncStorage.getItem('routeo_saved_places').then(val => { if (val) setSavedPlaces(JSON.parse(val)); });
-    AsyncStorage.getItem('routeo_saved_teams').then(val => { if (val) setSavedTeams(JSON.parse(val)); });
-    AsyncStorage.getItem('routeo_saved_routes').then(val => { if (val) setSavedRoutes(JSON.parse(val)); });
+    AsyncStorage.getItem('routeo_saved_places').then(val => { try { if (val) setSavedPlaces(JSON.parse(val)); } catch {} });
+    AsyncStorage.getItem('routeo_saved_teams').then(val => { try { if (val) setSavedTeams(JSON.parse(val)); } catch {} });
+    AsyncStorage.getItem('routeo_saved_routes').then(val => { try { if (val) setSavedRoutes(JSON.parse(val)); } catch {} });
     AsyncStorage.getItem('routeo_time_format').then(val => { if (val === 'absolute') setTimeFormat('absolute'); });
     Promise.all([
       AsyncStorage.getItem('routeo_saved_board'),
       AsyncStorage.getItem('routeo_favs'),
       AsyncStorage.getItem('routeo_garbage_address'),
     ]).then(([boardVal, favsVal, garbageAddr]) => {
-      const board: SavedBoardItem[] = boardVal ? JSON.parse(boardVal) : [];
-      const existingFavs: Fav[] = favsVal ? JSON.parse(favsVal) : [];
-      let changed = false;
-      for (const fav of existingFavs) {
-        const alreadyOn = board.some(i => (i.type === 'bus_stop' || i.type === 'lrt_station') && i.id === fav.id);
-        if (!alreadyOn) {
-          board.push({ type: LRT_STOP_IDS.has(fav.id) ? 'lrt_station' : 'bus_stop', id: fav.id, name: fav.name });
+      try {
+        const board: SavedBoardItem[] = boardVal ? JSON.parse(boardVal) : [];
+        const existingFavs: Fav[] = favsVal ? JSON.parse(favsVal) : [];
+        let changed = false;
+        for (const fav of existingFavs) {
+          const alreadyOn = board.some(i => (i.type === 'bus_stop' || i.type === 'lrt_station') && i.id === fav.id);
+          if (!alreadyOn) {
+            board.push({ type: LRT_STOP_IDS.has(fav.id) ? 'lrt_station' : 'bus_stop', id: fav.id, name: fav.name });
+            changed = true;
+          }
+        }
+        if (garbageAddr && !board.some(i => i.type === 'garbage')) {
+          board.push({ type: 'garbage' });
           changed = true;
         }
+        if (changed) AsyncStorage.setItem('routeo_saved_board', JSON.stringify(board));
+        setSavedBoard(board);
+      } catch {
+        setSavedBoard([]);
       }
-      if (garbageAddr && !board.some(i => i.type === 'garbage')) {
-        board.push({ type: 'garbage' });
-        changed = true;
-      }
-      if (changed) AsyncStorage.setItem('routeo_saved_board', JSON.stringify(board));
-      setSavedBoard(board);
-    });
+    }).catch(() => {});
     AsyncStorage.getItem('routeo_ghost_reports').then(val => {
-      if (val) {
-        const saved: Reports = JSON.parse(val);
-        const now = Date.now();
-        const valid: Reports = {};
-        for (const key of Object.keys(saved)) { if (saved[key].expiresAt > now) valid[key] = saved[key]; }
-        setReports(valid);
-      }
+      try {
+        if (val) {
+          const saved: Reports = JSON.parse(val);
+          const now = Date.now();
+          const valid: Reports = {};
+          for (const key of Object.keys(saved)) { if (saved[key].expiresAt > now) valid[key] = saved[key]; }
+          setReports(valid);
+        }
+      } catch {}
     });
     AsyncStorage.getItem('routeo_section_order').then(val => {
-      if (val) {
-        let saved: string[] = JSON.parse(val);
-        // Remove legacy keys and 'map' section
-        saved = saved.filter(s => s !== 'quick' && s !== 'ottawa' && s !== 'map');
-        if (!saved.includes('services')) {
-          const insertAt = saved.indexOf('alerts');
-          if (insertAt >= 0) saved.splice(insertAt, 0, 'services');
-          else saved.push('services');
+      try {
+        if (val) {
+          let saved: string[] = JSON.parse(val);
+          // Remove legacy keys and 'map' section
+          saved = saved.filter(s => s !== 'quick' && s !== 'ottawa' && s !== 'map');
+          if (!saved.includes('services')) {
+            const insertAt = saved.indexOf('alerts');
+            if (insertAt >= 0) saved.splice(insertAt, 0, 'services');
+            else saved.push('services');
+          }
+          setSectionOrder(saved);
+          AsyncStorage.setItem('routeo_section_order', JSON.stringify(saved));
         }
-        setSectionOrder(saved);
-        AsyncStorage.setItem('routeo_section_order', JSON.stringify(saved));
-      }
+      } catch {}
     });
     AsyncStorage.removeItem('routeo_quick_actions');
     AsyncStorage.removeItem('routeo_ottawa_life');
@@ -1729,8 +1739,8 @@ export default function LiveScreen() {
     try {
       const coords = await getUserCoords();
       const [infoResp, statusResp] = await Promise.all([
-        fetch('http://velogo.ca/opendata/station_information.json'),
-        fetch('http://velogo.ca/opendata/station_status.json'),
+        fetch('https://velogo.ca/opendata/station_information.json'),
+        fetch('https://velogo.ca/opendata/station_status.json'),
       ]);
       const infoData = await infoResp.json();
       const statusData = await statusResp.json();
@@ -1760,7 +1770,7 @@ export default function LiveScreen() {
   const fetchTicketmasterEvents = async () => {
     setEventsLoading(true);
     try {
-      const resp = await fetch(`https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TICKETMASTER_KEY}&city=Ottawa&countryCode=CA&size=40&sort=date,asc`);
+      const resp = await fetch(`https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TICKETMASTER_API_KEY}&city=Ottawa&countryCode=CA&size=40&sort=date,asc`);
       const data = await resp.json();
       const evs = (data?._embedded?.events || []).map((e: any) => ({
         id: e.id,
@@ -1811,7 +1821,7 @@ export default function LiveScreen() {
       const newCache = { ...eventsGeoCache };
       await Promise.all(toGeocode.map(async e => {
         try {
-          const r = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(e.address + ', Ottawa, ON')}&key=${PLACES_API_KEY}`);
+          const r = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(e.address + ', Ottawa, ON')}&key=${GOOGLE_PLACES_API_KEY}`);
           const d = await r.json();
           if (d.results?.[0]?.geometry?.location) newCache[e.address!] = { lat: d.results[0].geometry.location.lat, lng: d.results[0].geometry.location.lng };
         } catch {}
@@ -1825,7 +1835,7 @@ export default function LiveScreen() {
     const photos: { [id: string]: string } = {};
     await Promise.all(DISCOVER_CARDS.map(async card => {
       try {
-        const resp = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(card.query)}&per_page=1&orientation=landscape`, { headers: { Authorization: `Client-ID ${UNSPLASH_KEY}` } });
+        const resp = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(card.query)}&per_page=1&orientation=landscape`, { headers: { Authorization: `Client-ID ${UNSPLASH_API_KEY}` } });
         const data = await resp.json();
         if (data.results?.[0]?.urls?.regular) photos[card.id] = data.results[0].urls.regular;
       } catch {}
@@ -1883,7 +1893,7 @@ export default function LiveScreen() {
         setLoading(false);
         return;
       }
-      const resp = await fetch(TRIP_UPDATES, { headers: { 'Ocp-Apim-Subscription-Key': API_KEY } });
+      const resp = await fetch(TRIP_UPDATES, { headers: { 'Ocp-Apim-Subscription-Key': OC_TRANSPO_API_KEY } });
       if (!resp.ok) throw new Error(`API error ${resp.status}`);
       const data = await resp.json();
       setArrivals(parseGTFS(data, internalId));

@@ -150,7 +150,7 @@ export default function AccountScreen() {
   const shareLocation = () => {
     if (!location) return;
     const url = `https://maps.google.com/?q=${location.lat},${location.lng}`;
-    Linking.openURL(`sms:&body=${encodeURIComponent(t(`I'm taking transit home. My location: ${url}`, `Je prends le transport en commun. Ma position: ${url}`))}`);
+    Linking.openURL(`sms:?body=${encodeURIComponent(t(`I'm taking transit home. My location: ${url}`, `Je prends le transport en commun. Ma position: ${url}`))}`);
   };
 
   const themeLabels: Record<string, string> = {

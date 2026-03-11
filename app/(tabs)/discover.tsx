@@ -5,10 +5,10 @@ import {
     StatusBar, Text, TouchableOpacity, View
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
+import { OC_TRANSPO_API_KEY } from '../../lib/keys';
 import stopMap from './stopmap.json';
 import tripMap from './tripmap.json';
 
-const API_KEY = 'e85c07c79cfc45f1b429ce62dcfbab30';
 const TRIP_UPDATES = 'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt-tp/beta/v1/TripUpdates?format=json';
 
 const STOP_MAP: { [key: string]: string } = stopMap;
@@ -54,7 +54,7 @@ export default function SavedScreen() {
 
   const fetchAllArrivals = async () => {
     try {
-      const resp = await fetch(TRIP_UPDATES, { headers: { 'Ocp-Apim-Subscription-Key': API_KEY } });
+      const resp = await fetch(TRIP_UPDATES, { headers: { 'Ocp-Apim-Subscription-Key': OC_TRANSPO_API_KEY } });
       const data = await resp.json();
       const now = Math.floor(Date.now() / 1000);
       const newArrivals: StopArrivals = {};
