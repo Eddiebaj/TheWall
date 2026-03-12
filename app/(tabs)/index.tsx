@@ -1426,6 +1426,11 @@ function LiveScreenInner() {
   const [socialFeedbackText, setSocialFeedbackText] = useState('');
   const [socialFeedbackSent, setSocialFeedbackSent] = useState(false);
   const [socialFeedbackSending, setSocialFeedbackSending] = useState(false);
+  const [socialDealForm, setSocialDealForm] = useState(false);
+  const [socialDealVenue, setSocialDealVenue] = useState('');
+  const [socialDealDesc, setSocialDealDesc] = useState('');
+  const [socialDealSending, setSocialDealSending] = useState(false);
+  const [socialDealSent, setSocialDealSent] = useState(false);
   const [savedTeams, setSavedTeams] = useState<string[]>([]);
   const [sportsScores, setSportsScores] = useState<any[]>([]);
   const [sportsScoresLoading, setSportsScoresLoading] = useState(false);
@@ -2765,6 +2770,65 @@ function LiveScreenInner() {
               });
             })()}
           </ScrollView>
+
+          {/* Submit new deal */}
+          {!socialFeedbackVenue && (
+            <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
+              {socialDealSent ? (
+                <View style={{ alignItems: 'center', paddingVertical: 10 }}>
+                  <Ionicons name="checkmark-circle" size={24} color="#00A78D" />
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text, marginTop: 4 }}>{t('Deal submitted for review!', 'Offre soumise pour examen!')}</Text>
+                </View>
+              ) : socialDealForm ? (
+                <View style={{ backgroundColor: colours.bg, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colours.border }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text, marginBottom: 8 }}>{t('Submit a New Deal', 'Soumettre une offre')}</Text>
+                  <TextInput
+                    style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: colours.text, marginBottom: 8 }}
+                    placeholder={t('Venue name', 'Nom du lieu')}
+                    placeholderTextColor={colours.muted}
+                    value={socialDealVenue}
+                    onChangeText={setSocialDealVenue}
+                  />
+                  <TextInput
+                    style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: colours.text, minHeight: 50, textAlignVertical: 'top', marginBottom: 10 }}
+                    placeholder={t('Deal details (e.g. $5 pints Mon-Fri 3-6pm)', 'Details (ex. $5 pintes lun-ven 15h-18h)')}
+                    placeholderTextColor={colours.muted}
+                    value={socialDealDesc}
+                    onChangeText={setSocialDealDesc}
+                    multiline
+                  />
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity onPress={() => { setSocialDealForm(false); setSocialDealVenue(''); setSocialDealDesc(''); }} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted }}>{t('Cancel', 'Annuler')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={async () => {
+                        if (!socialDealVenue.trim() || !socialDealDesc.trim()) return;
+                        setSocialDealSending(true);
+                        try {
+                          await supabase.from('community_deals').insert({ venue_name: socialDealVenue.trim(), deal_description: socialDealDesc.trim(), approved: false });
+                          setSocialDealSent(true);
+                          setSocialDealForm(false);
+                        } catch (e) { if (__DEV__) console.warn('submit deal failed:', e); }
+                        setSocialDealSending(false);
+                      }}
+                      style={{ flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: socialDealVenue.trim() && socialDealDesc.trim() ? '#7b5ea7' : colours.border, alignItems: 'center' }}
+                    >
+                      {socialDealSending
+                        ? <ActivityIndicator color="white" size="small" />
+                        : <Text style={{ fontSize: 13, fontWeight: '700', color: socialDealVenue.trim() && socialDealDesc.trim() ? 'white' : colours.muted }}>{t('Submit', 'Soumettre')}</Text>
+                      }
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <TouchableOpacity onPress={() => { setSocialDealForm(true); setSocialDealSent(false); }} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#7b5ea7' + '40', borderStyle: 'dashed' }}>
+                  <Ionicons name="add-circle-outline" size={16} color="#7b5ea7" />
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#7b5ea7' }}>{t('Know a deal? Submit it', 'Vous connaissez une offre?')}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
 
           {/* Feedback sheet */}
           {socialFeedbackVenue && (
@@ -4376,6 +4440,7 @@ function LiveScreenInner() {
             sensGame={sensGame}
             events={events as any}
             weather={weather}
+            sportsSchedule={sportsSchedule}
           />
 
           {sectionOrder.map(renderSection)}

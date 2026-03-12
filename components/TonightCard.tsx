@@ -5,7 +5,14 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { HAPPY_HOUR_VENUES } from '../lib/happyHourData';
 import { SK_TONIGHT_DISMISSED } from '../lib/storageKeys';
-import { buildTonightSummary, shouldShowTonightCard, TonightSummary } from '../lib/tonightHelpers';
+import { buildTonightSummary, shouldShowTonightCard, SportEntry, TonightSummary } from '../lib/tonightHelpers';
+
+const SPORT_ICONS: { [key in SportEntry['icon']]: string } = {
+  hockey: 'snow',
+  football: 'american-football',
+  basketball: 'basketball',
+  soccer: 'football',
+};
 
 type Props = {
   colours: any;
@@ -14,9 +21,10 @@ type Props = {
   sensGame: { state: 'live' | 'pre' | 'none'; opponentAbbr?: string; startTime?: string; homeScore?: number; awayScore?: number; period?: string } | null;
   events: { name: string; date: string; time?: string; venue: string }[];
   weather: { temp: number; condition: string } | null;
+  sportsSchedule?: { team: string; games: any[] }[];
 };
 
-export default function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather }: Props) {
+export default function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sportsSchedule }: Props) {
   const { t } = useApp();
   const [show, setShow] = useState(false);
   const [summary, setSummary] = useState<TonightSummary | null>(null);
@@ -26,14 +34,14 @@ export default function TonightCard({ colours, fonts, cardShadow, sensGame, even
       if (!ok) return;
       // Only show once data is loaded
       if (!weather && !sensGame && events.length === 0) return;
-      const s = buildTonightSummary(sensGame, events, HAPPY_HOUR_VENUES, weather);
+      const s = buildTonightSummary(sensGame, events, HAPPY_HOUR_VENUES, weather, sportsSchedule || []);
       // Only show if there's something to display
-      if (s.sports || s.events.count > 0 || s.deals.count > 0) {
+      if (s.sports.length > 0 || s.events.count > 0 || s.deals.count > 0) {
         setSummary(s);
         setShow(true);
       }
     });
-  }, [sensGame, events, weather]);
+  }, [sensGame, events, weather, sportsSchedule]);
 
   const dismiss = () => {
     setShow(false);
@@ -67,18 +75,18 @@ export default function TonightCard({ colours, fonts, cardShadow, sensGame, even
           </TouchableOpacity>
         </View>
 
-        {/* Sports */}
-        {summary.sports && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <View style={{ backgroundColor: '#cc3b2a18', borderRadius: 8, padding: 6 }}>
-              <Ionicons name="american-football" size={14} color="#cc3b2a" />
+        {/* Sports — multiple entries */}
+        {summary.sports.map((sport, i) => (
+          <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <View style={{ backgroundColor: sport.colour + '18', borderRadius: 8, padding: 6 }}>
+              <Ionicons name={SPORT_ICONS[sport.icon] as any} size={14} color={sport.colour} />
             </View>
             <View>
-              <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>{summary.sports.label}</Text>
-              <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{summary.sports.detail}</Text>
+              <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>{sport.label}</Text>
+              <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{sport.detail}</Text>
             </View>
           </View>
-        )}
+        ))}
 
         {/* Events */}
         {summary.events.count > 0 && (
@@ -118,23 +126,30 @@ export default function TonightCard({ colours, fonts, cardShadow, sensGame, even
           </View>
         )}
 
-        {/* Near CTC bars (if Sens game) */}
-        {summary.nearCtcBars.length > 0 && (
-          <View style={{ marginTop: 4, backgroundColor: '#cc3b2a08', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#cc3b2a20' }}>
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: '#cc3b2a', marginBottom: 4 }}>
-              {t('Near Canadian Tire Centre', 'Pres du Centre Canadian Tire')}
-            </Text>
-            {summary.nearCtcBars.map((b, i) => (
-              <Text key={i} style={{ fontSize: fonts.sm, color: colours.muted }}>
-                {b.name}{b.deal ? ` - ${b.deal}` : ''}
+        {/* Near venue bars (grouped by venue) */}
+        {summary.nearVenueBars.length > 0 && (() => {
+          const byVenue: { [key: string]: typeof summary.nearVenueBars } = {};
+          for (const b of summary.nearVenueBars) {
+            if (!byVenue[b.venueName]) byVenue[b.venueName] = [];
+            byVenue[b.venueName].push(b);
+          }
+          return Object.entries(byVenue).map(([venueName, bars]) => (
+            <View key={venueName} style={{ marginTop: 4, marginBottom: 4, backgroundColor: '#cc3b2a08', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#cc3b2a20' }}>
+              <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: '#cc3b2a', marginBottom: 4 }}>
+                {t(`Near ${venueName}`, `Pres du ${venueName}`)}
               </Text>
-            ))}
-          </View>
-        )}
+              {bars.map((b, i) => (
+                <Text key={i} style={{ fontSize: fonts.sm, color: colours.muted }}>
+                  {b.name}{b.deal ? ` - ${b.deal}` : ''}
+                </Text>
+              ))}
+            </View>
+          ));
+        })()}
 
         {/* Weather */}
         {summary.weather && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: summary.sports || summary.events.count > 0 || summary.deals.count > 0 ? 8 : 0 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: summary.sports.length > 0 || summary.events.count > 0 || summary.deals.count > 0 ? 8 : 0 }}>
             <View style={{ backgroundColor: '#e8a02018', borderRadius: 8, padding: 6 }}>
               <Ionicons name="partly-sunny" size={14} color="#e8a020" />
             </View>

@@ -3,13 +3,14 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator, Linking, Modal, ScrollView,
-  Text, TouchableOpacity, View,
+  Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { fetchWithTimeout } from '../lib/fetchWithTimeout';
 import { HAPPY_HOUR_VENUES } from '../lib/happyHourData';
 import { Neighbourhood } from '../lib/neighbourhoodData';
 import { NewsArticle, SOURCE_COLOURS, timeAgo } from '../lib/newsData';
+import { supabase } from '../lib/supabase';
 
 type Props = {
   visible: boolean;
@@ -48,6 +49,14 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
   const [stops, setStops] = useState<any[]>([]);
   const [stopsLoading, setStopsLoading] = useState(false);
 
+  // Deal submission state
+  const [showDealForm, setShowDealForm] = useState(false);
+  const [dealVenueName, setDealVenueName] = useState('');
+  const [dealDescription, setDealDescription] = useState('');
+  const [dealSubmitting, setDealSubmitting] = useState(false);
+  const [dealSubmitted, setDealSubmitted] = useState(false);
+  const [communityDeals, setCommunityDeals] = useState<{ venue_name: string; deal_description: string; created_at: string }[]>([]);
+
   const n = neighbourhood;
 
   useEffect(() => {
@@ -55,12 +64,16 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
     setActiveTab('places');
     setPlaces([]);
     setStops([]);
+    setShowDealForm(false);
+    setDealSubmitted(false);
+    setCommunityDeals([]);
   }, [visible, n?.id]);
 
   useEffect(() => {
     if (!visible || !n) return;
     if (activeTab === 'places' && places.length === 0) fetchPlaces();
     if (activeTab === 'transit' && stops.length === 0) fetchStops();
+    if (activeTab === 'deals' && communityDeals.length === 0) fetchCommunityDeals();
   }, [activeTab, visible]);
 
   const fetchPlaces = async () => {
@@ -85,6 +98,37 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
       setStops((data.stops || []).slice(0, 10));
     } catch (e) { if (__DEV__) console.warn('fetch neighbourhood stops failed:', e); }
     setStopsLoading(false);
+  };
+
+  const fetchCommunityDeals = async () => {
+    if (!n) return;
+    try {
+      const { data } = await supabase
+        .from('community_deals')
+        .select('venue_name, deal_description, created_at')
+        .eq('neighbourhood_id', n.id)
+        .eq('approved', true)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (data) setCommunityDeals(data);
+    } catch (e) { if (__DEV__) console.warn('fetch community deals failed:', e); }
+  };
+
+  const submitDeal = async () => {
+    if (!n || !dealVenueName.trim() || !dealDescription.trim()) return;
+    setDealSubmitting(true);
+    try {
+      await supabase.from('community_deals').insert({
+        neighbourhood_id: n.id,
+        venue_name: dealVenueName.trim(),
+        deal_description: dealDescription.trim(),
+        approved: false,
+      });
+      setDealSubmitted(true);
+      setDealVenueName('');
+      setDealDescription('');
+    } catch (e) { if (__DEV__) console.warn('submit deal failed:', e); }
+    setDealSubmitting(false);
   };
 
   if (!n) return null;
@@ -146,19 +190,93 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
         ));
 
       case 'deals':
-        if (nearbyDeals.length === 0) return <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 20 }}>{t('No deals right now', 'Aucune offre en ce moment')}</Text>;
-        return nearbyDeals.map((v, i) => (
-          <View key={i} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>{v.name}</Text>
-              {v.isActive && <View style={{ backgroundColor: '#00A78D', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}><Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>NOW</Text></View>}
-            </View>
-            <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{v.address}</Text>
-            {(v.isActive ? v.activeDeals : v.upcomingDeals).map((d: any, j: number) => (
-              <Text key={j} style={{ fontSize: fonts.sm, color: v.isActive ? '#00A78D' : colours.accent, marginTop: 2 }}>{d.description}</Text>
+        return (
+          <>
+            {/* Existing happy hour deals */}
+            {nearbyDeals.length > 0 && nearbyDeals.map((v, i) => (
+              <View key={i} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>{v.name}</Text>
+                  {v.isActive && <View style={{ backgroundColor: '#00A78D', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}><Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>NOW</Text></View>}
+                </View>
+                <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{v.address}</Text>
+                {(v.isActive ? v.activeDeals : v.upcomingDeals).map((d: any, j: number) => (
+                  <Text key={j} style={{ fontSize: fonts.sm, color: v.isActive ? '#00A78D' : colours.accent, marginTop: 2 }}>{d.description}</Text>
+                ))}
+              </View>
             ))}
-          </View>
-        ));
+
+            {nearbyDeals.length === 0 && communityDeals.length === 0 && !showDealForm && (
+              <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 20 }}>{t('No deals right now', 'Aucune offre en ce moment')}</Text>
+            )}
+
+            {/* Community-submitted deals */}
+            {communityDeals.length > 0 && (
+              <View style={{ marginTop: nearbyDeals.length > 0 ? 16 : 0 }}>
+                <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                  {t('Community Deals', 'Offres communautaires')}
+                </Text>
+                {communityDeals.map((d, i) => (
+                  <View key={i} style={{ paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+                    <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{d.venue_name}</Text>
+                    <Text style={{ fontSize: fonts.sm, color: colours.accent, marginTop: 2 }}>{d.deal_description}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Submit deal button / form */}
+            <View style={{ marginTop: 16 }}>
+              {dealSubmitted ? (
+                <View style={{ alignItems: 'center', paddingVertical: 12 }}>
+                  <Ionicons name="checkmark-circle" size={28} color="#00A78D" />
+                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, marginTop: 6 }}>{t('Thanks! Your deal will be reviewed.', 'Merci! Votre offre sera examinee.')}</Text>
+                </View>
+              ) : showDealForm ? (
+                <View style={{ backgroundColor: colours.bg, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colours.border }}>
+                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, marginBottom: 8 }}>{t('Submit a Deal', 'Soumettre une offre')}</Text>
+                  <TextInput
+                    style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: fonts.md, color: colours.text, marginBottom: 8 }}
+                    placeholder={t('Venue name', 'Nom du lieu')}
+                    placeholderTextColor={colours.muted}
+                    value={dealVenueName}
+                    onChangeText={setDealVenueName}
+                  />
+                  <TextInput
+                    style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: fonts.md, color: colours.text, minHeight: 60, textAlignVertical: 'top', marginBottom: 10 }}
+                    placeholder={t('Deal details (e.g. $5 pints Mon-Fri 3-6pm)', 'Details de l\'offre (ex. $5 pintes lun-ven 15h-18h)')}
+                    placeholderTextColor={colours.muted}
+                    value={dealDescription}
+                    onChangeText={setDealDescription}
+                    multiline
+                  />
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity onPress={() => setShowDealForm(false)} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
+                      <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted }}>{t('Cancel', 'Annuler')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={submitDeal}
+                      style={{ flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: dealVenueName.trim() && dealDescription.trim() ? n.accent : colours.border, alignItems: 'center' }}
+                    >
+                      {dealSubmitting
+                        ? <ActivityIndicator color="#fff" size="small" />
+                        : <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: dealVenueName.trim() && dealDescription.trim() ? '#fff' : colours.muted }}>{t('Submit', 'Soumettre')}</Text>
+                      }
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  onPress={() => setShowDealForm(true)}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: n.accent + '40', borderStyle: 'dashed' }}
+                >
+                  <Ionicons name="add-circle-outline" size={18} color={n.accent} />
+                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: n.accent }}>{t('Know a deal? Submit it here', 'Vous connaissez une offre? Soumettez-la ici')}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </>
+        );
 
       case 'transit':
         if (stopsLoading) return <ActivityIndicator color={colours.accent} style={{ marginTop: 20 }} />;

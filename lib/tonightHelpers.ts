@@ -3,6 +3,8 @@ import { SK_TONIGHT_DISMISSED } from './storageKeys';
 
 const CTC_LAT = 45.2969;
 const CTC_LNG = -75.9270;
+const TD_PLACE_LAT = 45.3998;
+const TD_PLACE_LNG = -75.6844;
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const toRad = (d: number) => (d * Math.PI) / 180;
@@ -25,12 +27,19 @@ export async function shouldShowTonightCard(): Promise<boolean> {
   return true;
 }
 
+export type SportEntry = {
+  label: string;
+  detail: string;
+  icon: 'hockey' | 'football' | 'basketball' | 'soccer';
+  colour: string;
+};
+
 export type TonightSummary = {
-  sports: { label: string; detail: string } | null;
+  sports: SportEntry[];
   events: { count: number; highlights: string[] };
   deals: { count: number; highlights: string[] };
   weather: { temp: number; condition: string } | null;
-  nearCtcBars: { name: string; deal: string }[];
+  nearVenueBars: { name: string; deal: string; venueName: string }[];
 };
 
 type HappyHourVenue = {
@@ -40,11 +49,34 @@ type HappyHourVenue = {
   deals: { days: number[]; start: string; end: string; description: string }[];
 };
 
+type SensGame = {
+  state: 'live' | 'pre' | 'none';
+  opponentAbbr?: string;
+  startTime?: string;
+  homeScore?: number;
+  awayScore?: number;
+  period?: string;
+};
+
+type ScheduleGame = {
+  date: string;
+  opponent: string;
+  opponentAbbr: string;
+  homeAway: string;
+  status?: string;
+};
+
+type TeamSchedule = {
+  team: string;
+  games: ScheduleGame[];
+};
+
 export function buildTonightSummary(
-  sensGame: { state: 'live' | 'pre' | 'none'; opponentAbbr?: string; startTime?: string; homeScore?: number; awayScore?: number; period?: string } | null,
+  sensGame: SensGame | null,
   events: { name: string; date: string; time?: string; venue: string }[],
   venues: HappyHourVenue[],
   weather: { temp: number; condition: string } | null,
+  sportsSchedule: TeamSchedule[],
 ): TonightSummary {
   const now = new Date();
   const day = now.getDay();
@@ -52,19 +84,48 @@ export function buildTonightSummary(
   const mins = now.getMinutes();
   const timeStr = `${String(hour).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
   const twoHoursLater = `${String(Math.min(hour + 2, 23)).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+  const todayStr = now.toLocaleDateString('en-CA');
 
-  // Sports
-  let sports: TonightSummary['sports'] = null;
+  // Sports — Sens (from live game state)
+  const sports: SportEntry[] = [];
   if (sensGame && sensGame.state !== 'none') {
     if (sensGame.state === 'live') {
-      sports = { label: 'Sens Live', detail: `${sensGame.homeScore}-${sensGame.awayScore} ${sensGame.period || ''}`.trim() };
+      sports.push({ label: 'Sens Live', detail: `${sensGame.homeScore}-${sensGame.awayScore} ${sensGame.period || ''}`.trim(), icon: 'hockey', colour: '#cc3b2a' });
     } else if (sensGame.state === 'pre' && sensGame.startTime) {
-      sports = { label: 'Sens Tonight', detail: `vs ${sensGame.opponentAbbr || 'TBD'} @ ${sensGame.startTime}` };
+      sports.push({ label: 'Sens Tonight', detail: `vs ${sensGame.opponentAbbr || 'TBD'} @ ${sensGame.startTime}`, icon: 'hockey', colour: '#cc3b2a' });
+    }
+  }
+
+  // Other teams from schedule data
+  const TEAM_CONFIG: { [name: string]: { icon: SportEntry['icon']; colour: string; venue: { lat: number; lng: number } } } = {
+    'REDBLACKS': { icon: 'football', colour: '#000000', venue: { lat: TD_PLACE_LAT, lng: TD_PLACE_LNG } },
+    "67's": { icon: 'hockey', colour: '#e8a020', venue: { lat: TD_PLACE_LAT, lng: TD_PLACE_LNG } },
+    'Charge': { icon: 'hockey', colour: '#7b5ea7', venue: { lat: TD_PLACE_LAT, lng: TD_PLACE_LNG } },
+    'Blackjacks': { icon: 'basketball', colour: '#004890', venue: { lat: TD_PLACE_LAT, lng: TD_PLACE_LNG } },
+    'Atletico': { icon: 'soccer', colour: '#7b5ea7', venue: { lat: TD_PLACE_LAT, lng: TD_PLACE_LNG } },
+    'Rapid FC': { icon: 'soccer', colour: '#00A78D', venue: { lat: TD_PLACE_LAT, lng: TD_PLACE_LNG } },
+  };
+
+  for (const ts of sportsSchedule) {
+    if (ts.team === 'Senators') continue; // handled above via sensGame
+    const config = TEAM_CONFIG[ts.team];
+    if (!config) continue;
+    const todayGame = ts.games.find(g => {
+      const gameDate = new Date(g.date).toLocaleDateString('en-CA');
+      return gameDate === todayStr;
+    });
+    if (todayGame) {
+      const gameTime = new Date(todayGame.date).toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' });
+      sports.push({
+        label: `${ts.team} Tonight`,
+        detail: `${todayGame.homeAway} ${todayGame.opponent} @ ${gameTime}`,
+        icon: config.icon,
+        colour: config.colour,
+      });
     }
   }
 
   // Today's events
-  const todayStr = now.toLocaleDateString('en-CA');
   const todayEvents = events.filter(e => e.date === todayStr);
   const eventHighlights = todayEvents.slice(0, 3).map(e => e.name);
 
@@ -77,16 +138,28 @@ export function buildTonightSummary(
   });
   const dealHighlights = activeVenues.slice(0, 3).map(v => v.name);
 
-  // Bars near CTC if Sens game
-  let nearCtcBars: TonightSummary['nearCtcBars'] = [];
+  // Bars near game venues (CTC for Sens, TD Place for others)
+  const nearVenueBars: TonightSummary['nearVenueBars'] = [];
+  const gameVenues: { lat: number; lng: number; name: string }[] = [];
+
   if (sensGame && sensGame.state !== 'none') {
-    nearCtcBars = venues
-      .filter(v => haversineKm(v.lat, v.lng, CTC_LAT, CTC_LNG) <= 3)
+    gameVenues.push({ lat: CTC_LAT, lng: CTC_LNG, name: 'Canadian Tire Centre' });
+  }
+  // Check if any other team plays at TD Place tonight
+  const tdPlaceTeamPlaying = sports.some(s => s.label !== 'Sens Live' && s.label !== 'Sens Tonight');
+  if (tdPlaceTeamPlaying) {
+    gameVenues.push({ lat: TD_PLACE_LAT, lng: TD_PLACE_LNG, name: 'TD Place' });
+  }
+
+  for (const venue of gameVenues) {
+    const nearby = venues
+      .filter(v => haversineKm(v.lat, v.lng, venue.lat, venue.lng) <= 3)
       .slice(0, 3)
       .map(v => {
         const deal = v.deals.find(d => d.days.includes(day) && timeStr >= d.start && timeStr <= d.end);
-        return { name: v.name, deal: deal?.description || '' };
+        return { name: v.name, deal: deal?.description || '', venueName: venue.name };
       });
+    nearVenueBars.push(...nearby);
   }
 
   return {
@@ -94,6 +167,6 @@ export function buildTonightSummary(
     events: { count: todayEvents.length, highlights: eventHighlights },
     deals: { count: activeVenues.length, highlights: dealHighlights },
     weather,
-    nearCtcBars,
+    nearVenueBars,
   };
 }

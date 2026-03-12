@@ -16,6 +16,14 @@ export const SOURCE_COLOURS: { [key: string]: string } = {
   'City of Ottawa': '#7b5ea7',
 };
 
+export const SOURCE_FALLBACK_ICONS: { [key: string]: string } = {
+  'CBC Ottawa': 'radio-outline',
+  'Ottawa Citizen': 'document-text-outline',
+  'Ottawa Sun': 'sunny-outline',
+  'Capital Current': 'flash-outline',
+  'City of Ottawa': 'business-outline',
+};
+
 export function timeAgo(dateStr: string, lang: string): string {
   const now = Date.now();
   const then = new Date(dateStr).getTime();

@@ -1,13 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, ImageBackground, Linking, ScrollView,
+  ActivityIndicator, ImageBackground, Linking, RefreshControl, ScrollView,
   Text, TouchableOpacity, View,
 } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { fetchWithTimeout } from '../lib/fetchWithTimeout';
-import { NewsArticle, SOURCE_COLOURS, timeAgo } from '../lib/newsData';
+import { NewsArticle, SOURCE_COLOURS, SOURCE_FALLBACK_ICONS, timeAgo } from '../lib/newsData';
 import { SK_NEWS_CACHE } from '../lib/storageKeys';
 
 const NEWS_URL = 'https://routeo-backend.vercel.app/api/news';
@@ -24,9 +24,10 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
   const { t, language } = useApp();
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchNews = async () => {
+  const fetchNews = async (isManualRefresh = false) => {
     try {
       const resp = await fetchWithTimeout(NEWS_URL);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -37,19 +38,27 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
       AsyncStorage.setItem(SK_NEWS_CACHE, JSON.stringify({ articles: items, ts: Date.now() }));
     } catch (e) {
       if (__DEV__) console.warn('fetch news failed:', e);
-      // Try cache
-      try {
-        const cached = await AsyncStorage.getItem(SK_NEWS_CACHE);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          setArticles(parsed.articles || []);
-          onArticlesLoaded?.(parsed.articles || []);
-        }
-      } catch {}
+      // Try cache only if not manual refresh (user expects fresh data)
+      if (!isManualRefresh) {
+        try {
+          const cached = await AsyncStorage.getItem(SK_NEWS_CACHE);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            setArticles(parsed.articles || []);
+            onArticlesLoaded?.(parsed.articles || []);
+          }
+        } catch {}
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchNews(true);
+  }, []);
 
   useEffect(() => {
     // Load from cache first, then fetch
@@ -87,10 +96,17 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
     <View>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 10 }}>
         <Text style={{ color: colours.muted, fontSize: fonts.sm }}>{t('Local News', 'Nouvelles locales')}</Text>
+        <TouchableOpacity onPress={onRefresh} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          {refreshing
+            ? <ActivityIndicator color={colours.accent} size="small" />
+            : <Ionicons name="refresh" size={16} color={colours.muted} />
+          }
+        </TouchableOpacity>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 20, paddingRight: 20, gap: 12, paddingBottom: 4 }}>
         {articles.slice(0, 8).map(article => {
           const sourceColour = SOURCE_COLOURS[article.source] || colours.accent;
+          const fallbackIcon = SOURCE_FALLBACK_ICONS[article.source] || 'newspaper-outline';
           return (
             <TouchableOpacity
               key={article.id}
@@ -113,7 +129,8 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
               >
                 {!article.thumbnail && (
                   <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: sourceColour + '15' }}>
-                    <Ionicons name="newspaper-outline" size={32} color={sourceColour} />
+                    <Ionicons name={fallbackIcon as any} size={28} color={sourceColour} />
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: sourceColour, marginTop: 4, textTransform: 'uppercase' }}>{article.source}</Text>
                   </View>
                 )}
                 {article.thumbnail && (
