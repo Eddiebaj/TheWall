@@ -118,7 +118,7 @@ function AlertsScreenInner() {
   // Auto-refresh LRT every 5 minutes
   useEffect(() => {
     lrtInterval.current = setInterval(() => {
-      fetchWithTimeout(LRT_URL).then(r => r.ok ? r.json() : null).then(d => { if (d) setLrt(d); }).catch(() => {});
+      fetchWithTimeout(LRT_URL).then(r => r.ok ? r.json() : null).then(d => { if (d) setLrt(d); }).catch(e => { if (__DEV__) console.warn('LRT refresh failed:', e); });
     }, 5 * 60 * 1000);
     return () => { if (lrtInterval.current) clearInterval(lrtInterval.current); };
   }, []);

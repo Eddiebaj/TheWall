@@ -95,7 +95,8 @@ export default function ExploreScreen() {
       .limit(500)
       .then(({ data }) => {
         if (data && data.length > 0) setNearbyStops(data);
-      });
+      })
+      .catch(e => { if (__DEV__) console.warn('Supabase stops query failed:', e); });
   }, [location]);
 
   // Find nearest stop + next arrival for each place
@@ -196,13 +197,15 @@ export default function ExploreScreen() {
         const data = await resp.json();
         (data.results || []).forEach((p: any) => {
           if (results.find(r => r.id === p.place_id)) return;
+          const loc = p.geometry?.location;
+          if (!loc?.lat || !loc?.lng) return;
           results.push({
             id: p.place_id,
             name: p.name,
             vicinity: p.vicinity,
-            lat: p.geometry.location.lat,
-            lng: p.geometry.location.lng,
-            distance: getDistance(location.lat, location.lng, p.geometry.location.lat, p.geometry.location.lng),
+            lat: loc.lat,
+            lng: loc.lng,
+            distance: getDistance(location.lat, location.lng, loc.lat, loc.lng),
             rating: p.rating,
             reviewCount: p.user_ratings_total,
             open: p.opening_hours?.open_now,

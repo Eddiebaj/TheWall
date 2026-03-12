@@ -486,21 +486,22 @@ export default function MapScreen() {
   // Pause bus polling when app is backgrounded, resume when foregrounded
   useEffect(() => {
     fetchBuses();
-    let interval = setInterval(fetchBuses, 30000);
+    let interval: ReturnType<typeof setInterval> | null = setInterval(fetchBuses, 30000);
 
     const sub = AppState.addEventListener('change', (nextState) => {
       const active = nextState === 'active';
       appIsActive.current = active;
       if (active) {
         fetchBuses();
+        if (interval) clearInterval(interval);
         interval = setInterval(fetchBuses, 30000);
       } else {
-        clearInterval(interval);
+        if (interval) { clearInterval(interval); interval = null; }
       }
     });
 
     return () => {
-      clearInterval(interval);
+      if (interval) clearInterval(interval);
       sub.remove();
     };
   }, []);
@@ -691,6 +692,7 @@ export default function MapScreen() {
     setPlaceSuggestions([]);
     try {
       const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=details&place_id=${suggestion.placeId}&fields=geometry,name,formatted_address`);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
       const data = await r.json();
       if (data.result?.geometry?.location) {
         const { lat, lng } = data.result.geometry.location;
