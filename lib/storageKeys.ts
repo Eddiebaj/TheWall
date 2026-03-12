@@ -45,5 +45,8 @@ export const SK_OTTAWA_LIFE = 'routeo_ottawa_life';
 // Events cache
 export const SK_TODAY_EVENTS = 'routeo_today_events';
 
+// Planner preferences
+export const SK_PLANNER_PREFS = 'routeo_planner_prefs';
+
 // Notification settings
 export const SK_NOTIF_SETTINGS = 'routeo_notif_settings';

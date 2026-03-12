@@ -13,7 +13,7 @@ import {
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useApp } from '../../context/AppContext';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
-import { SK_SAVED_ROUTES } from '../../lib/storageKeys';
+import { SK_PLANNER_PREFS, SK_SAVED_ROUTES } from '../../lib/storageKeys';
 
 const PLAN_URL = 'https://routeo-backend.vercel.app/api/plan';
 const GEOCODE_URL = 'https://routeo-backend.vercel.app/api/geocode';
@@ -204,6 +204,31 @@ export default function PlannerScreen() {
     AsyncStorage.getItem(SAVED_ROUTES_KEY).then(val => {
       try { if (val) setSavedRoutes(JSON.parse(val)); } catch (e) { console.warn('JSON parse saved routes failed:', e); }
     }).catch(() => {});
+  }, []);
+
+  // ── Load planner prefs (hour, minute, arriveBy) ──────────────
+  useEffect(() => {
+    AsyncStorage.getItem(SK_PLANNER_PREFS).then(val => {
+      try {
+        if (!val) return;
+        const prefs = JSON.parse(val);
+        if (typeof prefs.hour === 'number' && typeof prefs.minute === 'number') {
+          const d = new Date();
+          d.setHours(prefs.hour, prefs.minute, 0, 0);
+          setDepartTime(d);
+        }
+        if (typeof prefs.arriveBy === 'boolean') setArriveBy(prefs.arriveBy);
+      } catch (e) { console.warn('JSON parse planner prefs failed:', e); }
+    }).catch(() => {});
+  }, []);
+
+  // ── Save planner prefs when they change ──────────────────────
+  const savePlannerPrefs = useCallback((time: Date, ab: boolean) => {
+    AsyncStorage.setItem(SK_PLANNER_PREFS, JSON.stringify({
+      hour: time.getHours(),
+      minute: time.getMinutes(),
+      arriveBy: ab,
+    })).catch(() => {});
   }, []);
 
   // ── Cleanup location subscription on unmount ──────────────────
@@ -1206,7 +1231,7 @@ export default function PlannerScreen() {
               return (
                 <TouchableOpacity
                   key={String(ab)}
-                  onPress={() => { setArriveBy(ab); setShowTimePicker(true); }}
+                  onPress={() => { setArriveBy(ab); savePlannerPrefs(departTime, ab); setShowTimePicker(true); }}
                   style={[{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: active ? colours.accent : colours.border, backgroundColor: active ? colours.accent + '15' : colours.surface }, cardShadow]}
                   accessibilityRole="button"
                   accessibilityLabel={ab ? t('Arrive by', 'Arriver avant') : t('Depart at', 'Depart a')}
@@ -1227,7 +1252,7 @@ export default function PlannerScreen() {
             <View style={[{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, padding: 12 }, cardShadow]}>
               {/* Now button */}
               <TouchableOpacity
-                onPress={() => { setDepartTime(new Date()); setShowTimePicker(false); }}
+                onPress={() => { const now = new Date(); setDepartTime(now); savePlannerPrefs(now, arriveBy); setShowTimePicker(false); }}
                 style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15', marginBottom: 12 }}
                 accessibilityRole="button"
                 accessibilityLabel={t('Set time to now', 'Mettre a maintenant')}
@@ -1248,7 +1273,7 @@ export default function PlannerScreen() {
                         return (
                           <TouchableOpacity
                             key={h}
-                            onPress={() => { const d = new Date(departTime); d.setHours(h); setDepartTime(d); }}
+                            onPress={() => { const d = new Date(departTime); d.setHours(h); setDepartTime(d); savePlannerPrefs(d, arriveBy); }}
                             style={{ width: 40, paddingVertical: 6, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, backgroundColor: isActive ? colours.accent + '18' : colours.bg }}
                           >
                             <Text style={{ fontSize: 13, fontWeight: isActive ? '800' : '500', color: isActive ? colours.accent : colours.text }}>{String(h).padStart(2, '0')}</Text>
@@ -1268,7 +1293,7 @@ export default function PlannerScreen() {
                         return (
                           <TouchableOpacity
                             key={m}
-                            onPress={() => { const d = new Date(departTime); d.setMinutes(m, 0, 0); setDepartTime(d); }}
+                            onPress={() => { const d = new Date(departTime); d.setMinutes(m, 0, 0); setDepartTime(d); savePlannerPrefs(d, arriveBy); }}
                             style={{ width: 40, paddingVertical: 6, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, backgroundColor: isActive ? colours.accent + '18' : colours.bg }}
                           >
                             <Text style={{ fontSize: 13, fontWeight: isActive ? '800' : '500', color: isActive ? colours.accent : colours.text }}>{String(m).padStart(2, '0')}</Text>
@@ -1298,6 +1323,7 @@ export default function PlannerScreen() {
                           const updated = new Date(departTime);
                           updated.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
                           setDepartTime(updated);
+                          savePlannerPrefs(updated, arriveBy);
                         }}
                         style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, backgroundColor: isActive ? colours.accent + '18' : colours.bg, alignItems: 'center', minWidth: 64 }}
                       >
