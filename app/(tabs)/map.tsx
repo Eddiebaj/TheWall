@@ -8,7 +8,8 @@ import {
 } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
 import { useApp } from '../../context/AppContext';
-import { SK_SAVED_ROUTES, SK_FAVS, SK_SAVED_BOARD } from '../../lib/storageKeys';
+import { SK_SAVED_ROUTES, SK_FAVS, SK_SAVED_BOARD, SK_SAVED_NEIGHBOURHOODS } from '../../lib/storageKeys';
+import { NEIGHBOURHOODS } from '../../lib/neighbourhoodData';
 
 // Error boundary to catch AIRMap native crashes and show a recoverable fallback
 class MapErrorBoundary extends React.Component<
@@ -52,7 +53,7 @@ const BACKEND_URL     = 'https://routeo-backend.vercel.app/api/arrivals';
 
 type SavedRoute = { id: string; fromLabel: string; toLabel: string; fromLat: number; fromLng: number; toLat: number; toLng: number };
 type SavedFav = { id: string; name: string; icon: string };
-type SavedPin = { id: string; name: string; lat: number; lng: number; kind: 'stop' | 'route_from' | 'route_to'; routeLabel?: string };
+type SavedPin = { id: string; name: string; lat: number; lng: number; kind: 'stop' | 'route_from' | 'route_to' | 'neighbourhood'; routeLabel?: string };
 
 const OTTAWA_REGION: Region = {
   latitude: 45.4215, longitude: -75.6972,
@@ -602,6 +603,19 @@ export default function MapScreen() {
               if (base) routeIdSet.add(base);
             }
           } catch (e) { if (__DEV__) console.warn('fetch stop coords failed:', e); }
+        }
+        // Saved neighbourhoods
+        const nbRaw = await AsyncStorage.getItem(SK_SAVED_NEIGHBOURHOODS);
+        if (nbRaw) {
+          try {
+            const savedNbIds: string[] = JSON.parse(nbRaw);
+            for (const nbId of savedNbIds) {
+              const nb = NEIGHBOURHOODS.find(n => n.id === nbId);
+              if (nb) {
+                pins.push({ id: `nb_${nb.id}`, name: nb.name_en, lat: nb.lat, lng: nb.lng, kind: 'neighbourhood' });
+              }
+            }
+          } catch { /* invalid JSON */ }
         }
       } catch (e) { if (__DEV__) console.warn('load saved pins failed:', e); }
       setSavedPins(pins);
@@ -1255,8 +1269,8 @@ export default function MapScreen() {
                 <View style={{ flex: 1, marginRight: 12 }}>
                   <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
                     <View style={{ backgroundColor: (selectedSavedPin.kind === 'stop' ? '#e74c3c' : '#2ecc71') + '22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: (selectedSavedPin.kind === 'stop' ? '#e74c3c' : '#2ecc71') + '44' }}>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: selectedSavedPin.kind === 'stop' ? '#e74c3c' : '#2ecc71' }}>
-                        {selectedSavedPin.kind === 'stop' ? t('Saved Stop', 'Arret favori') : t('Saved Route', 'Trajet favori')}
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: selectedSavedPin.kind === 'stop' ? '#e74c3c' : selectedSavedPin.kind === 'neighbourhood' ? '#7b5ea7' : '#2ecc71' }}>
+                        {selectedSavedPin.kind === 'stop' ? t('Saved Stop', 'Arret favori') : selectedSavedPin.kind === 'neighbourhood' ? t('Neighbourhood', 'Quartier') : t('Saved Route', 'Trajet favori')}
                       </Text>
                     </View>
                   </View>

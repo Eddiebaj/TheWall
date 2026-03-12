@@ -61,3 +61,12 @@ export const SK_NOTIF_SETTINGS = 'routeo_notif_settings';
 
 // Campus
 export const SK_CAMPUS = 'routeo_campus';
+
+// News
+export const SK_NEWS_CACHE = 'routeo_news_cache';
+
+// Neighbourhoods
+export const SK_SAVED_NEIGHBOURHOODS = 'routeo_saved_neighbourhoods';
+
+// Tonight card
+export const SK_TONIGHT_DISMISSED = 'routeo_tonight_dismissed';

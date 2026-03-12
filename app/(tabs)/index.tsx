@@ -34,11 +34,13 @@ type SavedBoardItem =
   | { type: 'discover' }
   | { type: 'saved_team'; id: string; name: string }
   | { type: 'external_link'; id: string; label_en: string; label_fr: string; icon: string; accent: string; url: string }
-  | { type: 'campus' };
+  | { type: 'campus' }
+  | { type: 'news' }
+  | { type: 'neighbourhood'; id: string; name_en: string; name_fr: string };
 
 import {
   OC_TRANSPO_API_KEY,
-  TICKETMASTER_API_KEY, EVENTBRITE_API_KEY, FOURSQUARE_API_KEY, UNSPLASH_API_KEY,
+  TICKETMASTER_API_KEY, EVENTBRITE_API_KEY, FOURSQUARE_API_KEY,
 } from '../../lib/keys';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import {
@@ -50,6 +52,14 @@ import {
   SK_CAMPUS, SK_NOTIF_SETTINGS,
 } from '../../lib/storageKeys';
 import { CAMPUSES, CampusConfig, getNextDeparture, isLibraryOpen, fmt12h, getDayLabel } from '../../lib/campusData';
+import { HAPPY_HOUR_VENUES } from '../../lib/happyHourData';
+import { Neighbourhood, NEIGHBOURHOODS } from '../../lib/neighbourhoodData';
+import { NewsArticle } from '../../lib/newsData';
+import { SK_NEWS_CACHE, SK_SAVED_NEIGHBOURHOODS, SK_TONIGHT_DISMISSED } from '../../lib/storageKeys';
+import NewsSection from '../../components/NewsSection';
+import NeighbourhoodSection from '../../components/NeighbourhoodSection';
+import NeighbourhoodSheet from '../../components/NeighbourhoodSheet';
+import TonightCard from '../../components/TonightCard';
 
 const TRIP_UPDATES = 'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt-tp/beta/v1/TripUpdates?format=json';
 const BACKEND_URL = 'https://routeo-backend.vercel.app/api/arrivals';
@@ -215,7 +225,7 @@ const ALL_OTTAWA_LIFE = [
 
 const DEFAULT_OTTAWA_LIFE_IDS = ['restaurant', 'cafe', 'shopping', 'events'];
 // 'map' removed from default section order
-const DEFAULT_SECTION_ORDER = ['otrain', 'saved', 'services', 'gas', 'alerts', 'discover'];
+const DEFAULT_SECTION_ORDER = ['otrain', 'saved', 'news', 'services', 'gas', 'alerts', 'discover'];
 
 type ServiceTile = { id: string; label_en: string; label_fr: string; icon: string; accent: string; action: 'navigate' | 'link' | 'alert'; target?: string };
 type ServicesTab = { id: string; label_en: string; label_fr: string; icon: string; tiles: ServiceTile[] };
@@ -277,13 +287,7 @@ const SERVICES_TABS: ServicesTab[] = [
   },
 ];
 
-const DISCOVER_CARDS = [
-  { id: '1', title_en: 'Parliament Hill', title_fr: 'Colline du Parlement', category_en: 'Landmark', category_fr: 'Monument', query: 'parliament hill ottawa peace tower', accent: '#00A78D' },
-  { id: '2', title_en: 'ByWard Market', title_fr: 'Marché ByWard', category_en: 'Local Favourite', category_fr: 'Favori local', query: '', photoUrl: 'https://images.unsplash.com/photo-1683917276588-7b6d28d43ee3?w=600', accent: '#c0852a' },
-  { id: '3', title_en: 'Rideau Canal', title_fr: 'Canal Rideau', category_en: 'Outdoors', category_fr: 'Plein air', query: 'rideau canal ottawa', accent: '#004890' },
-  { id: '4', title_en: 'Lansdowne Park', title_fr: 'Parc Lansdowne', category_en: 'Events', category_fr: 'Événements', query: 'TD Place Lansdowne Ottawa stadium', accent: '#7b5ea7' },
-  { id: '5', title_en: "Major's Hill Park", title_fr: "Parc Major's Hill", category_en: 'Outdoors', category_fr: 'Plein air', query: 'majors hill park ottawa', accent: '#00A78D' },
-];
+// DISCOVER_CARDS removed — replaced by NEIGHBOURHOODS from lib/neighbourhoodData.ts
 
 const CATEGORY_COLOUR: { [key: string]: string } = {
   lrt: '#00A78D', detour: '#e8a020', cancellation: '#cc3b2a',
@@ -358,7 +362,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   const [gasFailed, setGasFailed] = useState(false);
 
   useEffect(() => {
-    if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'saved_team' || item.type === 'campus') { setPreviewLoading(false); return; }
+    if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'saved_team' || item.type === 'campus' || item.type === 'news' || item.type === 'neighbourhood') { setPreviewLoading(false); return; }
     if (item.type === 'gas_prices') {
       setPreviewLoading(false);
       fetchWithTimeout(GAS_URL, { timeout: 30000 }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(d => { if (d.price) setGasPrice(d.price); else setGasFailed(true); }).catch((e) => { if (__DEV__) console.warn('gas fetch failed:', e); setGasFailed(true); });
@@ -527,6 +531,42 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
           <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Discover</Text>
         </View>
         <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }}>Discover Ottawa</Text>
+        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>Tap to explore →</Text>
+      </TouchableOpacity>
+      </ScaleDecorator>
+    );
+  }
+
+  // ── News card ──
+  if (item.type === 'news') {
+    return (
+      <ScaleDecorator>
+      <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#cc3b2a18', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="newspaper" size={12} color="#cc3b2a" />
+          </View>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>News</Text>
+        </View>
+        <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }}>Local News</Text>
+        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>Tap to read →</Text>
+      </TouchableOpacity>
+      </ScaleDecorator>
+    );
+  }
+
+  // ── Neighbourhood card ──
+  if (item.type === 'neighbourhood') {
+    return (
+      <ScaleDecorator>
+      <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#7b5ea718', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="map" size={12} color="#7b5ea7" />
+          </View>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Area</Text>
+        </View>
+        <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }} numberOfLines={2}>{t(item.name_en, item.name_fr)}</Text>
         <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>Tap to explore →</Text>
       </TouchableOpacity>
       </ScaleDecorator>
@@ -1334,7 +1374,9 @@ function LiveScreenInner() {
   const [showWest, setShowWest] = useState(false);
   const [showNorth, setShowNorth] = useState(false);
   const [showSouth, setShowSouth] = useState(false);
-  const [discoverPhotos, setDiscoverPhotos] = useState<{ [id: string]: string }>({});
+  const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([]);
+  const [selectedNeighbourhood, setSelectedNeighbourhood] = useState<Neighbourhood | null>(null);
+  const [neighbourhoodSheetVisible, setNeighbourhoodSheetVisible] = useState(false);
   const [alerts, setAlerts] = useState<ServiceAlert[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [alertsModalVisible, setAlertsModalVisible] = useState(false);
@@ -1512,6 +1554,11 @@ function LiveScreenInner() {
             if (insertAt >= 0) saved.splice(insertAt, 0, 'services');
             else saved.push('services');
           }
+          if (!saved.includes('news')) {
+            const insertAt = saved.indexOf('services');
+            if (insertAt >= 0) saved.splice(insertAt, 0, 'news');
+            else saved.push('news');
+          }
           setSectionOrder(saved);
           AsyncStorage.setItem(SK_SECTION_ORDER, JSON.stringify(saved));
         }
@@ -1519,7 +1566,6 @@ function LiveScreenInner() {
     });
     AsyncStorage.removeItem(SK_QUICK_ACTIONS);
     AsyncStorage.removeItem(SK_OTTAWA_LIFE);
-    fetchDiscoverPhotos();
     fetchAlerts();
     fetchWeather();
     loadSavedGarbageAddress();
@@ -1566,10 +1612,11 @@ function LiveScreenInner() {
     setSavedBoard(prev => {
       const exists = prev.some(i => {
         if (i.type !== item.type) return false;
-        if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'gas_prices' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover') return true;
+        if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'gas_prices' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'news') return true;
         if ((item.type === 'bus_stop' || item.type === 'lrt_station') && (i.type === 'bus_stop' || i.type === 'lrt_station')) return i.id === item.id;
         if (item.type === 'saved_team' && i.type === 'saved_team') return i.id === item.id;
         if (item.type === 'external_link' && i.type === 'external_link') return i.id === item.id;
+        if (item.type === 'neighbourhood' && i.type === 'neighbourhood') return i.id === item.id;
         return false;
       });
       if (exists) return prev;
@@ -1583,10 +1630,11 @@ function LiveScreenInner() {
     setSavedBoard(prev => {
       const updated = prev.filter(i => {
         if (i.type !== item.type) return true;
-        if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'gas_prices' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover') return false;
+        if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'gas_prices' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'news') return false;
         if ((item.type === 'bus_stop' || item.type === 'lrt_station') && (i.type === 'bus_stop' || i.type === 'lrt_station')) return i.id !== item.id;
         if (item.type === 'saved_team' && i.type === 'saved_team') return i.id !== item.id;
         if (item.type === 'external_link' && i.type === 'external_link') return i.id !== item.id;
+        if (item.type === 'neighbourhood' && i.type === 'neighbourhood') return i.id !== item.id;
         return true;
       });
       AsyncStorage.setItem(SK_SAVED_BOARD, JSON.stringify(updated));
@@ -1602,6 +1650,8 @@ function LiveScreenInner() {
     if (item.type === 'services') return savedBoard.some(i => i.type === 'services');
     if (item.type === 'discover') return savedBoard.some(i => i.type === 'discover');
     if (item.type === 'campus') return savedBoard.some(i => i.type === 'campus');
+    if (item.type === 'news') return savedBoard.some(i => i.type === 'news');
+    if (item.type === 'neighbourhood') return savedBoard.some(i => i.type === 'neighbourhood' && i.id === item.id);
     if (item.type === 'saved_team') return savedBoard.some(i => i.type === 'saved_team' && i.id === item.id);
     if (item.type === 'external_link') return savedBoard.some(i => i.type === 'external_link' && i.id === item.id);
     return savedBoard.some(i => (i.type === 'bus_stop' || i.type === 'lrt_station') && i.id === item.id);
@@ -1614,6 +1664,7 @@ function LiveScreenInner() {
     if (tile.id === 'otrain') return { type: 'otrain' };
     if (tile.id === 'services') return { type: 'services' };
     if (tile.id === 'discover') return { type: 'discover' };
+    if (tile.id === 'news') return { type: 'news' };
     if (tile.id === 'campus') return { type: 'campus' };
     if (tile.action === 'navigate') return null;
     return {
@@ -1946,21 +1997,6 @@ function LiveScreenInner() {
       setEventsGeoCache(newCache);
       setEventsNearMe(true);
     } catch (e) { if (__DEV__) console.warn('sort events near me failed:', e); }
-  };
-
-  const fetchDiscoverPhotos = async () => {
-    const photos: { [id: string]: string } = {};
-    await Promise.all(DISCOVER_CARDS.map(async card => {
-      // Skip cards that already have a hardcoded photoUrl or have no search query
-      if ((card as any).photoUrl || !card.query) return;
-      try {
-        const resp = await fetchWithTimeout(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(card.query)}&per_page=1&orientation=landscape`, { headers: { Authorization: `Client-ID ${UNSPLASH_API_KEY}` } });
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const data = await resp.json();
-        if (data.results?.[0]?.urls?.regular) photos[card.id] = data.results[0].urls.regular;
-      } catch (e) { if (__DEV__) console.warn('fetch discover photo failed:', e); }
-    }));
-    setDiscoverPhotos(photos);
   };
 
   const saveFavs = (newFavs: Fav[]) => { setFavs(newFavs); AsyncStorage.setItem(SK_FAVS, JSON.stringify(newFavs)); };
@@ -2619,176 +2655,7 @@ function LiveScreenInner() {
   );
 
   // ── Social / Happy Hour Modal ────────────────────────────────
-  const HAPPY_HOUR_VENUES: { name: string; address: string; type: ('bar' | 'restaurant' | 'club')[]; lat: number; lng: number; deals: { days: number[]; start: string; end: string; description: string }[] }[] = [
-    { name: "Joey's Lansdowne", address: '825 Exhibition Way', type: ['bar', 'restaurant'], lat: 45.3998, lng: -75.6844, deals: [
-      { days: [0,1,2,3,4,5,6], start: '15:00', end: '18:00', description: 'Happy Hour daily 3–6pm' },
-      { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun–Thu 9pm–close specials' },
-      { days: [2], start: '15:00', end: '23:59', description: 'Up to 50% off wine Tuesdays' },
-    ]},
-    { name: "Joey's Rideau", address: '50 Rideau St', type: ['bar', 'restaurant'], lat: 45.4260, lng: -75.6916, deals: [
-      { days: [0,1,2,3,4,5,6], start: '15:00', end: '18:00', description: 'Happy Hour daily 3–6pm' },
-      { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun–Thu 9pm–close specials' },
-      { days: [2], start: '15:00', end: '23:59', description: 'Up to 50% off wine Tuesdays' },
-    ]},
-    { name: 'Local Public Eatery', address: '825 Exhibition Way', type: ['bar', 'restaurant'], lat: 45.3999, lng: -75.6840, deals: [
-      { days: [1,2,3,4,5], start: '14:00', end: '17:00', description: 'Mon–Fri 2–5pm happy hour' },
-      { days: [6], start: '10:00', end: '14:00', description: 'Sat drinks only 10am–2pm' },
-      { days: [0,1,2], start: '21:00', end: '23:59', description: 'Sun–Wed 9pm–close specials' },
-      { days: [3,4,5,6], start: '22:00', end: '23:59', description: 'Thu–Sat 10pm–close specials' },
-    ]},
-    { name: 'Pour Boy', address: '495 Somerset St W', type: ['bar', 'restaurant'], lat: 45.4138, lng: -75.7005, deals: [
-      { days: [1], start: '11:00', end: '23:59', description: '25% off wings Monday' },
-      { days: [2], start: '19:00', end: '23:59', description: 'Trivia night Tuesday' },
-      { days: [3], start: '19:00', end: '23:59', description: 'Open Mic Wednesday' },
-      { days: [4], start: '19:00', end: '23:59', description: 'Comedy night Thursday' },
-      { days: [5], start: '11:00', end: '23:59', description: '25% off fish & chips + Blingo Friday' },
-    ]},
-    { name: 'Rabbit Hole', address: '208 Sparks St', type: ['bar', 'restaurant', 'club'], lat: 45.4212, lng: -75.7010, deals: [
-      { days: [2], start: '16:00', end: '18:00', description: 'Tue HH 4–6pm' },
-      { days: [2], start: '17:00', end: '23:59', description: 'Half off wine + half off pizzas 5pm–late Tue' },
-      { days: [3], start: '16:00', end: '18:00', description: 'Wed HH 4–6pm + half price oysters' },
-      { days: [4], start: '16:00', end: '18:00', description: 'Thu HH 4–6pm' },
-      { days: [5,6], start: '21:00', end: '23:59', description: 'Fri/Sat Live DJ' },
-    ]},
-    { name: 'Whalesbone', address: '430 Bank St', type: ['restaurant', 'bar'], lat: 45.4122, lng: -75.6939, deals: [
-      { days: [0], start: '17:00', end: '23:59', description: 'Oysters ~$2 each Sunday nights' },
-    ]},
-    { name: "Lieutenant's Pump", address: '361 Elgin St', type: ['restaurant', 'bar', 'club'], lat: 45.4153, lng: -75.6878, deals: [
-      { days: [3], start: '11:00', end: '23:59', description: 'Wednesday wing day — half price' },
-      { days: [1,2,3,4,5], start: '11:00', end: '14:00', description: 'Lunch combo: pint + supper $5' },
-    ]},
-    { name: 'The Standard', address: '360 Elgin St', type: ['restaurant', 'bar', 'club'], lat: 45.4153, lng: -75.6884, deals: [
-      { days: [0,1,2,3,4,5,6], start: '17:00', end: '19:00', description: 'Happy Hour 7 days a week 5–7pm' },
-    ]},
-    { name: 'Heart and Crown ByWard', address: '67 Clarence St', type: ['restaurant', 'bar', 'club'], lat: 45.4290, lng: -75.6935, deals: [
-      { days: [1], start: '11:00', end: '23:59', description: 'Mon: $5 house draught' },
-      { days: [2], start: '11:00', end: '23:59', description: 'Tue: half price wine' },
-      { days: [3], start: '11:00', end: '23:59', description: 'Wed: $5 rail cocktails' },
-      { days: [4], start: '11:00', end: '23:59', description: 'Thu: $5 quarts and craft cans' },
-      { days: [0], start: '11:00', end: '23:59', description: 'Sun: $6 bloody caesars' },
-    ]},
-    { name: 'Heart and Crown Preston', address: '361 Preston St', type: ['restaurant', 'bar', 'club'], lat: 45.4011, lng: -75.7096, deals: [
-      { days: [1], start: '11:00', end: '23:59', description: 'Mon: $5 house draught' },
-      { days: [2], start: '11:00', end: '23:59', description: 'Tue: half price wine' },
-      { days: [3], start: '11:00', end: '23:59', description: 'Wed: $5 rail cocktails' },
-      { days: [4], start: '11:00', end: '23:59', description: 'Thu: $5 quarts and craft cans' },
-      { days: [0], start: '11:00', end: '23:59', description: 'Sun: $6 bloody caesars' },
-    ]},
-    { name: 'Union Local 613', address: '315 Somerset St W', type: ['restaurant', 'bar'], lat: 45.4161, lng: -75.6949, deals: [
-      { days: [1,2,3,4,5], start: '16:00', end: '17:00', description: 'Mon–Fri 4–5pm: half price wine, $6 draft, cheap cocktails' },
-    ]},
-    { name: 'Senate Bank', address: '259 Bank St', type: ['restaurant', 'bar'], lat: 45.4162, lng: -75.6968, deals: [
-      { days: [1], start: '17:00', end: '23:59', description: 'Mon: $15 wings 5pm+, $7 lagers + $5 Jameson late' },
-      { days: [2], start: '11:00', end: '23:59', description: 'Tue: $5 tequila + $12 margs all day' },
-      { days: [4], start: '17:00', end: '23:59', description: 'Thu: AYCE wings $28 + $15 mini pitcher' },
-      { days: [5], start: '11:00', end: '23:59', description: 'Fri: $15 fish & chips, $5 tequila + $12 margs' },
-      { days: [6], start: '11:00', end: '23:59', description: 'Sat: $30 bottle of wine' },
-      { days: [0], start: '14:00', end: '17:00', description: 'Sun: $5 caesars, double HH 2–5pm' },
-      { days: [0], start: '23:00', end: '23:59', description: 'Sun: double HH 11pm–2am' },
-    ]},
-    { name: 'Senate Clarence', address: '83 Clarence St', type: ['restaurant', 'bar'], lat: 45.4293, lng: -75.6931, deals: [
-      { days: [1], start: '17:00', end: '23:59', description: 'Mon: $15 wings 5pm+, $7 lagers + $5 Jameson late' },
-      { days: [2], start: '11:00', end: '23:59', description: 'Tue: $5 tequila + $12 margs all day' },
-      { days: [4], start: '17:00', end: '23:59', description: 'Thu: AYCE wings $28 + $15 mini pitcher' },
-      { days: [5], start: '11:00', end: '23:59', description: 'Fri: $15 fish & chips, $5 tequila + $12 margs' },
-      { days: [6], start: '11:00', end: '23:59', description: 'Sat: $30 bottle of wine' },
-      { days: [0], start: '14:00', end: '17:00', description: 'Sun: $5 caesars, double HH 2–5pm' },
-      { days: [0], start: '23:00', end: '23:59', description: 'Sun: double HH 11pm–2am' },
-    ]},
-    { name: 'Senate Wellington', address: '93 Wellington St', type: ['restaurant', 'bar'], lat: 45.4233, lng: -75.6987, deals: [
-      { days: [1], start: '17:00', end: '23:59', description: 'Mon: $15 wings 5pm+, $7 lagers + $5 Jameson late' },
-      { days: [2], start: '11:00', end: '23:59', description: 'Tue: $5 tequila + $12 margs all day' },
-      { days: [4], start: '17:00', end: '23:59', description: 'Thu: AYCE wings $28 + $15 mini pitcher' },
-      { days: [5], start: '11:00', end: '23:59', description: 'Fri: $15 fish & chips, $5 tequila + $12 margs' },
-      { days: [6], start: '11:00', end: '23:59', description: 'Sat: $30 bottle of wine' },
-      { days: [0], start: '14:00', end: '17:00', description: 'Sun: $5 caesars, double HH 2–5pm' },
-      { days: [0], start: '23:00', end: '23:59', description: 'Sun: double HH 11pm–2am' },
-    ]},
-    { name: 'Barley Mow Merivale', address: '1541 Merivale Rd', type: ['restaurant', 'bar'], lat: 45.3555, lng: -75.7352, deals: [
-      { days: [1,2,3,4,5], start: '14:00', end: '17:00', description: 'Mon–Fri 2–5pm HH' },
-      { days: [3], start: '20:00', end: '23:59', description: 'Wed 8pm: 30¢ wings' },
-      { days: [4], start: '20:00', end: '23:59', description: 'Thu 8pm: Thirsty Thursdays' },
-      { days: [1], start: '17:00', end: '23:59', description: 'Mon: $27 special + $9 beer flights' },
-      { days: [2], start: '17:00', end: '23:59', description: 'Tue: $27 tacos + $10 margaritas' },
-      { days: [3], start: '17:00', end: '23:59', description: 'Wed: $27 sandwich + $30 wine bottles' },
-      { days: [4], start: '17:00', end: '23:59', description: 'Thu: $27 burger' },
-      { days: [5], start: '17:00', end: '23:59', description: 'Fri: $27 fish & chips + $36.95 prime rib' },
-      { days: [6,0], start: '11:00', end: '23:59', description: 'Sat/Sun: $7.50 caesars. Sun: kids eat free' },
-    ]},
-    { name: 'Barley Mow Westboro', address: '399 Richmond Rd', type: ['restaurant', 'bar'], lat: 45.3910, lng: -75.7566, deals: [
-      { days: [1,2,3,4,5], start: '14:00', end: '17:00', description: 'Mon–Fri 2–5pm HH' },
-      { days: [3], start: '20:00', end: '23:59', description: 'Wed 8pm: 30¢ wings' },
-      { days: [4], start: '20:00', end: '23:59', description: 'Thu 8pm: Thirsty Thursdays' },
-      { days: [1], start: '17:00', end: '23:59', description: 'Mon: $27 special + $9 beer flights' },
-      { days: [2], start: '17:00', end: '23:59', description: 'Tue: $27 tacos + $10 margaritas' },
-      { days: [3], start: '17:00', end: '23:59', description: 'Wed: $27 sandwich + $30 wine bottles' },
-      { days: [4], start: '17:00', end: '23:59', description: 'Thu: $27 burger' },
-      { days: [5], start: '17:00', end: '23:59', description: 'Fri: $27 fish & chips + $36.95 prime rib' },
-      { days: [6,0], start: '11:00', end: '23:59', description: 'Sat/Sun: $7.50 caesars. Sun: kids eat free' },
-    ]},
-    { name: 'Royal Oak Wellington', address: '1217 Wellington St W', type: ['restaurant', 'bar'], lat: 45.4002, lng: -75.7313, deals: [
-      { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun–Thu 9pm: $5.50 domestics/wine/rails + half price apps' },
-      { days: [1], start: '17:00', end: '23:59', description: 'Mon: 50% off wings after 5pm' },
-      { days: [3], start: '17:00', end: '23:59', description: 'Wed: 50% off wings after 5pm + trivia 7pm' },
-      { days: [4], start: '11:00', end: '23:59', description: 'Thu: 50% off wine bottles' },
-      { days: [5], start: '11:00', end: '23:59', description: 'Fri: $3 off fish & chips' },
-      { days: [6], start: '11:00', end: '23:59', description: 'Sat: $5.95 bar rails' },
-      { days: [0], start: '11:00', end: '23:59', description: 'Sun: $7.95 caesars + craft draughts' },
-    ]},
-    { name: 'Royal Oak Bank', address: '188 Bank St', type: ['restaurant', 'bar'], lat: 45.4178, lng: -75.6986, deals: [
-      { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun–Thu 9pm: $5.50 domestics/wine/rails + half price apps' },
-      { days: [1], start: '17:00', end: '23:59', description: 'Mon: 50% off wings after 5pm' },
-      { days: [3], start: '17:00', end: '23:59', description: 'Wed: 50% off wings after 5pm + trivia 7pm' },
-      { days: [4], start: '11:00', end: '23:59', description: 'Thu: 50% off wine bottles' },
-      { days: [5], start: '11:00', end: '23:59', description: 'Fri: $3 off fish & chips' },
-      { days: [6], start: '11:00', end: '23:59', description: 'Sat: $5.95 bar rails' },
-      { days: [0], start: '11:00', end: '23:59', description: 'Sun: $7.95 caesars + craft draughts' },
-    ]},
-    { name: 'Royal Oak Slater', address: '180 Kent St', type: ['restaurant', 'bar'], lat: 45.4180, lng: -75.7017, deals: [
-      { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun–Thu 9pm: $5.50 domestics/wine/rails + half price apps' },
-      { days: [1], start: '17:00', end: '23:59', description: 'Mon: 50% off wings after 5pm' },
-      { days: [3], start: '17:00', end: '23:59', description: 'Wed: 50% off wings after 5pm + trivia 7pm' },
-      { days: [4], start: '11:00', end: '23:59', description: 'Thu: 50% off wine bottles' },
-      { days: [5], start: '11:00', end: '23:59', description: 'Fri: $3 off fish & chips' },
-      { days: [6], start: '11:00', end: '23:59', description: 'Sat: $5.95 bar rails' },
-      { days: [0], start: '11:00', end: '23:59', description: 'Sun: $7.95 caesars + craft draughts' },
-    ]},
-    { name: "Jack Astor's Lansdowne", address: '425 Marche Way', type: ['restaurant', 'bar'], lat: 45.4008, lng: -75.6830, deals: [
-      { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Happy hour daily 2–5pm' },
-      { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm–close specials' },
-      { days: [1,2], start: '11:00', end: '23:59', description: 'Half price wine bottles Mon & Tue' },
-    ]},
-    { name: "Jack Astor's Hunt Club", address: '310 W Hunt Club Rd', type: ['restaurant', 'bar'], lat: 45.3391, lng: -75.7129, deals: [
-      { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Happy hour daily 2–5pm' },
-      { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm–close specials' },
-      { days: [1,2], start: '11:00', end: '23:59', description: 'Half price wine bottles Mon & Tue' },
-    ]},
-    { name: "Jack Astor's Kanata", address: '125 Roland Michener Dr', type: ['restaurant', 'bar'], lat: 45.3085, lng: -75.9131, deals: [
-      { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Happy hour daily 2–5pm' },
-      { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm–close specials' },
-      { days: [1,2], start: '11:00', end: '23:59', description: 'Half price wine bottles Mon & Tue' },
-    ]},
-    { name: 'Shore Club', address: '11 Colonel By Dr', type: ['restaurant', 'bar'], lat: 45.4250, lng: -75.6927, deals: [
-      { days: [0,1,2,3,4,5,6], start: '15:00', end: '17:00', description: 'Daily 3–5pm: half price oysters, $2 prawns, $3.50 sliders, $9 Heineken, $12 wine' },
-    ]},
-    { name: 'Drip House', address: '692 Somerset St W', type: ['bar'], lat: 45.4110, lng: -75.7065, deals: [
-      { days: [3,4,5], start: '16:30', end: '18:30', description: 'Wed–Fri 4:30–6:30pm: $9 cocktails, wine, and appetizers' },
-    ]},
-    { name: 'Baton Rouge Downtown', address: '360 Albert St', type: ['restaurant', 'bar'], lat: 45.4181, lng: -75.7038, deals: [
-      { days: [1,2,3,4,5], start: '15:00', end: '18:00', description: 'Mon–Fri 3–6pm: $7 pints, $7 wine, $10 cocktails' },
-    ]},
-    { name: 'Baton Rouge Hunt Club', address: '270 W Hunt Club Rd', type: ['restaurant', 'bar'], lat: 45.3396, lng: -75.7110, deals: [
-      { days: [1,2,3,4,5], start: '15:00', end: '18:00', description: 'Mon–Fri 3–6pm: $7 pints, $7 wine, $10 cocktails' },
-    ]},
-    { name: 'Baton Rouge Kanata', address: '790 Earl Grey Dr', type: ['restaurant', 'bar'], lat: 45.3106, lng: -75.9095, deals: [
-      { days: [1,2,3,4,5], start: '15:00', end: '18:00', description: 'Mon–Fri 3–6pm: $7 pints, $7 wine, $10 cocktails' },
-    ]},
-    { name: 'Craft Beer Market', address: '975 Bank St', type: ['bar'], lat: 45.3987, lng: -75.6856, deals: [
-      { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Daily 2–5pm HH: discounted craft beer, wine, cocktails' },
-      { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm–close HH' },
-      { days: [0], start: '11:00', end: '23:59', description: 'All-day specials Sundays' },
-    ]},
-  ];
+  // HAPPY_HOUR_VENUES imported from lib/happyHourData.ts
 
   const getSocialVenues = () => {
     const now = new Date();
@@ -3745,25 +3612,6 @@ function LiveScreenInner() {
     );
   };
 
-  const renderDiscoverCard = (card: typeof DISCOVER_CARDS[0]) => {
-    const photoUrl = (card as any).photoUrl || discoverPhotos[card.id];
-    const title = language === 'fr' ? card.title_fr : card.title_en;
-    const category = language === 'fr' ? card.category_fr : card.category_en;
-    return (
-      <TouchableOpacity key={card.id} style={[styles.discoverCard, { overflow: 'hidden' }, cardShadow]} onPress={() => Alert.alert(title, `${category}\n\n${t('Coming soon!', 'Bientôt disponible!')}`)} activeOpacity={0.92}>
-        <ImageBackground source={photoUrl ? { uri: photoUrl } : undefined} style={styles.discoverCardImage} resizeMode="cover">
-          {!photoUrl && <View style={[styles.discoverCardFallback, { backgroundColor: card.accent + '22' }]}><ActivityIndicator color={card.accent} size="small" /></View>}
-          {photoUrl && (<><View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 100, backgroundColor: 'rgba(0,0,0,0.12)' }} /><View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 50, backgroundColor: 'rgba(0,0,0,0.22)' }} /></>)}
-          <View style={[styles.categoryBadge, { backgroundColor: card.accent }]}>
-            <Text style={{ color: 'white', fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 }}>{category}</Text>
-          </View>
-          {photoUrl && (<View style={styles.discoverCardBottom}><Text numberOfLines={2} style={{ color: 'white', fontSize: fonts.md, fontWeight: '800', lineHeight: 18, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 }}>{title}</Text></View>)}
-        </ImageBackground>
-        {!photoUrl && <View style={{ padding: 10 }}><Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>{title}</Text></View>}
-      </TouchableOpacity>
-    );
-  };
-
   const iconColor = (icon: string) => {
     if (icon === 'sunny') return '#e8a020'; if (icon === 'partly-sunny') return '#c0852a';
     if (icon === 'rainy') return '#004890'; if (icon === 'snow') return '#7b5ea7';
@@ -4171,20 +4019,37 @@ function LiveScreenInner() {
 
       // 'map' case removed — Live Map is accessible via the dedicated tab
 
+      case 'news': return (
+        <SectionWrapper key="news" id="news">
+          <NewsSection
+            colours={colours}
+            fonts={fonts}
+            cardShadow={cardShadow}
+            onArticlesLoaded={setNewsArticles}
+          />
+          <View style={{ height: 16 }} />
+        </SectionWrapper>
+      );
+
       case 'discover': return (
         <SectionWrapper key="discover" id="discover">
           <View style={styles.discoverHeader}>
-            <Text style={[styles.sectionLabel, { color: colours.muted, fontSize: fonts.sm, marginBottom: 0 }]}>{t('Discover Ottawa', 'Découvrir Ottawa')}</Text>
+            <Text style={[styles.sectionLabel, { color: colours.muted, fontSize: fonts.sm, marginBottom: 0 }]}>{t('Neighbourhoods', 'Quartiers')}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <TouchableOpacity onPress={() => { const item: SavedBoardItem = { type: 'discover' }; isBoardSaved(item) ? removeFromBoard(item) : addToBoardIfMissing(item); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Save discover to board', 'Sauvegarder decouvrir au tableau')} accessibilityState={{ selected: isBoardSaved({ type: 'discover' }) }}>
                 <Ionicons name={isBoardSaved({ type: 'discover' }) ? 'bookmark' : 'bookmark-outline'} size={18} color={isBoardSaved({ type: 'discover' }) ? colours.accent : colours.muted} />
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => Alert.alert(t('Discover', 'Découvrir'), t('More coming soon!', 'Plus à venir!'))}><Text style={{ color: colours.accent, fontSize: fonts.sm, fontWeight: '600' }}>{t('See all →', 'Voir tout →')}</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push('/(tabs)/discover' as any)}><Text style={{ color: colours.accent, fontSize: fonts.sm, fontWeight: '600' }}>{t('See all →', 'Voir tout →')}</Text></TouchableOpacity>
             </View>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cardsRow}>
-            {DISCOVER_CARDS.map(card => renderDiscoverCard(card))}
-          </ScrollView>
+          <NeighbourhoodSection
+            colours={colours}
+            fonts={fonts}
+            cardShadow={cardShadow}
+            events={events as any}
+            dealCount={HAPPY_HOUR_VENUES.length}
+            onPress={(n) => { setSelectedNeighbourhood(n); setNeighbourhoodSheetVisible(true); }}
+          />
           <View style={{ height: 32 }} />
         </SectionWrapper>
       );
@@ -4433,6 +4298,8 @@ function LiveScreenInner() {
                   if (item.type === 'otrain') return 'otrain';
                   if (item.type === 'services') return 'services';
                   if (item.type === 'discover') return 'discover';
+                  if (item.type === 'news') return 'news';
+                  if (item.type === 'neighbourhood') return `neighbourhood-${item.id}`;
                   if (item.type === 'campus') return 'campus';
                   if (item.type === 'saved_team') return `team-${item.id}`;
                   if (item.type === 'external_link') return `ext-${item.id}`;
@@ -4487,6 +4354,12 @@ function LiveScreenInner() {
                         fetchSportsScores();
                       }
                       if (item.type === 'campus') { if (!selectedCampus) setCampusPicker(true); else setCampusModal(true); return; }
+                      if (item.type === 'news') { /* scroll handled by section visibility */ }
+                      if (item.type === 'neighbourhood') {
+                        const n = NEIGHBOURHOODS.find(nb => nb.id === item.id);
+                        if (n) { setSelectedNeighbourhood(n); setNeighbourhoodSheetVisible(true); }
+                        return;
+                      }
                       if (item.type === 'otrain' || item.type === 'services' || item.type === 'discover') { /* scroll handled by section visibility */ }
                     }}
                   />
@@ -4496,9 +4369,28 @@ function LiveScreenInner() {
             </>
           )}
 
+          <TonightCard
+            colours={colours}
+            fonts={fonts}
+            cardShadow={cardShadow}
+            sensGame={sensGame}
+            events={events as any}
+            weather={weather}
+          />
+
           {sectionOrder.map(renderSection)}
 
         </ScrollView>
+
+        <NeighbourhoodSheet
+          visible={neighbourhoodSheetVisible}
+          neighbourhood={selectedNeighbourhood}
+          onClose={() => setNeighbourhoodSheetVisible(false)}
+          colours={colours}
+          fonts={fonts}
+          events={events as any}
+          newsArticles={newsArticles}
+        />
       </View>
     </KeyboardAvoidingView>
   );

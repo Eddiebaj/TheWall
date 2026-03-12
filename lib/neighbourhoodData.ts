@@ -1,0 +1,125 @@
+export type Neighbourhood = {
+  id: string;
+  name_en: string;
+  name_fr: string;
+  description_en: string;
+  description_fr: string;
+  lat: number;
+  lng: number;
+  keywords: string[];
+  photoUrl: string;
+  accent: string;
+};
+
+export const NEIGHBOURHOODS: Neighbourhood[] = [
+  {
+    id: 'byward',
+    name_en: 'ByWard Market',
+    name_fr: 'Marche ByWard',
+    description_en: 'Ottawa\'s oldest public market — packed with restaurants, bars, galleries, and street vendors year-round.',
+    description_fr: 'Le plus ancien marche public d\'Ottawa — rempli de restaurants, bars, galeries et vendeurs de rue toute l\'annee.',
+    lat: 45.4285, lng: -75.6930,
+    keywords: ['byward', 'market', 'clarence', 'york', 'george', 'sussex', 'rideau'],
+    photoUrl: 'https://images.unsplash.com/photo-1683917276588-7b6d28d43ee3?w=600',
+    accent: '#c0852a',
+  },
+  {
+    id: 'glebe',
+    name_en: 'The Glebe',
+    name_fr: 'Le Glebe',
+    description_en: 'Tree-lined streets with boutique shops on Bank Street, Lansdowne Park, and the Rideau Canal.',
+    description_fr: 'Rues bordees d\'arbres avec boutiques sur la rue Bank, le parc Lansdowne et le canal Rideau.',
+    lat: 45.3990, lng: -75.6890,
+    keywords: ['glebe', 'bank', 'lansdowne', 'td place'],
+    photoUrl: 'https://images.unsplash.com/photo-1609170488691-3e41c0b97b4b?w=600',
+    accent: '#00A78D',
+  },
+  {
+    id: 'centretown',
+    name_en: 'Centretown',
+    name_fr: 'Centre-ville',
+    description_en: 'The downtown core — Elgin Street, Sparks Street Mall, Parliament Hill, and the city\'s main office district.',
+    description_fr: 'Le centre-ville — rue Elgin, mail de la rue Sparks, Colline du Parlement et le quartier principal des affaires.',
+    lat: 45.4170, lng: -75.6970,
+    keywords: ['centretown', 'downtown', 'elgin', 'sparks', 'parliament', 'bank', 'slater', 'albert'],
+    photoUrl: 'https://images.unsplash.com/photo-1611843467160-25afb8df1074?w=600',
+    accent: '#004890',
+  },
+  {
+    id: 'westboro',
+    name_en: 'Westboro',
+    name_fr: 'Westboro',
+    description_en: 'A trendy village feel on Richmond Road with indie shops, cafes, and Westboro Beach on the Ottawa River.',
+    description_fr: 'Une ambiance village branchee sur la route Richmond avec boutiques, cafes et la plage Westboro sur la riviere des Outaouais.',
+    lat: 45.3920, lng: -75.7560,
+    keywords: ['westboro', 'richmond', 'byron', 'island park'],
+    photoUrl: 'https://images.unsplash.com/photo-1605639156273-ea4ef77f09f0?w=600',
+    accent: '#7b5ea7',
+  },
+  {
+    id: 'hintonburg',
+    name_en: 'Hintonburg',
+    name_fr: 'Hintonburg',
+    description_en: 'An artsy, up-and-coming neighbourhood along Wellington Street West with craft breweries and local eateries.',
+    description_fr: 'Un quartier artistique en plein essor le long de la rue Wellington Ouest avec brasseries artisanales et restaurants locaux.',
+    lat: 45.4000, lng: -75.7310,
+    keywords: ['hintonburg', 'wellington', 'parkdale', 'mechanicsville'],
+    photoUrl: 'https://images.unsplash.com/photo-1519999482648-25049ddd37b1?w=600',
+    accent: '#e8a020',
+  },
+  {
+    id: 'littleitaly',
+    name_en: 'Little Italy',
+    name_fr: 'Petite Italie',
+    description_en: 'Preston Street\'s Italian heritage — trattorias, gelato, and the lively Italian Week every summer.',
+    description_fr: 'L\'heritage italien de la rue Preston — trattorias, gelato et la festive Semaine italienne chaque ete.',
+    lat: 45.4050, lng: -75.7100,
+    keywords: ['little italy', 'preston', 'dows lake', 'corso italia'],
+    photoUrl: 'https://images.unsplash.com/photo-1534308983496-4fabb1a015ee?w=600',
+    accent: '#cc3b2a',
+  },
+  {
+    id: 'sandy_hill',
+    name_en: 'Sandy Hill',
+    name_fr: 'Cote-de-Sable',
+    description_en: 'A historic residential area near uOttawa with Strathcona Park and embassies along Laurier Avenue.',
+    description_fr: 'Un quartier residentiel historique pres de l\'uOttawa avec le parc Strathcona et des ambassades le long de l\'avenue Laurier.',
+    lat: 45.4230, lng: -75.6790,
+    keywords: ['sandy hill', 'uottawa', 'laurier', 'strathcona', 'henderson'],
+    photoUrl: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=600',
+    accent: '#6b7f99',
+  },
+  {
+    id: 'kanata',
+    name_en: 'Kanata',
+    name_fr: 'Kanata',
+    description_en: 'Ottawa\'s western tech hub — Canadian Tire Centre, big-box retail, and family-friendly suburban living.',
+    description_fr: 'Le pole technologique de l\'ouest d\'Ottawa — Centre Canadian Tire, grandes surfaces et vie familiale de banlieue.',
+    lat: 45.3088, lng: -75.8985,
+    keywords: ['kanata', 'canadian tire centre', 'ctc', 'terry fox', 'tanger'],
+    photoUrl: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=600',
+    accent: '#cc3b2a',
+  },
+  {
+    id: 'orleans',
+    name_en: 'Orleans',
+    name_fr: 'Orleans',
+    description_en: 'A bilingual suburb in the east with Place d\'Orleans mall, family parks, and quick LRT access downtown.',
+    description_fr: 'Une banlieue bilingue dans l\'est avec le centre commercial Place d\'Orleans, des parcs familiaux et un acces rapide au TLR.',
+    lat: 45.4700, lng: -75.5160,
+    keywords: ['orleans', 'place dorleans', 'innes', 'trim', 'jeanne darc'],
+    photoUrl: 'https://images.unsplash.com/photo-1523217582562-09d0def993a6?w=600',
+    accent: '#004890',
+  },
+  {
+    id: 'old_ottawa_south',
+    name_en: 'Old Ottawa South',
+    name_fr: 'Ancien Ottawa-Sud',
+    description_en: 'A leafy family neighbourhood along the Rideau River with Brewer Park and easy canal access.',
+    description_fr: 'Un quartier familial verdoyant le long de la riviere Rideau avec le parc Brewer et un acces facile au canal.',
+    lat: 45.3920, lng: -75.6860,
+    keywords: ['old ottawa south', 'bank', 'sunnyside', 'brewer', 'rideau river'],
+    photoUrl: 'https://images.unsplash.com/photo-1588880331179-bc9b93a8cb5e?w=600',
+    accent: '#00A78D',
+  },
+];
