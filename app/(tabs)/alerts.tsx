@@ -39,6 +39,7 @@ export default function AlertsScreen() {
 
   const [alerts, setAlerts] = useState<ServiceAlert[]>([]);
   const [lrt, setLrt] = useState<LrtData | null>(null);
+  const [lrtLoading, setLrtLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState('');
@@ -55,22 +56,36 @@ export default function AlertsScreen() {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     try {
+      setLrtLoading(true);
       const [alertResult, lrtResult] = await Promise.allSettled([
-        fetchWithTimeout(ALERTS_URL).then(r => r.ok ? r.json() : null),
-        fetchWithTimeout(LRT_URL).then(r => r.ok ? r.json() : null),
+        fetchWithTimeout(ALERTS_URL, { timeout: 15000 }).then(r => {
+          console.log('[Alerts] alerts response ok:', r.ok, r.status);
+          return r.ok ? r.json() : null;
+        }),
+        fetchWithTimeout(LRT_URL, { timeout: 20000 }).then(r => {
+          console.log('[Alerts] LRT response ok:', r.ok, r.status);
+          return r.ok ? r.json() : null;
+        }),
       ]);
+      console.log('[Alerts] alertResult:', alertResult.status, alertResult.status === 'fulfilled' ? '(has value)' : (alertResult as any).reason?.message);
+      console.log('[Alerts] lrtResult:', lrtResult.status, lrtResult.status === 'fulfilled' ? '(has value)' : (lrtResult as any).reason?.message);
       if (alertResult.status === 'fulfilled' && alertResult.value) {
         setAlerts(alertResult.value.alerts || []);
       }
       if (lrtResult.status === 'fulfilled' && lrtResult.value) {
+        console.log('[Alerts] Setting LRT data, line1 stations:', lrtResult.value.line1?.stations?.length);
         setLrt(lrtResult.value);
+      } else {
+        console.log('[Alerts] LRT data NOT set');
       }
       const now = new Date();
       setLastUpdated(`${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`);
-    } catch {
+    } catch (err) {
+      console.log('[Alerts] Top-level catch:', err);
       setAlerts([]);
     } finally {
       setLoading(false);
+      setLrtLoading(false);
       setRefreshing(false);
     }
   };
@@ -254,63 +269,76 @@ export default function AlertsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* LRT Station Status */}
-        {lrt && (
-          <View style={[styles.lrtSection, {
-            backgroundColor: colours.surface, borderColor: colours.border,
-            marginHorizontal: 20, marginBottom: 16,
-          }, cardShadow]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              <Ionicons name="train-outline" size={18} color={colours.accent} />
-              <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text }}>
-                {t('O-Train Station Status', 'Statut des stations O-Train')}
+        {/* LRT Station Status — always show section */}
+        <View style={[styles.lrtSection, {
+          backgroundColor: colours.surface, borderColor: colours.border,
+          marginHorizontal: 20, marginBottom: 16,
+        }, cardShadow]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+            <Ionicons name="train-outline" size={18} color={colours.accent} />
+            <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text }}>
+              {t('O-Train Station Status', 'Statut des stations O-Train')}
+            </Text>
+          </View>
+
+          {lrtLoading && !lrt ? (
+            <View style={{ alignItems: 'center', paddingVertical: 16 }}>
+              <ActivityIndicator color={colours.accent} size="small" />
+              <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 8 }}>
+                {t('Loading LRT status...', 'Chargement du statut TLR...')}
               </Text>
             </View>
+          ) : lrt ? (
+            <>
+              <LineRow label={t('Line 1 Confederation', 'Ligne 1 Confederation')} line={lrt.line1} color={LINE_COLOURS.line1} />
+              <LineRow label={t('Line 2 Trillium', 'Ligne 2 Trillium')} line={lrt.line2} color={LINE_COLOURS.line2} />
+              <LineRow label={t('Line 4 Airport', 'Ligne 4 Aeroport')} line={lrt.line4} color={LINE_COLOURS.line4} />
 
-            <LineRow label={t('Line 1 Confederation', 'Ligne 1 Confederation')} line={lrt.line1} color={LINE_COLOURS.line1} />
-            <LineRow label={t('Line 2 Trillium', 'Ligne 2 Trillium')} line={lrt.line2} color={LINE_COLOURS.line2} />
-            <LineRow label={t('Line 4 Airport', 'Ligne 4 Aeroport')} line={lrt.line4} color={LINE_COLOURS.line4} />
-
-            {/* Recent incidents (last 24h) */}
-            {lrt.incidents.filter(inc => inc.hoursAgo <= 24).length > 0 && (
-              <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: colours.border, paddingTop: 12 }}>
-                <Text style={{ fontSize: 11, fontWeight: '800', color: colours.muted, letterSpacing: 1, marginBottom: 8 }}>
-                  {t('LAST 24 HOURS', 'DERNIERES 24 HEURES')}
-                </Text>
-                {lrt.incidents.filter(inc => inc.hoursAgo <= 24).map((inc, i) => (
-                  <View key={i} style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, minWidth: 36, textAlign: 'right' }}>
-                      {inc.hoursAgo < 1 ? '<1h' : `${Math.round(inc.hoursAgo)}h`}
-                    </Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: fonts.sm, color: colours.text, lineHeight: 18 }}>{inc.description}</Text>
-                      {inc.affectedStations.length > 0 && (
-                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 3, marginTop: 4 }}>
-                          {inc.affectedStations.map((s, j) => (
-                            <View key={j} style={{ backgroundColor: '#cc3b2a18', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
-                              <Text style={{ fontSize: 8, fontWeight: '700', color: '#cc3b2a' }}>{s}</Text>
-                            </View>
-                          ))}
-                        </View>
-                      )}
+              {/* Recent incidents (last 24h) */}
+              {lrt.incidents.filter(inc => inc.hoursAgo <= 24).length > 0 && (
+                <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: colours.border, paddingTop: 12 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: colours.muted, letterSpacing: 1, marginBottom: 8 }}>
+                    {t('LAST 24 HOURS', 'DERNIERES 24 HEURES')}
+                  </Text>
+                  {lrt.incidents.filter(inc => inc.hoursAgo <= 24).map((inc, i) => (
+                    <View key={i} style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, minWidth: 36, textAlign: 'right' }}>
+                        {inc.hoursAgo < 1 ? '<1h' : `${Math.round(inc.hoursAgo)}h`}
+                      </Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: fonts.sm, color: colours.text, lineHeight: 18 }}>{inc.description}</Text>
+                        {inc.affectedStations.length > 0 && (
+                          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 3, marginTop: 4 }}>
+                            {inc.affectedStations.map((s, j) => (
+                              <View key={j} style={{ backgroundColor: '#cc3b2a18', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
+                                <Text style={{ fontSize: 8, fontWeight: '700', color: '#cc3b2a' }}>{s}</Text>
+                              </View>
+                            ))}
+                          </View>
+                        )}
+                      </View>
                     </View>
-                  </View>
-                ))}
-              </View>
-            )}
+                  ))}
+                </View>
+              )}
+            </>
+          ) : (
+            <Text style={{ fontSize: fonts.sm, color: colours.muted, textAlign: 'center', paddingVertical: 12 }}>
+              {t('Could not load LRT status', 'Impossible de charger le statut TLR')}
+            </Text>
+          )}
 
-            {/* Link to full site */}
-            <TouchableOpacity
-              onPress={() => Linking.openURL('https://occasionaltransport.ca')}
-              style={{ marginTop: 8, alignItems: 'center', paddingVertical: 8 }}
-              accessibilityRole="link"
-            >
-              <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent }}>
-                {t('View full status on OccasionalTransport.ca', 'Voir le statut complet sur OccasionalTransport.ca')} {'\u2197'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
+          {/* Link to full site */}
+          <TouchableOpacity
+            onPress={() => Linking.openURL('https://occasionaltransport.ca')}
+            style={{ marginTop: 8, alignItems: 'center', paddingVertical: 8 }}
+            accessibilityRole="link"
+          >
+            <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent }}>
+              {t('View full status on OccasionalTransport.ca', 'Voir le statut complet sur OccasionalTransport.ca')} {'\u2197'}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Category filter pills */}
         {categories.length > 1 && (
