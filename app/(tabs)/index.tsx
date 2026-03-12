@@ -1274,16 +1274,16 @@ class HomeErrorBoundary extends React.Component<
         <View style={{ flex: 1, backgroundColor: '#0e1621', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
           <Ionicons name="alert-circle-outline" size={48} color="#7a8a9e" />
           <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
-            Something went wrong
+            Something went wrong / Une erreur s'est produite
           </Text>
           <Text style={{ color: '#7a8a9e', fontSize: 14, marginTop: 8, textAlign: 'center' }}>
-            An unexpected error occurred. Tap below to try again.
+            Tap below to try again. / Appuyez ci-dessous pour r&#233;essayer.
           </Text>
           <TouchableOpacity
             onPress={() => this.setState({ hasError: false })}
             style={{ marginTop: 20, backgroundColor: '#cc3b2a', borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }}
           >
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Tap to retry</Text>
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Retry / R&#233;essayer</Text>
           </TouchableOpacity>
         </View>
       );
@@ -1638,7 +1638,7 @@ function LiveScreenInner() {
       setLocationName(locLabel);
       // ── Open-Meteo (primary source — EC XML feed moved to dynamic hourly paths) ──
       const wmoIcon = (c: number): string => { if (c === 0) return 'sunny'; if (c <= 2) return 'partly-sunny'; if (c <= 3) return 'cloudy'; if (c <= 49) return 'cloudy'; if (c <= 67) return 'rainy'; if (c <= 77) return 'snow'; if (c <= 82) return 'rainy'; if (c <= 86) return 'snow'; return 'thunderstorm'; };
-      const wmoCondition = (c: number): string => { if (c === 0) return 'Clear'; if (c <= 2) return 'Partly cloudy'; if (c <= 3) return 'Cloudy'; if (c <= 48) return 'Fog'; if (c <= 55) return 'Drizzle'; if (c <= 57) return 'Freezing drizzle'; if (c <= 65) return 'Rain'; if (c <= 67) return 'Freezing rain'; if (c <= 75) return 'Snow'; if (c <= 77) return 'Snow grains'; if (c <= 82) return 'Rain showers'; if (c <= 86) return 'Snow showers'; if (c >= 95) return 'Thunderstorm'; return 'Cloudy'; };
+      const wmoCondition = (c: number): string => { if (c === 0) return t('Clear', 'Ciel d\u00E9gag\u00E9'); if (c <= 2) return t('Partly cloudy', 'Partiellement nuageux'); if (c <= 3) return t('Cloudy', 'Nuageux'); if (c <= 48) return t('Fog', 'Brouillard'); if (c <= 55) return t('Drizzle', 'Bruine'); if (c <= 57) return t('Freezing drizzle', 'Bruine vergla\u00E7ante'); if (c <= 65) return t('Rain', 'Pluie'); if (c <= 67) return t('Freezing rain', 'Pluie vergla\u00E7ante'); if (c <= 75) return t('Snow', 'Neige'); if (c <= 77) return t('Snow grains', 'Grains de neige'); if (c <= 82) return t('Rain showers', 'Averses de pluie'); if (c <= 86) return t('Snow showers', 'Averses de neige'); if (c >= 95) return t('Thunderstorm', 'Orage'); return t('Cloudy', 'Nuageux'); };
       const resp = await fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,weathercode&hourly=temperature_2m,weathercode,precipitation_probability&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max&timezone=auto&forecast_days=5`);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
@@ -1654,13 +1654,14 @@ function LiveScreenInner() {
       const hourlyPrecip: number[] = data.hourly?.precipitation_probability ?? [];
       setForecast(hourlyTimes.map((t, i) => ({ time: t, temp: Math.round(hourlyTemps[i]), icon: wmoIcon(hourlyCodes[i]), precip: hourlyPrecip[i] ?? 0 })).filter(h => new Date(h.time) > now).slice(0, 12));
       // Daily forecast
-      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const days = language === 'fr' ? ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const todayLabel = t('Today', "Aujourd'hui");
       const dailyTimes: string[] = data.daily?.time ?? [];
       const dailyHigh: number[] = data.daily?.temperature_2m_max ?? [];
       const dailyLow: number[] = data.daily?.temperature_2m_min ?? [];
       const dailyCodes: number[] = data.daily?.weathercode ?? [];
       const dailyPrecip: number[] = data.daily?.precipitation_probability_max ?? [];
-      setDailyForecast(dailyTimes.map((t, i) => ({ day: i === 0 ? 'Today' : days[new Date(t + 'T12:00:00').getDay()], high: Math.round(dailyHigh[i]), low: Math.round(dailyLow[i]), icon: wmoIcon(dailyCodes[i]), precip: dailyPrecip[i] ?? 0 })));
+      setDailyForecast(dailyTimes.map((dt, i) => ({ day: i === 0 ? todayLabel : days[new Date(dt + 'T12:00:00').getDay()], high: Math.round(dailyHigh[i]), low: Math.round(dailyLow[i]), icon: wmoIcon(dailyCodes[i]), precip: dailyPrecip[i] ?? 0 })));
       weatherCacheTime.current = Date.now();
       setWeatherFetchFailed(false);
       // Cache for offline use
@@ -2942,7 +2943,7 @@ function LiveScreenInner() {
             <TextInput
               value={eventsSearch}
               onChangeText={setEventsSearch}
-              placeholder="Search events..."
+              placeholder={t('Search events...', 'Rechercher des \u00E9v\u00E9nements...')}
               placeholderTextColor={colours.muted}
               style={{ flex: 1, fontSize: fonts.sm, color: colours.text }}
             />
@@ -2952,12 +2953,12 @@ function LiveScreenInner() {
               </TouchableOpacity>
             )}
           </View>
-          <TouchableOpacity onPress={toggleNearMe} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, backgroundColor: eventsNearMe ? colours.accent : colours.surface, borderColor: eventsNearMe ? colours.accent : colours.border }}>
+          <TouchableOpacity onPress={toggleNearMe} accessibilityRole="button" accessibilityState={{ selected: eventsNearMe }} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, backgroundColor: eventsNearMe ? colours.accent : colours.surface, borderColor: eventsNearMe ? colours.accent : colours.border }}>
             <Ionicons name="location" size={14} color={eventsNearMe ? 'white' : colours.muted} />
-            <Text style={{ fontSize: 12, fontWeight: '700', color: eventsNearMe ? 'white' : colours.text }}>Near Me</Text>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: eventsNearMe ? 'white' : colours.text }}>{t('Near Me', 'Pr\u00E8s de moi')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setEventsFreeOnly(f => !f)} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, backgroundColor: eventsFreeOnly ? '#2d7a3a' : colours.surface, borderColor: eventsFreeOnly ? '#2d7a3a' : colours.border }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: eventsFreeOnly ? 'white' : colours.text }}>Free</Text>
+          <TouchableOpacity onPress={() => setEventsFreeOnly(f => !f)} accessibilityRole="button" accessibilityState={{ selected: eventsFreeOnly }} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, backgroundColor: eventsFreeOnly ? '#2d7a3a' : colours.surface, borderColor: eventsFreeOnly ? '#2d7a3a' : colours.border }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: eventsFreeOnly ? 'white' : colours.text }}>{t('Free', 'Gratuit')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -3828,9 +3829,9 @@ function LiveScreenInner() {
         <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
           <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40, maxHeight: '92%' }}>
             <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 16 }} />
-            <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text, paddingHorizontal: 20, marginBottom: 12 }}>Garbage Day</Text>
+            <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text, paddingHorizontal: 20, marginBottom: 12 }}>{t('Garbage Day', 'Jour de collecte')}</Text>
             <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginBottom: 8 }}>
-              <TextInput style={{ flex: 1, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, color: colours.text, fontSize: fonts.md }} placeholder="Enter your Ottawa address..." placeholderTextColor={colours.muted} value={garbageAddressInput} onChangeText={setGarbageAddressInput} onSubmitEditing={() => searchGarbageAddress(garbageAddressInput)} returnKeyType="search" accessibilityLabel={t('Enter your Ottawa address', 'Entrez votre adresse a Ottawa')} />
+              <TextInput style={{ flex: 1, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, color: colours.text, fontSize: fonts.md }} placeholder={t('Enter your Ottawa address...', 'Entrez votre adresse \u00E0 Ottawa...')} placeholderTextColor={colours.muted} value={garbageAddressInput} onChangeText={setGarbageAddressInput} onSubmitEditing={() => searchGarbageAddress(garbageAddressInput)} returnKeyType="search" accessibilityLabel={t('Enter your Ottawa address', 'Entrez votre adresse a Ottawa')} />
               <TouchableOpacity onPress={() => searchGarbageAddress(garbageAddressInput)} style={{ backgroundColor: colours.accent, borderRadius: 12, paddingHorizontal: 14, justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Search address', 'Rechercher l\'adresse')}>
                 <Ionicons name="search" size={18} color="white" />
               </TouchableOpacity>
@@ -3858,7 +3859,7 @@ function LiveScreenInner() {
             ) : !garbageLoading && (
               <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 }}>
                 <Ionicons name="home-outline" size={40} color={colours.muted} />
-                <Text style={{ fontSize: fonts.md, color: colours.muted, textAlign: 'center', marginTop: 12 }}>Enter your Ottawa address to see your collection schedule.</Text>
+                <Text style={{ fontSize: fonts.md, color: colours.muted, textAlign: 'center', marginTop: 12 }}>{t('Enter your Ottawa address to see your collection schedule.', 'Entrez votre adresse \u00E0 Ottawa pour voir votre calendrier de collecte.')}</Text>
               </View>
             )}
             <TouchableOpacity onPress={() => { setGarbageModalVisible(false); setExpandedBin(null); }} style={{ marginHorizontal: 20, marginTop: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: colours.accent, alignItems: 'center' }} accessibilityRole="button" accessibilityLabel={t('Done', 'Termine')}>
@@ -4223,11 +4224,17 @@ function LiveScreenInner() {
                 <ScrollView style={{ maxHeight: 480 }} contentContainerStyle={{ padding: 20, gap: 14 }} keyboardShouldPersistTaps="handled">
                   <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Category', 'Cat\u00E9gorie')}</Text>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                    {['Pothole', 'Graffiti', 'Broken Sign', 'Snow/Ice', 'Other'].map(cat => (
-                      <TouchableOpacity key={cat} onPress={() => setReport311Category(cat)}
-                        style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, backgroundColor: report311Category === cat ? '#cc3b2a' + '18' : colours.surface, borderColor: report311Category === cat ? '#cc3b2a' : colours.border }}
-                        accessibilityRole="button" accessibilityLabel={cat} accessibilityState={{ selected: report311Category === cat }}>
-                        <Text style={{ fontSize: 13, fontWeight: '700', color: report311Category === cat ? '#cc3b2a' : colours.muted }}>{cat}</Text>
+                    {[
+                      { key: 'Pothole', label: t('Pothole', 'Nid-de-poule') },
+                      { key: 'Graffiti', label: t('Graffiti', 'Graffiti') },
+                      { key: 'Broken Sign', label: t('Broken Sign', 'Panneau cass\u00E9') },
+                      { key: 'Snow/Ice', label: t('Snow/Ice', 'Neige/Glace') },
+                      { key: 'Other', label: t('Other', 'Autre') },
+                    ].map(cat => (
+                      <TouchableOpacity key={cat.key} onPress={() => setReport311Category(cat.key)}
+                        style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, backgroundColor: report311Category === cat.key ? '#cc3b2a' + '18' : colours.surface, borderColor: report311Category === cat.key ? '#cc3b2a' : colours.border }}
+                        accessibilityRole="button" accessibilityLabel={cat.label} accessibilityState={{ selected: report311Category === cat.key }}>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: report311Category === cat.key ? '#cc3b2a' : colours.muted }}>{cat.label}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>

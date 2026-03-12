@@ -22,17 +22,17 @@ class AlertsErrorBoundary extends React.Component<
         <View style={{ flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
           <Ionicons name="alert-circle-outline" size={48} color="#888" />
           <Text style={{ fontSize: 18, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
-            Something went wrong
+            Something went wrong / Une erreur s'est produite
           </Text>
           <Text style={{ color: '#888', fontSize: 14, marginTop: 8, textAlign: 'center' }}>
-            The alerts screen ran into an issue
+            Tap below to try again. / Appuyez ci-dessous pour r&#233;essayer.
           </Text>
           <TouchableOpacity
             onPress={() => this.setState({ hasError: false })}
             style={{ marginTop: 20, backgroundColor: '#004890', borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }}
             accessibilityRole="button"
           >
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Tap to retry</Text>
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Retry / R&#233;essayer</Text>
           </TouchableOpacity>
         </View>
       );
