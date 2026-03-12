@@ -8,7 +8,8 @@ import {
   Text, TouchableOpacity, View
 } from 'react-native';
 import { useApp } from '../context/AppContext';
-import { SK_ONBOARDED } from '../lib/storageKeys';
+import { SK_CAMPUS, SK_ONBOARDED } from '../lib/storageKeys';
+import type { CampusId } from '../lib/campusData';
 
 const { width } = Dimensions.get('window');
 
@@ -47,6 +48,18 @@ const SLIDES = [
     isWelcome: false,
   },
   {
+    id: 'campus',
+    icon: 'school' as const,
+    iconBg: '#00A78D',
+    title_en: 'Where do you study?',
+    title_fr: 'O\u00F9 \u00E9tudiez-vous?',
+    body_en: "We'll show campus info on your Home tab",
+    body_fr: 'On affichera les infos campus sur votre onglet Accueil',
+    accent: '#00A78D',
+    isWelcome: false,
+    isCampus: true,
+  },
+  {
     id: 'more',
     icon: 'sparkles' as const,
     iconBg: '#7b5ea7',
@@ -59,10 +72,17 @@ const SLIDES = [
   },
 ];
 
+const CAMPUS_CHOICES: { id: CampusId; name_en: string; name_fr: string; accent: string }[] = [
+  { id: 'carleton', name_en: 'Carleton University', name_fr: 'Universit\u00E9 Carleton', accent: '#8B1A2B' },
+  { id: 'uottawa', name_en: 'University of Ottawa', name_fr: "Universit\u00E9 d'Ottawa", accent: '#004890' },
+  { id: 'algonquin', name_en: 'Algonquin College', name_fr: 'Coll\u00E8ge Algonquin', accent: '#006341' },
+];
+
 export default function OnboardingScreen() {
   const { colours, fonts, t, language } = useApp();
   const scrollRef = useRef<ScrollView>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [activeSchool, setActiveSchool] = useState<CampusId | null>(null);
 
   const goToSlide = (index: number) => {
     scrollRef.current?.scrollTo({ x: index * width, animated: true });
@@ -77,12 +97,23 @@ export default function OnboardingScreen() {
   const finish = async () => {
     try {
       await AsyncStorage.setItem(SK_ONBOARDED, 'true');
-    } catch (e) { console.warn('AsyncStorage error:', e); }
+    } catch (e) { if (__DEV__) console.warn('AsyncStorage error:', e); }
     router.replace('/(tabs)');
+  };
+
+  const saveCampus = async (campus: CampusId | null) => {
+    try {
+      if (campus) {
+        await AsyncStorage.setItem(SK_CAMPUS, campus);
+      } else {
+        await AsyncStorage.removeItem(SK_CAMPUS);
+      }
+    } catch (e) { if (__DEV__) console.warn('campus save error:', e); }
   };
 
   const isLast = currentIndex === SLIDES.length - 1;
   const slide = SLIDES[currentIndex];
+  const isCampusSlide = 'isCampus' in slide && (slide as any).isCampus;
 
   return (
     <View style={{ flex: 1, backgroundColor: '#0a0f1a' }}>
@@ -137,6 +168,62 @@ export default function OnboardingScreen() {
                 }}>
                   {language === 'fr' ? s.body_fr : s.body_en}
                 </Text>
+              </>
+            ) : 'isCampus' in s && (s as any).isCampus ? (
+              <>
+                {/* Campus selection screen */}
+                <Text style={{
+                  fontSize: 28, fontWeight: '800', color: '#fff',
+                  textAlign: 'center', letterSpacing: -0.5, lineHeight: 36,
+                  marginBottom: 8,
+                }}>
+                  {language === 'fr' ? s.title_fr : s.title_en}
+                </Text>
+                <Text style={{
+                  fontSize: 14, color: '#8899aa', textAlign: 'center',
+                  lineHeight: 20, marginBottom: 32,
+                }}>
+                  {language === 'fr' ? s.body_fr : s.body_en}
+                </Text>
+                <View style={{ width: '100%', gap: 12 }}>
+                  {CAMPUS_CHOICES.map((c) => {
+                    const selected = activeSchool === c.id;
+                    return (
+                      <TouchableOpacity
+                        key={c.id}
+                        activeOpacity={0.8}
+                        onPress={() => setActiveSchool(selected ? null : c.id)}
+                        style={{
+                          flexDirection: 'row', alignItems: 'center',
+                          backgroundColor: selected ? c.accent + '18' : '#131d2e',
+                          borderWidth: 2,
+                          borderColor: selected ? '#00A78D' : '#1e2a3a',
+                          borderRadius: 14, padding: 16, gap: 14,
+                        }}
+                      >
+                        <View style={{
+                          width: 44, height: 44, borderRadius: 22,
+                          backgroundColor: c.accent + '25',
+                          alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <Ionicons name="school" size={22} color={c.accent} />
+                        </View>
+                        <Text style={{ flex: 1, fontSize: 16, fontWeight: '700', color: '#fff' }}>
+                          {language === 'fr' ? c.name_fr : c.name_en}
+                        </Text>
+                        {selected && (
+                          <View style={{
+                            width: 28, height: 28, borderRadius: 14,
+                            backgroundColor: '#00A78D',
+                            alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            <Ionicons name="checkmark" size={18} color="#fff" />
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </>
             ) : (
               <>
@@ -198,39 +285,78 @@ export default function OnboardingScreen() {
           ))}
         </View>
 
-        {/* Next / Get Started button */}
-        <TouchableOpacity
-          style={{
-            backgroundColor: slide.accent,
-            borderRadius: 16, paddingVertical: 16,
-            alignItems: 'center', flexDirection: 'row',
-            justifyContent: 'center', gap: 8,
-          }}
-          onPress={() => isLast ? finish() : goToSlide(currentIndex + 1)}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel={isLast ? t('Get Started', 'Commencer') : t('Next slide', 'Diapositive suivante')}
-        >
-          <Text style={{ color: 'white', fontWeight: '800', fontSize: 17 }}>
-            {isLast
-              ? t('Get Started', 'Commencer')
-              : t('Next', 'Suivant')}
-          </Text>
-          {!isLast && <Ionicons name="arrow-forward" size={18} color="white" />}
-        </TouchableOpacity>
+        {isCampusSlide ? (
+          /* Campus slide: Skip + Continue side by side */
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <TouchableOpacity
+              style={{
+                flex: 1, borderRadius: 16, paddingVertical: 16,
+                alignItems: 'center', borderWidth: 1.5, borderColor: '#3a4a5a',
+              }}
+              onPress={() => { saveCampus(null); goToSlide(currentIndex + 1); }}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={t('Skip campus selection', 'Passer la s\u00E9lection de campus')}
+            >
+              <Text style={{ color: '#8899aa', fontWeight: '700', fontSize: 16 }}>
+                {t('Skip', 'Passer')}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{
+                flex: 1, backgroundColor: '#00A78D',
+                borderRadius: 16, paddingVertical: 16,
+                alignItems: 'center', flexDirection: 'row',
+                justifyContent: 'center', gap: 8,
+              }}
+              onPress={() => { saveCampus(activeSchool); goToSlide(currentIndex + 1); }}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={t('Continue', 'Continuer')}
+            >
+              <Text style={{ color: 'white', fontWeight: '800', fontSize: 16 }}>
+                {t('Continue', 'Continuer')}
+              </Text>
+              <Ionicons name="arrow-forward" size={18} color="white" />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            {/* Next / Get Started button */}
+            <TouchableOpacity
+              style={{
+                backgroundColor: slide.accent,
+                borderRadius: 16, paddingVertical: 16,
+                alignItems: 'center', flexDirection: 'row',
+                justifyContent: 'center', gap: 8,
+              }}
+              onPress={() => isLast ? finish() : goToSlide(currentIndex + 1)}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={isLast ? t('Get Started', 'Commencer') : t('Next slide', 'Diapositive suivante')}
+            >
+              <Text style={{ color: 'white', fontWeight: '800', fontSize: 17 }}>
+                {isLast
+                  ? t('Get Started', 'Commencer')
+                  : t('Next', 'Suivant')}
+              </Text>
+              {!isLast && <Ionicons name="arrow-forward" size={18} color="white" />}
+            </TouchableOpacity>
 
-        {/* Skip link (screens 1-3 only) */}
-        {!isLast && (
-          <TouchableOpacity
-            style={{ paddingVertical: 14, alignItems: 'center' }}
-            onPress={finish}
-            accessibilityRole="button"
-            accessibilityLabel={t('Skip onboarding', 'Passer la présentation')}
-          >
-            <Text style={{ color: '#5a6a7a', fontSize: 14, fontWeight: '600' }}>
-              {t('Skip', 'Passer')}
-            </Text>
-          </TouchableOpacity>
+            {/* Skip link (non-last, non-campus screens) */}
+            {!isLast && (
+              <TouchableOpacity
+                style={{ paddingVertical: 14, alignItems: 'center' }}
+                onPress={finish}
+                accessibilityRole="button"
+                accessibilityLabel={t('Skip onboarding', 'Passer la pr\u00E9sentation')}
+              >
+                <Text style={{ color: '#5a6a7a', fontSize: 14, fontWeight: '600' }}>
+                  {t('Skip', 'Passer')}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </>
         )}
       </View>
     </View>
