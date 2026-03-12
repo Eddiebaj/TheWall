@@ -49,7 +49,7 @@ import {
   SK_GAS_VOTED_IDS, SK_CACHE_WEATHER, SK_CACHE_ALERTS, SK_CACHE_ARRIVALS,
   SK_CAMPUS,
 } from '../../lib/storageKeys';
-import { CAMPUSES, CampusId, CampusConfig, getNextDeparture, isLibraryOpen, fmt12h, getDayLabel } from '../../lib/campusData';
+import { CAMPUSES, CampusConfig, getNextDeparture, isLibraryOpen, fmt12h, getDayLabel } from '../../lib/campusData';
 
 const TRIP_UPDATES = 'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt-tp/beta/v1/TripUpdates?format=json';
 const BACKEND_URL = 'https://routeo-backend.vercel.app/api/arrivals';
@@ -337,6 +337,7 @@ const fmtTime = (date: Date): string => {
   const m = String(date.getMinutes()).padStart(2, '0');
   return `${h % 12 || 12}:${m} ${h >= 12 ? 'PM' : 'AM'}`;
 };
+const fmtAbsTime = (minsAway: number): string => fmtTime(new Date(Date.now() + minsAway * 60000));
 
 // ── SavedBoardCard component ─────────────────────────────────────
 function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, cardShadow, garbageEvents, alerts, sensGame, onMoveLeft, onMoveRight, timeFormat, campusData }: {
@@ -1381,7 +1382,7 @@ function LiveScreenInner() {
   const [sportsScheduleLoading, setSportsScheduleLoading] = useState(false);
   const [sensGame, setSensGame] = useState<{ state: 'live' | 'pre' | 'none'; period?: string; homeAbbr?: string; awayAbbr?: string; homeScore?: number; awayScore?: number; startTime?: string; opponentAbbr?: string } | null>(null);
   const [campusModal, setCampusModal] = useState(false);
-  const [campusTab, setCampusTab] = useState<'shuttle' | 'library' | 'upass' | 'food'>('shuttle');
+  const [campusTab, setCampusTab] = useState<'shuttle' | 'library' | 'upass' | 'food' | 'study'>('shuttle');
   const [selectedCampus, setSelectedCampus] = useState<CampusConfig | null>(null);
   const [campusPicker, setCampusPicker] = useState(false);
   const [campusFood, setCampusFood] = useState<any[]>([]);
@@ -3250,13 +3251,14 @@ function LiveScreenInner() {
       const resp = await fetchWithTimeout(url);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
-      setCampusFood((data.results || []).slice(0, 12).map((p: any) => ({
+      setCampusFood((data.results || []).filter((p: any) => p.geometry?.location).slice(0, 12).map((p: any) => ({
         id: p.place_id,
         name: p.name,
         vicinity: p.vicinity,
         rating: p.rating,
         open: p.opening_hours?.open_now,
-        photoRef: p.photos?.[0]?.photo_reference ?? null,
+        lat: p.geometry.location.lat,
+        lng: p.geometry.location.lng,
       })));
     } catch { setCampusFood([]); }
     setCampusFoodLoading(false);
@@ -3273,9 +3275,15 @@ function LiveScreenInner() {
   const CAMPUS_TABS = [
     { id: 'shuttle' as const, label_en: 'Shuttle', label_fr: 'Navette', icon: 'bus' },
     { id: 'library' as const, label_en: 'Library', label_fr: 'Biblio', icon: 'book' },
+    { id: 'study' as const, label_en: 'Study', label_fr: 'Étude', icon: 'book-outline' },
     { id: 'upass' as const, label_en: 'U-Pass', label_fr: 'U-Pass', icon: 'card' },
     { id: 'food' as const, label_en: 'Food', label_fr: 'Bouffe', icon: 'restaurant' },
   ];
+
+  const routeToCampusPlace = (name: string, lat: number, lng: number) => {
+    setCampusModal(false);
+    router.push({ pathname: '/(tabs)/planner', params: { toLabel: name, toLat: String(lat), toLng: String(lng) } } as any);
+  };
 
   const renderCampusModal = () => {
     const campus = selectedCampus;
@@ -3381,9 +3389,15 @@ function LiveScreenInner() {
                 )
               )}
               {campusTab === 'shuttle' && campus?.buswhereUrl ? (
-                <TouchableOpacity onPress={() => Linking.openURL(campus.buswhereUrl).catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, borderRadius: 12, backgroundColor: accent + '15', borderWidth: 1, borderColor: accent + '30' }}>
+                <TouchableOpacity onPress={() => Linking.openURL(campus.buswhereUrl).catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, borderRadius: 12, backgroundColor: accent + '15', borderWidth: 1, borderColor: accent + '30', marginBottom: 8 }}>
                   <Ionicons name="location" size={14} color={accent} />
                   <Text style={{ fontSize: 13, fontWeight: '700', color: accent }}>{t('Track Live on BusWhere', 'Suivre en direct sur BusWhere')}</Text>
+                </TouchableOpacity>
+              ) : null}
+              {campusTab === 'shuttle' && campus?.shuttleDestination ? (
+                <TouchableOpacity onPress={() => routeToCampusPlace(campus.shuttleDestination!.name, campus.shuttleDestination!.lat, campus.shuttleDestination!.lng)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
+                  <Ionicons name="navigate" size={14} color={accent} />
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: accent }}>{t("Can't catch shuttle? Route via transit", 'Navette manquée? Itinéraire en transport')}</Text>
                 </TouchableOpacity>
               ) : null}
 
@@ -3422,10 +3436,30 @@ function LiveScreenInner() {
                           );
                         })}
                         <Text style={{ fontSize: 10, color: colours.muted, marginTop: 8, fontStyle: 'italic' }}>{language === 'fr' ? lib.note_fr : lib.note_en}</Text>
+                        <TouchableOpacity onPress={() => routeToCampusPlace(lib.name, lib.lat, lib.lng)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, padding: 10, borderRadius: 10, backgroundColor: accent + '15', borderWidth: 1, borderColor: accent + '30' }}>
+                          <Ionicons name="navigate" size={13} color={accent} />
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: accent }}>{t(`Route to ${lib.name.split(' (')[0]}`, `Itinéraire vers ${lib.name.split(' (')[0]}`)}</Text>
+                        </TouchableOpacity>
                       </View>
                     </View>
                   );
                 })
+              )}
+
+              {/* ── Study Spots Tab ── */}
+              {campusTab === 'study' && campus && (
+                campus.studySpots.map(spot => (
+                  <View key={spot.name} style={{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 10, overflow: 'hidden' }}>
+                    <View style={{ padding: 14 }}>
+                      <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text }}>{language === 'fr' ? spot.name_fr : spot.name}</Text>
+                      <Text style={{ fontSize: 12, color: colours.muted, marginTop: 4 }}>{language === 'fr' ? spot.description_fr : spot.description_en}</Text>
+                      <TouchableOpacity onPress={() => routeToCampusPlace(spot.name, spot.lat, spot.lng)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10, padding: 10, borderRadius: 10, backgroundColor: accent + '15', borderWidth: 1, borderColor: accent + '30' }}>
+                        <Ionicons name="navigate" size={13} color={accent} />
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: accent }}>{t(`Route to ${spot.name}`, `Itinéraire vers ${language === 'fr' ? spot.name_fr : spot.name}`)}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
               )}
 
               {/* ── U-Pass Tab ── */}
@@ -3474,28 +3508,36 @@ function LiveScreenInner() {
                   </View>
                 ) : (
                   campusFood.map(place => (
-                    <TouchableOpacity key={place.id} onPress={() => Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(place.name + ' ' + place.vicinity)}`).catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginBottom: 8 }}>
-                      <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: accent + '18', alignItems: 'center', justifyContent: 'center' }}>
-                        <Ionicons name="restaurant" size={18} color={accent} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }} numberOfLines={1}>{place.name}</Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                          {place.rating && (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                              <Ionicons name="star" size={10} color={colours.orange} />
-                              <Text style={{ fontSize: 11, color: colours.muted }}>{place.rating}</Text>
-                            </View>
-                          )}
-                          {place.open !== undefined && (
-                            <Text style={{ fontSize: 11, fontWeight: '600', color: place.open ? '#00A78D' : colours.red }}>
-                              {place.open ? t('Open', 'Ouvert') : t('Closed', 'Fermé')}
-                            </Text>
-                          )}
+                    <View key={place.id} style={{ backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginBottom: 8, overflow: 'hidden' }}>
+                      <TouchableOpacity onPress={() => Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(place.name + ' ' + place.vicinity)}`).catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 }}>
+                        <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+                          <Ionicons name="restaurant" size={18} color={accent} />
                         </View>
-                      </View>
-                      <Ionicons name="map-outline" size={16} color={colours.muted} />
-                    </TouchableOpacity>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }} numberOfLines={1}>{place.name}</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                            {place.rating && (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                                <Ionicons name="star" size={10} color={colours.orange} />
+                                <Text style={{ fontSize: 11, color: colours.muted }}>{place.rating}</Text>
+                              </View>
+                            )}
+                            {place.open !== undefined && (
+                              <Text style={{ fontSize: 11, fontWeight: '600', color: place.open ? '#00A78D' : colours.red }}>
+                                {place.open ? t('Open', 'Ouvert') : t('Closed', 'Fermé')}
+                              </Text>
+                            )}
+                          </View>
+                        </View>
+                        <Ionicons name="map-outline" size={16} color={colours.muted} />
+                      </TouchableOpacity>
+                      {place.lat && place.lng && (
+                        <TouchableOpacity onPress={() => routeToCampusPlace(place.name, place.lat, place.lng)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colours.border }}>
+                          <Ionicons name="navigate" size={12} color={accent} />
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: accent }}>{t('Get there via transit', 'Y aller en transport')}</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   ))
                 )
               )}
@@ -3532,7 +3574,7 @@ function LiveScreenInner() {
     );
   };
 
-  const fmtAbsTime = (minsAway: number): string => fmtTime(new Date(Date.now() + minsAway * 60000));
+
 
   const toggleTimeFormat = async () => {
     const next = timeFormat === 'relative' ? 'absolute' : 'relative';

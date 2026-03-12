@@ -19,6 +19,8 @@ export type ShuttleRoute = {
 export type LibraryHours = {
   name: string;
   campus: CampusId;
+  lat: number;
+  lng: number;
   /** [open, close] in 'HH:MM' 24h format, per day index (0=Sun, 6=Sat) */
   hours: { [day: number]: [string, string] | null };
   note_en: string;
@@ -34,6 +36,15 @@ export type UPassInfo = {
   url: string;
 };
 
+export type StudySpot = {
+  name: string;
+  name_fr: string;
+  lat: number;
+  lng: number;
+  description_en: string;
+  description_fr: string;
+};
+
 export type CampusConfig = {
   id: CampusId;
   name: string;
@@ -44,10 +55,13 @@ export type CampusConfig = {
   shuttles: ShuttleRoute[];
   libraries: LibraryHours[];
   upass: UPassInfo;
+  studySpots: StudySpot[];
   /** Bounding box for food search [lat, lng] */
   foodCenter: { lat: number; lng: number };
   foodRadius: number;
   buswhereUrl: string;
+  /** Shuttle destination for "Can't catch shuttle?" routing */
+  shuttleDestination?: { name: string; lat: number; lng: number };
 };
 
 // ── Shuttle schedules (weekday, from uOttawa PDF) ──────────────────
@@ -87,6 +101,7 @@ const LIBRARIES: LibraryHours[] = [
   {
     name: 'Morisset Library (uOttawa)',
     campus: 'uottawa',
+    lat: 45.4234, lng: -75.6836,
     hours: {
       0: ['10:00', '16:30'], // Sun
       1: ['08:00', '21:00'], // Mon
@@ -102,6 +117,7 @@ const LIBRARIES: LibraryHours[] = [
   {
     name: 'MacOdrum Library (Carleton)',
     campus: 'carleton',
+    lat: 45.3884, lng: -75.6957,
     hours: {
       0: ['10:00', '23:59'],
       1: ['07:30', '23:59'],
@@ -117,6 +133,7 @@ const LIBRARIES: LibraryHours[] = [
   {
     name: 'Library (Algonquin)',
     campus: 'algonquin',
+    lat: 45.3497, lng: -75.7558,
     hours: {
       0: null, // closed
       1: ['08:00', '17:00'],
@@ -155,9 +172,16 @@ export const CAMPUSES: CampusConfig[] = [
     shuttles: UOTTAWA_SHUTTLES,
     libraries: LIBRARIES.filter(l => l.campus === 'uottawa'),
     upass: UPASS,
+    studySpots: [
+      { name: 'Morisset Library', name_fr: 'Bibliothèque Morisset', lat: 45.4234, lng: -75.6836, description_en: 'Main library, 4 floors of study space', description_fr: 'Bibliothèque principale, 4 étages d\'espaces d\'étude' },
+      { name: 'Desmarais Hall', name_fr: 'Pavillon Desmarais', lat: 45.4227, lng: -75.6830, description_en: 'Atrium, study lounges, group rooms', description_fr: 'Atrium, salons d\'étude, salles de groupe' },
+      { name: 'STEM Complex', name_fr: 'Complexe STEM', lat: 45.4243, lng: -75.6854, description_en: 'Modern building, open study areas', description_fr: 'Bâtiment moderne, aires d\'étude ouvertes' },
+      { name: 'Learning Crossroads (CRX)', name_fr: 'Carrefour des apprentissages', lat: 45.4236, lng: -75.6829, description_en: 'Active learning classrooms, study pods', description_fr: 'Salles d\'apprentissage actif, capsules d\'étude' },
+    ],
     foodCenter: { lat: 45.4231, lng: -75.6831 },
     foodRadius: 800,
     buswhereUrl: 'https://apps.apple.com/ca/app/buswhere-uottawa/id1118405893',
+    shuttleDestination: { name: 'Roger Guindon Health Sciences', lat: 45.4168, lng: -75.6498 },
   },
   {
     id: 'carleton',
@@ -166,9 +190,15 @@ export const CAMPUSES: CampusConfig[] = [
     accent: '#BF112B',
     lat: 45.3876,
     lng: -75.6960,
-    shuttles: [], // Carleton doesn't run its own shuttle
+    shuttles: [],
     libraries: LIBRARIES.filter(l => l.campus === 'carleton'),
     upass: UPASS,
+    studySpots: [
+      { name: 'MacOdrum Library', name_fr: 'Bibliothèque MacOdrum', lat: 45.3884, lng: -75.6957, description_en: 'Main library, silent and group study floors', description_fr: 'Bibliothèque principale, étages silencieux et en groupe' },
+      { name: 'Dunton Tower', name_fr: 'Tour Dunton', lat: 45.3882, lng: -75.6948, description_en: 'Lounge areas on upper floors', description_fr: 'Espaces lounge aux étages supérieurs' },
+      { name: 'Richcraft Hall', name_fr: 'Pavillon Richcraft', lat: 45.3859, lng: -75.6954, description_en: 'Business building, open atrium', description_fr: 'Bâtiment de commerce, atrium ouvert' },
+      { name: 'Canal Building', name_fr: 'Pavillon du Canal', lat: 45.3862, lng: -75.6981, description_en: 'Engineering building, study nooks', description_fr: 'Bâtiment de génie, coins d\'étude' },
+    ],
     foodCenter: { lat: 45.3876, lng: -75.6960 },
     foodRadius: 600,
     buswhereUrl: '',
@@ -183,6 +213,10 @@ export const CAMPUSES: CampusConfig[] = [
     shuttles: [],
     libraries: LIBRARIES.filter(l => l.campus === 'algonquin'),
     upass: UPASS,
+    studySpots: [
+      { name: 'Library (C Building)', name_fr: 'Bibliothèque (Pavillon C)', lat: 45.3497, lng: -75.7558, description_en: 'Main library, quiet study zones', description_fr: 'Bibliothèque principale, zones d\'étude calmes' },
+      { name: 'Student Commons', name_fr: 'Centre étudiant', lat: 45.3502, lng: -75.7550, description_en: 'Open lounge with tables and outlets', description_fr: 'Salon ouvert avec tables et prises' },
+    ],
     foodCenter: { lat: 45.3499, lng: -75.7559 },
     foodRadius: 500,
     buswhereUrl: '',
