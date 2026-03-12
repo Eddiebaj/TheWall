@@ -355,12 +355,13 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   const [previewLoading, setPreviewLoading] = useState(true);
   const [previewSource, setPreviewSource] = useState<'gtfs-rt' | 'gtfs-static' | 'sto-gtfs-rt' | null>(null);
   const [gasPrice, setGasPrice] = useState<string | null>(null);
+  const [gasFailed, setGasFailed] = useState(false);
 
   useEffect(() => {
     if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'saved_team' || item.type === 'campus') { setPreviewLoading(false); return; }
     if (item.type === 'gas_prices') {
       setPreviewLoading(false);
-      fetchWithTimeout(GAS_URL).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(d => { if (d.price) setGasPrice(d.price); }).catch(() => {});
+      fetchWithTimeout(GAS_URL, { timeout: 30000 }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(d => { if (d.price) setGasPrice(d.price); else setGasFailed(true); }).catch((e) => { if (__DEV__) console.warn('gas fetch failed:', e); setGasFailed(true); });
       return;
     }
     let cancelled = false;
@@ -464,6 +465,8 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
             <Text style={{ fontSize: 26, fontWeight: '900', color: colours.accent }}>{gasPrice}¢</Text>
             <Text style={{ fontSize: 10, color: colours.muted }}>Regular · Ottawa avg</Text>
           </>
+        ) : gasFailed ? (
+          <Text style={{ fontSize: 11, color: colours.muted }}>{t('Gas prices unavailable', 'Prix d\'essence indisponible')}</Text>
         ) : (
           <ActivityIndicator size="small" color={colours.accent} />
         )}
@@ -3326,7 +3329,7 @@ function LiveScreenInner() {
                 <Ionicons name="school" size={20} color={accent} />
                 <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text }}>{campus ? t(campus.name, campus.name_fr) : t('My Campus', 'Mon Campus')}</Text>
               </View>
-              <TouchableOpacity onPress={() => { setCampusModal(false); setCampusPicker(true); }} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: colours.border }}>
+              <TouchableOpacity activeOpacity={0.7} onPress={() => { setCampusModal(false); setCampusPicker(true); }} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: colours.border }}>
                 <Text style={{ fontSize: 11, fontWeight: '600', color: colours.muted }}>{t('Change', 'Changer')}</Text>
               </TouchableOpacity>
             </View>
@@ -3389,13 +3392,13 @@ function LiveScreenInner() {
                 )
               )}
               {campusTab === 'shuttle' && campus?.buswhereUrl ? (
-                <TouchableOpacity onPress={() => Linking.openURL(campus.buswhereUrl).catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, borderRadius: 12, backgroundColor: accent + '15', borderWidth: 1, borderColor: accent + '30', marginBottom: 8 }}>
+                <TouchableOpacity activeOpacity={0.7} onPress={() => Linking.openURL(campus.buswhereUrl).catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, borderRadius: 12, backgroundColor: accent + '15', borderWidth: 1, borderColor: accent + '30', marginBottom: 8 }}>
                   <Ionicons name="location" size={14} color={accent} />
                   <Text style={{ fontSize: 13, fontWeight: '700', color: accent }}>{t('Track Live on BusWhere', 'Suivre en direct sur BusWhere')}</Text>
                 </TouchableOpacity>
               ) : null}
               {campusTab === 'shuttle' && campus?.shuttleDestination ? (
-                <TouchableOpacity onPress={() => routeToCampusPlace(campus.shuttleDestination!.name, campus.shuttleDestination!.lat, campus.shuttleDestination!.lng)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
+                <TouchableOpacity activeOpacity={0.7} onPress={() => routeToCampusPlace(campus.shuttleDestination!.name, campus.shuttleDestination!.lat, campus.shuttleDestination!.lng)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
                   <Ionicons name="navigate" size={14} color={accent} />
                   <Text style={{ fontSize: 13, fontWeight: '700', color: accent }}>{t("Can't catch shuttle? Route via transit", 'Navette manquée? Itinéraire en transport')}</Text>
                 </TouchableOpacity>
@@ -3427,16 +3430,16 @@ function LiveScreenInner() {
                           const hrs = lib.hours[day];
                           const isToday = new Date().getDay() === day;
                           return (
-                            <View key={day} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}>
-                              <Text style={{ fontSize: 12, fontWeight: isToday ? '700' : '400', color: isToday ? colours.text : colours.muted }}>{getDayLabel(day, language)}</Text>
-                              <Text style={{ fontSize: 12, fontWeight: isToday ? '700' : '400', color: isToday ? colours.text : colours.muted }}>
+                            <View key={day} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, paddingHorizontal: isToday ? 8 : 0, borderRadius: isToday ? 8 : 0, backgroundColor: isToday ? accent + '10' : 'transparent', borderWidth: isToday ? 1 : 0, borderColor: isToday ? accent + '25' : 'transparent', marginVertical: isToday ? 2 : 0 }}>
+                              <Text style={{ fontSize: 12, fontWeight: isToday ? '700' : '400', color: isToday ? accent : colours.muted }}>{getDayLabel(day, language)}{isToday ? ` (${t('Today', "Aujourd'hui")})` : ''}</Text>
+                              <Text style={{ fontSize: 12, fontWeight: isToday ? '700' : '400', color: isToday ? accent : colours.muted }}>
                                 {hrs ? `${fmt12h(hrs[0])} – ${fmt12h(hrs[1])}` : t('Closed', 'Fermé')}
                               </Text>
                             </View>
                           );
                         })}
                         <Text style={{ fontSize: 10, color: colours.muted, marginTop: 8, fontStyle: 'italic' }}>{language === 'fr' ? lib.note_fr : lib.note_en}</Text>
-                        <TouchableOpacity onPress={() => routeToCampusPlace(lib.name, lib.lat, lib.lng)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, padding: 10, borderRadius: 10, backgroundColor: accent + '15', borderWidth: 1, borderColor: accent + '30' }}>
+                        <TouchableOpacity activeOpacity={0.7} onPress={() => routeToCampusPlace(lib.name, lib.lat, lib.lng)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, padding: 10, borderRadius: 10, backgroundColor: accent + '15', borderWidth: 1, borderColor: accent + '30' }}>
                           <Ionicons name="navigate" size={13} color={accent} />
                           <Text style={{ fontSize: 12, fontWeight: '700', color: accent }}>{t(`Route to ${lib.name.split(' (')[0]}`, `Itinéraire vers ${lib.name.split(' (')[0]}`)}</Text>
                         </TouchableOpacity>
@@ -3453,7 +3456,7 @@ function LiveScreenInner() {
                     <View style={{ padding: 14 }}>
                       <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text }}>{language === 'fr' ? spot.name_fr : spot.name}</Text>
                       <Text style={{ fontSize: 12, color: colours.muted, marginTop: 4 }}>{language === 'fr' ? spot.description_fr : spot.description_en}</Text>
-                      <TouchableOpacity onPress={() => routeToCampusPlace(spot.name, spot.lat, spot.lng)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10, padding: 10, borderRadius: 10, backgroundColor: accent + '15', borderWidth: 1, borderColor: accent + '30' }}>
+                      <TouchableOpacity activeOpacity={0.7} onPress={() => routeToCampusPlace(spot.name, spot.lat, spot.lng)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10, padding: 10, borderRadius: 10, backgroundColor: accent + '15', borderWidth: 1, borderColor: accent + '30' }}>
                         <Ionicons name="navigate" size={13} color={accent} />
                         <Text style={{ fontSize: 12, fontWeight: '700', color: accent }}>{t(`Route to ${spot.name}`, `Itinéraire vers ${language === 'fr' ? spot.name_fr : spot.name}`)}</Text>
                       </TouchableOpacity>
@@ -3483,7 +3486,7 @@ function LiveScreenInner() {
                       <Ionicons name="school" size={16} color={accent} />
                       <Text style={{ fontSize: 14, color: colours.text, flex: 1 }}>Carleton, uOttawa, Algonquin</Text>
                     </View>
-                    <TouchableOpacity onPress={() => Linking.openURL(campus.upass.url).catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, borderRadius: 12, backgroundColor: accent, }}>
+                    <TouchableOpacity activeOpacity={0.7} onPress={() => Linking.openURL(campus.upass.url).catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, borderRadius: 12, backgroundColor: accent, }}>
                       <Ionicons name="open-outline" size={14} color="white" />
                       <Text style={{ fontSize: 14, fontWeight: '700', color: 'white' }}>{t('Official U-Pass Page', 'Page U-Pass officielle')}</Text>
                     </TouchableOpacity>
@@ -3502,7 +3505,7 @@ function LiveScreenInner() {
                   <View style={{ alignItems: 'center', paddingVertical: 32 }}>
                     <Ionicons name="restaurant-outline" size={36} color={colours.muted} />
                     <Text style={{ color: colours.muted, marginTop: 8 }}>{t('No food places found', 'Aucun resto trouvé')}</Text>
-                    <TouchableOpacity onPress={() => fetchCampusFood(campus)} style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: accent, backgroundColor: accent + '15' }}>
+                    <TouchableOpacity activeOpacity={0.7} onPress={() => fetchCampusFood(campus)} style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: accent, backgroundColor: accent + '15' }}>
                       <Text style={{ fontSize: 13, fontWeight: '700', color: accent }}>{t('Retry', 'Réessayer')}</Text>
                     </TouchableOpacity>
                   </View>
@@ -3532,7 +3535,7 @@ function LiveScreenInner() {
                         <Ionicons name="map-outline" size={16} color={colours.muted} />
                       </TouchableOpacity>
                       {place.lat && place.lng && (
-                        <TouchableOpacity onPress={() => routeToCampusPlace(place.name, place.lat, place.lng)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colours.border }}>
+                        <TouchableOpacity activeOpacity={0.7} onPress={() => routeToCampusPlace(place.name, place.lat, place.lng)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colours.border }}>
                           <Ionicons name="navigate" size={12} color={accent} />
                           <Text style={{ fontSize: 11, fontWeight: '700', color: accent }}>{t('Get there via transit', 'Y aller en transport')}</Text>
                         </TouchableOpacity>
@@ -3543,7 +3546,7 @@ function LiveScreenInner() {
               )}
             </ScrollView>
 
-            <TouchableOpacity onPress={() => setCampusModal(false)} style={{ marginHorizontal: 20, paddingVertical: 14, borderRadius: 14, backgroundColor: accent, alignItems: 'center' }}>
+            <TouchableOpacity activeOpacity={0.7} onPress={() => setCampusModal(false)} style={{ marginHorizontal: 20, paddingVertical: 14, borderRadius: 14, backgroundColor: accent, alignItems: 'center' }}>
               <Text style={{ color: 'white', fontWeight: '700', fontSize: 15 }}>{t('Done', 'Terminé')}</Text>
             </TouchableOpacity>
           </View>
