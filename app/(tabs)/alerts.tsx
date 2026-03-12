@@ -1,12 +1,45 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Linking, RefreshControl,
   ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
+
+// ── Error Boundary ───────────────────────────────────────────────
+class AlertsErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error: Error) { if (__DEV__) console.warn('AlertsErrorBoundary caught:', error); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+          <Ionicons name="alert-circle-outline" size={48} color="#888" />
+          <Text style={{ fontSize: 18, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
+            Something went wrong
+          </Text>
+          <Text style={{ color: '#888', fontSize: 14, marginTop: 8, textAlign: 'center' }}>
+            The alerts screen ran into an issue
+          </Text>
+          <TouchableOpacity
+            onPress={() => this.setState({ hasError: false })}
+            style={{ marginTop: 20, backgroundColor: '#004890', borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }}
+            accessibilityRole="button"
+          >
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Tap to retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // ── Constants ────────────────────────────────────────────────────
 const ALERTS_URL = 'https://routeo-backend.vercel.app/api/alerts';
@@ -34,7 +67,7 @@ type LrtData = {
 };
 
 // ── Main Screen ───────────────────────────────────────────────────
-export default function AlertsScreen() {
+function AlertsScreenInner() {
   const { colours, fonts, t, theme } = useApp();
 
   const [alerts, setAlerts] = useState<ServiceAlert[]>([]);
@@ -58,30 +91,19 @@ export default function AlertsScreen() {
     try {
       setLrtLoading(true);
       const [alertResult, lrtResult] = await Promise.allSettled([
-        fetchWithTimeout(ALERTS_URL, { timeout: 15000 }).then(r => {
-          console.log('[Alerts] alerts response ok:', r.ok, r.status);
-          return r.ok ? r.json() : null;
-        }),
-        fetchWithTimeout(LRT_URL, { timeout: 20000 }).then(r => {
-          console.log('[Alerts] LRT response ok:', r.ok, r.status);
-          return r.ok ? r.json() : null;
-        }),
+        fetchWithTimeout(ALERTS_URL, { timeout: 15000 }).then(r => r.ok ? r.json() : null),
+        fetchWithTimeout(LRT_URL, { timeout: 20000 }).then(r => r.ok ? r.json() : null),
       ]);
-      console.log('[Alerts] alertResult:', alertResult.status, alertResult.status === 'fulfilled' ? '(has value)' : (alertResult as any).reason?.message);
-      console.log('[Alerts] lrtResult:', lrtResult.status, lrtResult.status === 'fulfilled' ? '(has value)' : (lrtResult as any).reason?.message);
       if (alertResult.status === 'fulfilled' && alertResult.value) {
         setAlerts(alertResult.value.alerts || []);
       }
       if (lrtResult.status === 'fulfilled' && lrtResult.value) {
-        console.log('[Alerts] Setting LRT data, line1 stations:', lrtResult.value.line1?.stations?.length);
         setLrt(lrtResult.value);
-      } else {
-        console.log('[Alerts] LRT data NOT set');
       }
       const now = new Date();
       setLastUpdated(`${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`);
     } catch (err) {
-      console.log('[Alerts] Top-level catch:', err);
+      if (__DEV__) console.warn('[Alerts] fetch failed:', err);
       setAlerts([]);
     } finally {
       setLoading(false);
@@ -446,3 +468,11 @@ const styles = StyleSheet.create({
     alignItems: 'center', paddingVertical: 32,
   },
 });
+
+export default function AlertsScreen() {
+  return (
+    <AlertsErrorBoundary>
+      <AlertsScreenInner />
+    </AlertsErrorBoundary>
+  );
+}

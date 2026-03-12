@@ -354,7 +354,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
     if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'saved_team') { setPreviewLoading(false); return; }
     if (item.type === 'gas_prices') {
       setPreviewLoading(false);
-      fetch(GAS_URL).then(r => r.json()).then(d => { if (d.price) setGasPrice(d.price); }).catch(() => {});
+      fetchWithTimeout(GAS_URL).then(r => r.json()).then(d => { if (d.price) setGasPrice(d.price); }).catch(() => {});
       return;
     }
     let cancelled = false;
@@ -721,7 +721,7 @@ function GasPricesExpanded({ colours, fonts }: { colours: any; fonts: any }) {
   const [avgPrice, setAvgPrice] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(GAS_URL)
+    fetchWithTimeout(GAS_URL)
       .then(r => r.json())
       .then(d => {
         if (d.price) setAvgPrice(d.price);
@@ -844,7 +844,7 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
     setStationName(''); setStationAddress(''); setStationLat(null); setStationLng(null);
     if (text.length < 2) { setStationResults([]); return; }
     const seq = ++stationSeq.current;
-    fetch(`https://routeo-backend.vercel.app/api/geocode?input=${encodeURIComponent(text)}`)
+    fetchWithTimeout(`https://routeo-backend.vercel.app/api/geocode?input=${encodeURIComponent(text)}`)
       .then(r => r.json())
       .then(d => { if (seq === stationSeq.current) setStationResults((d.results || []).filter((r: any) => r.label).slice(0, 4)); })
       .catch(() => { if (seq === stationSeq.current) setStationResults([]); });
@@ -2026,7 +2026,7 @@ function LiveScreenInner() {
     } else { setSearchResults([]); setAddressResults([]); return; }
     if (text.length >= 3) {
       const seq = ++geocodeSeq.current;
-      fetch(`https://routeo-backend.vercel.app/api/geocode?input=${encodeURIComponent(text)}`)
+      fetchWithTimeout(`https://routeo-backend.vercel.app/api/geocode?input=${encodeURIComponent(text)}`)
         .then(r => r.json())
         .then(d => { if (seq === geocodeSeq.current) setAddressResults((d.results || []).filter((r: any) => r.lat && r.lng).slice(0, 3)); })
         .catch(() => {});

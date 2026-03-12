@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import { useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, Dimensions, Keyboard, KeyboardAvoidingView,
   Linking, Modal, Platform, ScrollView, Share,
@@ -13,6 +13,39 @@ import {
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useApp } from '../../context/AppContext';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
+
+// ── Error Boundary ───────────────────────────────────────────────
+class PlannerErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error: Error) { if (__DEV__) console.warn('PlannerErrorBoundary caught:', error); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+          <Ionicons name="navigate-outline" size={48} color="#888" />
+          <Text style={{ fontSize: 18, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
+            Something went wrong
+          </Text>
+          <Text style={{ color: '#888', fontSize: 14, marginTop: 8, textAlign: 'center' }}>
+            The planner ran into an issue
+          </Text>
+          <TouchableOpacity
+            onPress={() => this.setState({ hasError: false })}
+            style={{ marginTop: 20, backgroundColor: '#004890', borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }}
+            accessibilityRole="button"
+          >
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Tap to retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
 import { SK_PLANNER_PREFS, SK_SAVED_ROUTES } from '../../lib/storageKeys';
 
 const PLAN_URL = 'https://routeo-backend.vercel.app/api/plan';
@@ -158,7 +191,7 @@ function directionIcon(dir: string): string {
   return map[dir] || 'arrow-up';
 }
 
-export default function PlannerScreen() {
+function PlannerScreenInner() {
   const { colours, fonts, t, language } = useApp();
   const params = useLocalSearchParams();
 
@@ -1478,6 +1511,14 @@ export default function PlannerScreen() {
         ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+export default function PlannerScreen() {
+  return (
+    <PlannerErrorBoundary>
+      <PlannerScreenInner />
+    </PlannerErrorBoundary>
   );
 }
 
