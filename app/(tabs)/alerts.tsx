@@ -55,16 +55,15 @@ export default function AlertsScreen() {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const [alertResp, lrtResp] = await Promise.all([
-        fetchWithTimeout(ALERTS_URL),
-        fetchWithTimeout(LRT_URL),
+      const [alertResult, lrtResult] = await Promise.allSettled([
+        fetchWithTimeout(ALERTS_URL).then(r => r.ok ? r.json() : null),
+        fetchWithTimeout(LRT_URL).then(r => r.ok ? r.json() : null),
       ]);
-      if (alertResp.ok) {
-        const data = await alertResp.json();
-        setAlerts(data.alerts || []);
+      if (alertResult.status === 'fulfilled' && alertResult.value) {
+        setAlerts(alertResult.value.alerts || []);
       }
-      if (lrtResp.ok) {
-        setLrt(await lrtResp.json());
+      if (lrtResult.status === 'fulfilled' && lrtResult.value) {
+        setLrt(lrtResult.value);
       }
       const now = new Date();
       setLastUpdated(`${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`);
@@ -272,13 +271,13 @@ export default function AlertsScreen() {
             <LineRow label={t('Line 2 Trillium', 'Ligne 2 Trillium')} line={lrt.line2} color={LINE_COLOURS.line2} />
             <LineRow label={t('Line 4 Airport', 'Ligne 4 Aeroport')} line={lrt.line4} color={LINE_COLOURS.line4} />
 
-            {/* Recent incidents */}
-            {lrt.incidents.length > 0 && (
+            {/* Recent incidents (last 24h) */}
+            {lrt.incidents.filter(inc => inc.hoursAgo <= 24).length > 0 && (
               <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: colours.border, paddingTop: 12 }}>
                 <Text style={{ fontSize: 11, fontWeight: '800', color: colours.muted, letterSpacing: 1, marginBottom: 8 }}>
-                  {t('RECENT INCIDENTS', 'INCIDENTS RECENTS')}
+                  {t('LAST 24 HOURS', 'DERNIERES 24 HEURES')}
                 </Text>
-                {lrt.incidents.map((inc, i) => (
+                {lrt.incidents.filter(inc => inc.hoursAgo <= 24).map((inc, i) => (
                   <View key={i} style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
                     <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, minWidth: 36, textAlign: 'right' }}>
                       {inc.hoursAgo < 1 ? '<1h' : `${Math.round(inc.hoursAgo)}h`}
