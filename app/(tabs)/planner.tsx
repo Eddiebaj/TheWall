@@ -1294,49 +1294,97 @@ function PlannerScreenInner() {
                 <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accent }}>{t('Now', 'Maintenant')}</Text>
               </TouchableOpacity>
 
-              {/* Hour & Minute pickers */}
-              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
-                {/* Hours */}
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, marginBottom: 6 }}>{t('HOUR', 'HEURE')}</Text>
-                  <ScrollView style={{ maxHeight: 140 }} showsVerticalScrollIndicator={false}>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
-                      {Array.from({ length: 24 }, (_, i) => i).map(h => {
-                        const isActive = departTime.getHours() === h;
+              {/* Wheel-style 12h time picker */}
+              {(() => {
+                const raw = departTime.getHours();
+                const isPM = raw >= 12;
+                const display12 = raw % 12 || 12;
+                const currentMin = departTime.getMinutes();
+                const nearestMin = Math.round(currentMin / 5) * 5 % 60;
+                const ITEM_H = 40;
+                const VISIBLE = 5;
+                const WHEEL_H = ITEM_H * VISIBLE;
+
+                const setTime12 = (hour12: number, minute: number, pm: boolean) => {
+                  let h24 = hour12 % 12;
+                  if (pm) h24 += 12;
+                  const d = new Date(departTime);
+                  d.setHours(h24, minute, 0, 0);
+                  setDepartTime(d);
+                  savePlannerPrefs(d, arriveBy);
+                };
+
+                const hours = Array.from({ length: 12 }, (_, i) => i + 1);
+                const minutes = Array.from({ length: 12 }, (_, i) => i * 5);
+                const periods = ['AM', 'PM'] as const;
+
+                const WheelColumn = ({ data, selected, onSelect, format }: { data: number[], selected: number, onSelect: (v: number) => void, format: (v: number) => string }) => {
+                  const scrollRef = React.useRef<ScrollView>(null);
+                  const idx = data.indexOf(selected);
+                  React.useEffect(() => {
+                    setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, idx * ITEM_H), animated: false }), 50);
+                  }, []);
+                  return (
+                    <View style={{ height: WHEEL_H, overflow: 'hidden', flex: 1 }}>
+                      <ScrollView
+                        ref={scrollRef}
+                        showsVerticalScrollIndicator={false}
+                        snapToInterval={ITEM_H}
+                        decelerationRate="fast"
+                        onMomentumScrollEnd={(e) => {
+                          const i = Math.round(e.nativeEvent.contentOffset.y / ITEM_H);
+                          if (i >= 0 && i < data.length) onSelect(data[i]);
+                        }}
+                        contentContainerStyle={{ paddingVertical: ITEM_H * 2 }}
+                      >
+                        {data.map(v => {
+                          const active = v === selected;
+                          return (
+                            <View key={v} style={{ height: ITEM_H, alignItems: 'center', justifyContent: 'center' }}>
+                              <Text style={{ fontSize: active ? 20 : 15, fontWeight: active ? '800' : '400', color: active ? colours.accent : colours.muted }}>{format(v)}</Text>
+                            </View>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+                  );
+                };
+
+                return (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 4 }}>
+                    {/* Highlight bar behind selected row */}
+                    <View style={{ position: 'absolute', top: ITEM_H * 2, left: 0, right: 0, height: ITEM_H, borderRadius: 10, backgroundColor: colours.accent + '15', borderWidth: 1, borderColor: colours.accent + '30' }} pointerEvents="none" />
+                    <WheelColumn
+                      data={hours}
+                      selected={display12}
+                      onSelect={(h) => setTime12(h, nearestMin, isPM)}
+                      format={(v) => String(v)}
+                    />
+                    <Text style={{ fontSize: 22, fontWeight: '800', color: colours.accent, marginHorizontal: 2 }}>:</Text>
+                    <WheelColumn
+                      data={minutes}
+                      selected={nearestMin}
+                      onSelect={(m) => setTime12(display12, m, isPM)}
+                      format={(v) => String(v).padStart(2, '0')}
+                    />
+                    {/* AM/PM column */}
+                    <View style={{ flex: 0.7, gap: 4, paddingHorizontal: 4 }}>
+                      {periods.map(p => {
+                        const active = (p === 'PM') === isPM;
                         return (
                           <TouchableOpacity
-                            key={h}
-                            onPress={() => { const d = new Date(departTime); d.setHours(h); setDepartTime(d); savePlannerPrefs(d, arriveBy); }}
-                            style={{ width: 40, paddingVertical: 6, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, backgroundColor: isActive ? colours.accent + '18' : colours.bg }}
+                            key={p}
+                            onPress={() => setTime12(display12, nearestMin, p === 'PM')}
+                            style={{ paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: active ? colours.accent + '18' : 'transparent', borderWidth: 1, borderColor: active ? colours.accent : colours.border }}
                           >
-                            <Text style={{ fontSize: 13, fontWeight: isActive ? '800' : '500', color: isActive ? colours.accent : colours.text }}>{String(h).padStart(2, '0')}</Text>
+                            <Text style={{ fontSize: 14, fontWeight: active ? '800' : '500', color: active ? colours.accent : colours.muted }}>{p}</Text>
                           </TouchableOpacity>
                         );
                       })}
                     </View>
-                  </ScrollView>
-                </View>
-                {/* Minutes */}
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, marginBottom: 6 }}>{t('MINUTE', 'MINUTE')}</Text>
-                  <ScrollView style={{ maxHeight: 140 }} showsVerticalScrollIndicator={false}>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
-                      {Array.from({ length: 12 }, (_, i) => i * 5).map(m => {
-                        const isActive = departTime.getMinutes() === m;
-                        return (
-                          <TouchableOpacity
-                            key={m}
-                            onPress={() => { const d = new Date(departTime); d.setMinutes(m, 0, 0); setDepartTime(d); savePlannerPrefs(d, arriveBy); }}
-                            style={{ width: 40, paddingVertical: 6, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, backgroundColor: isActive ? colours.accent + '18' : colours.bg }}
-                          >
-                            <Text style={{ fontSize: 13, fontWeight: isActive ? '800' : '500', color: isActive ? colours.accent : colours.text }}>{String(m).padStart(2, '0')}</Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </ScrollView>
-                </View>
-              </View>
+                  </View>
+                );
+              })()}
 
               {/* Date picker strip */}
               <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, marginBottom: 6 }}>{t('DATE', 'DATE')}</Text>

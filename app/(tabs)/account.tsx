@@ -16,6 +16,7 @@ const isNightTime = () => { const h = new Date().getHours(); return h >= 21 || h
 type NotifSettings = {
   // Trip Notifications
   leaveNow: boolean;
+  arrivalAlerts: boolean;
   transferAtRisk: boolean;
   tripDisruption: boolean;
   lastBus: boolean;
@@ -41,6 +42,7 @@ type NotifSettings = {
 
 const DEFAULT_NOTIF_SETTINGS: NotifSettings = {
   leaveNow: true,
+  arrivalAlerts: true,
   transferAtRisk: true,
   tripDisruption: true,
   lastBus: true,
@@ -203,6 +205,7 @@ export default function AccountScreen() {
       expanded: showTripNotifs, setExpanded: setShowTripNotifs,
       items: [
         { key: 'leaveNow' as keyof NotifSettings, icon: 'alarm' as const, label: t('Leave Now Reminder', 'Rappel de depart'), desc: t('Alerts you when to leave for a saved trip', 'Vous alerte quand partir pour un trajet sauvegarde') },
+        { key: 'arrivalAlerts' as keyof NotifSettings, icon: 'notifications' as const, label: t('Arrival Alerts', "Alertes d'arrivée"), desc: t('Notifies when a bus at a saved stop is 3 min away', 'Notifie quand un bus à un arrêt sauvegardé est à 3 min') },
         { key: 'transferAtRisk' as keyof NotifSettings, icon: 'swap-horizontal' as const, label: t('Transfer at Risk', 'Correspondance a risque'), desc: t('Warns if your connecting bus may be missed', 'Avertit si votre correspondance risque d\'etre manquee') },
         { key: 'tripDisruption' as keyof NotifSettings, icon: 'alert-circle' as const, label: t('Trip Disruption', 'Perturbation de trajet'), desc: t('Notifies if your active route is affected mid-journey', 'Notifie si votre trajet actif est perturbe en cours de route') },
         { key: 'lastBus' as keyof NotifSettings, icon: 'moon' as const, label: t('Last Bus Warning', 'Avertissement dernier bus'), desc: t('Alerts when the last bus of the night is approaching', 'Alerte quand le dernier bus de la nuit approche') },

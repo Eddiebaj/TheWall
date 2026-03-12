@@ -47,7 +47,7 @@ import {
   SK_GARBAGE_NOTIF_ID, SK_SEEN_ALERT_IDS, SK_TIME_FORMAT, SK_GHOST_REPORTS,
   SK_SECTION_ORDER, SK_QUICK_ACTIONS, SK_OTTAWA_LIFE, SK_TODAY_EVENTS,
   SK_GAS_VOTED_IDS, SK_CACHE_WEATHER, SK_CACHE_ALERTS, SK_CACHE_ARRIVALS,
-  SK_CAMPUS,
+  SK_CAMPUS, SK_NOTIF_SETTINGS,
 } from '../../lib/storageKeys';
 import { CAMPUSES, CampusConfig, getNextDeparture, isLibraryOpen, fmt12h, getDayLabel } from '../../lib/campusData';
 
@@ -1168,7 +1168,8 @@ async function ensureNotifPermission(): Promise<boolean> {
  * the next garbage collection. Cancels any previous garbage reminder first.
  */
 async function scheduleGarbageNotification(
-  events: { date: string; flags: string[] }[]
+  events: { date: string; flags: string[] }[],
+  lang: string = 'en'
 ): Promise<void> {
   if (!(await ensureNotifPermission())) return;
 
@@ -1190,18 +1191,23 @@ async function scheduleGarbageNotification(
 
   if (reminderDate <= new Date()) return; // already past
 
-  const BIN_LABELS: Record<string, string> = {
+  const BIN_LABELS_EN: Record<string, string> = {
     'garbage': 'Garbage', 'recycling-blue': 'Blue Bin',
     'recycling-black': 'Black Bin', 'green-bin': 'Green Bin', 'yard-waste': 'Yard Waste',
   };
-  const binNames = next.flags.map(f => BIN_LABELS[f] || f).join(' · ');
-  const dayLabel = collectionDate.toLocaleDateString('en-CA', { weekday: 'long' });
+  const BIN_LABELS_FR: Record<string, string> = {
+    'garbage': 'Ordures', 'recycling-blue': 'Bac bleu',
+    'recycling-black': 'Bac noir', 'green-bin': 'Bac vert', 'yard-waste': 'Déchets de jardin',
+  };
+  const labels = lang === 'fr' ? BIN_LABELS_FR : BIN_LABELS_EN;
+  const binNames = next.flags.map(f => labels[f] || f).join(' · ');
+  const dayLabel = collectionDate.toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'long' });
 
   try {
     const id = await Notifications.scheduleNotificationAsync({
       content: {
-        title: '🗑️ Garbage Day tomorrow',
-        body: `Put out: ${binNames} (${dayLabel})`,
+        title: lang === 'fr' ? '🗑️ Collecte demain' : '🗑️ Garbage Day tomorrow',
+        body: lang === 'fr' ? `Sortir : ${binNames} (${dayLabel})` : `Put out: ${binNames} (${dayLabel})`,
         data: { type: 'garbage_reminder' },
         sound: false,
       },
@@ -1219,7 +1225,7 @@ async function scheduleGarbageNotification(
  * critical (non-accessibility) alerts the user hasn't seen yet.
  * Tracks seen alert IDs in AsyncStorage under routeo_seen_alert_ids.
  */
-async function checkAndNotifyCriticalAlerts(): Promise<void> {
+async function checkAndNotifyCriticalAlerts(lang: string = 'en'): Promise<void> {
   try {
     const resp = await fetchWithTimeout(ALERTS_URL);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -1238,11 +1244,11 @@ async function checkAndNotifyCriticalAlerts(): Promise<void> {
     if (!(await ensureNotifPermission())) return;
 
     const title = unseen.length === 1
-      ? `⚠️ OC Transpo Alert`
-      : `⚠️ ${unseen.length} OC Transpo Alerts`;
+      ? (lang === 'fr' ? '⚠️ Alerte OC Transpo' : '⚠️ OC Transpo Alert')
+      : (lang === 'fr' ? `⚠️ ${unseen.length} alertes OC Transpo` : `⚠️ ${unseen.length} OC Transpo Alerts`);
     const body = unseen.length === 1
       ? unseen[0].title
-      : `${unseen[0].title} + ${unseen.length - 1} more`;
+      : (lang === 'fr' ? `${unseen[0].title} + ${unseen.length - 1} autre(s)` : `${unseen[0].title} + ${unseen.length - 1} more`);
 
     await Notifications.scheduleNotificationAsync({
       content: {
@@ -1518,7 +1524,7 @@ function LiveScreenInner() {
     fetchWeather();
     loadSavedGarbageAddress();
     // Check for unseen critical service alerts and notify
-    checkAndNotifyCriticalAlerts();
+    checkAndNotifyCriticalAlerts(language);
   }, []);
 
   const saveCustomization = async (order: string[], qaIds: string[], olIds: string[]) => {
@@ -1690,7 +1696,7 @@ function LiveScreenInner() {
       const events = buildPickupDates(feature.GCD, feature.SCHEDULE);
       setGarbageEvents(events);
       setGarbageError('');
-      scheduleGarbageNotification(events);
+      scheduleGarbageNotification(events, language);
     } catch { setGarbageError('Could not load schedule. Try again.'); }
   };
 
@@ -1717,14 +1723,14 @@ function LiveScreenInner() {
   const fetchGarbageEventsReCollect = async (placeId: string) => {
     try {
       const now = new Date();
-      const after = now.toISOString().split('T')[0];
-      const before = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const after = now.toLocaleDateString('en-CA');
+      const before = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000).toLocaleDateString('en-CA');
       const resp = await fetchWithTimeout(`https://api.recollect.net/api/places/${placeId}/services/257/events?after=${after}&before=${before}&locale=en`);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       const events = (data?.events ?? []).map((e: any) => ({ date: e.day, flags: (e.flags ?? []).map((f: any) => f.event_type), label: (e.flags ?? []).map((f: any) => garbageFlagLabel[f.event_type] ?? f.event_type).join(' · ') })).filter((e: any) => e.flags.length > 0).slice(0, 8);
       setGarbageEvents(events);
-      scheduleGarbageNotification(events);
+      scheduleGarbageNotification(events, language);
     } catch { setGarbageError('Could not load schedule.'); }
   };
 
@@ -1738,7 +1744,7 @@ function LiveScreenInner() {
     const weekNum = Math.floor(d.getTime() / (7 * 24 * 60 * 60 * 1000));
     let isGarbageWeek = (weekNum % 2 === 0) === (schedule === 'A');
     for (let i = 0; i < 8; i++) {
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = d.toLocaleDateString('en-CA');
       const flags = isGarbageWeek ? ['garbage', 'recycling-black', 'green-bin'] : ['recycling-blue', 'green-bin'];
       results.push({ date: dateStr, flags, label: isGarbageWeek ? 'Garbage · Black Bin · Green Bin' : 'Blue Bin · Green Bin' });
       d.setDate(d.getDate() + 14); isGarbageWeek = !isGarbageWeek;
@@ -2024,6 +2030,66 @@ function LiveScreenInner() {
     const interval = setInterval(() => { if (AppState.currentState === 'active') fetchArrivals(stopId); }, 30000);
     return () => clearInterval(interval);
   }, [stopId, fetchArrivals]);
+
+  // ── Arrival push notifications for saved stops ─────────────────
+  const notifiedArrivalsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const checkSavedStopArrivals = async () => {
+      if (AppState.currentState !== 'active') return;
+      try {
+        const raw = await AsyncStorage.getItem(SK_NOTIF_SETTINGS);
+        const settings = raw ? { ...{ arrivalAlerts: true }, ...JSON.parse(raw) } : { arrivalAlerts: true };
+        if (!settings.arrivalAlerts) return;
+      } catch { return; }
+
+      const stops = savedBoard.filter(i => i.type === 'bus_stop' || i.type === 'lrt_station') as { type: string; id: string; name: string }[];
+      if (stops.length === 0) return;
+
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') return;
+
+      for (const stop of stops) {
+        try {
+          const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${stop.id}`, { timeout: 10000 });
+          if (!resp.ok) continue;
+          const data = await resp.json();
+          const arrivals: { routeId: string; headsign: string; minsAway: number }[] = (data.arrivals || []).slice(0, 5);
+
+          for (const arr of arrivals) {
+            if (arr.minsAway > 3 || arr.minsAway < 0) continue;
+            const key = `${stop.id}-${arr.routeId}-${arr.headsign}-${Math.floor(Date.now() / 300000)}`;
+            if (notifiedArrivalsRef.current.has(key)) continue;
+            notifiedArrivalsRef.current.add(key);
+
+            const title = language === 'fr'
+              ? `🚌 ${arr.routeId} arrive dans ${arr.minsAway} min`
+              : `🚌 ${arr.routeId} arriving in ${arr.minsAway} min`;
+            const body = language === 'fr'
+              ? `${arr.headsign} — ${stop.name}`
+              : `${arr.headsign} — ${stop.name}`;
+
+            await Notifications.scheduleNotificationAsync({
+              content: { title, body, data: { type: 'arrival_alert', stopId: stop.id }, sound: true },
+              trigger: null,
+            });
+          }
+        } catch { /* skip stop on error */ }
+      }
+
+      // Prune old keys (keep only last 5 min window)
+      const currentWindow = Math.floor(Date.now() / 300000);
+      for (const key of notifiedArrivalsRef.current) {
+        const parts = key.split('-');
+        const window = parseInt(parts[parts.length - 1]);
+        if (window < currentWindow - 1) notifiedArrivalsRef.current.delete(key);
+      }
+    };
+
+    checkSavedStopArrivals();
+    const interval = setInterval(checkSavedStopArrivals, 30000);
+    return () => clearInterval(interval);
+  }, [savedBoard, language]);
 
   const parseGTFS = (data: any, internalStopId: string): Arrival[] => {
     const now = Math.floor(Date.now() / 1000);

@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
 import { useApp } from '../../context/AppContext';
-import { SK_SAVED_ROUTES, SK_FAVS } from '../../lib/storageKeys';
+import { SK_SAVED_ROUTES, SK_FAVS, SK_SAVED_BOARD } from '../../lib/storageKeys';
 
 // Error boundary to catch AIRMap native crashes and show a recoverable fallback
 class MapErrorBoundary extends React.Component<
@@ -87,22 +87,25 @@ const isLRT = (routeId: string) => {
          base === 'confederation' || base === 'trillium' || routeId.toLowerCase().includes('lrt');
 };
 
-// Native-only bus marker — NO children whatsoever to avoid AIRMap insertReactSubview crash
 const validCoord = (lat: any, lng: any) => lat != null && lng != null && !isNaN(lat) && !isNaN(lng);
 
+// Styled square badge bus marker — OC red (#CE1126), STO teal (#00A78D)
 const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) => void }) => {
-  if (!validCoord(bus.lat, bus.lng)) return null;
+  if (!validCoord(bus.lat, bus.lng) || !bus.routeId) return null;
   const isSTO = bus.agency === 'STO';
   const label = isLRT(bus.routeId) ? 'LRT' : bus.routeId.split('-')[0];
+  const bg = isSTO ? '#00A78D' : '#CE1126';
   return (
     <Marker
       coordinate={{ latitude: bus.lat, longitude: bus.lng }}
-      pinColor={isSTO ? '#1abc9c' : '#FF3B30'}
-      title={`Route ${label}`}
-      description={isSTO ? 'STO Gatineau' : 'OC Transpo'}
       tracksViewChanges={false}
+      anchor={{ x: 0.5, y: 0.5 }}
       onPress={() => onPress(bus)}
-    />
+    >
+      <View style={{ backgroundColor: bg, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, minWidth: 26, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' }}>
+        <Text style={{ color: '#fff', fontSize: 11, fontWeight: '900', letterSpacing: -0.3 }} allowFontScaling={false}>{label}</Text>
+      </View>
+    </Marker>
   );
 });
 
@@ -538,34 +541,66 @@ export default function MapScreen() {
     const load = async () => {
       const pins: SavedPin[] = [];
       const routeIdSet = new Set<string>();
+      const seenStopIds = new Set<string>();
       try {
         // Saved routes (trip planner)
         const routesRaw = await AsyncStorage.getItem(SK_SAVED_ROUTES);
         if (routesRaw) {
           const routes: SavedRoute[] = JSON.parse(routesRaw);
           for (const r of routes) {
-            pins.push({ id: `rf_${r.id}`, name: r.fromLabel, lat: r.fromLat, lng: r.fromLng, kind: 'route_from', routeLabel: `${r.fromLabel} → ${r.toLabel}` });
-            pins.push({ id: `rt_${r.id}`, name: r.toLabel, lat: r.toLat, lng: r.toLng, kind: 'route_to', routeLabel: `${r.fromLabel} → ${r.toLabel}` });
+            if (!r || !r.id) continue;
+            if (validCoord(r.fromLat, r.fromLng)) {
+              pins.push({ id: `rf_${r.id}`, name: r.fromLabel || '', lat: r.fromLat, lng: r.fromLng, kind: 'route_from', routeLabel: `${r.fromLabel || ''} → ${r.toLabel || ''}` });
+            }
+            if (validCoord(r.toLat, r.toLng)) {
+              pins.push({ id: `rt_${r.id}`, name: r.toLabel || '', lat: r.toLat, lng: r.toLng, kind: 'route_to', routeLabel: `${r.fromLabel || ''} → ${r.toLabel || ''}` });
+            }
           }
         }
-        // Saved bus stops — fetch arrivals to get coordinates and route IDs
-        const favsRaw = await AsyncStorage.getItem(SK_FAVS);
+        // Saved board stops (current system) + legacy favs
+        const [boardRaw, favsRaw] = await Promise.all([
+          AsyncStorage.getItem(SK_SAVED_BOARD),
+          AsyncStorage.getItem(SK_FAVS),
+        ]);
+        const stopIds: { id: string; name: string }[] = [];
+        if (boardRaw) {
+          try {
+            const board: { type: string; id?: string; name?: string }[] = JSON.parse(boardRaw);
+            for (const item of board) {
+              if ((item.type === 'bus_stop' || item.type === 'lrt_station') && item.id) {
+                if (!seenStopIds.has(item.id)) {
+                  seenStopIds.add(item.id);
+                  stopIds.push({ id: item.id, name: item.name || `Stop #${item.id}` });
+                }
+              }
+            }
+          } catch { /* invalid JSON */ }
+        }
         if (favsRaw) {
-          const favs: SavedFav[] = JSON.parse(favsRaw);
-          for (const fav of favs) {
-            try {
-              const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${fav.id}`);
-              if (!resp.ok) throw new Error('HTTP ' + resp.status);
-              const data = await resp.json();
-              if (data.lat && data.lng) {
-                pins.push({ id: `stop_${fav.id}`, name: fav.name, lat: data.lat, lng: data.lng, kind: 'stop' });
+          try {
+            const favs: SavedFav[] = JSON.parse(favsRaw);
+            for (const fav of favs) {
+              if (fav?.id && !seenStopIds.has(fav.id)) {
+                seenStopIds.add(fav.id);
+                stopIds.push({ id: fav.id, name: fav.name || `Stop #${fav.id}` });
               }
-              for (const a of (data.arrivals || [])) {
-                const base = String(a.routeId).split('-')[0];
-                if (base) routeIdSet.add(base);
-              }
-            } catch (e) { if (__DEV__) console.warn('fetch stop arrivals failed:', e); }
-          }
+            }
+          } catch { /* invalid JSON */ }
+        }
+        // Fetch coordinates and route IDs for all saved stops
+        for (const stop of stopIds) {
+          try {
+            const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${stop.id}`, { timeout: 10000 });
+            if (!resp.ok) continue;
+            const data = await resp.json();
+            if (data && validCoord(data.lat, data.lng)) {
+              pins.push({ id: `stop_${stop.id}`, name: stop.name, lat: data.lat, lng: data.lng, kind: 'stop' });
+            }
+            for (const a of (data?.arrivals || [])) {
+              const base = String(a?.routeId || '').split('-')[0];
+              if (base) routeIdSet.add(base);
+            }
+          } catch (e) { if (__DEV__) console.warn('fetch stop coords failed:', e); }
         }
       } catch (e) { if (__DEV__) console.warn('load saved pins failed:', e); }
       setSavedPins(pins);
@@ -760,14 +795,14 @@ export default function MapScreen() {
 
           {/* Event cluster markers */}
           {showEvents && (hasAll || filters.has('bus')) && clusters.map((cluster) => {
-            if (!validCoord(cluster.lat, cluster.lng)) return null;
-            const single = cluster.count === 1 ? cluster.events[0] : null;
-            const title = cluster.count > 1
-              ? `${cluster.count} events`
-              : single!.name;
-            const desc = cluster.count > 1
-              ? cluster.events.map(e => e.name).slice(0, 3).join(', ')
-              : single!.venue;
+            if (!cluster || !validCoord(cluster.lat, cluster.lng)) return null;
+            const single = cluster.count === 1 && cluster.events?.[0] ? cluster.events[0] : null;
+            const title = single
+              ? (single.name || 'Event')
+              : `${cluster.count} events`;
+            const desc = single
+              ? (single.venue || '')
+              : (cluster.events || []).map(e => e?.name || '').slice(0, 3).join(', ');
             return (
               <Marker
                 key={cluster.id}
@@ -776,7 +811,7 @@ export default function MapScreen() {
                 title={title}
                 description={desc}
                 tracksViewChanges={false}
-                onPress={() => cluster.count > 1 ? openSheet(undefined, undefined, cluster.events) : openSheet(undefined, single!)}
+                onPress={() => single ? openSheet(undefined, single) : openSheet(undefined, undefined, cluster.events)}
               />
             );
           })}
@@ -995,12 +1030,12 @@ export default function MapScreen() {
           </View>
 
           {/* Bus sheet */}
-          {selectedBus && (() => {
+          {selectedBus && selectedBus.routeId && (() => {
             const busLrt = isLRT(selectedBus.routeId);
             const busIsSTO = selectedBus.agency === 'STO';
-            const sheetIconBg = busLrt ? getRouteColour(selectedBus.routeId) : busIsSTO ? '#ffffff' : '#FF3B30';
-            const sheetIconBorder = busIsSTO ? '#1abc9c' : undefined;
-            const sheetIconText = busIsSTO ? '#1abc9c' : '#ffffff';
+            const sheetIconBg = busLrt ? getRouteColour(selectedBus.routeId) : busIsSTO ? '#ffffff' : '#CE1126';
+            const sheetIconBorder = busIsSTO ? '#00A78D' : undefined;
+            const sheetIconText = busIsSTO ? '#00A78D' : '#ffffff';
             const agencyLabel = busIsSTO ? 'STO' : 'OC Transpo';
             return (
             <View>
@@ -1028,7 +1063,7 @@ export default function MapScreen() {
                   <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Stop', 'Arrêt')} #{selectedBus.toStop}</Text>
                 </View>
                 <View style={{ height: 6, backgroundColor: colours.border, borderRadius: 3 }}>
-                  <View style={{ height: 6, borderRadius: 3, backgroundColor: busIsSTO ? '#1abc9c' : '#FF3B30', width: `${selectedBus.progress}%` as any }} />
+                  <View style={{ height: 6, borderRadius: 3, backgroundColor: busIsSTO ? '#00A78D' : '#CE1126', width: `${Math.min(100, selectedBus.progress ?? 0)}%` as any }} />
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -1037,8 +1072,8 @@ export default function MapScreen() {
                       {t('Live · Updates every 15s', 'En direct · Mise à jour toutes les 15s')}
                     </Text>
                   </View>
-                  <View style={{ backgroundColor: busIsSTO ? '#1abc9c' + '18' : '#FF3B30' + '18', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1, borderColor: busIsSTO ? '#1abc9c' + '40' : '#FF3B30' + '40' }}>
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: busIsSTO ? '#1abc9c' : '#FF3B30' }}>{agencyLabel}</Text>
+                  <View style={{ backgroundColor: busIsSTO ? '#00A78D' + '18' : '#CE1126' + '18', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1, borderColor: busIsSTO ? '#00A78D' + '40' : '#CE1126' + '40' }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: busIsSTO ? '#00A78D' : '#CE1126' }}>{agencyLabel}</Text>
                   </View>
                 </View>
               </View>
