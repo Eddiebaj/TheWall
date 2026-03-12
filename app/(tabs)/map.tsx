@@ -91,9 +91,10 @@ const validCoord = (lat: any, lng: any) => lat != null && lng != null && !isNaN(
 
 // Styled square badge bus marker — OC red (#CE1126), STO teal (#00A78D)
 const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) => void }) => {
-  if (!validCoord(bus.lat, bus.lng) || !bus.routeId) return null;
+  if (!validCoord(bus.lat, bus.lng) || !bus.routeId || bus.routeId === '?') return null;
   const isSTO = bus.agency === 'STO';
   const label = isLRT(bus.routeId) ? 'LRT' : bus.routeId.split('-')[0];
+  if (!label) return null;
   const bg = isSTO ? '#00A78D' : '#CE1126';
   return (
     <Marker
