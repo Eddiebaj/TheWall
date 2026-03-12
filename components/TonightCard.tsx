@@ -3,9 +3,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useApp } from '../context/AppContext';
+import { CAMPUSES } from '../lib/campusData';
 import { HAPPY_HOUR_VENUES } from '../lib/happyHourData';
-import { SK_TONIGHT_DISMISSED } from '../lib/storageKeys';
-import { buildTonightSummary, shouldShowTonightCard, SportEntry, TonightSummary } from '../lib/tonightHelpers';
+import { NEIGHBOURHOODS, Neighbourhood } from '../lib/neighbourhoodData';
+import { SK_CAMPUS, SK_TONIGHT_DISMISSED } from '../lib/storageKeys';
+import { buildTonightSummary, shouldShowTonightCard, SportEntry, TonightFocus, TonightSummary } from '../lib/tonightHelpers';
 
 const SPORT_ICONS: { [key in SportEntry['icon']]: string } = {
   hockey: 'snow',
@@ -24,24 +26,54 @@ type Props = {
   sportsSchedule?: { team: string; games: any[] }[];
 };
 
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function nearestNeighbourhood(lat: number, lng: number): Neighbourhood {
+  let best = NEIGHBOURHOODS[0];
+  let bestDist = Infinity;
+  for (const n of NEIGHBOURHOODS) {
+    const d = haversineKm(lat, lng, n.lat, n.lng);
+    if (d < bestDist) { bestDist = d; best = n; }
+  }
+  return best;
+}
+
 export default function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sportsSchedule }: Props) {
-  const { t } = useApp();
+  const { t, language } = useApp();
   const [show, setShow] = useState(false);
   const [summary, setSummary] = useState<TonightSummary | null>(null);
+  const [focusName, setFocusName] = useState<{ en: string; fr: string } | null>(null);
+  const [focus, setFocus] = useState<TonightFocus | null>(null);
+
+  // Load campus → resolve nearest neighbourhood
+  useEffect(() => {
+    AsyncStorage.getItem(SK_CAMPUS).then(val => {
+      if (!val) return;
+      const campus = CAMPUSES.find(c => c.id === val);
+      if (!campus) return;
+      const hood = nearestNeighbourhood(campus.lat, campus.lng);
+      setFocusName({ en: hood.name_en, fr: hood.name_fr });
+      setFocus({ lat: hood.lat, lng: hood.lng });
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     shouldShowTonightCard().then(ok => {
       if (!ok) return;
-      // Only show once data is loaded
       if (!weather && !sensGame && events.length === 0) return;
-      const s = buildTonightSummary(sensGame, events, HAPPY_HOUR_VENUES, weather, sportsSchedule || []);
-      // Only show if there's something to display
+      const s = buildTonightSummary(sensGame, events, HAPPY_HOUR_VENUES, weather, sportsSchedule || [], focus);
       if (s.sports.length > 0 || s.events.count > 0 || s.deals.count > 0) {
         setSummary(s);
         setShow(true);
       }
     });
-  }, [sensGame, events, weather, sportsSchedule]);
+  }, [sensGame, events, weather, sportsSchedule, focus]);
 
   const dismiss = () => {
     setShow(false);
@@ -68,7 +100,11 @@ export default function TonightCard({ colours, fonts, cardShadow, sensGame, even
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Ionicons name="moon" size={18} color={colours.accent} />
-            <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>{t('Tonight in Ottawa', 'Ce soir a Ottawa')}</Text>
+            <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>
+              {focusName
+                ? t(`Tonight in ${focusName.en}`, `Ce soir a ${focusName.fr}`)
+                : t('Tonight in Ottawa', 'Ce soir a Ottawa')}
+            </Text>
           </View>
           <TouchableOpacity onPress={dismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="close-circle" size={22} color={colours.muted} />

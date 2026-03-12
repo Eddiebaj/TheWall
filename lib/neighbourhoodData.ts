@@ -122,4 +122,15 @@ export const NEIGHBOURHOODS: Neighbourhood[] = [
     photoUrl: 'https://images.unsplash.com/photo-1588880331179-bc9b93a8cb5e?w=600',
     accent: '#00A78D',
   },
+  {
+    id: 'nepean',
+    name_en: 'Nepean',
+    name_fr: 'Nepean',
+    description_en: 'A sprawling west-end community anchored by Algonquin College, Carlingwood Mall, and some of Ottawa\'s best suburban parks.',
+    description_fr: 'Une grande communaute de l\'ouest ancree par le College Algonquin, le Centre commercial Carlingwood et certains des meilleurs parcs suburbains d\'Ottawa.',
+    lat: 45.3480, lng: -75.7549,
+    keywords: ['nepean', 'algonquin', 'carlingwood', 'merivale', 'baseline', 'woodroffe', 'centrepointe'],
+    photoUrl: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=600',
+    accent: '#006341',
+  },
 ];

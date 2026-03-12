@@ -49,7 +49,7 @@ class PlannerErrorBoundary extends React.Component<
 import { SK_PLANNER_PREFS, SK_SAVED_ROUTES } from '../../lib/storageKeys';
 
 const PLAN_URL = 'https://routeo-backend.vercel.app/api/plan';
-const GEOCODE_URL = 'https://routeo-backend.vercel.app/api/geocode';
+const PLACES_URL = 'https://routeo-backend.vercel.app/api/places';
 
 type PlaceResult = { placeId: string; label: string; lat?: number; lng?: number };
 type WalkStep = { distance: number; relativeDirection: string; streetName: string; instruction?: string | null };
@@ -330,7 +330,7 @@ function PlannerScreenInner() {
           if (params.from) {
             const fromStr = params.from as string;
             setFromText(fromStr);
-            const resp = await fetchWithTimeout(`${GEOCODE_URL}?input=${encodeURIComponent(fromStr)}`);
+            const resp = await fetchWithTimeout(`${PLACES_URL}?action=autocomplete-geocode&input=${encodeURIComponent(fromStr)}`);
             if (resp.ok) {
               const data = await resp.json();
               const result = data.results?.[0];
@@ -344,7 +344,7 @@ function PlannerScreenInner() {
           if (params.to) {
             const toStr = params.to as string;
             setToText(toStr);
-            const resp = await fetchWithTimeout(`${GEOCODE_URL}?input=${encodeURIComponent(toStr)}`);
+            const resp = await fetchWithTimeout(`${PLACES_URL}?action=autocomplete-geocode&input=${encodeURIComponent(toStr)}`);
             if (resp.ok) {
               const data = await resp.json();
               const result = data.results?.[0];
@@ -368,7 +368,7 @@ function PlannerScreenInner() {
       return;
     }
     try {
-      const resp = await fetchWithTimeout(`${GEOCODE_URL}?input=${encodeURIComponent(text)}`);
+      const resp = await fetchWithTimeout(`${PLACES_URL}?action=autocomplete-geocode&input=${encodeURIComponent(text)}`);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       const results: PlaceResult[] = data.results || [];
@@ -379,7 +379,7 @@ function PlannerScreenInner() {
   const resolvePlace = async (place: PlaceResult): Promise<PlaceResult> => {
     if (place.lat && place.lng) return place;
     try {
-      const resp = await fetchWithTimeout(`${GEOCODE_URL}?input=${encodeURIComponent(place.label)}&type=geocode`);
+      const resp = await fetchWithTimeout(`${PLACES_URL}?action=geocode&input=${encodeURIComponent(place.label)}`);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       const result = data.results?.[0];
@@ -466,7 +466,7 @@ function PlannerScreenInner() {
 
     if (fromText && !fromPlace?.lat) {
       try {
-        const r = await fetchWithTimeout(`${GEOCODE_URL}?input=${encodeURIComponent(fromText)}&type=geocode`);
+        const r = await fetchWithTimeout(`${PLACES_URL}?action=geocode&input=${encodeURIComponent(fromText)}`);
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const d = await r.json();
         const result = d.results?.[0];
@@ -475,7 +475,7 @@ function PlannerScreenInner() {
     }
     if (toText && !toPlace?.lat) {
       try {
-        const r = await fetchWithTimeout(`${GEOCODE_URL}?input=${encodeURIComponent(toText)}&type=geocode`);
+        const r = await fetchWithTimeout(`${PLACES_URL}?action=geocode&input=${encodeURIComponent(toText)}`);
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const d = await r.json();
         const result = d.results?.[0];

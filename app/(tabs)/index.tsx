@@ -924,7 +924,7 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
     setStationName(''); setStationAddress(''); setStationLat(null); setStationLng(null);
     if (text.length < 2) { setStationResults([]); return; }
     const seq = ++stationSeq.current;
-    fetchWithTimeout(`https://routeo-backend.vercel.app/api/geocode?input=${encodeURIComponent(text)}`)
+    fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=autocomplete-geocode&input=${encodeURIComponent(text)}`)
       .then(r => r.json())
       .then(d => { if (seq === stationSeq.current) setStationResults((d.results || []).filter((r: any) => r.label).slice(0, 4)); })
       .catch(() => { if (seq === stationSeq.current) setStationResults([]); });
@@ -1993,7 +1993,7 @@ function LiveScreenInner() {
       const newCache = { ...eventsGeoCache };
       await Promise.all(toGeocode.map(async e => {
         try {
-          const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/geocode?input=${encodeURIComponent(e.address)}&type=geocode`);
+          const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=geocode&input=${encodeURIComponent(e.address)}`);
           if (!r.ok) throw new Error('HTTP ' + r.status);
           const d = await r.json();
           if (d.results?.[0]?.lat) newCache[e.address!] = { lat: d.results[0].lat, lng: d.results[0].lng };
@@ -2184,7 +2184,7 @@ function LiveScreenInner() {
     } else { setSearchResults([]); setAddressResults([]); return; }
     if (text.length >= 3) {
       const seq = ++geocodeSeq.current;
-      fetchWithTimeout(`https://routeo-backend.vercel.app/api/geocode?input=${encodeURIComponent(text)}`)
+      fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=autocomplete-geocode&input=${encodeURIComponent(text)}`)
         .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
         .then(d => { if (seq === geocodeSeq.current) setAddressResults((d.results || []).filter((r: any) => r.lat && r.lng).slice(0, 3)); })
         .catch(() => {});

@@ -71,12 +71,19 @@ type TeamSchedule = {
   games: ScheduleGame[];
 };
 
+export type TonightFocus = {
+  lat: number;
+  lng: number;
+  radiusKm?: number; // default 1.5
+};
+
 export function buildTonightSummary(
   sensGame: SensGame | null,
-  events: { name: string; date: string; time?: string; venue: string }[],
+  events: { name: string; date: string; time?: string; venue: string; lat?: number; lng?: number }[],
   venues: HappyHourVenue[],
   weather: { temp: number; condition: string } | null,
   sportsSchedule: TeamSchedule[],
+  focus?: TonightFocus | null,
 ): TonightSummary {
   const now = new Date();
   const day = now.getDay();
@@ -125,18 +132,33 @@ export function buildTonightSummary(
     }
   }
 
-  // Today's events
+  // Today's events — bias toward focus neighbourhood if set
   const todayEvents = events.filter(e => e.date === todayStr);
-  const eventHighlights = todayEvents.slice(0, 3).map(e => e.name);
+  const focusRadius = focus?.radiusKm ?? 1.5;
+  let displayEvents = todayEvents;
+  if (focus) {
+    const nearby = todayEvents.filter(e =>
+      e.lat && e.lng && haversineKm(focus.lat, focus.lng, e.lat, e.lng) <= focusRadius
+    );
+    if (nearby.length >= 2) displayEvents = nearby;
+  }
+  const eventHighlights = displayEvents.slice(0, 3).map(e => e.name);
 
-  // Active/upcoming deals
-  const activeVenues = venues.filter(v => {
-    return v.deals.some(d => d.days.includes(day) && (
+  // Active/upcoming deals — bias toward focus neighbourhood if set
+  const isActiveDeal = (v: HappyHourVenue) =>
+    v.deals.some(d => d.days.includes(day) && (
       (timeStr >= d.start && timeStr <= d.end) ||
       (d.start >= timeStr && d.start <= twoHoursLater)
     ));
-  });
-  const dealHighlights = activeVenues.slice(0, 3).map(v => v.name);
+  const activeVenues = venues.filter(isActiveDeal);
+  let displayVenues = activeVenues;
+  if (focus) {
+    const nearby = activeVenues.filter(v =>
+      haversineKm(focus.lat, focus.lng, v.lat, v.lng) <= focusRadius
+    );
+    if (nearby.length >= 2) displayVenues = nearby;
+  }
+  const dealHighlights = displayVenues.slice(0, 3).map(v => v.name);
 
   // Bars near game venues (CTC for Sens, TD Place for others)
   const nearVenueBars: TonightSummary['nearVenueBars'] = [];
@@ -164,8 +186,8 @@ export function buildTonightSummary(
 
   return {
     sports,
-    events: { count: todayEvents.length, highlights: eventHighlights },
-    deals: { count: activeVenues.length, highlights: dealHighlights },
+    events: { count: displayEvents.length, highlights: eventHighlights },
+    deals: { count: displayVenues.length, highlights: dealHighlights },
     weather,
     nearVenueBars,
   };
