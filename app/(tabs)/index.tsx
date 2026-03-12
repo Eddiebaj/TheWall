@@ -45,6 +45,7 @@ import {
   SK_GARBAGE_ADDRESS, SK_GARBAGE_LAT, SK_GARBAGE_LNG, SK_GARBAGE_PLACE_ID,
   SK_GARBAGE_NOTIF_ID, SK_SEEN_ALERT_IDS, SK_TIME_FORMAT, SK_GHOST_REPORTS,
   SK_SECTION_ORDER, SK_QUICK_ACTIONS, SK_OTTAWA_LIFE, SK_TODAY_EVENTS,
+  SK_GAS_VOTED_IDS, SK_CACHE_WEATHER, SK_CACHE_ALERTS, SK_CACHE_ARRIVALS,
 } from '../../lib/storageKeys';
 
 const TRIP_UPDATES = 'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt-tp/beta/v1/TripUpdates?format=json';
@@ -324,6 +325,13 @@ const TEAM_LOGOS: { [name: string]: any } = {
   'Blackjacks': require('../../assets/images/Ottawa_Blackjacks_logo.png'),
   'Atlético': require('../../assets/images/Atletico_Ottawa_logo.png'),
   'Rapid FC': require('../../assets/images/Ottawa_Rapid_FC.png'),
+};
+
+// ── Shared time formatter ────────────────────────────────────────
+const fmtTime = (date: Date): string => {
+  const h = date.getHours();
+  const m = String(date.getMinutes()).padStart(2, '0');
+  return `${h % 12 || 12}:${m} ${h >= 12 ? 'PM' : 'AM'}`;
 };
 
 // ── SavedBoardCard component ─────────────────────────────────────
@@ -636,7 +644,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
               </View>
               <Text style={{ fontSize: 11, fontWeight: '800', color: a.minsAway <= 2 ? colours.red : badgeColor }}>
                 {timeFormat === 'absolute'
-                  ? (() => { const d = new Date(Date.now() + a.minsAway * 60000); const h = d.getHours(); return `${h % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')}${h >= 12 ? 'p' : 'a'}`; })()
+                  ? fmtAbsTime(a.minsAway)
                   : (a.minsAway === 0 ? t('Now', 'Maint.') : `${a.minsAway}m`)}
               </Text>
               <Text style={{ fontSize: 10, color: colours.muted, flex: 1 }} numberOfLines={1}>{a.headsign || ''}</Text>
@@ -794,6 +802,13 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
   const [submitting, setSubmitting] = useState(false);
   const [votedIds, setVotedIds] = useState<Set<string>>(new Set());
 
+  // Load persisted gas votes
+  useEffect(() => {
+    AsyncStorage.getItem(SK_GAS_VOTED_IDS).then(val => {
+      if (val) try { setVotedIds(new Set(JSON.parse(val))); } catch {}
+    }).catch(() => {});
+  }, []);
+
   const [prevPrices, setPrevPrices] = useState<{ [station: string]: number }>({});
 
   const fetchReports = async () => {
@@ -832,7 +847,7 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
     fetch(`https://routeo-backend.vercel.app/api/geocode?input=${encodeURIComponent(text)}`)
       .then(r => r.json())
       .then(d => { if (seq === stationSeq.current) setStationResults((d.results || []).filter((r: any) => r.label).slice(0, 4)); })
-      .catch(() => {});
+      .catch(() => { if (seq === stationSeq.current) setStationResults([]); });
   };
 
   const selectStation = (result: { label: string; lat?: number; lng?: number }) => {
@@ -870,7 +885,11 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
 
   const handleVote = async (id: string, type: 'confirm' | 'dispute') => {
     if (votedIds.has(id)) return;
-    setVotedIds(prev => new Set(prev).add(id));
+    setVotedIds(prev => {
+      const updated = new Set(prev).add(id);
+      AsyncStorage.setItem(SK_GAS_VOTED_IDS, JSON.stringify([...updated])).catch(() => {});
+      return updated;
+    });
     const col = type === 'confirm' ? 'confirmed_count' : 'disputed_count';
     const report = reports.find(r => r.id === id);
     if (!report) return;
@@ -1152,7 +1171,7 @@ async function scheduleGarbageNotification(
       },
     });
     await AsyncStorage.setItem(SK_GARBAGE_NOTIF_ID, id);
-  } catch (e) { console.warn('schedule garbage notification failed:', e); }
+  } catch (e) { if (__DEV__) console.warn('schedule garbage notification failed:', e); }
 }
 
 /**
@@ -1198,7 +1217,7 @@ async function checkAndNotifyCriticalAlerts(): Promise<void> {
     // Mark all current critical alerts as seen
     const nowSeen = [...seenIds, ...critical.map(a => a.id)].slice(-100);
     await AsyncStorage.setItem(SK_SEEN_ALERT_IDS, JSON.stringify(nowSeen));
-  } catch (e) { console.warn('alert notification failed:', e); }
+  } catch (e) { if (__DEV__) console.warn('alert notification failed:', e); }
 }
 
 // ── Error Boundary ───────────────────────────────────────────────
@@ -1208,7 +1227,7 @@ class HomeErrorBoundary extends React.Component<
 > {
   state = { hasError: false };
   static getDerivedStateFromError() { return { hasError: true }; }
-  componentDidCatch(error: Error) { console.warn('HomeErrorBoundary caught:', error); }
+  componentDidCatch(error: Error) { if (__DEV__) console.warn('HomeErrorBoundary caught:', error); }
   render() {
     if (this.state.hasError) {
       return (
@@ -1387,9 +1406,9 @@ function LiveScreenInner() {
         else fetchArrivals('CD995');
       } catch { fetchArrivals('CD995'); }
     });
-    AsyncStorage.getItem(SK_SAVED_PLACES).then(val => { try { if (val) setSavedPlaces(JSON.parse(val)); } catch (e) { console.warn('JSON parse saved places failed:', e); } });
-    AsyncStorage.getItem(SK_SAVED_TEAMS).then(val => { try { if (val) setSavedTeams(JSON.parse(val)); } catch (e) { console.warn('JSON parse saved teams failed:', e); } });
-    AsyncStorage.getItem(SK_SAVED_ROUTES).then(val => { try { if (val) setSavedRoutes(JSON.parse(val)); } catch (e) { console.warn('JSON parse saved routes failed:', e); } });
+    AsyncStorage.getItem(SK_SAVED_PLACES).then(val => { try { if (val) setSavedPlaces(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved places failed:', e); } });
+    AsyncStorage.getItem(SK_SAVED_TEAMS).then(val => { try { if (val) setSavedTeams(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved teams failed:', e); } });
+    AsyncStorage.getItem(SK_SAVED_ROUTES).then(val => { try { if (val) setSavedRoutes(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved routes failed:', e); } });
     AsyncStorage.getItem(SK_TIME_FORMAT).then(val => { if (val === 'absolute') setTimeFormat('absolute'); });
     Promise.all([
       AsyncStorage.getItem(SK_SAVED_BOARD),
@@ -1426,7 +1445,7 @@ function LiveScreenInner() {
           for (const key of Object.keys(saved)) { if (saved[key].expiresAt > now) valid[key] = saved[key]; }
           setReports(valid);
         }
-      } catch (e) { console.warn('JSON parse reports failed:', e); }
+      } catch (e) { if (__DEV__) console.warn('JSON parse reports failed:', e); }
     });
     AsyncStorage.getItem(SK_SECTION_ORDER).then(val => {
       try {
@@ -1442,7 +1461,7 @@ function LiveScreenInner() {
           setSectionOrder(saved);
           AsyncStorage.setItem(SK_SECTION_ORDER, JSON.stringify(saved));
         }
-      } catch (e) { console.warn('JSON parse section order failed:', e); }
+      } catch (e) { if (__DEV__) console.warn('JSON parse section order failed:', e); }
     });
     AsyncStorage.removeItem(SK_QUICK_ACTIONS);
     AsyncStorage.removeItem(SK_OTTAWA_LIFE);
@@ -1565,7 +1584,7 @@ function LiveScreenInner() {
           const geo = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
           if (geo[0]) { const g = geo[0]; locLabel = [g.city || g.subregion, g.region].filter(Boolean).join(', '); }
         }
-      } catch (e) { console.warn('get weather location failed:', e); }
+      } catch (e) { if (__DEV__) console.warn('get weather location failed:', e); }
       setLocationName(locLabel);
       // ── Open-Meteo (primary source — EC XML feed moved to dynamic hourly paths) ──
       const wmoIcon = (c: number): string => { if (c === 0) return 'sunny'; if (c <= 2) return 'partly-sunny'; if (c <= 3) return 'cloudy'; if (c <= 49) return 'cloudy'; if (c <= 67) return 'rainy'; if (c <= 77) return 'snow'; if (c <= 82) return 'rainy'; if (c <= 86) return 'snow'; return 'thunderstorm'; };
@@ -1594,7 +1613,16 @@ function LiveScreenInner() {
       setDailyForecast(dailyTimes.map((t, i) => ({ day: i === 0 ? 'Today' : days[new Date(t + 'T12:00:00').getDay()], high: Math.round(dailyHigh[i]), low: Math.round(dailyLow[i]), icon: wmoIcon(dailyCodes[i]), precip: dailyPrecip[i] ?? 0 })));
       weatherCacheTime.current = Date.now();
       setWeatherFetchFailed(false);
-    } catch (e) { console.warn('fetch weather failed:', e); setWeatherFetchFailed(true); }
+      // Cache for offline use
+      AsyncStorage.setItem(SK_CACHE_WEATHER, JSON.stringify({ temp: curTemp, condition: wmoCondition(curCode), icon: wmoIcon(curCode) })).catch(() => {});
+    } catch (e) {
+      if (__DEV__) console.warn('fetch weather failed:', e);
+      setWeatherFetchFailed(true);
+      // Load from cache if available
+      if (!weather) {
+        AsyncStorage.getItem(SK_CACHE_WEATHER).then(val => { if (val) try { setWeather(JSON.parse(val)); } catch {} }).catch(() => {});
+      }
+    }
   };
 
   const garbageFlagLabel: Record<string, string> = { 'garbage': 'Garbage', 'recycling-black': 'Black Bin (recycling)', 'recycling-blue': 'Blue Bin (recycling)', 'green-bin': 'Green Bin (organics)', 'yard-waste': 'Yard Waste' };
@@ -1699,7 +1727,7 @@ function LiveScreenInner() {
         const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
         return { lat: pos.coords.latitude, lng: pos.coords.longitude };
       }
-    } catch (e) { console.warn('get user coords failed:', e); }
+    } catch (e) { if (__DEV__) console.warn('get user coords failed:', e); }
     return { lat: 45.4215, lng: -75.6972 };
   };
 
@@ -1856,11 +1884,11 @@ function LiveScreenInner() {
           if (!r.ok) throw new Error('HTTP ' + r.status);
           const d = await r.json();
           if (d.results?.[0]?.lat) newCache[e.address!] = { lat: d.results[0].lat, lng: d.results[0].lng };
-        } catch (e2) { console.warn('geocode event address failed:', e2); }
+        } catch (e2) { if (__DEV__) console.warn('geocode event address failed:', e2); }
       }));
       setEventsGeoCache(newCache);
       setEventsNearMe(true);
-    } catch (e) { console.warn('sort events near me failed:', e); }
+    } catch (e) { if (__DEV__) console.warn('sort events near me failed:', e); }
   };
 
   const fetchDiscoverPhotos = async () => {
@@ -1873,7 +1901,7 @@ function LiveScreenInner() {
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
         if (data.results?.[0]?.urls?.regular) photos[card.id] = data.results[0].urls.regular;
-      } catch (e) { console.warn('fetch discover photo failed:', e); }
+      } catch (e) { if (__DEV__) console.warn('fetch discover photo failed:', e); }
     }));
     setDiscoverPhotos(photos);
   };
@@ -1913,7 +1941,7 @@ function LiveScreenInner() {
         const data = await resp.json();
         setArrivals((data.arrivals || []).map((a: any) => ({ id: `${a.stopId || id}-${a.scheduledTime || Math.random()}`, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway, delay: 0, secsAway: a.minsAway * 60, isScheduled: false })));
         const now = new Date();
-        setLastUpdated(`${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`);
+        setLastUpdated(fmtTime(now));
         setLoading(false);
         return;
       }
@@ -1926,7 +1954,7 @@ function LiveScreenInner() {
         const data = await resp.json();
         setArrivals((data.arrivals || []).map((a: any) => ({ id: `${a.stopId}-${a.scheduledTime}`, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway, delay: 0, secsAway: a.minsAway * 60, isScheduled: true })));
         const now = new Date();
-        setLastUpdated(`${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`);
+        setLastUpdated(fmtTime(now));
         setLoading(false);
         return;
       }
@@ -1935,7 +1963,7 @@ function LiveScreenInner() {
       const data = await resp.json();
       setArrivals(parseGTFS(data, internalId));
       const now = new Date();
-      setLastUpdated(`${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`);
+      setLastUpdated(fmtTime(now));
       setArrivalsFetchFailed(false);
     } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Unknown error'); setArrivalsFetchFailed(true); }
     finally { setLoading(false); }
@@ -2045,7 +2073,7 @@ function LiveScreenInner() {
           setReport311Location([g.name, g.street, g.city, g.postalCode].filter(Boolean).join(', '));
         }
       }
-    } catch (e) { console.warn('get 311 location failed:', e); }
+    } catch (e) { if (__DEV__) console.warn('get 311 location failed:', e); }
   };
 
   const pick311Photo = async () => {
@@ -2054,6 +2082,14 @@ function LiveScreenInner() {
   };
 
   const submit311 = () => {
+    if (!report311Desc.trim()) {
+      Alert.alert(t('Missing description', 'Description manquante'), t('Please describe the issue before submitting.', 'Veuillez decrire le probleme avant de soumettre.'));
+      return;
+    }
+    if (!report311Location.trim()) {
+      Alert.alert(t('Missing location', 'Adresse manquante'), t('Please add a location for the report.', 'Veuillez ajouter un emplacement pour le rapport.'));
+      return;
+    }
     const subject = encodeURIComponent(`311 Report: ${report311Category}`);
     const body = encodeURIComponent(
       `Category: ${report311Category}\nLocation: ${report311Location}\n\nDescription:\n${report311Desc}\n\n${report311Photo ? '[Photo attached separately]' : 'No photo attached'}`
@@ -2778,7 +2814,7 @@ function LiveScreenInner() {
                         try {
                           await supabase.from('social_feedback').insert({ venue_name: socialFeedbackVenue, suggestion: socialFeedbackText.trim() });
                           setSocialFeedbackSent(true);
-                        } catch (e) { console.warn('submit social feedback failed:', e); }
+                        } catch (e) { if (__DEV__) console.warn('submit social feedback failed:', e); }
                         setSocialFeedbackSending(false);
                       }}
                       style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: socialFeedbackText.trim() ? '#7b5ea7' : colours.border, alignItems: 'center' }}
@@ -2909,8 +2945,18 @@ function LiveScreenInner() {
             <View style={styles.modalCenter}>
               <Ionicons name="calendar-outline" size={40} color={colours.muted} />
               <Text style={{ color: colours.muted, marginTop: 12, textAlign: 'center' }}>
-                {eventsSearch || eventsCategory ? 'No events match your filters.' : 'No upcoming events found in Ottawa.'}
+                {eventsSearch || eventsCategory ? t('No events match your filters.', 'Aucun événement ne correspond.') : t('No upcoming events found in Ottawa.', 'Aucun événement à venir à Ottawa.')}
               </Text>
+              {!eventsSearch && !eventsCategory && (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={t('Refresh events', 'Actualiser les événements')}
+                  style={{ marginTop: 14, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}
+                  onPress={() => { eventsCacheTime.current.ticketmaster = 0; eventsCacheTime.current.eventbrite = 0; fetchTicketmasterEvents(); fetchEventbriteEvents(); }}
+                >
+                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Refresh', 'Actualiser')}</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             displayEvents.map(ev => renderEventCard(ev))
@@ -3170,13 +3216,7 @@ function LiveScreenInner() {
     );
   };
 
-  const fmtAbsTime = (minsAway: number): string => {
-    const d = new Date(Date.now() + minsAway * 60000);
-    const h = d.getHours();
-    const m = String(d.getMinutes()).padStart(2, '0');
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    return `${h % 12 || 12}:${m} ${ampm}`;
-  };
+  const fmtAbsTime = (minsAway: number): string => fmtTime(new Date(Date.now() + minsAway * 60000));
 
   const toggleTimeFormat = async () => {
     const next = timeFormat === 'relative' ? 'absolute' : 'relative';
@@ -3189,7 +3229,7 @@ function LiveScreenInner() {
     const stopLabel = favs.find(f => f.id === expandedStopId)?.name || stopName;
     const routeLabel = item.routeId === '1' || item.routeId === '2' ? 'O-Train' : `Route ${item.routeId}`;
     const msg = `My ${routeLabel} bus arrives at ${stopLabel} in ${item.minsAway} min (${absTime}). Tracked with RouteO`;
-    try { await Share.share({ message: msg }); } catch (e) { console.warn('share ETA failed:', e); }
+    try { await Share.share({ message: msg }); } catch (e) { if (__DEV__) console.warn('share ETA failed:', e); }
   };
 
   const fetchFullSchedule = async (routeId: string, headsign: string) => {
@@ -3230,7 +3270,7 @@ function LiveScreenInner() {
         });
         setScheduleTrips(unique.map((r: any) => ({ time: r.arrival_time, tripId: r.trip_id })));
       }
-    } catch (e) { console.warn('fetch full schedule failed:', e); }
+    } catch (e) { if (__DEV__) console.warn('fetch full schedule failed:', e); }
     setScheduleLoading(false);
   };
 

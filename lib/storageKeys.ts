@@ -48,5 +48,13 @@ export const SK_TODAY_EVENTS = 'routeo_today_events';
 // Planner preferences
 export const SK_PLANNER_PREFS = 'routeo_planner_prefs';
 
+// Gas vote tracking
+export const SK_GAS_VOTED_IDS = 'routeo_gas_voted_ids';
+
+// Offline cache
+export const SK_CACHE_WEATHER = 'routeo_cache_weather';
+export const SK_CACHE_ALERTS = 'routeo_cache_alerts';
+export const SK_CACHE_ARRIVALS = 'routeo_cache_arrivals';
+
 // Notification settings
 export const SK_NOTIF_SETTINGS = 'routeo_notif_settings';

@@ -202,7 +202,7 @@ export default function PlannerScreen() {
   // ── Load saved routes ─────────────────────────────────────────
   useEffect(() => {
     AsyncStorage.getItem(SAVED_ROUTES_KEY).then(val => {
-      try { if (val) setSavedRoutes(JSON.parse(val)); } catch (e) { console.warn('JSON parse saved routes failed:', e); }
+      try { if (val) setSavedRoutes(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved routes failed:', e); }
     }).catch(() => {});
   }, []);
 
@@ -218,7 +218,7 @@ export default function PlannerScreen() {
           setDepartTime(d);
         }
         if (typeof prefs.arriveBy === 'boolean') setArriveBy(prefs.arriveBy);
-      } catch (e) { console.warn('JSON parse planner prefs failed:', e); }
+      } catch (e) { if (__DEV__) console.warn('JSON parse planner prefs failed:', e); }
     }).catch(() => {});
   }, []);
 
@@ -281,7 +281,7 @@ export default function PlannerScreen() {
             setFromPlace(from); setFromText(label);
             // Auto-trigger plan
             setTimeout(() => planWithPlaces(from, to), 100);
-          } catch (e) { console.warn('get current location failed:', e); }
+          } catch (e) { if (__DEV__) console.warn('get current location failed:', e); }
         })();
       }
     }
@@ -322,7 +322,7 @@ export default function PlannerScreen() {
               }
             }
           }
-        } catch (e) { console.warn('deep-link geocode failed:', e); }
+        } catch (e) { if (__DEV__) console.warn('deep-link geocode failed:', e); }
       };
       geocodeAndFill();
     }
@@ -340,7 +340,7 @@ export default function PlannerScreen() {
       const data = await resp.json();
       const results: PlaceResult[] = data.results || [];
       field === 'from' ? setFromResults(results) : setToResults(results);
-    } catch (e) { console.warn('autocomplete fetch failed:', e); }
+    } catch (e) { if (__DEV__) console.warn('autocomplete fetch failed:', e); }
   }, []);
 
   const resolvePlace = async (place: PlaceResult): Promise<PlaceResult> => {
@@ -351,7 +351,7 @@ export default function PlannerScreen() {
       const data = await resp.json();
       const result = data.results?.[0];
       if (result?.lat) return { ...place, lat: result.lat, lng: result.lng, label: result.label };
-    } catch (e) { console.warn('geocode resolve failed:', e); }
+    } catch (e) { if (__DEV__) console.warn('geocode resolve failed:', e); }
     return place;
   };
 
@@ -438,7 +438,7 @@ export default function PlannerScreen() {
         const d = await r.json();
         const result = d.results?.[0];
         if (result?.lat) { resolvedFrom = { placeId: 'geo', label: result.label, lat: result.lat, lng: result.lng }; setFromPlace(resolvedFrom); setFromText(result.label); }
-      } catch (e) { console.warn('geocode from-address failed:', e); }
+      } catch (e) { if (__DEV__) console.warn('geocode from-address failed:', e); }
     }
     if (toText && !toPlace?.lat) {
       try {
@@ -447,7 +447,7 @@ export default function PlannerScreen() {
         const d = await r.json();
         const result = d.results?.[0];
         if (result?.lat) { resolvedTo = { placeId: 'geo', label: result.label, lat: result.lat, lng: result.lng }; setToPlace(resolvedTo); setToText(result.label); }
-      } catch (e) { console.warn('geocode to-address failed:', e); }
+      } catch (e) { if (__DEV__) console.warn('geocode to-address failed:', e); }
     }
 
     if (!resolvedFrom?.lat || !resolvedTo?.lat) {
@@ -571,7 +571,7 @@ export default function PlannerScreen() {
                 return { name: stop.name, travelTime: durationMins, routes };
               }
             }
-          } catch (e) { console.warn('isochrone stop query failed:', e); }
+          } catch (e) { if (__DEV__) console.warn('isochrone stop query failed:', e); }
           return null;
         });
         const batchResults = await Promise.all(promises);
@@ -741,7 +741,7 @@ export default function PlannerScreen() {
           },
         });
         ids.push(id);
-      } catch (e) { console.warn('schedule departure notification failed:', e); }
+      } catch (e) { if (__DEV__) console.warn('schedule departure notification failed:', e); }
 
       // Also fire a heads-up at boarding time itself ("time to board")
       try {
@@ -758,7 +758,7 @@ export default function PlannerScreen() {
           },
         });
         ids.push(id2);
-      } catch (e) { console.warn('schedule boarding notification failed:', e); }
+      } catch (e) { if (__DEV__) console.warn('schedule boarding notification failed:', e); }
     }
 
     // Arrival notification
@@ -778,7 +778,7 @@ export default function PlannerScreen() {
           },
         });
         ids.push(id3);
-      } catch (e) { console.warn('schedule arrival notification failed:', e); }
+      } catch (e) { if (__DEV__) console.warn('schedule arrival notification failed:', e); }
     }
 
     transitNotifIds.current = ids;
@@ -833,7 +833,7 @@ export default function PlannerScreen() {
           }, 500);
         }
       );
-    } catch (e) { console.warn('start location tracking failed:', e); }
+    } catch (e) { if (__DEV__) console.warn('start location tracking failed:', e); }
   };
 
   const renderExpandedItinerary = () => {

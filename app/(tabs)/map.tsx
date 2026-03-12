@@ -409,7 +409,7 @@ const fetchAllEvents = async (): Promise<MapEvent[]> => {
       })).filter((e: MapEvent) => e.lat && e.lng && !isNaN(e.lat) && !isNaN(e.lng));
       events.push(...tmEvents);
     }
-  } catch (_) { console.warn('fetch events failed:', _); }
+  } catch (_) { if (__DEV__) console.warn('fetch events failed:', _); }
   _eventsCache = events;
   _eventsCacheTime = Date.now();
   return events;
@@ -563,10 +563,10 @@ export default function MapScreen() {
                 const base = String(a.routeId).split('-')[0];
                 if (base) routeIdSet.add(base);
               }
-            } catch (e) { console.warn('fetch stop arrivals failed:', e); }
+            } catch (e) { if (__DEV__) console.warn('fetch stop arrivals failed:', e); }
           }
         }
-      } catch (e) { console.warn('load saved pins failed:', e); }
+      } catch (e) { if (__DEV__) console.warn('load saved pins failed:', e); }
       setSavedPins(pins);
       setSavedRouteIds(routeIdSet);
       setSavedLoaded(true);
@@ -707,7 +707,7 @@ export default function MapScreen() {
         setSelectedBus(null); setSelectedEvent(null); setSelectedCluster(null); setSelectedVenue(null); setSelectedSavedPin(null);
         Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
       }
-    } catch (_) { console.warn('Place details failed:', _); }
+    } catch (_) { if (__DEV__) console.warn('Place details failed:', _); }
   }, [sheetAnim]);
 
   const clearSearch = useCallback(() => {

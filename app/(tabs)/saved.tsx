@@ -91,7 +91,7 @@ export default function SavedScreen() {
       setArrivals(newArrivals);
       const now2 = new Date();
       setLastUpdated(`${String(now2.getHours()).padStart(2, '0')}:${String(now2.getMinutes()).padStart(2, '0')}`);
-    } catch (e) { console.error(e); }
+    } catch (e) { if (__DEV__) console.warn('fetch arrivals failed:', e); }
   };
 
   const removeFav = (id: string) => {

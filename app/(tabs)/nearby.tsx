@@ -132,7 +132,7 @@ export default function ExploreScreen() {
               minsAway: first.minsAway,
             };
           }
-        } catch (e) { console.warn('fetch nearby arrivals failed:', e); }
+        } catch (e) { if (__DEV__) console.warn('fetch nearby arrivals failed:', e); }
       }));
       if (Object.keys(updates).length > 0) {
         setTransitMap(prev => ({ ...prev, ...updates }));
@@ -451,6 +451,16 @@ export default function ExploreScreen() {
             onPress={() => setMaxDistance(0)}
           >
             <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Show all distances', 'Afficher toutes les distances')}</Text>
+          </TouchableOpacity>
+        )}
+        {!searchQuery && maxDistance === 0 && (
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={t('Retry search', 'Réessayer la recherche')}
+            style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}
+            onPress={fetchPlaces}
+          >
+            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Retry', 'Réessayer')}</Text>
           </TouchableOpacity>
         )}
       </View>
