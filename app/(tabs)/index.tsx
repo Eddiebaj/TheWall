@@ -33,7 +33,8 @@ type SavedBoardItem =
   | { type: 'services' }
   | { type: 'discover' }
   | { type: 'saved_team'; id: string; name: string }
-  | { type: 'external_link'; id: string; label_en: string; label_fr: string; icon: string; accent: string; url: string };
+  | { type: 'external_link'; id: string; label_en: string; label_fr: string; icon: string; accent: string; url: string }
+  | { type: 'campus' };
 
 import {
   OC_TRANSPO_API_KEY,
@@ -46,7 +47,9 @@ import {
   SK_GARBAGE_NOTIF_ID, SK_SEEN_ALERT_IDS, SK_TIME_FORMAT, SK_GHOST_REPORTS,
   SK_SECTION_ORDER, SK_QUICK_ACTIONS, SK_OTTAWA_LIFE, SK_TODAY_EVENTS,
   SK_GAS_VOTED_IDS, SK_CACHE_WEATHER, SK_CACHE_ALERTS, SK_CACHE_ARRIVALS,
+  SK_CAMPUS,
 } from '../../lib/storageKeys';
+import { CAMPUSES, CampusId, CampusConfig, getNextDeparture, isLibraryOpen, fmt12h, getDayLabel } from '../../lib/campusData';
 
 const TRIP_UPDATES = 'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt-tp/beta/v1/TripUpdates?format=json';
 const BACKEND_URL = 'https://routeo-backend.vercel.app/api/arrivals';
@@ -256,6 +259,7 @@ const SERVICES_TABS: ServicesTab[] = [
       { id: 'parks',       label_en: 'Parks & Rinks',label_fr: 'Parcs & Patins',icon: 'snow',             accent: '#004890', action: 'alert',    target: 'parks' },
       { id: 'library',     label_en: 'OPL Library',  label_fr: 'Bib. Ottawa',   icon: 'book',             accent: '#004890', action: 'link',     target: 'https://biblioottawalibrary.ca' },
       { id: 'walkin',      label_en: 'Walk-In Clinic',label_fr: 'Clinique',     icon: 'medical',          accent: '#00A78D', action: 'link',     target: 'https://www.ontario.ca/page/find-walk-in-clinic' },
+      { id: 'campus',      label_en: 'My Campus',    label_fr: 'Mon Campus',    icon: 'school',           accent: '#004890', action: 'alert',    target: 'campus' },
     ],
   },
   {
@@ -335,7 +339,7 @@ const fmtTime = (date: Date): string => {
 };
 
 // ── SavedBoardCard component ─────────────────────────────────────
-function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, cardShadow, garbageEvents, alerts, sensGame, onMoveLeft, onMoveRight, timeFormat }: {
+function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, cardShadow, garbageEvents, alerts, sensGame, onMoveLeft, onMoveRight, timeFormat, campusData }: {
   item: SavedBoardItem; colours: any; fonts: any; t: any;
   onPress: () => void; drag: () => void; isActive: boolean; cardShadow: any;
   garbageEvents: { date: string; flags: string[] }[];
@@ -344,6 +348,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   onMoveLeft?: () => void;
   onMoveRight?: () => void;
   timeFormat?: 'relative' | 'absolute';
+  campusData?: CampusConfig | null;
 }) {
   const [preview, setPreview] = useState<{ routeId: string; headsign: string; minsAway: number }[]>([]);
   const [previewLoading, setPreviewLoading] = useState(true);
@@ -351,7 +356,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   const [gasPrice, setGasPrice] = useState<string | null>(null);
 
   useEffect(() => {
-    if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'saved_team') { setPreviewLoading(false); return; }
+    if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'saved_team' || item.type === 'campus') { setPreviewLoading(false); return; }
     if (item.type === 'gas_prices') {
       setPreviewLoading(false);
       fetchWithTimeout(GAS_URL).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(d => { if (d.price) setGasPrice(d.price); }).catch(() => {});
@@ -574,6 +579,37 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
             <Ionicons name="open-outline" size={11} color={colours.muted} />
             <Text style={{ fontSize: 10, color: colours.muted }}>Opens externally</Text>
           </View>
+        </View>
+      </TouchableOpacity>
+      </ScaleDecorator>
+    );
+  }
+
+  // ── Campus card ──
+  if (item.type === 'campus') {
+    const campus = campusData;
+    const accent = campus?.accent || '#004890';
+    const nextShuttle = campus?.shuttles?.[0] ? getNextDeparture(campus.shuttles[0].departures) : null;
+    const lib = campus?.libraries?.[0] ? isLibraryOpen(campus.libraries[0]) : null;
+    return (
+      <ScaleDecorator>
+      <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 16, padding: 14, backgroundColor: isActive ? accent + '22' : colours.surface, borderWidth: 1, borderTopWidth: 3, borderColor: isActive ? accent : colours.border, borderTopColor: accent, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
+        <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="school" size={18} color={accent} />
+        </View>
+        <View>
+          <Text style={{ fontSize: 14, fontWeight: '800', color: colours.text, marginBottom: 2 }} numberOfLines={1}>{campus ? t(campus.name, campus.name_fr) : t('My Campus', 'Mon Campus')}</Text>
+          {nextShuttle ? (
+            <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }} numberOfLines={1}>
+              {t('Shuttle', 'Navette')} {nextShuttle.minsAway}m
+            </Text>
+          ) : lib ? (
+            <Text style={{ fontSize: 10, fontWeight: '600', color: lib.open ? '#00A78D' : colours.red }} numberOfLines={1}>
+              {t('Library', 'Biblio')} {lib.open ? t('Open', 'Ouvert') : t('Closed', 'Fermé')}
+            </Text>
+          ) : (
+            <Text style={{ fontSize: 10, color: colours.muted }}>{t('Tap to set up', 'Appuyez pour configurer')}</Text>
+          )}
         </View>
       </TouchableOpacity>
       </ScaleDecorator>
@@ -1344,6 +1380,13 @@ function LiveScreenInner() {
   const [sportsSchedule, setSportsSchedule] = useState<any[]>([]);
   const [sportsScheduleLoading, setSportsScheduleLoading] = useState(false);
   const [sensGame, setSensGame] = useState<{ state: 'live' | 'pre' | 'none'; period?: string; homeAbbr?: string; awayAbbr?: string; homeScore?: number; awayScore?: number; startTime?: string; opponentAbbr?: string } | null>(null);
+  const [campusModal, setCampusModal] = useState(false);
+  const [campusTab, setCampusTab] = useState<'shuttle' | 'library' | 'upass' | 'food'>('shuttle');
+  const [selectedCampus, setSelectedCampus] = useState<CampusConfig | null>(null);
+  const [campusPicker, setCampusPicker] = useState(false);
+  const [campusFood, setCampusFood] = useState<any[]>([]);
+  const [campusFoodLoading, setCampusFoodLoading] = useState(false);
+
   const [garbageAddress, setGarbageAddress] = useState('');
   const [garbageAddressInput, setGarbageAddressInput] = useState('');
   const [garbagePlaceId, setGarbagePlaceId] = useState('');
@@ -1410,6 +1453,7 @@ function LiveScreenInner() {
     AsyncStorage.getItem(SK_SAVED_TEAMS).then(val => { try { if (val) setSavedTeams(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved teams failed:', e); } });
     AsyncStorage.getItem(SK_SAVED_ROUTES).then(val => { try { if (val) setSavedRoutes(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved routes failed:', e); } });
     AsyncStorage.getItem(SK_TIME_FORMAT).then(val => { if (val === 'absolute') setTimeFormat('absolute'); });
+    AsyncStorage.getItem(SK_CAMPUS).then(val => { if (val) { const c = CAMPUSES.find(x => x.id === val); if (c) setSelectedCampus(c); } }).catch(() => {});
     Promise.all([
       AsyncStorage.getItem(SK_SAVED_BOARD),
       AsyncStorage.getItem(SK_FAVS),
@@ -1547,6 +1591,7 @@ function LiveScreenInner() {
     if (item.type === 'otrain') return savedBoard.some(i => i.type === 'otrain');
     if (item.type === 'services') return savedBoard.some(i => i.type === 'services');
     if (item.type === 'discover') return savedBoard.some(i => i.type === 'discover');
+    if (item.type === 'campus') return savedBoard.some(i => i.type === 'campus');
     if (item.type === 'saved_team') return savedBoard.some(i => i.type === 'saved_team' && i.id === item.id);
     if (item.type === 'external_link') return savedBoard.some(i => i.type === 'external_link' && i.id === item.id);
     return savedBoard.some(i => (i.type === 'bus_stop' || i.type === 'lrt_station') && i.id === item.id);
@@ -1559,6 +1604,7 @@ function LiveScreenInner() {
     if (tile.id === 'otrain') return { type: 'otrain' };
     if (tile.id === 'services') return { type: 'services' };
     if (tile.id === 'discover') return { type: 'discover' };
+    if (tile.id === 'campus') return { type: 'campus' };
     if (tile.action === 'navigate') return null;
     return {
       type: 'external_link',
@@ -2115,6 +2161,7 @@ function LiveScreenInner() {
     if (tile.action === 'alert' && tile.target === 'road_closures') { fetchRoadClosures(); setRoadEventsModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'parks') { fetchParks(); setParksModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'bikeshare') { fetchBikeShare(); setBikeShareModal(true); return; }
+    if (tile.action === 'alert' && tile.target === 'campus') { if (!selectedCampus) setCampusPicker(true); else setCampusModal(true); return; }
     if (tile.action === 'alert') { setAlertsModalVisible(true); return; }
     if (tile.action === 'navigate' && tile.target?.includes('events?source=')) {
       const source = tile.target.includes('eventbrite') ? 'eventbrite' : 'ticketmaster';
@@ -3195,6 +3242,275 @@ function LiveScreenInner() {
     return activeAlerts.length === 1 ? first.title : `${first.title} +${activeAlerts.length - 1} ${t('more', 'autres')}`;
   };
 
+  // ── Campus food fetch ──
+  const fetchCampusFood = async (campus: CampusConfig) => {
+    setCampusFoodLoading(true);
+    try {
+      const url = `https://routeo-backend.vercel.app/api/places?action=nearby&location=${campus.foodCenter.lat},${campus.foodCenter.lng}&radius=${campus.foodRadius}&type=restaurant`;
+      const resp = await fetchWithTimeout(url);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      setCampusFood((data.results || []).slice(0, 12).map((p: any) => ({
+        id: p.place_id,
+        name: p.name,
+        vicinity: p.vicinity,
+        rating: p.rating,
+        open: p.opening_hours?.open_now,
+        photoRef: p.photos?.[0]?.photo_reference ?? null,
+      })));
+    } catch { setCampusFood([]); }
+    setCampusFoodLoading(false);
+  };
+
+  const selectCampus = async (campus: CampusConfig) => {
+    setSelectedCampus(campus);
+    setCampusPicker(false);
+    setCampusModal(true);
+    await AsyncStorage.setItem(SK_CAMPUS, campus.id).catch(() => {});
+  };
+
+  // ── Campus Modal ──
+  const CAMPUS_TABS = [
+    { id: 'shuttle' as const, label_en: 'Shuttle', label_fr: 'Navette', icon: 'bus' },
+    { id: 'library' as const, label_en: 'Library', label_fr: 'Biblio', icon: 'book' },
+    { id: 'upass' as const, label_en: 'U-Pass', label_fr: 'U-Pass', icon: 'card' },
+    { id: 'food' as const, label_en: 'Food', label_fr: 'Bouffe', icon: 'restaurant' },
+  ];
+
+  const renderCampusModal = () => {
+    const campus = selectedCampus;
+    const accent = campus?.accent || '#004890';
+    return (
+    <>
+      {/* Campus Picker */}
+      <Modal visible={campusPicker} animationType="fade" transparent onRequestClose={() => setCampusPicker(false)}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <View style={{ width: '85%', maxWidth: 360, backgroundColor: colours.surface, borderRadius: 20, overflow: 'hidden', padding: 24 }}>
+            <Text style={{ fontSize: 20, fontWeight: '800', color: colours.text, textAlign: 'center', marginBottom: 4 }}>{t('Choose Your Campus', 'Choisissez votre campus')}</Text>
+            <Text style={{ fontSize: 13, color: colours.muted, textAlign: 'center', marginBottom: 20 }}>{t('You can change this later', 'Vous pouvez changer plus tard')}</Text>
+            {CAMPUSES.map(c => (
+              <TouchableOpacity key={c.id} onPress={() => selectCampus(c)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 8, backgroundColor: colours.bg }}>
+                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="school" size={20} color={c.accent} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text }}>{language === 'fr' ? c.name_fr : c.name}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colours.muted} />
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity onPress={() => setCampusPicker(false)} style={{ marginTop: 8, alignItems: 'center', paddingVertical: 10 }}>
+              <Text style={{ fontSize: 14, color: colours.muted, fontWeight: '600' }}>{t('Cancel', 'Annuler')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Campus Full Modal */}
+      <Modal visible={campusModal} animationType="slide" transparent onRequestClose={() => setCampusModal(false)}>
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+          <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40, maxHeight: '92%' }}>
+            <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 12 }} />
+
+            {/* Header */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="school" size={20} color={accent} />
+                <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text }}>{campus ? t(campus.name, campus.name_fr) : t('My Campus', 'Mon Campus')}</Text>
+              </View>
+              <TouchableOpacity onPress={() => { setCampusModal(false); setCampusPicker(true); }} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: colours.border }}>
+                <Text style={{ fontSize: 11, fontWeight: '600', color: colours.muted }}>{t('Change', 'Changer')}</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Tabs */}
+            <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingBottom: 10, gap: 6 }}>
+              {CAMPUS_TABS.map(tab => {
+                const active = campusTab === tab.id;
+                return (
+                  <TouchableOpacity key={tab.id} onPress={() => { setCampusTab(tab.id); if (tab.id === 'food' && campus && campusFood.length === 0) fetchCampusFood(campus); }} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, flex: 1, height: 34, borderRadius: 17, borderWidth: 1, backgroundColor: active ? accent : colours.surface, borderColor: active ? accent : colours.border }}>
+                    <Ionicons name={tab.icon as any} size={12} color={active ? 'white' : colours.muted} />
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: active ? 'white' : colours.muted }}>{language === 'fr' ? tab.label_fr : tab.label_en}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}>
+              {/* ── Shuttle Tab ── */}
+              {campusTab === 'shuttle' && campus && (
+                campus.shuttles.length === 0 ? (
+                  <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+                    <Ionicons name="bus-outline" size={36} color={colours.muted} />
+                    <Text style={{ color: colours.muted, marginTop: 8, fontSize: 14, textAlign: 'center' }}>{t('No campus shuttle service', 'Pas de service de navette')}</Text>
+                    <Text style={{ color: colours.muted, fontSize: 12, marginTop: 4, textAlign: 'center' }}>{t('Use OC Transpo routes to get around campus', 'Utilisez les lignes OC Transpo pour le campus')}</Text>
+                  </View>
+                ) : (
+                  campus.shuttles.map(route => {
+                    const next = getNextDeparture(route.departures);
+                    return (
+                      <View key={route.id} style={{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }}>
+                        <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{language === 'fr' ? route.label_fr : route.label_en}</Text>
+                          {next ? (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                              <View style={{ backgroundColor: accent + '18', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                                <Text style={{ fontSize: 12, fontWeight: '800', color: accent }}>{t('Next', 'Prochain')}: {fmt12h(next.time)}</Text>
+                              </View>
+                              <Text style={{ fontSize: 12, fontWeight: '700', color: next.minsAway <= 10 ? colours.red : accent }}>{next.minsAway} min</Text>
+                            </View>
+                          ) : (
+                            <Text style={{ fontSize: 12, color: colours.muted, marginTop: 4 }}>{t('No more departures today', 'Plus de departs aujourd\'hui')}</Text>
+                          )}
+                        </View>
+                        <View style={{ padding: 14 }}>
+                          <Text style={{ fontSize: 11, fontWeight: '600', color: colours.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('STOPS', 'ARRÊTS')}</Text>
+                          {route.stops.map((stop, i) => (
+                            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: i === 0 ? accent : i === route.stops.length - 1 ? accent : colours.border }} />
+                              <Text style={{ fontSize: 13, color: colours.text }}>{stop}</Text>
+                            </View>
+                          ))}
+                          {route.note_en && (
+                            <Text style={{ fontSize: 10, color: colours.muted, marginTop: 8, fontStyle: 'italic' }}>{language === 'fr' ? route.note_fr : route.note_en}</Text>
+                          )}
+                        </View>
+                      </View>
+                    );
+                  })
+                )
+              )}
+              {campusTab === 'shuttle' && campus?.buswhereUrl ? (
+                <TouchableOpacity onPress={() => Linking.openURL(campus.buswhereUrl).catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, borderRadius: 12, backgroundColor: accent + '15', borderWidth: 1, borderColor: accent + '30' }}>
+                  <Ionicons name="location" size={14} color={accent} />
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: accent }}>{t('Track Live on BusWhere', 'Suivre en direct sur BusWhere')}</Text>
+                </TouchableOpacity>
+              ) : null}
+
+              {/* ── Library Tab ── */}
+              {campusTab === 'library' && campus && (
+                campus.libraries.map(lib => {
+                  const status = isLibraryOpen(lib);
+                  return (
+                    <View key={lib.name} style={{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text, flex: 1 }} numberOfLines={1}>{lib.name}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: status.open ? '#00A78D18' : colours.red + '18', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: status.open ? '#00A78D' : colours.red }} />
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: status.open ? '#00A78D' : colours.red }}>
+                            {status.open ? t('Open', 'Ouvert') : t('Closed', 'Fermé')}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={{ padding: 14 }}>
+                        {status.open && status.closesAt && (
+                          <Text style={{ fontSize: 12, color: colours.muted, marginBottom: 8 }}>{t('Closes at', 'Ferme à')} {fmt12h(status.closesAt)}</Text>
+                        )}
+                        {!status.open && status.opensAt && (
+                          <Text style={{ fontSize: 12, color: colours.muted, marginBottom: 8 }}>{t('Opens at', 'Ouvre à')} {fmt12h(status.opensAt)}</Text>
+                        )}
+                        {[0, 1, 2, 3, 4, 5, 6].map(day => {
+                          const hrs = lib.hours[day];
+                          const isToday = new Date().getDay() === day;
+                          return (
+                            <View key={day} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}>
+                              <Text style={{ fontSize: 12, fontWeight: isToday ? '700' : '400', color: isToday ? colours.text : colours.muted }}>{getDayLabel(day, language)}</Text>
+                              <Text style={{ fontSize: 12, fontWeight: isToday ? '700' : '400', color: isToday ? colours.text : colours.muted }}>
+                                {hrs ? `${fmt12h(hrs[0])} – ${fmt12h(hrs[1])}` : t('Closed', 'Fermé')}
+                              </Text>
+                            </View>
+                          );
+                        })}
+                        <Text style={{ fontSize: 10, color: colours.muted, marginTop: 8, fontStyle: 'italic' }}>{language === 'fr' ? lib.note_fr : lib.note_en}</Text>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+
+              {/* ── U-Pass Tab ── */}
+              {campusTab === 'upass' && campus && (
+                <View style={{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
+                  <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: colours.border, alignItems: 'center' }}>
+                    <Ionicons name="card" size={32} color={accent} style={{ marginBottom: 8 }} />
+                    <Text style={{ fontSize: 24, fontWeight: '800', color: colours.text }}>{t('U-Pass', 'U-Pass')}</Text>
+                    <Text style={{ fontSize: 18, fontWeight: '700', color: accent, marginTop: 4 }}>{campus.upass.cost}</Text>
+                  </View>
+                  <View style={{ padding: 16 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                      <Ionicons name="bus" size={16} color={accent} />
+                      <Text style={{ fontSize: 14, color: colours.text, flex: 1 }}>{language === 'fr' ? campus.upass.coverage_fr : campus.upass.coverage_en}</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                      <Ionicons name="calendar" size={16} color={accent} />
+                      <Text style={{ fontSize: 14, color: colours.text, flex: 1 }}>{language === 'fr' ? campus.upass.validity_fr : campus.upass.validity_en}</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                      <Ionicons name="school" size={16} color={accent} />
+                      <Text style={{ fontSize: 14, color: colours.text, flex: 1 }}>Carleton, uOttawa, Algonquin</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => Linking.openURL(campus.upass.url).catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, borderRadius: 12, backgroundColor: accent, }}>
+                      <Ionicons name="open-outline" size={14} color="white" />
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: 'white' }}>{t('Official U-Pass Page', 'Page U-Pass officielle')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              {/* ── Food Tab ── */}
+              {campusTab === 'food' && campus && (
+                campusFoodLoading ? (
+                  <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+                    <ActivityIndicator color={accent} size="large" />
+                    <Text style={{ color: colours.muted, marginTop: 8 }}>{t('Finding food nearby...', 'Recherche de restos...')}</Text>
+                  </View>
+                ) : campusFood.length === 0 ? (
+                  <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+                    <Ionicons name="restaurant-outline" size={36} color={colours.muted} />
+                    <Text style={{ color: colours.muted, marginTop: 8 }}>{t('No food places found', 'Aucun resto trouvé')}</Text>
+                    <TouchableOpacity onPress={() => fetchCampusFood(campus)} style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: accent, backgroundColor: accent + '15' }}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: accent }}>{t('Retry', 'Réessayer')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  campusFood.map(place => (
+                    <TouchableOpacity key={place.id} onPress={() => Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(place.name + ' ' + place.vicinity)}`).catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginBottom: 8 }}>
+                      <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="restaurant" size={18} color={accent} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }} numberOfLines={1}>{place.name}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                          {place.rating && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                              <Ionicons name="star" size={10} color={colours.orange} />
+                              <Text style={{ fontSize: 11, color: colours.muted }}>{place.rating}</Text>
+                            </View>
+                          )}
+                          {place.open !== undefined && (
+                            <Text style={{ fontSize: 11, fontWeight: '600', color: place.open ? '#00A78D' : colours.red }}>
+                              {place.open ? t('Open', 'Ouvert') : t('Closed', 'Fermé')}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+                      <Ionicons name="map-outline" size={16} color={colours.muted} />
+                    </TouchableOpacity>
+                  ))
+                )
+              )}
+            </ScrollView>
+
+            <TouchableOpacity onPress={() => setCampusModal(false)} style={{ marginHorizontal: 20, paddingVertical: 14, borderRadius: 14, backgroundColor: accent, alignItems: 'center' }}>
+              <Text style={{ color: 'white', fontWeight: '700', fontSize: 15 }}>{t('Done', 'Terminé')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </>
+    );
+  };
+
   const alertDotColour = () => { if (!hasAlerts) return colours.accent; return CATEGORY_COLOUR[activeAlerts[0]?.category] || colours.orange; };
 
   const SectionWrapper = ({ id, children }: { id: string; children: React.ReactNode }) => {
@@ -3845,6 +4161,7 @@ function LiveScreenInner() {
         {renderRoadEventsModal()}
         {renderParksModal()}
         {renderBikeShareModal()}
+        {renderCampusModal()}
 
         {/* 311 Report Modal */}
         <Modal visible={show311Modal} animationType="slide" transparent onRequestClose={() => setShow311Modal(false)}>
@@ -3998,6 +4315,7 @@ function LiveScreenInner() {
                   if (item.type === 'otrain') return 'otrain';
                   if (item.type === 'services') return 'services';
                   if (item.type === 'discover') return 'discover';
+                  if (item.type === 'campus') return 'campus';
                   if (item.type === 'saved_team') return `team-${item.id}`;
                   if (item.type === 'external_link') return `ext-${item.id}`;
                   return `${item.type}-${(item as any).id}-${i}`;
@@ -4033,6 +4351,7 @@ function LiveScreenInner() {
                     alerts={alerts}
                     sensGame={sensGame}
                     timeFormat={timeFormat}
+                    campusData={selectedCampus}
                     onMoveLeft={idx > 0 ? () => moveBoard(idx, idx - 1) : undefined}
                     onMoveRight={idx < savedBoard.length - 1 ? () => moveBoard(idx, idx + 1) : undefined}
                     onPress={() => {
@@ -4049,6 +4368,7 @@ function LiveScreenInner() {
                         setSportsTab('scores');
                         fetchSportsScores();
                       }
+                      if (item.type === 'campus') { if (!selectedCampus) setCampusPicker(true); else setCampusModal(true); return; }
                       if (item.type === 'otrain' || item.type === 'services' || item.type === 'discover') { /* scroll handled by section visibility */ }
                     }}
                   />

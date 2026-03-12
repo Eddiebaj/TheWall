@@ -58,3 +58,6 @@ export const SK_CACHE_ARRIVALS = 'routeo_cache_arrivals';
 
 // Notification settings
 export const SK_NOTIF_SETTINGS = 'routeo_notif_settings';
+
+// Campus
+export const SK_CAMPUS = 'routeo_campus';
