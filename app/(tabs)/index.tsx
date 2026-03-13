@@ -1362,7 +1362,7 @@ function LiveScreenInner() {
   const [showReportSheet, setShowReportSheet] = useState(false);
   const [reportSheetStopId, setReportSheetStopId] = useState('');
   const [nearbyAlternative, setNearbyAlternative] = useState<{ stopId: string; stopName: string; routeId: string; minsAway: number; walkMeters: number } | null>(null);
-  const [stopAmenities, setStopAmenities] = useState<{ wheelchair_boarding?: number; shelter?: boolean; bench?: boolean; lighting?: boolean } | null>(null);
+  const [stopAmenities, setStopAmenities] = useState<{ has_shelter?: boolean; has_bench?: boolean; has_bin?: boolean } | null>(null);
   const [timeFormat, setTimeFormat] = useState<'relative' | 'absolute'>('relative');
   const [scheduleRoute, setScheduleRoute] = useState<{ routeId: string; headsign: string } | null>(null);
   const [scheduleTrips, setScheduleTrips] = useState<{ time: string; tripId: string }[]>([]);
@@ -2188,8 +2188,15 @@ function LiveScreenInner() {
     } catch (e) { if (__DEV__) console.warn('nearby alternative failed:', e); }
   };
 
-  // Stop amenities — columns not yet in stops table; function is a no-op until schema is extended
-  const fetchStopAmenities = async (_sid: string) => { setStopAmenities(null); };
+  // Stop amenities — sourced from OpenStreetMap via one-time import script
+  // (scripts/import-osm-shelters.js in backend repo). Columns: has_shelter, has_bench, has_bin.
+  const fetchStopAmenities = async (sid: string) => {
+    setStopAmenities(null);
+    try {
+      const { data } = await supabase.from('stops').select('has_shelter,has_bench,has_bin').eq('stop_id', sid).single();
+      if (data && (data.has_shelter || data.has_bench || data.has_bin)) setStopAmenities(data);
+    } catch { /* no amenity data for this stop */ }
+  };
 
   useEffect(() => {
     const interval = setInterval(() => { if (AppState.currentState === 'active') fetchArrivals(stopId); }, 30000);
@@ -4789,12 +4796,11 @@ function LiveScreenInner() {
                     <Ionicons name="chevron-forward" size={14} color={colours.accent} />
                   </View>
                   {lastUpdated ? <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Updated', 'Mis à jour')} {lastUpdated} · {t('Tap to expand', 'Appuyez pour élargir')}</Text> : null}
-                  {stopAmenities && (stopAmenities.wheelchair_boarding === 1 || stopAmenities.shelter || stopAmenities.bench || stopAmenities.lighting) && (
+                  {stopAmenities && (
                     <View style={{ flexDirection: 'row', gap: 4, marginTop: 4 }}>
-                      {stopAmenities.wheelchair_boarding === 1 && <View style={{ backgroundColor: '#00A78D' + '18', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 2 }}><Ionicons name="accessibility" size={10} color="#00A78D" /></View>}
-                      {stopAmenities.shelter && <View style={{ backgroundColor: '#00A78D' + '18', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 2 }}><Ionicons name="umbrella" size={10} color="#00A78D" /></View>}
-                      {stopAmenities.bench && <View style={{ backgroundColor: '#00A78D' + '18', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 2, flexDirection: 'row', alignItems: 'center', gap: 2 }}><Ionicons name="bed" size={10} color="#00A78D" /></View>}
-                      {stopAmenities.lighting && <View style={{ backgroundColor: '#00A78D' + '18', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 2 }}><Ionicons name="bulb" size={10} color="#00A78D" /></View>}
+                      {stopAmenities.has_shelter && <View style={{ backgroundColor: '#00A78D' + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, flexDirection: 'row', alignItems: 'center', gap: 3 }}><Ionicons name="umbrella" size={10} color="#00A78D" /><Text style={{ fontSize: 9, fontWeight: '700', color: '#00A78D' }}>{t('Shelter', 'Abribus')}</Text></View>}
+                      {stopAmenities.has_bench && <View style={{ backgroundColor: '#00A78D' + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, flexDirection: 'row', alignItems: 'center', gap: 3 }}><Ionicons name="bed" size={10} color="#00A78D" /><Text style={{ fontSize: 9, fontWeight: '700', color: '#00A78D' }}>{t('Bench', 'Banc')}</Text></View>}
+                      {stopAmenities.has_bin && <View style={{ backgroundColor: '#00A78D' + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, flexDirection: 'row', alignItems: 'center', gap: 3 }}><Ionicons name="trash" size={10} color="#00A78D" /><Text style={{ fontSize: 9, fontWeight: '700', color: '#00A78D' }}>{t('Bin', 'Poubelle')}</Text></View>}
                     </View>
                   )}
                 </TouchableOpacity>
