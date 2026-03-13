@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
 import { useApp } from '../../context/AppContext';
-import { SK_SAVED_ROUTES, SK_FAVS, SK_SAVED_BOARD, SK_SAVED_NEIGHBOURHOODS } from '../../lib/storageKeys';
+import { SK_SAVED_ROUTES, SK_FAVS, SK_SAVED_BOARD, SK_SAVED_NEIGHBOURHOODS, SK_SAVED_PLACES } from '../../lib/storageKeys';
 import { NEIGHBOURHOODS } from '../../lib/neighbourhoodData';
 
 // Error boundary to catch AIRMap native crashes and show a recoverable fallback
@@ -53,7 +53,7 @@ const BACKEND_URL     = 'https://routeo-backend.vercel.app/api/arrivals';
 
 type SavedRoute = { id: string; fromLabel: string; toLabel: string; fromLat: number; fromLng: number; toLat: number; toLng: number };
 type SavedFav = { id: string; name: string; icon: string };
-type SavedPin = { id: string; name: string; lat: number; lng: number; kind: 'stop' | 'route_from' | 'route_to' | 'neighbourhood'; routeLabel?: string };
+type SavedPin = { id: string; name: string; lat: number; lng: number; kind: 'stop' | 'route_from' | 'route_to' | 'neighbourhood' | 'place'; routeLabel?: string; vicinity?: string };
 
 const OTTAWA_REGION: Region = {
   latitude: 45.4215, longitude: -75.6972,
@@ -604,6 +604,18 @@ export default function MapScreen() {
             }
           } catch (e) { if (__DEV__) console.warn('fetch stop coords failed:', e); }
         }
+        // Saved places (from Explore tab)
+        const placesRaw = await AsyncStorage.getItem(SK_SAVED_PLACES);
+        if (placesRaw) {
+          try {
+            const savedPlaces: { id: string; name: string; vicinity?: string; lat?: number; lng?: number }[] = JSON.parse(placesRaw);
+            for (const sp of savedPlaces) {
+              if (sp.lat && sp.lng && validCoord(sp.lat, sp.lng)) {
+                pins.push({ id: `place_${sp.id}`, name: sp.name, lat: sp.lat, lng: sp.lng, kind: 'place', vicinity: sp.vicinity });
+              }
+            }
+          } catch { /* invalid JSON */ }
+        }
         // Saved neighbourhoods
         const nbRaw = await AsyncStorage.getItem(SK_SAVED_NEIGHBOURHOODS);
         if (nbRaw) {
@@ -834,8 +846,8 @@ export default function MapScreen() {
           {/* Saved pin markers */}
           {hasSaved && savedPins.map((pin) => {
             if (!validCoord(pin.lat, pin.lng)) return null;
-            const color = pin.kind === 'stop' ? '#e74c3c' : pin.kind === 'route_from' ? '#2ecc71' : '#3498db';
-            const kindLabel = pin.kind === 'stop' ? 'Stop' : pin.kind === 'route_from' ? 'Origin' : 'Destination';
+            const color = pin.kind === 'stop' ? '#e74c3c' : pin.kind === 'place' ? '#e8a020' : pin.kind === 'neighbourhood' ? '#7b5ea7' : pin.kind === 'route_from' ? '#2ecc71' : '#3498db';
+            const kindLabel = pin.kind === 'stop' ? 'Stop' : pin.kind === 'place' ? 'Place' : pin.kind === 'neighbourhood' ? 'Neighbourhood' : pin.kind === 'route_from' ? 'Origin' : 'Destination';
             return (
               <Marker
                 key={pin.id}
@@ -1268,9 +1280,9 @@ export default function MapScreen() {
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <View style={{ flex: 1, marginRight: 12 }}>
                   <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
-                    <View style={{ backgroundColor: (selectedSavedPin.kind === 'stop' ? '#e74c3c' : '#2ecc71') + '22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: (selectedSavedPin.kind === 'stop' ? '#e74c3c' : '#2ecc71') + '44' }}>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: selectedSavedPin.kind === 'stop' ? '#e74c3c' : selectedSavedPin.kind === 'neighbourhood' ? '#7b5ea7' : '#2ecc71' }}>
-                        {selectedSavedPin.kind === 'stop' ? t('Saved Stop', 'Arret favori') : selectedSavedPin.kind === 'neighbourhood' ? t('Neighbourhood', 'Quartier') : t('Saved Route', 'Trajet favori')}
+                    <View style={{ backgroundColor: (selectedSavedPin.kind === 'stop' ? '#e74c3c' : selectedSavedPin.kind === 'place' ? '#e8a020' : selectedSavedPin.kind === 'neighbourhood' ? '#7b5ea7' : '#2ecc71') + '22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: (selectedSavedPin.kind === 'stop' ? '#e74c3c' : selectedSavedPin.kind === 'place' ? '#e8a020' : selectedSavedPin.kind === 'neighbourhood' ? '#7b5ea7' : '#2ecc71') + '44' }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: selectedSavedPin.kind === 'stop' ? '#e74c3c' : selectedSavedPin.kind === 'place' ? '#e8a020' : selectedSavedPin.kind === 'neighbourhood' ? '#7b5ea7' : '#2ecc71' }}>
+                        {selectedSavedPin.kind === 'stop' ? t('Saved Stop', 'Arret favori') : selectedSavedPin.kind === 'place' ? t('Saved Place', 'Lieu favori') : selectedSavedPin.kind === 'neighbourhood' ? t('Neighbourhood', 'Quartier') : t('Saved Route', 'Trajet favori')}
                       </Text>
                     </View>
                   </View>
@@ -1285,6 +1297,11 @@ export default function MapScreen() {
                       {t('Stop', 'Arret')} #{selectedSavedPin.id.replace('stop_', '')}
                     </Text>
                   )}
+                  {selectedSavedPin.kind === 'place' && selectedSavedPin.vicinity && (
+                    <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }} numberOfLines={1}>
+                      {selectedSavedPin.vicinity}
+                    </Text>
+                  )}
                 </View>
                 <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} onPress={hideSheet} accessibilityRole="button" accessibilityLabel={t('Close panel', 'Fermer le panneau')}>
                   <Ionicons name="close" size={16} color={colours.text} />
@@ -1292,7 +1309,7 @@ export default function MapScreen() {
               </View>
               <TouchableOpacity
                 onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${selectedSavedPin.lat},${selectedSavedPin.lng}`)}
-                style={{ marginTop: 14, backgroundColor: selectedSavedPin.kind === 'stop' ? '#e74c3c' : '#2ecc71', borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
+                style={{ marginTop: 14, backgroundColor: selectedSavedPin.kind === 'stop' ? '#e74c3c' : selectedSavedPin.kind === 'place' ? '#e8a020' : selectedSavedPin.kind === 'neighbourhood' ? '#7b5ea7' : '#2ecc71', borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
                 accessibilityRole="link"
                 accessibilityLabel={t('Open in Maps', 'Ouvrir dans Maps')}>
                 <Text style={{ color: 'white', fontWeight: '800', fontSize: fonts.md }}>

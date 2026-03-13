@@ -46,7 +46,7 @@ class PlannerErrorBoundary extends React.Component<
     return this.props.children;
   }
 }
-import { SK_PLANNER_PREFS, SK_SAVED_ROUTES } from '../../lib/storageKeys';
+import { SK_PLANNER_PREFS, SK_SAVED_ROUTES, SK_TRIP_HISTORY } from '../../lib/storageKeys';
 
 const PLAN_URL = 'https://routeo-backend.vercel.app/api/plan';
 const PLACES_URL = 'https://routeo-backend.vercel.app/api/places';
@@ -87,7 +87,16 @@ type SavedRoute = {
   savedAt: number;
 };
 
+type TripRecord = {
+  id: string;
+  fromLabel: string; fromLat: number; fromLng: number;
+  toLabel: string; toLat: number; toLng: number;
+  durationMins: number;
+  plannedAt: string; // ISO string
+};
+
 const SAVED_ROUTES_KEY = SK_SAVED_ROUTES;
+const MAX_TRIP_HISTORY = 15;
 
 const LEG_COLOURS: Record<string, string> = {
   WALK: '#9aaabb',
@@ -223,6 +232,8 @@ function PlannerScreenInner() {
   const stepsScrollRef = useRef<ScrollView>(null);
 
   const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
+  const [tripHistory, setTripHistory] = useState<TripRecord[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   // Holds Expo notification IDs so we can cancel them on stopTracking
   const transitNotifIds = useRef<string[]>([]);
@@ -232,10 +243,13 @@ function PlannerScreenInner() {
   const cardShadow = isLight ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 } : {};
 
 
-  // ── Load saved routes ─────────────────────────────────────────
+  // ── Load saved routes + trip history ──────────────────────────
   useEffect(() => {
     AsyncStorage.getItem(SAVED_ROUTES_KEY).then(val => {
       try { if (val) setSavedRoutes(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved routes failed:', e); }
+    }).catch(() => {});
+    AsyncStorage.getItem(SK_TRIP_HISTORY).then(val => {
+      try { if (val) setTripHistory(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse trip history failed:', e); }
     }).catch(() => {});
   }, []);
 
@@ -448,6 +462,26 @@ function PlannerScreenInner() {
         } catch {
           setItineraries(data.itineraries);
         }
+      }
+      // Auto-save to trip history
+      if (data.itineraries?.length) {
+        const bestItin = data.itineraries[0];
+        const record: TripRecord = {
+          id: `trip_${Date.now()}`,
+          fromLabel: resolvedFrom.label, fromLat: resolvedFrom.lat!, fromLng: resolvedFrom.lng!,
+          toLabel: resolvedTo.label, toLat: resolvedTo.lat!, toLng: resolvedTo.lng!,
+          durationMins: Math.round((bestItin.duration || 0) / 60),
+          plannedAt: new Date().toISOString(),
+        };
+        setTripHistory(prev => {
+          // Deduplicate: skip if same from/to was planned in last 5 min
+          const isDupe = prev.length > 0 && prev[0].fromLabel === record.fromLabel && prev[0].toLabel === record.toLabel
+            && (Date.now() - new Date(prev[0].plannedAt).getTime()) < 300000;
+          if (isDupe) return prev;
+          const updated = [record, ...prev].slice(0, MAX_TRIP_HISTORY);
+          AsyncStorage.setItem(SK_TRIP_HISTORY, JSON.stringify(updated)).catch(() => {});
+          return updated;
+        });
       }
     } catch (e) {
       setError(t('Could not connect to trip planner. Check your connection.', 'Connexion au planificateur impossible. Verifiez votre connexion.'));
@@ -1535,14 +1569,65 @@ function PlannerScreenInner() {
             {itineraries.map((itin, i) => renderItinerary(itin, i))}
           </View>
         ) : !loading && !searched ? (
-          <View style={{ alignItems: 'center', paddingVertical: 40, paddingHorizontal: 20 }}>
-            <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-              <Ionicons name="navigate" size={28} color={colours.accent} />
-            </View>
-            <Text style={{ fontSize: 17, fontWeight: '800', color: colours.text, textAlign: 'center' }}>{t('Plan your trip', 'Planifiez votre trajet')}</Text>
-            <Text style={{ fontSize: 13, color: colours.muted, textAlign: 'center', marginTop: 6, lineHeight: 19 }}>
-              {t('Real OC Transpo routing with transfers,\nwalk times, and live schedules.', 'Itineraires OC Transpo reels avec correspondances,\ntemps de marche et horaires en direct.')}
-            </Text>
+          <View style={{ paddingHorizontal: 20 }}>
+            {tripHistory.length === 0 ? (
+              <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                  <Ionicons name="navigate" size={28} color={colours.accent} />
+                </View>
+                <Text style={{ fontSize: 17, fontWeight: '800', color: colours.text, textAlign: 'center' }}>{t('Plan your trip', 'Planifiez votre trajet')}</Text>
+                <Text style={{ fontSize: 13, color: colours.muted, textAlign: 'center', marginTop: 6, lineHeight: 19 }}>
+                  {t('Real OC Transpo routing with transfers,\nwalk times, and live schedules.', 'Itineraires OC Transpo reels avec correspondances,\ntemps de marche et horaires en direct.')}
+                </Text>
+              </View>
+            ) : (
+              <View style={{ paddingTop: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>
+                    {t('Recent Trips', 'Trajets recents')}
+                  </Text>
+                  {tripHistory.length > 3 && (
+                    <TouchableOpacity onPress={() => setShowHistory(!showHistory)} activeOpacity={0.7}>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accent }}>
+                        {showHistory ? t('Show less', 'Voir moins') : t('Show all', 'Voir tout')}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                {(showHistory ? tripHistory : tripHistory.slice(0, 3)).map((trip) => {
+                  const ago = Math.round((Date.now() - new Date(trip.plannedAt).getTime()) / 60000);
+                  const agoLabel = ago < 60 ? `${ago}m` : ago < 1440 ? `${Math.round(ago / 60)}h` : `${Math.round(ago / 1440)}d`;
+                  return (
+                    <TouchableOpacity
+                      key={trip.id}
+                      style={[{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, padding: 12, marginBottom: 8, gap: 10 }, cardShadow]}
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        setFromText(shortenLabel(trip.fromLabel));
+                        setFromPlace({ placeId: 'hist', label: trip.fromLabel, lat: trip.fromLat, lng: trip.fromLng });
+                        setToText(shortenLabel(trip.toLabel));
+                        setToPlace({ placeId: 'hist', label: trip.toLabel, lat: trip.toLat, lng: trip.toLng });
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${trip.fromLabel} to ${trip.toLabel}`}
+                    >
+                      <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="time-outline" size={18} color={colours.accent} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }} numberOfLines={1}>
+                          {shortenLabel(trip.fromLabel)} → {shortenLabel(trip.toLabel)}
+                        </Text>
+                        <Text style={{ fontSize: 11, color: colours.muted, marginTop: 1 }}>
+                          {trip.durationMins} min · {agoLabel} {t('ago', 'il y a')}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={colours.muted} />
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
           </View>
         ) : loading ? (
           <View style={{ paddingHorizontal: 20 }}>

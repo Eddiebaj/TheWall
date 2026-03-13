@@ -21,7 +21,7 @@ import stopNameMap from './stopnamemap.json';
 import stopsearch from './stopsearch.json';
 import tripMap from './tripmap.json';
 
-type SavedPlace = { id: string; name: string; vicinity: string; rating?: number; photoRef?: string; categoryIcon: string; categoryColor: string; categoryLabel_en: string; categoryLabel_fr: string };
+type SavedPlace = { id: string; name: string; vicinity: string; rating?: number; photoRef?: string; categoryIcon: string; categoryColor: string; categoryLabel_en: string; categoryLabel_fr: string; lat?: number; lng?: number };
 // ── Universal saved board item type ──
 type SavedBoardItem =
   | { type: 'bus_stop';      id: string; name: string; agency?: 'OC' | 'STO' }

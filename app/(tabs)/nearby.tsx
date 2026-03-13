@@ -6,8 +6,10 @@ import {
   ActivityIndicator, ImageBackground, Linking,
   ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../context/AppContext';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
+import { SK_SAVED_PLACES } from '../../lib/storageKeys';
 import { supabase } from '../../lib/supabase';
 const ARRIVALS_URL = 'https://routeo-backend.vercel.app/api/arrivals';
 
@@ -78,6 +80,41 @@ export default function ExploreScreen() {
   const [nearbyStops, setNearbyStops] = useState<StopCoord[]>([]);
   const [transitMap, setTransitMap] = useState<{ [placeId: string]: NearbyTransit }>({});
   const transitFetchedRef = useRef<Set<string>>(new Set());
+  const [savedPlaceIds, setSavedPlaceIds] = useState<Set<string>>(new Set());
+
+  // Load saved place IDs on mount
+  useEffect(() => {
+    AsyncStorage.getItem(SK_SAVED_PLACES).then(val => {
+      try {
+        if (val) {
+          const places: any[] = JSON.parse(val);
+          setSavedPlaceIds(new Set(places.map(p => p.id)));
+        }
+      } catch { /* ignore */ }
+    });
+  }, []);
+
+  const toggleSavePlace = async (place: Place) => {
+    try {
+      const raw = await AsyncStorage.getItem(SK_SAVED_PLACES);
+      let places: any[] = raw ? JSON.parse(raw) : [];
+      const exists = places.some(p => p.id === place.id);
+      if (exists) {
+        places = places.filter(p => p.id !== place.id);
+        setSavedPlaceIds(prev => { const next = new Set(prev); next.delete(place.id); return next; });
+      } else {
+        places.push({
+          id: place.id, name: place.name, vicinity: place.vicinity,
+          rating: place.rating, photoRef: place.photoRef,
+          categoryIcon: selectedCategory.icon, categoryColor: selectedCategory.color,
+          categoryLabel_en: selectedCategory.label_en, categoryLabel_fr: selectedCategory.label_fr,
+          lat: place.lat, lng: place.lng,
+        });
+        setSavedPlaceIds(prev => new Set(prev).add(place.id));
+      }
+      await AsyncStorage.setItem(SK_SAVED_PLACES, JSON.stringify(places));
+    } catch (e) { if (__DEV__) console.warn('toggleSavePlace failed:', e); }
+  };
 
   useEffect(() => { getLocation(); }, []);
   useEffect(() => { if (location) fetchPlaces(); }, [location, selectedCategory, sortBy]);
@@ -300,14 +337,21 @@ export default function ExploreScreen() {
             <Ionicons name={selectedCategory.icon as any} size={32} color={selectedCategory.color} />
           )}
 
-          <View style={{
-            position: 'absolute', top: 8, right: 8,
-            backgroundColor: 'rgba(0,0,0,0.55)',
-            borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3,
-          }}>
-            <Text style={{ color: 'white', fontSize: fonts.sm, fontWeight: '700' }}>
-              {formatDistance(place.distance)}
-            </Text>
+          <View style={{ position: 'absolute', top: 8, right: 8, flexDirection: 'row', gap: 6 }}>
+            <TouchableOpacity
+              onPress={() => toggleSavePlace(place)}
+              style={{ backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 20, width: 30, height: 30, alignItems: 'center', justifyContent: 'center' }}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={savedPlaceIds.has(place.id) ? t('Unsave place', 'Retirer le lieu') : t('Save place', 'Sauvegarder le lieu')}
+            >
+              <Ionicons name={savedPlaceIds.has(place.id) ? 'bookmark' : 'bookmark-outline'} size={15} color={savedPlaceIds.has(place.id) ? '#e8a020' : 'white'} />
+            </TouchableOpacity>
+            <View style={{ backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3, justifyContent: 'center' }}>
+              <Text style={{ color: 'white', fontSize: fonts.sm, fontWeight: '700' }}>
+                {formatDistance(place.distance)}
+              </Text>
+            </View>
           </View>
 
           {place.open !== undefined && (
