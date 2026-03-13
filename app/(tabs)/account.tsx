@@ -9,6 +9,7 @@ import {
     TouchableOpacity, View
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
+import { registerPushToken, syncSubscriptions } from '../../lib/pushNotifications';
 import { SK_NOTIF_SETTINGS } from '../../lib/storageKeys';
 
 const isNightTime = () => { const h = new Date().getHours(); return h >= 21 || h < 4; };
@@ -114,6 +115,14 @@ export default function AccountScreen() {
   const saveNotifSettings = async (updated: NotifSettings) => {
     setNotifSettings(updated);
     await AsyncStorage.setItem(NOTIF_SETTINGS_KEY, JSON.stringify(updated));
+    // Sync push subscription preferences to backend
+    const pushTypes: (keyof NotifSettings)[] = [
+      'garbageDay', 'recyclingReminder', 'sportsGameDay',
+      'lrtDisruption', 'routeCancellation', 'significantDelay',
+      'serviceResumed', 'arrivalAlerts', 'tripDisruption',
+    ];
+    const subs = pushTypes.map(key => ({ type: key, enabled: updated[key] }));
+    registerPushToken(language).then(() => syncSubscriptions(subs)).catch(() => {});
   };
 
   const handleNotifToggle = async (key: keyof NotifSettings, value: boolean) => {

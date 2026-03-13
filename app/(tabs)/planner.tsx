@@ -210,7 +210,9 @@ function PlannerScreenInner() {
   const [toPlace, setToPlace] = useState<PlaceResult | null>(null);
   const [fromResults, setFromResults] = useState<PlaceResult[]>([]);
   const [toResults, setToResults] = useState<PlaceResult[]>([]);
-  const [activeInput, setActiveInput] = useState<'from' | 'to' | null>(null);
+  const [waypoints, setWaypoints] = useState<{ text: string; place: PlaceResult | null }[]>([]);
+  const [waypointResults, setWaypointResults] = useState<{ [idx: number]: PlaceResult[] }>({});
+  const [activeInput, setActiveInput] = useState<'from' | 'to' | `waypoint_${number}` | null>(null);
 
   const [departTime, setDepartTime] = useState<Date>(new Date());
   const [arriveBy, setArriveBy] = useState(false);
@@ -376,9 +378,11 @@ function PlannerScreenInner() {
   }, [params.from, params.to]);
 
   // ── Autocomplete ─────────────────────────────────────────────
-  const autocomplete = useCallback(async (text: string, field: 'from' | 'to') => {
+  const autocomplete = useCallback(async (text: string, field: 'from' | 'to' | `waypoint_${number}`) => {
     if (text.length < 2) {
-      field === 'from' ? setFromResults([]) : setToResults([]);
+      if (field === 'from') setFromResults([]);
+      else if (field === 'to') setToResults([]);
+      else setWaypointResults(prev => { const next = { ...prev }; delete next[parseInt(field.split('_')[1])]; return next; });
       return;
     }
     try {
@@ -386,7 +390,9 @@ function PlannerScreenInner() {
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       const results: PlaceResult[] = data.results || [];
-      field === 'from' ? setFromResults(results) : setToResults(results);
+      if (field === 'from') setFromResults(results);
+      else if (field === 'to') setToResults(results);
+      else setWaypointResults(prev => ({ ...prev, [parseInt(field.split('_')[1])]: results }));
     } catch (e) { if (__DEV__) console.warn('autocomplete fetch failed:', e); }
   }, []);
 
@@ -522,11 +528,92 @@ function PlannerScreenInner() {
       return;
     }
 
+    // Resolve waypoints
+    const resolvedWaypoints: PlaceResult[] = [];
+    for (const wp of waypoints) {
+      let resolved = wp.place;
+      if (wp.text && !wp.place?.lat) {
+        try {
+          const r = await fetchWithTimeout(`${PLACES_URL}?action=geocode&input=${encodeURIComponent(wp.text)}`);
+          if (r.ok) {
+            const d = await r.json();
+            const result = d.results?.[0];
+            if (result?.lat) resolved = { placeId: 'geo', label: result.label, lat: result.lat, lng: result.lng };
+          }
+        } catch { /* skip */ }
+      }
+      if (resolved?.lat) resolvedWaypoints.push(resolved);
+    }
+
     if (travelMode !== 'transit') {
       const origin = `${resolvedFrom.lat},${resolvedFrom.lng}`;
       const destination = `${resolvedTo.lat},${resolvedTo.lng}`;
-      const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=${travelMode}`;
+      const waypointStr = resolvedWaypoints.length > 0 ? `&waypoints=${resolvedWaypoints.map(w => `${w.lat},${w.lng}`).join('|')}` : '';
+      const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypointStr}&travelmode=${travelMode}`;
       Linking.openURL(url);
+      return;
+    }
+
+    // Multi-stop: chain OTP requests through waypoints
+    if (resolvedWaypoints.length > 0) {
+      const stops = [resolvedFrom, ...resolvedWaypoints, resolvedTo];
+      setLoading(true); setError(''); setSearched(true); setItineraries([]);
+      try {
+        const allLegs: Leg[] = [];
+        let totalDuration = 0;
+        let totalWalkDistance = 0;
+        let totalTransfers = 0;
+        let startTime = 0;
+        let endTime = 0;
+        let arrivalTime = departTime;
+        for (let i = 0; i < stops.length - 1; i++) {
+          const from = stops[i];
+          const to = stops[i + 1];
+          const timeStr = `${String(arrivalTime.getHours()).padStart(2,'0')}:${String(arrivalTime.getMinutes()).padStart(2,'0')}`;
+          const month = String(arrivalTime.getMonth() + 1).padStart(2,'0');
+          const day = String(arrivalTime.getDate()).padStart(2,'0');
+          const dateStr = `${month}-${day}-${arrivalTime.getFullYear()}`;
+          const url = `${PLAN_URL}?fromLat=${from.lat}&fromLng=${from.lng}&fromLabel=${encodeURIComponent(from.label)}&toLat=${to.lat}&toLng=${to.lng}&toLabel=${encodeURIComponent(to.label)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=false`;
+          const resp = await fetchWithTimeout(url);
+          if (!resp.ok) throw new Error(`Leg ${i + 1}: HTTP ${resp.status}`);
+          const data = await resp.json();
+          if (data.error || !data.itineraries?.length) {
+            setError(t(`No route found for leg ${i + 1}: ${from.label} → ${to.label}`, `Aucun trajet pour le troncon ${i + 1}: ${from.label} → ${to.label}`));
+            setLoading(false);
+            return;
+          }
+          const best = data.itineraries[0];
+          allLegs.push(...(best.legs || []));
+          totalDuration += best.duration || 0;
+          totalWalkDistance += best.walkDistance || 0;
+          totalTransfers += best.transfers || 0;
+          if (i === 0) startTime = best.startTime;
+          endTime = best.endTime;
+          arrivalTime = new Date(best.endTime);
+        }
+        const combined: Itinerary = { duration: totalDuration, startTime, endTime, transfers: totalTransfers, walkDistance: totalWalkDistance, legs: allLegs };
+        setItineraries([combined]);
+        // Save to trip history
+        const record: TripRecord = {
+          id: `trip_${Date.now()}`,
+          fromLabel: resolvedFrom.label, fromLat: resolvedFrom.lat!, fromLng: resolvedFrom.lng!,
+          toLabel: resolvedTo.label, toLat: resolvedTo.lat!, toLng: resolvedTo.lng!,
+          durationMins: Math.round(totalDuration / 60),
+          plannedAt: new Date().toISOString(),
+        };
+        setTripHistory(prev => {
+          const isDupe = prev.length > 0 && prev[0].fromLabel === record.fromLabel && prev[0].toLabel === record.toLabel
+            && (Date.now() - new Date(prev[0].plannedAt).getTime()) < 300000;
+          if (isDupe) return prev;
+          const updated = [record, ...prev].slice(0, MAX_TRIP_HISTORY);
+          AsyncStorage.setItem(SK_TRIP_HISTORY, JSON.stringify(updated)).catch(() => {});
+          return updated;
+        });
+      } catch (e) {
+        setError(t('Could not plan multi-stop trip. Try fewer stops.', 'Impossible de planifier le trajet multi-arrets. Essayez moins d\'arrets.'));
+        if (__DEV__) console.warn('multi-stop plan failed:', e);
+      }
+      setLoading(false);
       return;
     }
 
@@ -1196,6 +1283,44 @@ function PlannerScreenInner() {
             <View style={{ flex: 1, height: 1, backgroundColor: colours.border }} />
           </View>
 
+          {/* Waypoints */}
+          {waypoints.map((wp, idx) => (
+            <View key={`wp_${idx}`}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 4, gap: 10 }}>
+                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colours.accentAlt + '40', borderWidth: 2, borderColor: colours.accentAlt }} />
+                <TextInput
+                  style={{ flex: 1, fontSize: 15, color: colours.text, paddingVertical: 10 }}
+                  placeholder={t(`Stop ${idx + 1}...`, `Arret ${idx + 1}...`)}
+                  placeholderTextColor={colours.muted}
+                  value={wp.text}
+                  onChangeText={text => {
+                    setWaypoints(prev => prev.map((w, i) => i === idx ? { text, place: null } : w));
+                    if (autoCompleteTimer.current) clearTimeout(autoCompleteTimer.current);
+                    autoCompleteTimer.current = setTimeout(() => { autocomplete(text, `waypoint_${idx}` as any); }, 300);
+                  }}
+                  onFocus={() => { setActiveInput(`waypoint_${idx}` as any); setFromResults([]); setToResults([]); }}
+                  onBlur={() => setActiveInput(null)}
+                />
+                <TouchableOpacity onPress={() => { setWaypoints(prev => prev.filter((_, i) => i !== idx)); setWaypointResults(prev => { const next = { ...prev }; delete next[idx]; return next; }); }} style={{ padding: 6 }} accessibilityRole="button" accessibilityLabel={t('Remove stop', 'Retirer l\'arret')}>
+                  <Ionicons name="close-circle" size={18} color={colours.muted} />
+                </TouchableOpacity>
+              </View>
+              <View style={{ height: 1, backgroundColor: colours.border, marginHorizontal: 12 }} />
+            </View>
+          ))}
+
+          {/* Add stop button */}
+          {waypoints.length < 3 && (
+            <TouchableOpacity
+              onPress={() => setWaypoints(prev => [...prev, { text: '', place: null }])}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 8 }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="add-circle-outline" size={16} color={colours.accent} />
+              <Text style={{ fontSize: 13, fontWeight: '600', color: colours.accent }}>{t('Add stop', 'Ajouter un arret')}</Text>
+            </TouchableOpacity>
+          )}
+
           {/* To */}
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 4, gap: 10 }}>
             <Ionicons name="location" size={12} color={colours.accent} style={{ marginLeft: -1 }} />
@@ -1262,6 +1387,30 @@ function PlannerScreenInner() {
             ))}
           </View>
         )}
+        {/* Waypoint autocomplete results */}
+        {waypoints.map((_, idx) => {
+          const results = waypointResults[idx] || [];
+          if (results.length === 0 || activeInput !== `waypoint_${idx}`) return null;
+          return (
+            <View key={`wpr_${idx}`} style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }, cardShadow]}>
+              {results.map((r, i) => (
+                <TouchableOpacity
+                  key={r.placeId}
+                  onPress={async () => {
+                    const resolved = await resolvePlace(r);
+                    setWaypoints(prev => prev.map((w, wi) => wi === idx ? { text: resolved.label, place: resolved } : w));
+                    setWaypointResults(prev => { const next = { ...prev }; delete next[idx]; return next; });
+                    Keyboard.dismiss();
+                  }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: i < results.length - 1 ? 1 : 0, borderBottomColor: colours.border }}
+                >
+                  <Ionicons name="location-outline" size={16} color={colours.muted} />
+                  <Text style={{ flex: 1, fontSize: 13, color: colours.text }} numberOfLines={1}>{shortenLabel(r.label)}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          );
+        })}
 
         {/* Travel mode selector */}
         <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>

@@ -43,6 +43,7 @@ import {
   TICKETMASTER_API_KEY, EVENTBRITE_API_KEY, FOURSQUARE_API_KEY,
 } from '../../lib/keys';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
+import { getDeviceId, registerPushToken, configureNotificationHandler } from '../../lib/pushNotifications';
 import {
   SK_FAVS, SK_SAVED_BOARD, SK_SAVED_TEAMS, SK_SAVED_ROUTES, SK_SAVED_PLACES,
   SK_GARBAGE_ADDRESS, SK_GARBAGE_LAT, SK_GARBAGE_LNG, SK_GARBAGE_PLACE_ID,
@@ -68,6 +69,7 @@ const GAS_URL = 'https://routeo-backend.vercel.app/api/gas';
 const EC_WEATHER_URL = 'https://dd.weather.gc.ca/today/citypage_weather/ON/';
 const ONTARIO_511_URL = 'https://511on.ca/api/v2';
 const OTTAWA_OPEN_DATA_URL = 'https://open.ottawa.ca/api/explore/v2.1/catalog/datasets';
+const COMMUNITY_URL = 'https://routeo-backend.vercel.app/api/community';
 
 const LRT_STOP_IDS = new Set([
   'NA998','NA999','NA995','NA990','NA996','NA997',
@@ -1358,6 +1360,10 @@ function LiveScreenInner() {
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [showAllArrivals, setShowAllArrivals] = useState(false);
   const [expandedStopId, setExpandedStopId] = useState<string | null>(null);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportCategory, setReportCategory] = useState<string | null>(null);
+  const [reportDescription, setReportDescription] = useState('');
+  const [reportSubmitting, setReportSubmitting] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
   const [lastUpdated, setLastUpdated] = useState('');
   const [searchText, setSearchText] = useState('');
@@ -1577,6 +1583,9 @@ function LiveScreenInner() {
     loadSavedGarbageAddress();
     // Check for unseen critical service alerts and notify
     checkAndNotifyCriticalAlerts(language);
+    // Register push token and configure notification handler
+    configureNotificationHandler();
+    registerPushToken(language).catch(() => {});
   }, []);
 
   const saveCustomization = async (order: string[], qaIds: string[], olIds: string[]) => {
@@ -2214,6 +2223,42 @@ function LiveScreenInner() {
       return updated;
     });
     Alert.alert(t('Thanks!', 'Merci!'), t('Reported — helps other riders.', 'Signalé — aide les autres usagers.'));
+  };
+
+  const REPORT_CATEGORIES = [
+    { id: 'bench_broken', icon: 'bed-outline' as const, label_en: 'Bench broken', label_fr: 'Banc brise' },
+    { id: 'shelter_missing', icon: 'umbrella-outline' as const, label_en: 'Shelter missing', label_fr: 'Abri manquant' },
+    { id: 'schedule_missing', icon: 'document-text-outline' as const, label_en: 'No posted schedule', label_fr: 'Horaire absent' },
+    { id: 'accessibility', icon: 'accessibility-outline' as const, label_en: 'Accessibility issue', label_fr: 'Probleme d\'accessibilite' },
+    { id: 'cleanliness', icon: 'flash-outline' as const, label_en: 'Lighting / cleanliness', label_fr: 'Eclairage / proprete' },
+    { id: 'other', icon: 'chatbox-ellipses-outline' as const, label_en: 'Other', label_fr: 'Autre' },
+  ];
+
+  const submitStopReport = async () => {
+    if (!reportCategory || !expandedStopId) return;
+    setReportSubmitting(true);
+    try {
+      const deviceId = await getDeviceId();
+      const resp = await fetchWithTimeout(`${COMMUNITY_URL}?action=report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stop_id: expandedStopId,
+          category: reportCategory,
+          description: reportDescription.trim(),
+          device_id: deviceId,
+        }),
+      });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      Alert.alert(t('Report submitted', 'Signalement envoye'), t('Thanks for helping improve transit!', 'Merci d\'aider a ameliorer le transport!'));
+      setShowReportModal(false);
+      setReportCategory(null);
+      setReportDescription('');
+    } catch (e) {
+      Alert.alert(t('Error', 'Erreur'), t('Could not submit report. Try again.', 'Impossible d\'envoyer le signalement. Reessayez.'));
+      if (__DEV__) console.warn('submitStopReport failed:', e);
+    }
+    setReportSubmitting(false);
   };
 
   const open311Modal = async () => {
@@ -3978,11 +4023,93 @@ function LiveScreenInner() {
           </View>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }}>
             {loading ? (<View style={styles.modalCenter}><ActivityIndicator color={colours.accent} size="large" /></View>) : error ? (<View style={styles.modalCenter}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.md, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text></View>) : arrivals.length === 0 ? (<View style={styles.modalCenter}><Ionicons name="time-outline" size={48} color={colours.muted} /><Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 12 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<View style={{ marginTop: 8 }}>{arrivals.map(renderArrival)}</View>)}
+            {/* Report an issue button */}
+            <TouchableOpacity
+              onPress={() => { setReportCategory(null); setReportDescription(''); setShowReportModal(true); }}
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginHorizontal: 20, marginTop: 16, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: '#cc3b2a40', backgroundColor: '#cc3b2a10' }}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={t('Report a stop issue', 'Signaler un probleme a l\'arret')}
+            >
+              <Ionicons name="warning-outline" size={16} color="#cc3b2a" />
+              <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: '#cc3b2a' }}>
+                {t('Report an issue at this stop', 'Signaler un probleme a cet arret')}
+              </Text>
+            </TouchableOpacity>
           </ScrollView>
         </View>
       </Modal>
     );
   };
+
+  const renderStopReportModal = () => (
+    <Modal visible={showReportModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowReportModal(false)}>
+      <View style={[styles.modalContainer, { backgroundColor: colours.bg }]}>
+        <View style={[styles.modalHeader, { borderBottomColor: colours.border }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>{t('Report an Issue', 'Signaler un probleme')}</Text>
+            <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
+              {t('Stop', 'Arret')} #{expandedStopId} · {stopName}
+            </Text>
+          </View>
+          <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setShowReportModal(false)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
+            <Ionicons name="close" size={18} color={colours.text} />
+          </TouchableOpacity>
+        </View>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+          <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+            {t('What\'s the issue?', 'Quel est le probleme?')}
+          </Text>
+          <View style={{ gap: 8, marginBottom: 20 }}>
+            {REPORT_CATEGORIES.map(cat => {
+              const active = reportCategory === cat.id;
+              return (
+                <TouchableOpacity
+                  key={cat.id}
+                  onPress={() => setReportCategory(cat.id)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1.5, borderColor: active ? '#cc3b2a' : colours.border, backgroundColor: active ? '#cc3b2a10' : colours.surface }}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: active ? '#cc3b2a18' : colours.bg, alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name={cat.icon} size={18} color={active ? '#cc3b2a' : colours.muted} />
+                  </View>
+                  <Text style={{ fontSize: fonts.md, fontWeight: active ? '700' : '500', color: active ? '#cc3b2a' : colours.text }}>
+                    {t(cat.label_en, cat.label_fr)}
+                  </Text>
+                  {active && <Ionicons name="checkmark-circle" size={20} color="#cc3b2a" style={{ marginLeft: 'auto' }} />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+            {t('Details (optional)', 'Details (facultatif)')}
+          </Text>
+          <TextInput
+            value={reportDescription}
+            onChangeText={setReportDescription}
+            placeholder={t('Describe the issue...', 'Decrivez le probleme...')}
+            placeholderTextColor={colours.muted}
+            multiline
+            style={{ backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, padding: 14, fontSize: fonts.md, color: colours.text, minHeight: 80, textAlignVertical: 'top' }}
+          />
+          <TouchableOpacity
+            onPress={submitStopReport}
+            disabled={!reportCategory || reportSubmitting}
+            style={{ marginTop: 20, backgroundColor: reportCategory ? '#cc3b2a' : colours.border, borderRadius: 14, paddingVertical: 14, alignItems: 'center', opacity: reportCategory ? 1 : 0.5 }}
+            activeOpacity={0.8}
+          >
+            {reportSubmitting ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={{ color: '#fff', fontWeight: '800', fontSize: fonts.md }}>
+                {t('Submit Report', 'Envoyer le signalement')}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
 
   const quickActions = ALL_QUICK_ACTIONS.filter(a => quickActionIds.includes(a.id));
   const ottawaLife = ottawaLifeIds.map(id => ALL_OTTAWA_LIFE.find(o => o.id === id)).filter(Boolean) as typeof ALL_OTTAWA_LIFE;
@@ -4148,6 +4275,7 @@ function LiveScreenInner() {
         {renderGarbageModal()}
         {renderSwapSheet()}
         {renderExpandedArrivals()}
+        {renderStopReportModal()}
 
         {/* Full Schedule Modal */}
         <Modal visible={!!scheduleRoute} animationType="slide" transparent onRequestClose={() => setScheduleRoute(null)}>
