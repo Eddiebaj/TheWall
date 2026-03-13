@@ -96,3 +96,6 @@ export const SK_CROWDING_CACHE = 'routeo_crowding_cache';
 
 // Frequent rider card
 export const SK_FREQUENT_CARD_DISMISSED = 'routeo_frequent_card_dismissed';
+
+// Crash diagnostics
+export const SK_CRASH_LOG = 'routeo_crash_log';

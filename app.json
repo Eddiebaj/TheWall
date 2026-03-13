@@ -57,11 +57,23 @@
           "icon": "./assets/images/icon.png",
           "color": "#00A78D"
         }
-      ]
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "RouteO needs your location to show nearby stops and transit options."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "RouteO needs access to your photos to attach images.",
+          "cameraPermission": "RouteO needs access to your camera to take photos."
+        }
+      ],
     ],
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+      "typedRoutes": true
     },
     "extra": {
       "router": {},
