@@ -176,4 +176,113 @@ export const HAPPY_HOUR_VENUES: HappyHourVenue[] = [
     { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm-close HH' },
     { days: [0], start: '11:00', end: '23:59', description: 'All-day specials Sundays' },
   ]},
+  { name: 'The Waverly', address: '339 Elgin St', type: ['bar', 'club'], lat: 45.4150, lng: -75.6880, deals: [
+    { days: [5,6], start: '22:00', end: '23:30', description: 'Fri/Sat 10-11:30pm: $5 bar rail' },
+  ]},
+  { name: 'House of TARG', address: '1077 Bank St', type: ['restaurant', 'bar', 'club'], lat: 45.3943, lng: -75.6832, deals: [
+    { days: [2], start: '17:00', end: '23:00', description: 'Tue: $12.50 unlimited arcade 5-11pm' },
+    { days: [0], start: '20:00', end: '23:59', description: 'Sun: Free-Play After Dark $12.50 8pm-12am' },
+    { days: [3,4,5,6], start: '20:00', end: '23:59', description: 'Thu-Sat: live music from 8pm, $10-20 cover' },
+  ]},
+  { name: 'Level One Game Pub', address: '14 Waller St', type: ['restaurant', 'bar'], lat: 45.4262, lng: -75.6885, deals: [
+    { days: [1], start: '18:30', end: '20:00', description: 'Mon: Geek Trivia 6:30-8pm, free w/ purchase' },
+    { days: [2], start: '17:30', end: '20:00', description: 'Tue: T.K.O. fight night 5:30-8pm, $6' },
+    { days: [4], start: '18:00', end: '23:00', description: 'Thu: Reddit board game meetup 6pm' },
+    { days: [0], start: '17:00', end: '23:00', description: 'Sun: Magic: The Gathering 5pm, $6 w/ purchase' },
+  ]},
+  { name: 'Happy Fish', address: '330 Elgin St', type: ['bar', 'club'], lat: 45.4153, lng: -75.6882, deals: [
+    { days: [4], start: '21:00', end: '23:59', description: 'Thu: $5 Jagerbombs + $5 draught 9pm-2am' },
+    { days: [5,6], start: '21:00', end: '23:59', description: 'Fri/Sat: open 9pm-2am' },
+  ]},
+  { name: 'Gridworks', address: '221 Rideau St', type: ['club'], lat: 45.4280, lng: -75.6890, deals: [
+    { days: [4], start: '22:00', end: '23:59', description: 'Thu: Concepthursday night' },
+    { days: [5], start: '22:00', end: '23:59', description: 'Fri: weekly events (Signal, Intersection)' },
+    { days: [6], start: '22:00', end: '23:59', description: 'Sat: Off Grid night' },
+  ]},
+  { name: 'City At Night', address: '222 Slater St', type: ['club'], lat: 45.4186, lng: -75.7002, deals: [
+    { days: [5], start: '22:00', end: '23:59', description: 'Fri: weekly electronic events' },
+    { days: [6], start: '22:00', end: '23:59', description: 'Sat: White Rabbit tech house' },
+  ]},
+  { name: 'Hintonburg Public House', address: '1020 Wellington St W', type: ['restaurant', 'bar'], lat: 45.3970, lng: -75.7270, deals: [
+    { days: [0,1,2,3,4,5,6], start: '16:00', end: '18:00', description: 'Daily 4-6pm: Old Style Pils + bar mix $10' },
+    { days: [1], start: '11:30', end: '23:59', description: 'Mon: 20% off main course w/ beverage' },
+    { days: [2], start: '16:00', end: '23:59', description: 'Tue: nacho night $18' },
+    { days: [3], start: '16:00', end: '23:59', description: 'Wed: burger + beer + bar mix $30' },
+    { days: [4], start: '11:30', end: '23:59', description: 'Thu: 50% off kids mains' },
+    { days: [5], start: '11:30', end: '18:00', description: 'Fri: fish & chips + $8 draft 11:30am-6pm' },
+    { days: [0], start: '11:00', end: '23:59', description: 'Sun: $8 craft drafts + $5 Jameson (service industry)' },
+  ]},
+  { name: 'Prohibition Public House', address: '337 Somerset St W', type: ['restaurant', 'bar'], lat: 45.4159, lng: -75.6948, deals: [
+    { days: [1,2,3,4,5], start: '17:00', end: '18:00', description: 'Mon-Fri 5-6pm: $12 margs, $10 sangria, $6 wine/pilsner, 40% off apps' },
+  ]},
+  { name: 'Apothecary Lounge', address: '54 York St', type: ['restaurant', 'bar'], lat: 45.4280, lng: -75.6940, deals: [
+    { days: [0,1,2,3,4], start: '22:00', end: '23:59', description: 'Sun-Thu 10pm-midnight: half price martinis, wine, First Light draft' },
+  ]},
+  { name: 'ALORA Ottawa', address: '34 Clarence St', type: ['restaurant', 'bar'], lat: 45.4290, lng: -75.6937, deals: [
+    { days: [0,1,2,3,4,5,6], start: '17:00', end: '19:00', description: 'Daily 5-7pm happy hour' },
+    { days: [3], start: '11:00', end: '23:59', description: 'Wed: half-price wine bottles' },
+  ]},
+  { name: '10Fourteen', address: '1014 Wellington St W', type: ['restaurant', 'bar'], lat: 45.3971, lng: -75.7265, deals: [
+    { days: [0,1,2,3,4,5,6], start: '17:00', end: '19:00', description: 'Daily 5-7pm: $8 wine, $6 draft, 20% off charcuterie' },
+    { days: [5], start: '21:00', end: '23:59', description: 'Fri: DJ night from 9pm' },
+  ]},
+  { name: 'The Gilmour', address: '313 Bank St', type: ['restaurant', 'bar'], lat: 45.4165, lng: -75.6966, deals: [
+    { days: [0,1,2,3,4,5,6], start: '15:00', end: '18:00', description: 'Daily 3-6pm: happy hour beer, wine, fries' },
+  ]},
+  { name: "Grey's Social Eatery", address: '2 Byward Market Square', type: ['restaurant', 'bar'], lat: 45.4274, lng: -75.6930, deals: [
+    { days: [0,1,2,3,4,5,6], start: '16:00', end: '18:00', description: 'Daily 4-6pm: $6 highballs/draught/wine + app specials' },
+    { days: [0,1,2,3,4,5,6], start: '22:00', end: '23:59', description: 'Daily 10pm-late: $6 highballs/draught/wine' },
+    { days: [3], start: '11:00', end: '23:59', description: 'Wed: half-price wine bottles all day' },
+    { days: [6], start: '16:00', end: '23:59', description: 'Sat: Double Down - $8 doubles + $35 Corona buckets' },
+  ]},
+  { name: 'The Clarendon Tavern', address: '11 George St', type: ['restaurant', 'bar'], lat: 45.4284, lng: -75.6942, deals: [
+    { days: [0,1,2,3,4,5,6], start: '15:00', end: '17:30', description: 'Daily 3-5:30pm: $12 artisan pizzas, $7 draft/wine, $9-10 cocktails, $15 wings' },
+  ]},
+  { name: 'Pubwells on Preston', address: '96 Preston St', type: ['restaurant', 'bar'], lat: 45.4023, lng: -75.7098, deals: [
+    { days: [3], start: '11:00', end: '23:59', description: 'Wed: half-price wings' },
+    { days: [4,6], start: '19:00', end: '23:59', description: 'Thu & Sat: live music' },
+  ]},
+  { name: 'Pubwells on Sussex', address: '431 Sussex Dr', type: ['restaurant', 'bar'], lat: 45.4320, lng: -75.6938, deals: [
+    { days: [3], start: '11:00', end: '23:59', description: 'Wed: half-price wings' },
+    { days: [5,6], start: '19:00', end: '23:59', description: 'Fri & Sat: live music' },
+  ]},
+  { name: "Chuck's Roadhouse Barrhaven", address: '3777 Strandherd Dr', type: ['restaurant', 'bar'], lat: 45.2741, lng: -75.7495, deals: [
+    { days: [0,1,2,3,4,5,6], start: '11:00', end: '17:00', description: 'Daily 11am-5pm: $4 18oz domestic' },
+    { days: [2], start: '11:00', end: '23:59', description: 'Tue: $8 30oz domestic all day' },
+    { days: [3], start: '11:00', end: '23:59', description: 'Wed Rib Day: $10 half rack, $15 full rack' },
+    { days: [4], start: '11:00', end: '23:59', description: 'Thu: $12 54oz domestic all day' },
+    { days: [5], start: '11:00', end: '23:59', description: 'Fri Wine Day: $6 glasses of wine' },
+  ]},
+  { name: "Chuck's Roadhouse Kanata", address: '425 Hazeldean Rd', type: ['restaurant', 'bar'], lat: 45.3145, lng: -75.9142, deals: [
+    { days: [0,1,2,3,4,5,6], start: '11:00', end: '17:00', description: 'Daily 11am-5pm: $4 18oz domestic' },
+    { days: [2], start: '11:00', end: '23:59', description: 'Tue: $8 30oz domestic all day' },
+    { days: [3], start: '11:00', end: '23:59', description: 'Wed Rib Day: $10 half rack, $15 full rack' },
+    { days: [4], start: '11:00', end: '23:59', description: 'Thu: $12 54oz domestic all day' },
+    { days: [5], start: '11:00', end: '23:59', description: 'Fri Wine Day: $6 glasses of wine' },
+  ]},
+  { name: 'The Bridge Public House', address: '1 Donald St', type: ['restaurant', 'bar'], lat: 45.4305, lng: -75.6765, deals: [
+    { days: [3], start: '18:30', end: '20:30', description: 'Wed: trivia night 6:30-8:30pm' },
+    { days: [5], start: '17:00', end: '20:00', description: 'Select Fri: live music 5-8pm' },
+    { days: [6], start: '09:00', end: '14:00', description: 'Sat: brunch 9am-2pm' },
+    { days: [0], start: '09:00', end: '14:00', description: 'Sun: brunch 9am-2pm' },
+  ]},
+  { name: 'State and Main Barrhaven', address: '4235 Strandherd Dr', type: ['restaurant', 'bar'], lat: 45.2635, lng: -75.7415, deals: [
+    { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Daily 2-5pm: $6 wine/soda, $7-9 draft, $10-11 cocktails, food from $7' },
+    { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: 'Daily 9pm-close: same HH menu' },
+  ]},
+  { name: 'State and Main Gloucester', address: '1880 Ogilvie Rd', type: ['restaurant', 'bar'], lat: 45.4340, lng: -75.5780, deals: [
+    { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Daily 2-5pm: $6 wine/soda, $7-9 draft, $10-11 cocktails, food from $7' },
+    { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: 'Daily 9pm-close: same HH menu' },
+  ]},
+  { name: 'The Jolly Taxpayer', address: '3050 Woodroffe Ave', type: ['restaurant', 'bar'], lat: 45.2740, lng: -75.7652, deals: [
+    { days: [0,1,2,3,4,5,6], start: '11:00', end: '23:59', description: 'All day every day: $4 bar rail, $5 20oz Lot 9, $5 house wine' },
+    { days: [1], start: '11:00', end: '23:59', description: 'Mon: 69c wings w/ drink purchase' },
+  ]},
+  { name: 'The Bad Alibi', address: '5935 Jeanne D\'Arc Blvd S', type: ['restaurant', 'bar'], lat: 45.4550, lng: -75.5160, deals: [
+    { days: [0,1,2,3], start: '21:00', end: '23:59', description: 'Sun-Wed 9pm-close: 9 apps for $10 each w/ beverage' },
+  ]},
+  { name: 'Corner Bar and Grill', address: '1779 Tenth Line Rd', type: ['restaurant', 'bar'], lat: 45.4740, lng: -75.5110, deals: [
+    { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Daily 2-5pm: $5 rail, $6 Pub Lite, $7 Amsterdam, $2 off wine, food from $10' },
+    { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm-close: same HH + $9 wings' },
+  ]},
 ];
