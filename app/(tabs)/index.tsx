@@ -63,6 +63,9 @@ import NewsSection from '../../components/NewsSection';
 import NeighbourhoodSection from '../../components/NeighbourhoodSection';
 import NeighbourhoodSheet from '../../components/NeighbourhoodSheet';
 import TonightCard from '../../components/TonightCard';
+import SportsModal, { OTTAWA_TEAMS } from '../../components/SportsModal';
+import WeatherModal from '../../components/WeatherModal';
+import ServicesGrid, { SERVICES_TABS, ServiceTile } from '../../components/ServicesGrid';
 
 const TRIP_UPDATES = 'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt-tp/beta/v1/TripUpdates?format=json';
 const BACKEND_URL = 'https://routeo-backend.vercel.app/api/arrivals';
@@ -230,69 +233,6 @@ const ALL_OTTAWA_LIFE = [
 const DEFAULT_OTTAWA_LIFE_IDS = ['restaurant', 'cafe', 'shopping', 'events'];
 // 'map' removed from default section order
 const DEFAULT_SECTION_ORDER = ['otrain', 'saved', 'news', 'services', 'gas', 'alerts', 'discover'];
-
-type ServiceTile = { id: string; label_en: string; label_fr: string; icon: string; accent: string; action: 'navigate' | 'link' | 'alert'; target?: string };
-type ServicesTab = { id: string; label_en: string; label_fr: string; icon: string; tiles: ServiceTile[] };
-
-const SERVICES_TABS: ServicesTab[] = [
-  {
-    id: 'transit', label_en: 'Transit', label_fr: 'Transit', icon: 'bus',
-    tiles: [
-      { id: 'live_map',    label_en: 'Live Map',     label_fr: 'Carte live',    icon: 'map',              accent: '#00A78D', action: 'navigate', target: '/(tabs)/map' },
-      { id: 'trip_plan',   label_en: 'Trip Planner', label_fr: 'Planificateur', icon: 'navigate',         accent: '#004890', action: 'navigate', target: '/(tabs)/planner' },
-      { id: 'bikeshare',   label_en: 'Bike Share',   label_fr: 'Vélos',         icon: 'bicycle',          accent: '#00A78D', action: 'alert',    target: 'bikeshare' },
-      { id: 'parkride',    label_en: 'Park & Ride',  label_fr: 'Parc-o-Bus',    icon: 'car',              accent: '#6b7f99', action: 'link',     target: 'https://www.octranspo.com/en/plan-your-trip/service-information/park-and-ride/' },
-      { id: 'paybyphone',  label_en: 'PayByPhone',   label_fr: 'PayByPhone',    icon: 'phone-portrait',   accent: '#004890', action: 'link',     target: 'https://www.paybyphone.com/parking/ottawa' },
-      { id: 'uber',        label_en: 'Uber',         label_fr: 'Uber',          icon: 'car-sport',        accent: '#6b7f99', action: 'link',     target: 'uber://' },
-      { id: 'lyft',        label_en: 'Lyft',         label_fr: 'Lyft',          icon: 'car-sport',        accent: '#FF00BF', action: 'link',     target: 'lyft://' },
-      { id: 'presto',     label_en: 'Presto Card',  label_fr: 'Carte Presto',  icon: 'card',             accent: '#00A78D', action: 'link',     target: 'https://www.prestocard.ca/en' },
-      { id: 'construction',label_en: 'Construction', label_fr: 'Construction',  icon: 'construct',        accent: '#e8a020', action: 'link',     target: 'https://traffic.ottawa.ca' },
-      { id: 'para',        label_en: 'Para Transpo', label_fr: 'Para Transpo', icon: 'accessibility',    accent: '#7b5ea7', action: 'alert',    target: 'para_transpo' },
-    ],
-  },
-  {
-    id: 'food', label_en: 'Food', label_fr: 'Bouffe', icon: 'restaurant',
-    tiles: [
-      { id: 'eats_nearby', label_en: 'Nearby Eats',  label_fr: 'Restos près',   icon: 'restaurant',       accent: '#cc3b2a', action: 'navigate', target: '/(tabs)/nearby?category=restaurant' },
-      { id: 'coffee',      label_en: 'Coffee',       label_fr: 'Café',          icon: 'cafe',             accent: '#c0852a', action: 'navigate', target: '/(tabs)/nearby?category=cafe' },
-      { id: 'skip',        label_en: 'Skip',         label_fr: 'Skip',          icon: 'bicycle',          accent: '#ff6a00', action: 'link',     target: 'skipthedishes://' },
-      { id: 'ubereats',    label_en: 'Uber Eats',    label_fr: 'Uber Eats',     icon: 'fast-food',        accent: '#06C167', action: 'link',     target: 'ubereats://' },
-      { id: 'doordash',    label_en: 'DoorDash',     label_fr: 'DoorDash',      icon: 'bag-handle',       accent: '#FF3008', action: 'link',     target: 'doordash://' },
-      { id: 'grocery',     label_en: 'Grocery',      label_fr: 'Épicerie',      icon: 'cart',             accent: '#004890', action: 'navigate', target: '/(tabs)/nearby?category=supermarket' },
-      { id: 'lcbo',        label_en: 'LCBO Hours',   label_fr: 'LCBO',          icon: 'wine',             accent: '#7b5ea7', action: 'link',     target: 'https://www.lcbo.com/en/stores' },
-      { id: 'byward',      label_en: 'ByWard Mkt',   label_fr: 'Marché ByWard', icon: 'storefront',       accent: '#c0852a', action: 'link',     target: 'https://byward-market.com' },
-    ],
-  },
-  {
-    id: 'city', label_en: 'City', label_fr: 'Ville', icon: 'business',
-    tiles: [
-      { id: '311',         label_en: '311 Report',   label_fr: 'Signaler 311',  icon: 'megaphone',        accent: '#cc3b2a', action: 'alert',    target: '311' },
-      { id: 'garbage',     label_en: 'Garbage Day',  label_fr: 'Collecte',      icon: 'trash',            accent: '#6b7f99', action: 'alert',    target: 'garbage' },
-      { id: 'hydro',       label_en: 'Hydro Ottawa', label_fr: 'Hydro Ottawa',  icon: 'flash',            accent: '#e8a020', action: 'link',     target: 'https://hydroottawa.com/en/outages' },
-      { id: 'parking',     label_en: 'Parking',      label_fr: 'Stationnement', icon: 'car',              accent: '#004890', action: 'alert',    target: 'parking' },
-      { id: 'parking_tkt', label_en: 'Pay Ticket',   label_fr: 'Payer contrav.', icon: 'card',            accent: '#cc3b2a', action: 'link',     target: 'https://www.ottawapolice.ca/en/parking-and-traffic/pay-a-parking-ticket.aspx' },
-      { id: 'road_511',    label_en: 'Road Events',  label_fr: 'Événements',    icon: 'warning',          accent: '#e8a020', action: 'alert',    target: 'road_closures' },
-      { id: 'parks',       label_en: 'Parks & Rinks',label_fr: 'Parcs & Patins',icon: 'snow',             accent: '#004890', action: 'alert',    target: 'parks' },
-      { id: 'library',     label_en: 'OPL Library',  label_fr: 'Bib. Ottawa',   icon: 'book',             accent: '#004890', action: 'link',     target: 'https://biblioottawalibrary.ca' },
-      { id: 'walkin',      label_en: 'Walk-In Clinic',label_fr: 'Clinique',     icon: 'medical',          accent: '#00A78D', action: 'link',     target: 'https://www.ontario.ca/page/find-walk-in-clinic' },
-      { id: 'campus',      label_en: 'My Campus',    label_fr: 'Mon Campus',    icon: 'school',           accent: '#004890', action: 'alert',    target: 'campus' },
-    ],
-  },
-  {
-    id: 'entertainment', label_en: 'Fun', label_fr: 'Divertis.', icon: 'sparkles',
-    tiles: [
-      { id: 'sports',      label_en: 'Ottawa Sports', label_fr: 'Sports Ottawa', icon: 'trophy-outline',   accent: '#c8102e', action: 'alert',    target: 'sports' },
-      { id: 'social',      label_en: 'Social',       label_fr: 'Social',        icon: 'beer',             accent: '#7b5ea7', action: 'alert',    target: 'social' },
-      { id: 'tm_events',   label_en: 'Live Events',  label_fr: 'Événements',    icon: 'ticket',           accent: '#026CDF', action: 'navigate', target: '/(tabs)/events?source=ticketmaster' },
-      { id: 'eb_events',   label_en: 'Community',    label_fr: 'Communauté',    icon: 'people',           accent: '#F05537', action: 'navigate', target: '/(tabs)/events?source=eventbrite' },
-      { id: 'reddit',      label_en: 'r/ottawa',     label_fr: 'r/ottawa',      icon: 'chatbubbles',      accent: '#FF4500', action: 'link',     target: 'https://www.reddit.com/r/ottawa/' },
-      { id: 'nac',         label_en: 'NAC',          label_fr: 'CNA',           icon: 'musical-notes',    accent: '#c0852a', action: 'link',     target: 'https://nac-cna.ca' },
-      { id: 'bluesfest',   label_en: 'Bluesfest',    label_fr: 'Bluesfest',     icon: 'mic',              accent: '#004890', action: 'link',     target: 'https://ottawabluesfest.ca' },
-      { id: 'cineplex',    label_en: 'Cineplex',     label_fr: 'Cineplex',      icon: 'film',             accent: '#cc3b2a', action: 'link',     target: 'https://www.cineplex.com' },
-      { id: 'casino',      label_en: 'Casino',       label_fr: 'Casino',        icon: 'diamond',          accent: '#e8a020', action: 'link',     target: 'https://www.casicolacite.com/en/' },
-    ],
-  },
-];
 
 // DISCOVER_CARDS removed — replaced by NEIGHBOURHOODS from lib/neighbourhoodData.ts
 
@@ -1356,6 +1296,7 @@ function LiveScreenInner() {
   const [arrivals, setArrivals] = useState<Arrival[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [cachedAt, setCachedAt] = useState<number | null>(null);
   const [weatherFetchFailed, setWeatherFetchFailed] = useState(false);
   const [arrivalsFetchFailed, setArrivalsFetchFailed] = useState(false);
   const [stopReports, setStopReports] = useState<Record<string, { count: number; reports: any[] }>>({});
@@ -1443,7 +1384,7 @@ function LiveScreenInner() {
   const [eventsGeoCache, setEventsGeoCache] = useState<{ [addr: string]: { lat: number; lng: number } }>({});
   const [garbageModalVisible, setGarbageModalVisible] = useState(false);
   const [sportsModal, setSportsModal] = useState(false);
-  const [sportsTab, setSportsTab] = useState<'teams' | 'scores' | 'schedule'>('teams');
+  const [sportsInitialTab, setSportsInitialTab] = useState<'teams' | 'scores' | 'schedule'>('teams');
   const [socialModal, setSocialModal] = useState(false);
   const [socialTab, setSocialTab] = useState<'all' | 'bars' | 'restaurants' | 'clubs'>('all');
   const [socialFeedbackVenue, setSocialFeedbackVenue] = useState<string | null>(null);
@@ -1456,10 +1397,7 @@ function LiveScreenInner() {
   const [socialDealSending, setSocialDealSending] = useState(false);
   const [socialDealSent, setSocialDealSent] = useState(false);
   const [savedTeams, setSavedTeams] = useState<string[]>([]);
-  const [sportsScores, setSportsScores] = useState<any[]>([]);
-  const [sportsScoresLoading, setSportsScoresLoading] = useState(false);
   const [sportsSchedule, setSportsSchedule] = useState<any[]>([]);
-  const [sportsScheduleLoading, setSportsScheduleLoading] = useState(false);
   const [sensGame, setSensGame] = useState<{ state: 'live' | 'pre' | 'none'; period?: string; homeAbbr?: string; awayAbbr?: string; homeScore?: number; awayScore?: number; startTime?: string; opponentAbbr?: string } | null>(null);
   const [campusModal, setCampusModal] = useState(false);
   const [campusTab, setCampusTab] = useState<'shuttle' | 'library' | 'upass' | 'food' | 'study'>('shuttle');
@@ -2116,7 +2054,10 @@ function LiveScreenInner() {
         const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${id}`);
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
-        setArrivals((data.arrivals || []).map((a: any) => ({ id: `${a.stopId || id}-${a.scheduledTime || Math.random()}`, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway, delay: 0, secsAway: a.minsAway * 60, isScheduled: false })));
+        const stoParsed = (data.arrivals || []).map((a: any) => ({ id: `${a.stopId || id}-${a.scheduledTime || Math.random()}`, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway, delay: 0, secsAway: a.minsAway * 60, isScheduled: false }));
+        setArrivals(stoParsed);
+        AsyncStorage.setItem(`routeo_arrivals_${id}`, JSON.stringify({ arrivals: stoParsed, timestamp: Date.now() }));
+        setCachedAt(null);
         const now = new Date();
         setLastUpdated(fmtTime(now));
         setLoading(false);
@@ -2129,7 +2070,10 @@ function LiveScreenInner() {
         const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${lrtId}`);
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
-        setArrivals((data.arrivals || []).map((a: any) => ({ id: `${a.stopId}-${a.scheduledTime}`, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway, delay: 0, secsAway: a.minsAway * 60, isScheduled: true })));
+        const lrtParsed = (data.arrivals || []).map((a: any) => ({ id: `${a.stopId}-${a.scheduledTime}`, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway, delay: 0, secsAway: a.minsAway * 60, isScheduled: true }));
+        setArrivals(lrtParsed);
+        AsyncStorage.setItem(`routeo_arrivals_${id}`, JSON.stringify({ arrivals: lrtParsed, timestamp: Date.now() }));
+        setCachedAt(null);
         const now = new Date();
         setLastUpdated(fmtTime(now));
         setLoading(false);
@@ -2138,11 +2082,29 @@ function LiveScreenInner() {
       const resp = await fetchWithTimeout(TRIP_UPDATES, { headers: { 'Ocp-Apim-Subscription-Key': OC_TRANSPO_API_KEY } });
       if (!resp.ok) throw new Error(`API error ${resp.status}`);
       const data = await resp.json();
-      setArrivals(parseGTFS(data, internalId));
+      const gtfsParsed = parseGTFS(data, internalId);
+      setArrivals(gtfsParsed);
+      AsyncStorage.setItem(`routeo_arrivals_${id}`, JSON.stringify({ arrivals: gtfsParsed, timestamp: Date.now() }));
+      setCachedAt(null);
       const now = new Date();
       setLastUpdated(fmtTime(now));
       setArrivalsFetchFailed(false);
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Unknown error'); setArrivalsFetchFailed(true); }
+    } catch (e: unknown) {
+      try {
+        const cached = await AsyncStorage.getItem(`routeo_arrivals_${id}`);
+        if (cached) {
+          const { arrivals: cachedArrivals, timestamp } = JSON.parse(cached);
+          if (Date.now() - timestamp < 30 * 60 * 1000) {
+            setArrivals(cachedArrivals);
+            setCachedAt(timestamp);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch {}
+      setError(e instanceof Error ? e.message : 'Unknown error');
+      setArrivalsFetchFailed(true);
+    }
     finally { setLoading(false); }
   }, []);
 
@@ -2478,7 +2440,7 @@ function LiveScreenInner() {
   };
 
   const handleServiceTile = (tile: ServiceTile) => {
-    if (tile.action === 'alert' && tile.target === 'sports') { setSportsModal(true); return; }
+    if (tile.action === 'alert' && tile.target === 'sports') { setSportsInitialTab('teams'); setSportsModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'social') { setSocialModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'garbage') { setGarbageModalVisible(true); return; }
     if (tile.action === 'alert' && tile.target === '311') { open311Modal(); return; }
@@ -2516,23 +2478,7 @@ function LiveScreenInner() {
     addToBoardIfMissing({ type: 'garbage' });
   };
 
-  // ── Sports Modal ────────────────────────────────────────────
-  const OTTAWA_TEAMS: { name: string; png: any; url: string; nhl?: string; espn?: { sport: string; league: string; abbr: string } }[] = [
-    { name: 'Senators',   png: require('../../assets/images/2025-01-ottawa-senators-logo.webp'), url: 'https://www.ticketmaster.ca/ottawa-senators-tickets/artist/806004', nhl: 'ott' },
-    { name: 'REDBLACKS',  png: require('../../assets/images/ottawa-redblacks-logo-2023-featured.png'), url: 'https://www.ticketmaster.ca/ottawa-redblacks-tickets/artist/1537798', espn: { sport: 'football', league: 'cfl', abbr: 'ORB' } },
-    { name: "67's",       png: require('../../assets/images/Ottawa_67\'s_logo.svg.png'), url: 'https://ontariohockeyleague.com/team/30/ottawa-67s' },
-    { name: 'Charge',     png: require('../../assets/images/ottawa_charge_logosvg.webp'), url: 'https://thepwhl.com/en/stats/team/10' },
-    { name: 'Blackjacks', png: require('../../assets/images/Ottawa_Blackjacks_logo.png'), url: 'https://cebl.ca/team/ottawa-blackjacks' },
-    { name: 'Atlético',   png: require('../../assets/images/Atletico_Ottawa_logo.png'), url: 'https://atletico.ca/schedule' },
-    { name: 'Rapid FC',   png: require('../../assets/images/Ottawa_Rapid_FC.png'), url: 'https://ottawarapidfc.com/schedule' },
-  ];
-
-  const SPORTS_MODAL_TABS = [
-    { id: 'teams' as const, label_en: 'Teams', label_fr: 'Équipes', icon: 'people' },
-    { id: 'scores' as const, label_en: 'Scores', label_fr: 'Scores', icon: 'football' },
-    { id: 'schedule' as const, label_en: 'Schedule', label_fr: 'Calendrier', icon: 'calendar' },
-  ];
-
+  // ── Sports (toggleSavedTeam kept for board integration) ─────
   const toggleSavedTeam = (name: string) => {
     const team = OTTAWA_TEAMS.find(t => t.name === name);
     const boardItem: SavedBoardItem = { type: 'saved_team', id: name, name };
@@ -2548,330 +2494,6 @@ function LiveScreenInner() {
       addToBoardIfMissing(boardItem);
     }
   };
-
-  const fetchSportsScores = async () => {
-    setSportsScoresLoading(true);
-    const results: any[] = [];
-    const teamsToFetch = OTTAWA_TEAMS.filter(t => t.nhl || t.espn);
-    for (const team of teamsToFetch) {
-      try {
-        if (team.nhl) {
-          // NHL Schedule API
-          const resp = await fetchWithTimeout('https://api-web.nhle.com/v1/schedule/now');
-          if (!resp.ok) throw new Error('HTTP ' + resp.status);
-          const data = await resp.json();
-          const today = new Date().toLocaleDateString('en-CA');
-          const todayEntry = (data.gameWeek || []).find((d: any) => d.date === today);
-          const game = (todayEntry?.games || []).find((g: any) => g.awayTeam?.abbrev === team.nhl!.toUpperCase() || g.homeTeam?.abbrev === team.nhl!.toUpperCase());
-          if (game) {
-            const gs = game.gameState;
-            const state = (gs === 'LIVE' || gs === 'CRIT') ? 'in' : gs === 'FINAL' ? 'post' : 'pre';
-            const startTime = new Date(game.startTimeUTC).toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' });
-            results.push({
-              team: team.name,
-              homeName: game.homeTeam?.placeName?.default || game.homeTeam?.abbrev || '?',
-              homeAbbr: game.homeTeam?.abbrev || '?',
-              homeScore: state === 'pre' ? '-' : String(game.homeTeam?.score ?? '0'),
-              awayName: game.awayTeam?.placeName?.default || game.awayTeam?.abbrev || '?',
-              awayAbbr: game.awayTeam?.abbrev || '?',
-              awayScore: state === 'pre' ? '-' : String(game.awayTeam?.score ?? '0'),
-              status: state === 'in' ? `P${game.period || '?'} · ${game.clock || ''}` : state === 'post' ? (game.periodDescriptor?.periodType === 'OT' ? 'Final/OT' : game.periodDescriptor?.periodType === 'SO' ? 'Final/SO' : 'Final') : startTime,
-              state,
-            });
-          } else {
-            results.push({ team: team.name, noGame: true });
-          }
-        } else if (team.espn) {
-          // ESPN API
-          const resp = await fetchWithTimeout(`https://site.api.espn.com/apis/site/v2/sports/${team.espn.sport}/${team.espn.league}/scoreboard`);
-          if (!resp.ok) throw new Error('HTTP ' + resp.status);
-          const data = await resp.json();
-          const game = (data.events || []).find((ev: any) =>
-            (ev.competitions?.[0]?.competitors || []).some((c: any) => c.team?.abbreviation === team.espn!.abbr)
-          );
-          if (game) {
-            const comp = game.competitions[0];
-            const home = comp.competitors.find((c: any) => c.homeAway === 'home');
-            const away = comp.competitors.find((c: any) => c.homeAway === 'away');
-            const state = comp.status?.type?.state;
-            results.push({
-              team: team.name,
-              homeName: home?.team?.displayName || '?',
-              homeAbbr: home?.team?.abbreviation || '?',
-              homeScore: home?.score || '0',
-              awayName: away?.team?.displayName || '?',
-              awayAbbr: away?.team?.abbreviation || '?',
-              awayScore: away?.score || '0',
-              status: comp.status?.type?.shortDetail || comp.status?.type?.description || '',
-              state,
-            });
-          } else {
-            results.push({ team: team.name, noGame: true });
-          }
-        }
-      } catch {
-        results.push({ team: team.name, noGame: true });
-      }
-    }
-    setSportsScores(results);
-    setSportsScoresLoading(false);
-  };
-
-  const fetchSportsSchedule = async () => {
-    setSportsScheduleLoading(true);
-    const results: any[] = [];
-    const teamsToFetch = OTTAWA_TEAMS.filter(t => t.nhl || t.espn);
-    for (const team of teamsToFetch) {
-      try {
-        if (team.nhl) {
-          // NHL API
-          const resp = await fetchWithTimeout(`https://api-web.nhle.com/v1/club-schedule-season/${team.nhl}/now`);
-          if (!resp.ok) throw new Error('HTTP ' + resp.status);
-          const data = await resp.json();
-          const now = new Date();
-          const upcoming = (data.games || [])
-            .filter((g: any) => new Date(g.startTimeUTC) > now && (g.gameState === 'FUT' || g.gameState === 'PRE'))
-            .slice(0, 5)
-            .map((g: any) => {
-              const isHome = g.homeTeam?.abbrev?.toLowerCase() === team.nhl;
-              const opp = isHome ? g.awayTeam : g.homeTeam;
-              return {
-                date: g.startTimeUTC,
-                opponent: opp?.name?.default || opp?.commonName?.default || '?',
-                opponentAbbr: opp?.abbrev || '?',
-                homeAway: isHome ? 'vs' : '@',
-                status: '',
-              };
-            });
-          results.push({ team: team.name, games: upcoming });
-        } else if (team.espn) {
-          // ESPN API
-          const resp = await fetchWithTimeout(`https://site.api.espn.com/apis/site/v2/sports/${team.espn.sport}/${team.espn.league}/teams/${team.espn.abbr}/schedule`);
-          if (!resp.ok) throw new Error('HTTP ' + resp.status);
-          const data = await resp.json();
-          const now = new Date();
-          const upcoming = (data.events || [])
-            .filter((ev: any) => new Date(ev.date) > now)
-            .slice(0, 5)
-            .map((ev: any) => {
-              const comp = ev.competitions?.[0];
-              const us = (comp?.competitors || []).find((c: any) => c.team?.abbreviation === team.espn!.abbr);
-              const them = (comp?.competitors || []).find((c: any) => c.team?.abbreviation !== team.espn!.abbr);
-              return {
-                date: ev.date,
-                opponent: them?.team?.displayName || '?',
-                opponentAbbr: them?.team?.abbreviation || '?',
-                homeAway: us?.homeAway === 'home' ? 'vs' : '@',
-                status: comp?.status?.type?.description || '',
-              };
-            });
-          results.push({ team: team.name, games: upcoming });
-        }
-      } catch {
-        results.push({ team: team.name, games: [] });
-      }
-    }
-    // Hardcoded schedules for teams without API
-    const now = new Date();
-    const CHARGE_SCHEDULE = [
-      { date: '2026-03-14T19:00:00Z', opponent: 'Vancouver', opponentAbbr: 'VAN', homeAway: 'vs' },
-      { date: '2026-03-18T23:00:00Z', opponent: 'Minnesota', opponentAbbr: 'MIN', homeAway: 'vs' },
-      { date: '2026-03-22T23:00:00Z', opponent: 'Montréal', opponentAbbr: 'MTL', homeAway: '@' },
-      { date: '2026-03-29T23:00:00Z', opponent: 'Seattle', opponentAbbr: 'SEA', homeAway: 'vs' },
-      { date: '2026-04-02T01:30:00Z', opponent: 'Toronto', opponentAbbr: 'TOR', homeAway: '@' },
-      { date: '2026-04-03T23:00:00Z', opponent: 'Montréal', opponentAbbr: 'MTL', homeAway: '@' },
-      { date: '2026-04-08T23:00:00Z', opponent: 'Seattle', opponentAbbr: 'SEA', homeAway: '@' },
-      { date: '2026-04-11T18:00:00Z', opponent: 'Toronto', opponentAbbr: 'TOR', homeAway: 'vs' },
-      { date: '2026-04-18T18:00:00Z', opponent: 'New York', opponentAbbr: 'NY', homeAway: '@' },
-      { date: '2026-04-22T23:00:00Z', opponent: 'Boston', opponentAbbr: 'BOS', homeAway: 'vs' },
-      { date: '2026-04-25T20:00:00Z', opponent: 'Toronto', opponentAbbr: 'TOR', homeAway: '@' },
-    ].filter(g => new Date(g.date) > now).slice(0, 5).map(g => ({ ...g, status: '' }));
-    if (CHARGE_SCHEDULE.length > 0) results.push({ team: 'Charge', games: CHARGE_SCHEDULE });
-
-    const ATLETICO_SCHEDULE = [
-      { date: '2026-04-04T20:00:00Z', opponent: 'Forge FC', opponentAbbr: 'FOR', homeAway: '@' },
-      { date: '2026-04-12T20:00:00Z', opponent: 'Cavalry FC', opponentAbbr: 'CAV', homeAway: '@' },
-      { date: '2026-04-19T18:00:00Z', opponent: 'Surge', opponentAbbr: 'SUR', homeAway: '@' },
-      { date: '2026-04-26T17:00:00Z', opponent: 'Valour FC', opponentAbbr: 'VAL', homeAway: 'vs' },
-      { date: '2026-05-01T23:30:00Z', opponent: 'York United', opponentAbbr: 'YRK', homeAway: '@' },
-      { date: '2026-05-17T17:00:00Z', opponent: 'HFX Wanderers', opponentAbbr: 'HFX', homeAway: 'vs' },
-      { date: '2026-05-24T18:00:00Z', opponent: 'Forge FC', opponentAbbr: 'FOR', homeAway: 'vs' },
-      { date: '2026-05-30T22:00:00Z', opponent: 'Pacific FC', opponentAbbr: 'PAC', homeAway: '@' },
-      { date: '2026-06-06T02:00:00Z', opponent: 'Valour FC', opponentAbbr: 'VAL', homeAway: '@' },
-      { date: '2026-06-09T23:00:00Z', opponent: 'Surge', opponentAbbr: 'SUR', homeAway: 'vs' },
-    ].filter(g => new Date(g.date) > now).slice(0, 5).map(g => ({ ...g, status: '' }));
-    if (ATLETICO_SCHEDULE.length > 0) results.push({ team: 'Atlético', games: ATLETICO_SCHEDULE });
-
-    setSportsSchedule(results);
-    setSportsScheduleLoading(false);
-  };
-
-  const renderSportsModal = () => (
-    <Modal visible={sportsModal} animationType="fade" transparent onRequestClose={() => { setSportsModal(false); setSportsTab('teams'); }}>
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}>
-        <View style={{ width: '90%', maxWidth: 400, backgroundColor: colours.surface, borderRadius: 20, overflow: 'hidden', maxHeight: '85%' }}>
-          {/* Header */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: colours.border }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Ionicons name="trophy" size={20} color="#c8102e" />
-              <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text }}>{t('Ottawa Sports', 'Sports Ottawa')}</Text>
-            </View>
-            <TouchableOpacity onPress={() => { setSportsModal(false); setSportsTab('teams'); }} style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons name="close" size={16} color={colours.text} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Tabs */}
-          <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, gap: 8 }}>
-            {SPORTS_MODAL_TABS.map(tab => {
-              const active = sportsTab === tab.id;
-              return (
-                <TouchableOpacity key={tab.id} onPress={() => {
-                  setSportsTab(tab.id);
-                  if (tab.id === 'scores') fetchSportsScores();
-                  if (tab.id === 'schedule') fetchSportsSchedule();
-                }} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, flex: 1, height: 34, borderRadius: 17, borderWidth: 1, backgroundColor: active ? colours.accent : colours.surface, borderColor: active ? colours.accent : colours.border }}>
-                  <Ionicons name={tab.icon as any} size={13} color={active ? 'white' : colours.muted} />
-                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: active ? 'white' : colours.muted }}>{language === 'fr' ? tab.label_fr : tab.label_en}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {/* Tab content */}
-          <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 6 }}>
-            {/* ── Teams tab ── */}
-            {sportsTab === 'teams' && (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'flex-start' }}>
-                {OTTAWA_TEAMS.map(team => {
-                  const isSaved = savedTeams.includes(team.name);
-                  return (
-                    <View key={team.name} style={{ width: '30%', alignItems: 'center', backgroundColor: colours.bg, borderRadius: 14, borderWidth: 1, borderColor: colours.border, paddingVertical: 14, paddingHorizontal: 4, position: 'relative' }}>
-                      <Pressable onPress={() => toggleSavedTeam(team.name)} hitSlop={8} style={{ position: 'absolute', top: 6, right: 6, zIndex: 2 }}>
-                        <Ionicons name={isSaved ? 'bookmark' : 'bookmark-outline'} size={16} color={isSaved ? colours.accent : colours.muted} />
-                      </Pressable>
-                      <Pressable onPress={() => { if (team.nhl || team.espn) { setSportsTab('scores'); fetchSportsScores(); } else { Linking.openURL(team.url).catch(() => {}); } }} style={{ alignItems: 'center' }}>
-                        <View style={{ width: 80, height: 80, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-                          <Image source={team.png} style={{ width: 80, height: 80 }} resizeMode="contain" />
-                        </View>
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: colours.text, textAlign: 'center' }} numberOfLines={1}>{team.name}</Text>
-                      </Pressable>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
-
-            {/* ── Scores tab ── */}
-            {sportsTab === 'scores' && (() => {
-              const withGames = sportsScores.filter(s => !s.noGame);
-              return (
-                <View style={{ gap: 12 }}>
-                  {sportsScoresLoading ? (
-                    <View style={{ padding: 32, alignItems: 'center' }}><ActivityIndicator color={colours.accent} /></View>
-                  ) : withGames.length === 0 ? (
-                    <View style={{ padding: 32, alignItems: 'center' }}>
-                      <Ionicons name="football-outline" size={32} color={colours.muted} />
-                      <Text style={{ fontSize: fonts.md, color: colours.muted, marginTop: 10, textAlign: 'center' }}>
-                        {t('No games today', 'Aucun match aujourd\'hui')}
-                      </Text>
-                    </View>
-                  ) : withGames.map((s, i) => (
-                    <View key={i} style={{ backgroundColor: colours.bg, borderRadius: 14, borderWidth: 1, borderColor: colours.border, overflow: 'hidden', padding: 14 }}>
-                      {/* Header: team name + badge */}
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <Ionicons name="trophy" size={12} color={colours.accent} />
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent, textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.team}</Text>
-                        </View>
-                        {s.state === 'pre' && (
-                          <View style={{ backgroundColor: colours.accent + '18', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
-                            <Text style={{ fontSize: 10, fontWeight: '700', color: colours.accent }}>Tonight</Text>
-                          </View>
-                        )}
-                        {s.state === 'in' && (
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#cc3b2a18', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
-                            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#cc3b2a' }} />
-                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#cc3b2a' }}>LIVE</Text>
-                          </View>
-                        )}
-                        {s.state === 'post' && (
-                          <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>Final</Text>
-                        )}
-                      </View>
-                      {/* Scoreboard: AWAY vs HOME */}
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 0 }}>
-                        <View style={{ flex: 1, alignItems: 'center' }}>
-                          <Text style={{ fontSize: 18, fontWeight: '900', color: colours.text }}>{s.awayAbbr}</Text>
-                          {s.state !== 'pre' && (
-                            <Text style={{ fontSize: 24, fontWeight: '900', color: s.state === 'in' ? '#cc3b2a' : colours.text, marginTop: 2 }}>{s.awayScore}</Text>
-                          )}
-                        </View>
-                        <Text style={{ fontSize: 13, fontWeight: '600', color: colours.muted, marginHorizontal: 8 }}>vs</Text>
-                        <View style={{ flex: 1, alignItems: 'center' }}>
-                          <Text style={{ fontSize: 18, fontWeight: '900', color: colours.text }}>{s.homeAbbr}</Text>
-                          {s.state !== 'pre' && (
-                            <Text style={{ fontSize: 24, fontWeight: '900', color: s.state === 'in' ? '#cc3b2a' : colours.text, marginTop: 2 }}>{s.homeScore}</Text>
-                          )}
-                        </View>
-                      </View>
-                      {/* Status line */}
-                      <View style={{ alignItems: 'center', marginTop: 8 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                          <Ionicons name={s.state === 'pre' ? 'time-outline' : s.state === 'in' ? 'radio' : 'checkmark-circle-outline'} size={12} color={s.state === 'in' ? '#cc3b2a' : colours.muted} />
-                          <Text style={{ fontSize: 12, fontWeight: '600', color: s.state === 'in' ? '#cc3b2a' : colours.muted }}>{s.status}</Text>
-                        </View>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              );
-            })()}
-
-            {/* ── Schedule tab ── */}
-            {sportsTab === 'schedule' && (() => {
-              const withGames = sportsSchedule.filter(s => s.games.length > 0);
-              return (
-                <View style={{ gap: 12 }}>
-                  {sportsScheduleLoading ? (
-                    <View style={{ padding: 32, alignItems: 'center' }}><ActivityIndicator color={colours.accent} /></View>
-                  ) : withGames.length === 0 ? (
-                    <View style={{ padding: 32, alignItems: 'center' }}>
-                      <Ionicons name="calendar-outline" size={32} color={colours.muted} />
-                      <Text style={{ fontSize: fonts.md, color: colours.muted, marginTop: 10, textAlign: 'center' }}>
-                        {t('No upcoming games', 'Aucun match à venir')}
-                      </Text>
-                    </View>
-                  ) : withGames.map((s, i) => (
-                    <View key={i} style={{ backgroundColor: colours.bg, borderRadius: 14, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 6 }}>
-                        <Ionicons name="trophy" size={12} color={colours.accent} />
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent, textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.team}</Text>
-                      </View>
-                      {s.games.map((g: any, j: number) => {
-                        const d = new Date(g.date);
-                        return (
-                          <View key={j} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: j > 0 ? 1 : 0, borderTopColor: colours.border, gap: 10 }}>
-                            <View style={{ width: 44 }}>
-                              <Text style={{ fontSize: 11, fontWeight: '800', color: colours.accent }}>{d.toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })}</Text>
-                              <Text style={{ fontSize: 10, color: colours.muted }}>{d.toLocaleDateString('en-CA', { weekday: 'short' })}</Text>
-                            </View>
-                            <Text style={{ fontSize: 13, fontWeight: '700', color: g.homeAway === 'vs' ? colours.accent : colours.muted, width: 20, textAlign: 'center' }}>{g.homeAway}</Text>
-                            <Text style={{ flex: 1, fontSize: fonts.md, fontWeight: '600', color: colours.text }} numberOfLines={1}>{g.opponent}</Text>
-                            <Text style={{ fontSize: 11, color: colours.muted }}>{d.toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' })}</Text>
-                          </View>
-                        );
-                      })}
-                    </View>
-                  ))}
-                </View>
-              );
-            })()}
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
 
   // ── Social / Happy Hour Modal ────────────────────────────────
   // HAPPY_HOUR_VENUES imported from lib/happyHourData.ts
@@ -4181,43 +3803,6 @@ function LiveScreenInner() {
     );
   };
 
-  const renderWeatherModal = () => (
-    <Modal visible={weatherModalVisible} animationType="slide" transparent onRequestClose={() => setWeatherModalVisible(false)}>
-      <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
-        <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40 }}>
-          <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 8 }} />
-          <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-            <Ionicons name={(weather?.icon ?? 'cloudy') as any} size={56} color={iconColor(weather?.icon ?? 'cloudy')} />
-            <Text style={{ fontSize: 64, fontWeight: '200', color: colours.text, marginTop: 8 }}>{weather?.temp}°</Text>
-            <Text style={{ fontSize: fonts.md, color: colours.muted, marginTop: 2 }}>{locationName}</Text>
-            {weather && (() => {
-              const cond = (weather.condition || '').toLowerCase();
-              const msgs: string[] = [];
-              if (weather.temp <= -5) msgs.push(t('Dress warm today', 'Habillez-vous chaudement'));
-              if (cond.includes('rain') || cond.includes('shower') || cond.includes('drizzle') || cond.includes('snow') || cond.includes('flurr') || cond.includes('precip')) msgs.push(t('Precipitation likely, check shelter times', 'Pr\u00E9cipitations probables, v\u00E9rifiez les horaires d\u2019abris'));
-              else if (weather.temp >= 20) msgs.push(t('Great day to walk or bike', 'Belle journ\u00E9e pour marcher ou p\u00E9daler'));
-              if (cond.includes('wind')) msgs.push(t('Windy today, buses may run late', 'Venteux aujourd\u2019hui, les bus peuvent \u00EAtre en retard'));
-              // Snow forecast tomorrow
-              const tomorrow = dailyForecast[1];
-              if (tomorrow && tomorrow.icon === 'snow' && tomorrow.precip >= 50) msgs.push(t('Snow expected tomorrow, allow extra travel time', 'Neige pr\u00E9vue demain, pr\u00E9voyez plus de temps'));
-              if (msgs.length === 0) return null;
-              return <Text style={{ fontSize: 13, fontWeight: '600', color: colours.accent, marginTop: 6, textAlign: 'center' }}>{msgs[0]}</Text>;
-            })()}
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12, paddingBottom: 4 }} style={{ marginBottom: 20 }}>
-            {forecast.map((h, i) => { const hour = new Date(h.time).getHours(); const label = hour === 0 ? '12am' : hour < 12 ? `${hour}am` : hour === 12 ? '12pm' : `${hour - 12}pm`; return (<View key={i} style={{ alignItems: 'center', gap: 4, backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 12, paddingVertical: 10, minWidth: 56 }}><Text style={{ fontSize: fonts.sm - 2, color: colours.muted, fontWeight: '600' }}>{label}</Text><Ionicons name={h.icon as any} size={20} color={iconColor(h.icon)} /><Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.text }}>{h.temp}°</Text>{h.precip > 0 && <Text style={{ fontSize: fonts.sm - 2, color: '#1a6fbf', fontWeight: '600' }}>{h.precip}%</Text>}</View>); })}
-          </ScrollView>
-          <View style={{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 16, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
-            {dailyForecast.map((d, i) => (<View key={i} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: i < dailyForecast.length - 1 ? 1 : 0, borderBottomColor: colours.border }}><Text style={{ flex: 1, fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{d.day}</Text><Ionicons name={d.icon as any} size={20} color={iconColor(d.icon)} style={{ marginRight: 8 }} />{d.precip > 0 && <Text style={{ fontSize: fonts.sm, color: '#1a6fbf', fontWeight: '600', minWidth: 36, textAlign: 'right', marginRight: 8 }}>{d.precip}%</Text>}<Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, minWidth: 32, textAlign: 'right' }}>{d.high}°</Text><Text style={{ fontSize: fonts.md, color: colours.muted, minWidth: 32, textAlign: 'right' }}>{d.low}°</Text></View>))}
-          </View>
-          <TouchableOpacity onPress={() => setWeatherModalVisible(false)} style={{ marginHorizontal: 20, marginTop: 16, paddingVertical: 14, borderRadius: 14, backgroundColor: colours.accent, alignItems: 'center' }} accessibilityRole="button" accessibilityLabel={t('Close weather', 'Fermer la meteo')}>
-            <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>Done</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
-
   const renderAlertsModal = () => (
     <Modal visible={alertsModalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setAlertsModalVisible(false)}>
       <View style={[styles.modalContainer, { backgroundColor: colours.bg }]}>
@@ -4292,7 +3877,7 @@ function LiveScreenInner() {
             </View>
           </View>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }}>
-            {loading ? (<View style={{ marginTop: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>) : error ? (<View style={styles.modalCenter}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.md, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text></View>) : arrivals.length === 0 ? (<View style={styles.modalCenter}><Ionicons name="time-outline" size={48} color={colours.muted} /><Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 12 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<View style={{ marginTop: 8 }}>{arrivals.map(renderArrival)}</View>)}
+            {loading ? (<View style={{ marginTop: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>) : error ? (<View style={styles.modalCenter}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.md, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text></View>) : arrivals.length === 0 ? (<View style={styles.modalCenter}><Ionicons name="time-outline" size={48} color={colours.muted} /><Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 12 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<View style={{ marginTop: 8 }}>{cachedAt && (<View style={{ backgroundColor: '#ff9500' + '15', borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8 }}><Text style={{ fontSize: fonts.sm, color: '#ff9500', fontWeight: '600' }}>{t(`Offline — last updated ${Math.round((Date.now() - cachedAt) / 60000)} min ago`, `Hors ligne — dernière mise à jour il y a ${Math.round((Date.now() - cachedAt) / 60000)} min`)}</Text></View>)}{arrivals.map(renderArrival)}</View>)}
             {/* Report an issue button */}
             <TouchableOpacity
               onPress={() => { setReportCategory(null); setReportDescription(''); setShowReportModal(true); }}
@@ -4444,32 +4029,12 @@ function LiveScreenInner() {
         </SectionWrapper>
       );
 
-      case 'services': {
-        const currentTab = SERVICES_TABS.find(t => t.id === activeServicesTab) || SERVICES_TABS[0];
-        return (
+      case 'services': return (
           <SectionWrapper key="services" id="services">
             <Text style={[styles.sectionLabel, { color: colours.muted, fontSize: fonts.sm }]}>{t('Ottawa Services', 'Services Ottawa')}</Text>
-            <View style={{ flexDirection: 'row', paddingHorizontal: 20, gap: 8, marginBottom: 12 }}>
-              {SERVICES_TABS.map(tab => {
-                const active = activeServicesTab === tab.id;
-                return (<TouchableOpacity key={tab.id} onPress={() => setActiveServicesTab(tab.id)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, flex: 1, height: 34, borderRadius: 17, borderWidth: 1, backgroundColor: active ? colours.accent : colours.surface, borderColor: active ? colours.accent : colours.border }} accessibilityRole="tab" accessibilityLabel={language === 'fr' ? tab.label_fr : tab.label_en} accessibilityState={{ selected: active }}><Ionicons name={tab.icon as any} size={13} color={active ? 'white' : colours.muted} /><Text style={{ fontSize: fonts.sm, fontWeight: '700', color: active ? 'white' : colours.muted }}>{language === 'fr' ? tab.label_fr : tab.label_en}</Text></TouchableOpacity>);
-              })}
-            </View>
-            <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
-              {[0, 1].map(row => (
-                <View key={row} style={{ flexDirection: 'row', gap: 10, marginBottom: row === 0 ? 10 : 0 }}>
-                  {currentTab.tiles.slice(row * 4, row * 4 + 4).map(tile => (
-                      <TouchableOpacity key={tile.id} onPress={() => handleServiceTile(tile)} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, borderTopWidth: 3, borderTopColor: tile.accent, paddingVertical: 14, paddingHorizontal: 4, ...cardShadow }} activeOpacity={0.75} accessibilityRole="button" accessibilityLabel={language === 'fr' ? tile.label_fr : tile.label_en}>
-                        <Ionicons name={tile.icon as any} size={22} color={tile.accent} />
-                        <Text style={{ fontSize: 10, fontWeight: '600', color: colours.text, textAlign: 'center', lineHeight: 13 }} numberOfLines={2}>{language === 'fr' ? tile.label_fr : tile.label_en}</Text>
-                      </TouchableOpacity>
-                  ))}
-                </View>
-              ))}
-            </View>
+            <ServicesGrid colours={colours} fonts={fonts} t={t} language={language} activeTab={activeServicesTab} onTabChange={setActiveServicesTab} onTileTap={handleServiceTile} cardShadow={cardShadow} />
           </SectionWrapper>
         );
-      }
 
       case 'gas': return (
         <SectionWrapper key="gas" id="gas">
@@ -4541,7 +4106,7 @@ function LiveScreenInner() {
       <View style={[styles.container, { backgroundColor: colours.bg }]}>
         <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
         {renderAlertsModal()}
-        {renderWeatherModal()}
+        <WeatherModal visible={weatherModalVisible} onClose={() => setWeatherModalVisible(false)} colours={colours} fonts={fonts} t={t} weather={weather} forecast={forecast} dailyForecast={dailyForecast} locationName={locationName} />
         {renderGarbageModal()}
         {renderSwapSheet()}
         {renderExpandedArrivals()}
@@ -4611,7 +4176,7 @@ function LiveScreenInner() {
         </Modal>
 
         {renderBoardExpandModal()}
-        {renderSportsModal()}
+        <SportsModal visible={sportsModal} onClose={() => setSportsModal(false)} colours={colours} fonts={fonts} t={t} language={language} savedTeams={savedTeams} onToggleTeam={toggleSavedTeam} initialTab={sportsInitialTab} onScheduleLoaded={setSportsSchedule} />
         {renderSocialModal()}
         {renderEventsModal()}
         {renderRoadEventsModal()}
@@ -4813,7 +4378,7 @@ function LiveScreenInner() {
                   </TouchableOpacity>
                 </View>
               </View>
-              {loading ? (<View style={{ paddingVertical: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>) : error ? (<View style={styles.centerState}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text><TouchableOpacity style={[styles.retryBtn, { backgroundColor: colours.accent }]} onPress={() => fetchArrivals(stopId)}><Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.sm }}>{t('Retry', 'Réessayer')}</Text></TouchableOpacity></View>) : arrivals.length === 0 ? (<View style={styles.centerState}><Ionicons name="time-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 8 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<>{arrivals.slice(0, 4).map(renderArrival)}{arrivals.length > 4 && (<TouchableOpacity onPress={() => setShowAllArrivals(v => !v)} style={{ paddingVertical: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: colours.border }}><Text style={{ color: colours.accent, fontWeight: '700', fontSize: fonts.sm }}>{showAllArrivals ? t('Show less ▲', 'Voir moins ▲') : t(`Show ${arrivals.length - 4} more ▼`, `Voir ${arrivals.length - 4} de plus ▼`)}</Text></TouchableOpacity>)}</>)}
+              {loading ? (<View style={{ paddingVertical: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>) : error ? (<View style={styles.centerState}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text><TouchableOpacity style={[styles.retryBtn, { backgroundColor: colours.accent }]} onPress={() => fetchArrivals(stopId)}><Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.sm }}>{t('Retry', 'Réessayer')}</Text></TouchableOpacity></View>) : arrivals.length === 0 ? (<View style={styles.centerState}><Ionicons name="time-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 8 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<>{cachedAt && (<View style={{ backgroundColor: '#ff9500' + '15', borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 8, marginHorizontal: 0 }}><Text style={{ fontSize: fonts.sm, color: '#ff9500', fontWeight: '600' }}>{t(`Offline — last updated ${Math.round((Date.now() - cachedAt) / 60000)} min ago`, `Hors ligne — dernière mise à jour il y a ${Math.round((Date.now() - cachedAt) / 60000)} min`)}</Text></View>)}{arrivals.slice(0, 4).map(renderArrival)}{arrivals.length > 4 && (<TouchableOpacity onPress={() => setShowAllArrivals(v => !v)} style={{ paddingVertical: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: colours.border }}><Text style={{ color: colours.accent, fontWeight: '700', fontSize: fonts.sm }}>{showAllArrivals ? t('Show less ▲', 'Voir moins ▲') : t(`Show ${arrivals.length - 4} more ▼`, `Voir ${arrivals.length - 4} de plus ▼`)}</Text></TouchableOpacity>)}</>)}
             </View>
             {nearbyAlternative && (
               <TouchableOpacity
@@ -4904,9 +4469,8 @@ function LiveScreenInner() {
                       }
                       if (item.type === 'gas_prices') { setBoardExpandItem(item); }
                       if (item.type === 'saved_team') {
+                        setSportsInitialTab('scores');
                         setSportsModal(true);
-                        setSportsTab('scores');
-                        fetchSportsScores();
                       }
                       if (item.type === 'campus') { if (!selectedCampus) setCampusPicker(true); else setCampusModal(true); return; }
                       if (item.type === 'news') { /* scroll handled by section visibility */ }
@@ -4932,7 +4496,7 @@ function LiveScreenInner() {
             events={events as any}
             weather={weather}
             sportsSchedule={sportsSchedule}
-            onPressSports={() => setSportsModal(true)}
+            onPressSports={() => { setSportsInitialTab('teams'); setSportsModal(true); }}
             onPressEvents={() => { setEventsSource('ticketmaster'); fetchTicketmasterEvents(); setEventsModal(true); }}
             onPressDeals={() => setSocialModal(true)}
           />
