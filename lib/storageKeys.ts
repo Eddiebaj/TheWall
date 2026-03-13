@@ -89,3 +89,7 @@ export const SK_PARKING_CACHE = 'routeo_parking_cache';
 
 // Weather banner
 export const SK_WEATHER_BANNER_DISMISSED = 'routeo_weather_banner_dismissed';
+
+// Crowding reports
+export const SK_LAST_CROWDING_REPORT = 'routeo_last_crowding_report';
+export const SK_CROWDING_CACHE = 'routeo_crowding_cache';

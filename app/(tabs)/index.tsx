@@ -58,7 +58,7 @@ import { CAMPUSES, CampusConfig, getNextDeparture, isLibraryOpen, fmt12h, getDay
 import { HAPPY_HOUR_VENUES } from '../../lib/happyHourData';
 import { Neighbourhood, NEIGHBOURHOODS } from '../../lib/neighbourhoodData';
 import { NewsArticle } from '../../lib/newsData';
-import { SK_NEWS_CACHE, SK_SAVED_NEIGHBOURHOODS, SK_TONIGHT_DISMISSED, SK_TRIP_HISTORY } from '../../lib/storageKeys';
+import { SK_NEWS_CACHE, SK_SAVED_NEIGHBOURHOODS, SK_TONIGHT_DISMISSED, SK_TRIP_HISTORY, SK_LAST_CROWDING_REPORT, SK_CROWDING_CACHE } from '../../lib/storageKeys';
 import NewsSection from '../../components/NewsSection';
 import NeighbourhoodSection from '../../components/NeighbourhoodSection';
 import NeighbourhoodSheet from '../../components/NeighbourhoodSheet';
@@ -1304,6 +1304,11 @@ function LiveScreenInner() {
   const [reportSheetStopId, setReportSheetStopId] = useState('');
   const [nearbyAlternative, setNearbyAlternative] = useState<{ stopId: string; stopName: string; routeId: string; minsAway: number; walkMeters: number } | null>(null);
   const [stopAmenities, setStopAmenities] = useState<{ has_shelter?: boolean; has_bench?: boolean; has_bin?: boolean } | null>(null);
+  const [crowdingData, setCrowdingData] = useState<Record<string, { avg: number; count: number; confidence: string }>>({});
+  const [showCrowdingSheet, setShowCrowdingSheet] = useState(false);
+  const [crowdingReportItem, setCrowdingReportItem] = useState<Arrival | null>(null);
+  const [crowdingSubmitting, setCrowdingSubmitting] = useState(false);
+  const [crowdingToast, setCrowdingToast] = useState(false);
   const [timeFormat, setTimeFormat] = useState<'relative' | 'absolute'>('relative');
   const [scheduleRoute, setScheduleRoute] = useState<{ routeId: string; headsign: string } | null>(null);
   const [scheduleTrips, setScheduleTrips] = useState<{ time: string; tripId: string }[]>([]);
@@ -2160,6 +2165,69 @@ function LiveScreenInner() {
     } catch { /* no amenity data for this stop */ }
   };
 
+  // ── Bus crowding predictions ─────────────────────────────────────
+  const fetchCrowdingForArrivals = async (arrs: Arrival[], sid: string) => {
+    if (arrs.length === 0) return;
+    const uniqueRoutes = [...new Set(arrs.map(a => a.routeId))];
+    const results: Record<string, { avg: number; count: number; confidence: string }> = {};
+    await Promise.allSettled(uniqueRoutes.map(async routeId => {
+      const cacheKey = `${SK_CROWDING_CACHE}_${routeId}_${sid}`;
+      try {
+        const cached = await AsyncStorage.getItem(cacheKey);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Date.now() - parsed.ts < 600000) { // 10min cache
+            if (parsed.avg != null) results[routeId] = parsed;
+            return;
+          }
+        }
+      } catch { /* no cache */ }
+      try {
+        const resp = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/crowding?route_id=${routeId}&stop_id=${sid}`);
+        if (resp.ok) {
+          const d = await resp.json();
+          if (d.avg_crowding != null && d.report_count >= 3) {
+            results[routeId] = { avg: d.avg_crowding, count: d.report_count, confidence: d.confidence };
+            AsyncStorage.setItem(`${SK_CROWDING_CACHE}_${routeId}_${sid}`, JSON.stringify({ ...results[routeId], ts: Date.now() }));
+          }
+        }
+      } catch { /* network error */ }
+    }));
+    setCrowdingData(results);
+  };
+
+  const submitCrowdingReport = async (level: number) => {
+    if (!crowdingReportItem) return;
+    setCrowdingSubmitting(true);
+    try {
+      // Spam prevention: check 30min cooldown per vehicle
+      const lastRaw = await AsyncStorage.getItem(SK_LAST_CROWDING_REPORT);
+      if (lastRaw) {
+        const last = JSON.parse(lastRaw);
+        if (last.vehicleId === crowdingReportItem.id && Date.now() - last.ts < 1800000) {
+          setCrowdingSubmitting(false);
+          setShowCrowdingSheet(false);
+          return;
+        }
+      }
+      await fetchWithTimeout('https://routeo-backend.vercel.app/api/crowding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          route_id: crowdingReportItem.routeId,
+          stop_id: stopId,
+          vehicle_id: crowdingReportItem.id,
+          crowding_level: level,
+        }),
+      });
+      await AsyncStorage.setItem(SK_LAST_CROWDING_REPORT, JSON.stringify({ vehicleId: crowdingReportItem.id, ts: Date.now() }));
+      setShowCrowdingSheet(false);
+      setCrowdingToast(true);
+      setTimeout(() => setCrowdingToast(false), 2500);
+    } catch (e) { if (__DEV__) console.warn('crowding report failed:', e); }
+    setCrowdingSubmitting(false);
+  };
+
   useEffect(() => {
     const interval = setInterval(() => { if (AppState.currentState === 'active') fetchArrivals(stopId); }, 30000);
     return () => clearInterval(interval);
@@ -2171,6 +2239,7 @@ function LiveScreenInner() {
     } else {
       setNearbyAlternative(null);
     }
+    if (arrivals.length > 0) fetchCrowdingForArrivals(arrivals, stopId);
   }, [arrivals]);
 
   // ── Route reliability tracking (silent data collection) ────────
@@ -3602,6 +3671,18 @@ function LiveScreenInner() {
           <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }} numberOfLines={1}>{item.headsign ? `→ ${item.headsign}` : `→ ${t('Checking route...', 'Vérification...')}`}</Text>
           {item.isScheduled && <Text style={{ fontSize: 10, color: colours.muted, marginTop: 3, fontStyle: 'italic' }}>{t('Scheduled time', 'Heure prévue')}</Text>}
           {reportCount > 0 && <Text style={{ fontSize: fonts.sm, color: colours.orange, marginTop: 3 }}>{reportCount} {t(reportCount > 1 ? 'riders say passed' : 'rider says passed', reportCount > 1 ? 'usagers disent passé' : 'usager dit passé')}</Text>}
+          {crowdingData[item.routeId] && (() => {
+            const c = crowdingData[item.routeId];
+            const label = c.avg <= 0.8 ? t('Usually empty', 'Habituellement vide') : c.avg <= 1.7 ? t('Some seats', 'Quelques places') : c.avg <= 2.4 ? t('Gets crowded', 'Souvent bondé') : t('Usually packed', 'Habituellement plein');
+            const color = c.avg <= 0.8 ? '#34C759' : c.avg <= 1.7 ? '#FFD60A' : c.avg <= 2.4 ? '#FF9500' : '#FF3B30';
+            return (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
+                <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: color }} />
+                <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{label}</Text>
+                {c.confidence === 'low' && <Text style={{ fontSize: 9, color: colours.muted, fontStyle: 'italic' }}>{t('(few reports)', '(peu de données)')}</Text>}
+              </View>
+            );
+          })()}
         </View>
         <View style={styles.arrivalRight}>
           <Text style={{ fontSize: fonts.xl, fontWeight: '700', color: item.minsAway <= 2 ? colours.red : colours.accent }}>{timeDisplay}</Text>
@@ -3609,6 +3690,11 @@ function LiveScreenInner() {
             {!item.isScheduled && (
               <TouchableOpacity style={[styles.reportBtn, { borderColor: colours.border, backgroundColor: colours.card }]} onPress={() => reportBusPassed(item.routeId)} accessibilityRole="button" accessibilityLabel={t('Report bus passed', 'Signaler le bus passe')}>
                 <Text style={{ fontSize: fonts.sm, color: colours.orange, fontWeight: '600' }}>{t('Passed?', 'Passé?')}</Text>
+              </TouchableOpacity>
+            )}
+            {!item.isScheduled && (
+              <TouchableOpacity onPress={() => { setCrowdingReportItem(item); setShowCrowdingSheet(true); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Report crowding', 'Signaler l\'achalandage')}>
+                <Ionicons name="people-outline" size={16} color={colours.muted} />
               </TouchableOpacity>
             )}
             <TouchableOpacity onPress={() => shareETA(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Share arrival time', 'Partager l\'heure d\'arrivee')}>
@@ -4296,6 +4382,52 @@ function LiveScreenInner() {
             </View>
           </View>
         </Modal>
+
+        {/* Crowding Report Sheet */}
+        <Modal visible={showCrowdingSheet} animationType="slide" transparent onRequestClose={() => setShowCrowdingSheet(false)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
+            <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 40 }}>
+              <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 4 }} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+                <View>
+                  <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>{t('How full is the bus?', 'Le bus est plein?')}</Text>
+                  {crowdingReportItem && <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Route', 'Route')} {crowdingReportItem.routeId} → {crowdingReportItem.headsign}</Text>}
+                </View>
+                <TouchableOpacity onPress={() => setShowCrowdingSheet(false)}>
+                  <Ionicons name="close-circle" size={24} color={colours.muted} />
+                </TouchableOpacity>
+              </View>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', padding: 20, gap: 12 }}>
+                {([
+                  { level: 0, icon: 'bus-outline', label: t('Empty', 'Vide'), color: '#34C759' },
+                  { level: 1, icon: 'person-outline', label: t('Some seats', 'Quelques places'), color: '#FFD60A' },
+                  { level: 2, icon: 'people-outline', label: t('Standing room', 'Debout seulement'), color: '#FF9500' },
+                  { level: 3, icon: 'warning-outline', label: t('Packed', 'Bondé'), color: '#FF3B30' },
+                ] as const).map(opt => (
+                  <TouchableOpacity
+                    key={opt.level}
+                    disabled={crowdingSubmitting}
+                    onPress={() => submitCrowdingReport(opt.level)}
+                    style={{ width: '47%', backgroundColor: opt.color + '15', borderWidth: 1.5, borderColor: opt.color + '40', borderRadius: 16, paddingVertical: 20, alignItems: 'center', gap: 8 }}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name={opt.icon as any} size={28} color={opt.color} />
+                    <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>{opt.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={{ textAlign: 'center', fontSize: fonts.sm, color: colours.muted, paddingHorizontal: 20 }}>{t('Your report helps other riders plan their trip', 'Votre signalement aide les autres usagers')}</Text>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Crowding toast */}
+        {crowdingToast && (
+          <View style={{ position: 'absolute', top: 60, left: 20, right: 20, backgroundColor: '#34C759', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, zIndex: 9999, alignItems: 'center', flexDirection: 'row', gap: 8 }}>
+            <Ionicons name="checkmark-circle" size={20} color="white" />
+            <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>{t('Thanks! Helping Ottawa riders', 'Merci! Vous aidez les usagers')}</Text>
+          </View>
+        )}
 
         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true} onScrollBeginDrag={() => { Keyboard.dismiss(); setSearchResults([]); }}>
 
