@@ -1,5 +1,6 @@
 import * as Location from 'expo-location';
-import * as Notifications from 'expo-notifications';
+let Notifications: typeof import('expo-notifications') | null = null;
+try { Notifications = require('expo-notifications'); } catch {}
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
@@ -109,7 +110,7 @@ export default function AccountScreen() {
         catch (e) { if (__DEV__) console.warn('Failed to parse notif settings:', e); }
       }
     }).catch(e => { if (__DEV__) console.warn('AsyncStorage notif read error:', e); });
-    Notifications.getPermissionsAsync().then(({ status }) => setNotifPermission(status as any)).catch(e => { if (__DEV__) console.warn('Notification permission check failed:', e); });
+    if (Notifications) Notifications.getPermissionsAsync().then(({ status }) => setNotifPermission(status as any)).catch(e => { if (__DEV__) console.warn('Notification permission check failed:', e); });
   }, []);
 
   const saveNotifSettings = async (updated: NotifSettings) => {
@@ -127,6 +128,7 @@ export default function AccountScreen() {
 
   const handleNotifToggle = async (key: keyof NotifSettings, value: boolean) => {
     if (value && notifPermission !== 'granted') {
+      if (!Notifications) { Alert.alert(t('Not available', 'Non disponible'), t('Notifications are not available in this environment.', 'Les notifications ne sont pas disponibles dans cet environnement.')); return; }
       const { status: existing } = await Notifications.getPermissionsAsync();
       if (existing === 'granted') { setNotifPermission('granted'); }
       else {

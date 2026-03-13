@@ -3,9 +3,13 @@
  * and manages device identity for server-side notifications.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+
+// Lazy-load native modules to avoid crash in Expo Go
+let Device: typeof import('expo-device') | null = null;
+try { Device = require('expo-device'); } catch {}
+let Notifications: typeof import('expo-notifications') | null = null;
+try { Notifications = require('expo-notifications'); } catch {}
 import { fetchWithTimeout } from './fetchWithTimeout';
 import { SK_DEVICE_ID, SK_PUSH_TOKEN } from './storageKeys';
 
@@ -25,6 +29,8 @@ export async function getDeviceId(): Promise<string> {
  * Returns the token string or null if permissions denied / not a device.
  */
 export async function getExpoPushToken(): Promise<string | null> {
+  if (!Device || !Notifications) return null;
+
   if (!Device.isDevice) {
     if (__DEV__) console.warn('Push notifications require a physical device');
     return null;
@@ -111,6 +117,7 @@ export async function syncSubscriptions(
 
 /** Configure default notification behavior (show alert + sound when foregrounded). */
 export function configureNotificationHandler(): void {
+  if (!Notifications) return;
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,

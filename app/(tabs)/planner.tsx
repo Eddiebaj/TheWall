@@ -2,7 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
-import * as Notifications from 'expo-notifications';
+let Notifications: typeof import('expo-notifications') | null = null;
+try { Notifications = require('expo-notifications'); } catch {}
 import { useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -905,6 +906,7 @@ function PlannerScreenInner() {
 
   // ── Transit trip notifications ────────────────────────────────
   const requestNotifPermission = async (): Promise<boolean> => {
+    if (!Notifications) return false;
     const { status: existing } = await Notifications.getPermissionsAsync();
     if (existing === 'granted') return true;
     const { status } = await Notifications.requestPermissionsAsync();
@@ -912,6 +914,7 @@ function PlannerScreenInner() {
   };
 
   const cancelTransitNotifications = async () => {
+    if (!Notifications) return;
     for (const id of transitNotifIds.current) {
       await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
     }
@@ -919,6 +922,7 @@ function PlannerScreenInner() {
   };
 
   const scheduleTransitNotifications = async (itin: Itinerary) => {
+    if (!Notifications) return;
     const permitted = await requestNotifPermission();
     if (!permitted) return;
 

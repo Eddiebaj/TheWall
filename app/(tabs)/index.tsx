@@ -4,7 +4,8 @@ import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
-import * as Notifications from 'expo-notifications';
+let Notifications: typeof import('expo-notifications') | null = null;
+try { Notifications = require('expo-notifications'); } catch {}
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useWindowDimensions } from 'react-native';
 import {
@@ -1135,17 +1136,20 @@ function SavedPlaceCard({ place, colours, fonts, language, t, onPress, onLongPre
 }
 
 // ── Notification helpers ─────────────────────────────────────────
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+if (Notifications) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 async function ensureNotifPermission(): Promise<boolean> {
+  if (!Notifications) return false;
   const { status: existing } = await Notifications.getPermissionsAsync();
   if (existing === 'granted') return true;
   const { status } = await Notifications.requestPermissionsAsync();
@@ -1162,6 +1166,7 @@ async function scheduleGarbageNotification(
 ): Promise<void> {
   if (!(await ensureNotifPermission())) return;
 
+  if (!Notifications) return;
   // Cancel any existing garbage reminder
   const existingId = await AsyncStorage.getItem(SK_GARBAGE_NOTIF_ID);
   if (existingId) {
@@ -1215,6 +1220,7 @@ async function scheduleGarbageNotification(
  * Tracks seen alert IDs in AsyncStorage under routeo_seen_alert_ids.
  */
 async function checkAndNotifyCriticalAlerts(lang: string = 'en'): Promise<void> {
+  if (!Notifications) return;
   try {
     const resp = await fetchWithTimeout(ALERTS_URL);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -2353,6 +2359,7 @@ function LiveScreenInner() {
       const stops = savedBoard.filter(i => i.type === 'bus_stop' || i.type === 'lrt_station') as { type: string; id: string; name: string }[];
       if (stops.length === 0) return;
 
+      if (!Notifications) return;
       const { status } = await Notifications.getPermissionsAsync();
       if (status !== 'granted') return;
 
