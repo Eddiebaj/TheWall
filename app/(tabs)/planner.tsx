@@ -236,6 +236,7 @@ function PlannerScreenInner() {
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [alerts, setAlerts] = useState<{ routes: string[]; title: string }[]>([]);
   const [searched, setSearched] = useState(false);
 
   const [expandedItinerary, setExpandedItinerary] = useState<Itinerary | null>(null);
@@ -279,6 +280,14 @@ function PlannerScreenInner() {
       );
       if (game) setSensGameTonight(true);
     }).catch(() => {});
+  }, []);
+
+  // ── Fetch alerts for transfer warnings ─────────────────────────
+  useEffect(() => {
+    fetchWithTimeout('https://routeo-backend.vercel.app/api/alerts')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.alerts) setAlerts(data.alerts); })
+      .catch(() => {});
   }, []);
 
   // ── Load planner prefs (hour, minute, arriveBy) ──────────────
@@ -847,6 +856,33 @@ function PlannerScreenInner() {
             <Text style={{ fontSize: 11, color: colours.muted, marginTop: 4 }}>{t('Separate Presto tap required ($4.10 each)', 'Paiement Presto distinct requis (4,10 $ chacun)')}</Text>
           </View>
         )}
+
+        {/* Transfer warnings */}
+        {(itin.legs || []).map((leg, i, arr) => {
+          if (i === 0) return null;
+          const prevLeg = arr[i - 1];
+          if (prevLeg.mode === 'WALK' || leg.mode === 'WALK') return null;
+          const connectionMin = Math.round((leg.startTime - prevLeg.endTime) / 60000);
+          if (connectionMin > 3) return null;
+          // Check if connecting route has active alert
+          const connectingRoute = leg.routeShortName;
+          const hasAlert = connectingRoute && alerts.some(a => a.routes.includes(connectingRoute));
+          return (
+            <View key={`transfer-${i}`} style={{ backgroundColor: hasAlert ? '#cc3b2a15' : '#ff950015', borderLeftWidth: 3, borderLeftColor: hasAlert ? '#cc3b2a' : '#ff9500', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, marginBottom: 8 }}>
+              {hasAlert ? (
+                <>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#cc3b2a' }}>{t('Alert on connecting route', 'Alerte sur la correspondance')}</Text>
+                  <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }}>{t(`Route ${connectingRoute} at ${prevLeg.to?.name || ''}`, `Route ${connectingRoute} \u00e0 ${prevLeg.to?.name || ''}`)}</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#ff9500' }}>{t(`Tight transfer \u2014 ${connectionMin} min`, `Correspondance serr\u00e9e \u2014 ${connectionMin} min`)}</Text>
+                  <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }}>{t(`${prevLeg.to?.name || ''} \u2192 Route ${connectingRoute || ''}`, `${prevLeg.to?.name || ''} \u2192 Route ${connectingRoute || ''}`)}</Text>
+                </>
+              )}
+            </View>
+          );
+        })}
 
         {/* Footer row */}
         <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>

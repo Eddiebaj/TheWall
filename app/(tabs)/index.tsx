@@ -247,6 +247,7 @@ const SERVICES_TABS: ServicesTab[] = [
       { id: 'lyft',        label_en: 'Lyft',         label_fr: 'Lyft',          icon: 'car-sport',        accent: '#FF00BF', action: 'link',     target: 'lyft://' },
       { id: 'presto',     label_en: 'Presto Card',  label_fr: 'Carte Presto',  icon: 'card',             accent: '#00A78D', action: 'link',     target: 'https://www.prestocard.ca/en' },
       { id: 'construction',label_en: 'Construction', label_fr: 'Construction',  icon: 'construct',        accent: '#e8a020', action: 'link',     target: 'https://traffic.ottawa.ca' },
+      { id: 'para',        label_en: 'Para Transpo', label_fr: 'Para Transpo', icon: 'accessibility',    accent: '#7b5ea7', action: 'alert',    target: 'para_transpo' },
     ],
   },
   {
@@ -1360,6 +1361,8 @@ function LiveScreenInner() {
   const [stopReports, setStopReports] = useState<Record<string, { count: number; reports: any[] }>>({});
   const [showReportSheet, setShowReportSheet] = useState(false);
   const [reportSheetStopId, setReportSheetStopId] = useState('');
+  const [nearbyAlternative, setNearbyAlternative] = useState<{ stopId: string; stopName: string; routeId: string; minsAway: number; walkMeters: number } | null>(null);
+  const [stopAmenities, setStopAmenities] = useState<{ wheelchair_boarding?: number; shelter?: boolean; bench?: boolean; lighting?: boolean } | null>(null);
   const [timeFormat, setTimeFormat] = useState<'relative' | 'absolute'>('relative');
   const [scheduleRoute, setScheduleRoute] = useState<{ routeId: string; headsign: string } | null>(null);
   const [scheduleTrips, setScheduleTrips] = useState<{ time: string; tripId: string }[]>([]);
@@ -1419,6 +1422,7 @@ function LiveScreenInner() {
   const [bikeShareLoading, setBikeShareLoading] = useState(false);
   // City parking garages
   const [parkingModal, setParkingModal] = useState(false);
+  const [paraTranspoModal, setParaTranspoModal] = useState(false);
   const [parkingGarages, setParkingGarages] = useState<{ name: string; address: string; total: number; available: number; occupancy: number; lat: number; lng: number; distance: number }[]>([]);
   const [parkingLoading, setParkingLoading] = useState(false);
   // Commute insights
@@ -1522,8 +1526,8 @@ function LiveScreenInner() {
       try {
         const savedFavs: Fav[] = val ? JSON.parse(val) : [];
         setFavs(savedFavs);
-        if (savedFavs.length > 0) { setStopId(savedFavs[0].id); setStopName(savedFavs[0].name); fetchArrivals(savedFavs[0].id); fetchStopReports(savedFavs[0].id); }
-        else { fetchArrivals('CD995'); fetchStopReports('CD995'); }
+        if (savedFavs.length > 0) { setStopId(savedFavs[0].id); setStopName(savedFavs[0].name); fetchArrivals(savedFavs[0].id); fetchStopReports(savedFavs[0].id); fetchStopAmenities(savedFavs[0].id); }
+        else { fetchArrivals('CD995'); fetchStopReports('CD995'); fetchStopAmenities('CD995'); }
       } catch { fetchArrivals('CD995'); fetchStopReports('CD995'); }
     });
     AsyncStorage.getItem(SK_SAVED_PLACES).then(val => { try { if (val) setSavedPlaces(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved places failed:', e); } });
@@ -2153,10 +2157,93 @@ function LiveScreenInner() {
     } catch (e) { if (__DEV__) console.warn('fetch stop reports failed:', e); }
   };
 
+  const fetchNearbyAlternative = async (sid: string, currentMinAway: number) => {
+    setNearbyAlternative(null);
+    if (currentMinAway <= 15) return;
+    try {
+      const { data: stopData } = await supabase.from('stops').select('lat,lon').eq('stop_id', sid).single();
+      if (!stopData?.lat) return;
+      const { data: nearbyStops } = await supabase.from('stops').select('stop_id,name,lat,lon')
+        .gte('lat', stopData.lat - 0.004).lte('lat', stopData.lat + 0.004)
+        .gte('lon', stopData.lon - 0.005).lte('lon', stopData.lon + 0.005)
+        .neq('stop_id', sid).limit(8);
+      if (!nearbyStops || nearbyStops.length === 0) return;
+      for (const ns of nearbyStops) {
+        try {
+          const resp = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/arrivals?stop=${ns.stop_id}`, { signal: AbortSignal.timeout(4000) } as any);
+          if (!resp.ok) continue;
+          const data = await resp.json();
+          const firstArrival = (data.arrivals || [])[0];
+          if (firstArrival && firstArrival.minsAway < currentMinAway - 3) {
+            const dlat = (ns.lat - stopData.lat) * 111320;
+            const dlng = (ns.lon - stopData.lon) * 111320 * Math.cos(stopData.lat * Math.PI / 180);
+            const dist = Math.round(Math.sqrt(dlat * dlat + dlng * dlng));
+            if (dist <= 500) {
+              setNearbyAlternative({ stopId: ns.stop_id, stopName: ns.name || `Stop #${ns.stop_id}`, routeId: firstArrival.routeId, minsAway: firstArrival.minsAway, walkMeters: dist });
+              return;
+            }
+          }
+        } catch { continue; }
+      }
+    } catch (e) { if (__DEV__) console.warn('nearby alternative failed:', e); }
+  };
+
+  const fetchStopAmenities = async (sid: string) => {
+    setStopAmenities(null);
+    try {
+      const { data } = await supabase.from('stops').select('wheelchair_boarding,shelter,bench,lighting').eq('stop_id', sid).single();
+      if (data) setStopAmenities(data);
+    } catch (e) { if (__DEV__) console.warn('fetch amenities failed:', e); }
+  };
+
   useEffect(() => {
     const interval = setInterval(() => { if (AppState.currentState === 'active') fetchArrivals(stopId); }, 30000);
     return () => clearInterval(interval);
   }, [stopId, fetchArrivals]);
+
+  useEffect(() => {
+    if (arrivals.length > 0 && arrivals[0].minsAway > 15) {
+      fetchNearbyAlternative(stopId, arrivals[0].minsAway);
+    } else {
+      setNearbyAlternative(null);
+    }
+  }, [arrivals]);
+
+  // ── Route reliability tracking (silent data collection) ────────
+  const recordedTripsRef = useRef<Set<string>>(new Set());
+
+  const recordReliability = async (arrs: Arrival[], sid: string) => {
+    if (arrs.length === 0) return;
+    try {
+      const toRecord = arrs.filter(a => {
+        const key = `${a.routeId}-${sid}-${a.id}`;
+        if (recordedTripsRef.current.has(key)) return false;
+        if (a.minsAway > 5) return false;
+        recordedTripsRef.current.add(key);
+        return true;
+      });
+      if (toRecord.length === 0) return;
+      const rows = toRecord.map(a => ({
+        route_id: a.routeId,
+        stop_id: sid,
+        scheduled_time: new Date(Date.now() + (a.minsAway - (a.delay || 0)) * 60000).toISOString(),
+        actual_time: new Date(Date.now() + a.minsAway * 60000).toISOString(),
+        delta_minutes: a.delay || 0,
+        recorded_at: new Date().toISOString(),
+      }));
+      await supabase.from('route_reliability').insert(rows).then(() => {}, () => {});
+    } catch { /* silent */ }
+  };
+
+  useEffect(() => {
+    if (arrivals.length > 0) {
+      recordReliability(arrivals, stopId);
+    }
+  }, [arrivals]);
+
+  useEffect(() => {
+    recordedTripsRef.current.clear();
+  }, [stopId]);
 
   // ── Arrival push notifications for saved stops ─────────────────
   const notifiedArrivalsRef = useRef<Set<string>>(new Set());
@@ -2238,7 +2325,7 @@ function LiveScreenInner() {
     return results.sort((a, b) => a.secsAway - b.secsAway).slice(0, 8);
   };
 
-  const loadStop = (id: string, name?: string) => { setStopId(id); setStopName(name || getStopName(id) || id); setLoading(true); fetchArrivals(id); fetchStopReports(id); };
+  const loadStop = (id: string, name?: string) => { setStopId(id); setStopName(name || getStopName(id) || id); setLoading(true); fetchArrivals(id); fetchStopReports(id); fetchStopAmenities(id); };
 
   const geocodeSeq = useRef(0);
 
@@ -2398,6 +2485,7 @@ function LiveScreenInner() {
     if (tile.action === 'alert' && tile.target === 'bikeshare') { fetchBikeShare(); setBikeShareModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'parking') { fetchParkingData(); setParkingModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'campus') { if (!selectedCampus) setCampusPicker(true); else setCampusModal(true); return; }
+    if (tile.action === 'alert' && tile.target === 'para_transpo') { setParaTranspoModal(true); return; }
     if (tile.action === 'alert') { setAlertsModalVisible(true); return; }
     if (tile.action === 'navigate' && tile.target?.includes('events?source=')) {
       const source = tile.target.includes('eventbrite') ? 'eventbrite' : 'ticketmaster';
@@ -4697,6 +4785,7 @@ function LiveScreenInner() {
 
           {/* Universal Saved Board */}
           {savedBoard.length === 0 ? (
+            <>
             <View style={[styles.arrivalsCard, { borderColor: colours.border, backgroundColor: colours.surface, ...cardShadow }]}>
               <View style={[styles.boardHeader, { borderBottomColor: colours.border, borderBottomWidth: 1 }]}>
                 <TouchableOpacity onPress={() => setExpandedStopId(stopId)} style={{ flex: 1 }}>
@@ -4705,6 +4794,14 @@ function LiveScreenInner() {
                     <Ionicons name="chevron-forward" size={14} color={colours.accent} />
                   </View>
                   {lastUpdated ? <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Updated', 'Mis à jour')} {lastUpdated} · {t('Tap to expand', 'Appuyez pour élargir')}</Text> : null}
+                  {stopAmenities && (stopAmenities.wheelchair_boarding === 1 || stopAmenities.shelter || stopAmenities.bench || stopAmenities.lighting) && (
+                    <View style={{ flexDirection: 'row', gap: 4, marginTop: 4 }}>
+                      {stopAmenities.wheelchair_boarding === 1 && <View style={{ backgroundColor: '#00A78D' + '18', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 2 }}><Ionicons name="accessibility" size={10} color="#00A78D" /></View>}
+                      {stopAmenities.shelter && <View style={{ backgroundColor: '#00A78D' + '18', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 2 }}><Ionicons name="umbrella" size={10} color="#00A78D" /></View>}
+                      {stopAmenities.bench && <View style={{ backgroundColor: '#00A78D' + '18', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 2, flexDirection: 'row', alignItems: 'center', gap: 2 }}><Ionicons name="bed" size={10} color="#00A78D" /></View>}
+                      {stopAmenities.lighting && <View style={{ backgroundColor: '#00A78D' + '18', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 2 }}><Ionicons name="bulb" size={10} color="#00A78D" /></View>}
+                    </View>
+                  )}
                 </TouchableOpacity>
                 <View style={styles.boardActions}>
                   <TouchableOpacity style={[styles.addFavBtn, { borderColor: isFav ? colours.accent : colours.border, backgroundColor: isFav ? colours.accent + '15' : colours.surface }]} onPress={() => isFav ? removeFav(stopId) : addFav(stopId, stopName)}>
@@ -4717,6 +4814,28 @@ function LiveScreenInner() {
               </View>
               {loading ? (<View style={{ paddingVertical: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>) : error ? (<View style={styles.centerState}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text><TouchableOpacity style={[styles.retryBtn, { backgroundColor: colours.accent }]} onPress={() => fetchArrivals(stopId)}><Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.sm }}>{t('Retry', 'Réessayer')}</Text></TouchableOpacity></View>) : arrivals.length === 0 ? (<View style={styles.centerState}><Ionicons name="time-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 8 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<>{arrivals.slice(0, 4).map(renderArrival)}{arrivals.length > 4 && (<TouchableOpacity onPress={() => setShowAllArrivals(v => !v)} style={{ paddingVertical: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: colours.border }}><Text style={{ color: colours.accent, fontWeight: '700', fontSize: fonts.sm }}>{showAllArrivals ? t('Show less ▲', 'Voir moins ▲') : t(`Show ${arrivals.length - 4} more ▼`, `Voir ${arrivals.length - 4} de plus ▼`)}</Text></TouchableOpacity>)}</>)}
             </View>
+            {nearbyAlternative && (
+              <TouchableOpacity
+                onPress={() => loadStop(nearbyAlternative.stopId, nearbyAlternative.stopName)}
+                style={{ marginHorizontal: 20, marginBottom: 12, backgroundColor: colours.accent + '10', borderRadius: 14, borderWidth: 1, borderColor: colours.accent + '30', paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="walk" size={20} color={colours.accent} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>
+                    {t('Closer option?', 'Option plus proche?')}
+                  </Text>
+                  <Text style={{ fontSize: fonts.sm, color: colours.text, marginTop: 2 }}>
+                    {t(`Walk ${nearbyAlternative.walkMeters}m to ${nearbyAlternative.stopName}`, `Marcher ${nearbyAlternative.walkMeters}m vers ${nearbyAlternative.stopName}`)}
+                  </Text>
+                  <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>
+                    {t(`Route ${nearbyAlternative.routeId} in ${nearbyAlternative.minsAway} min`, `Route ${nearbyAlternative.routeId} dans ${nearbyAlternative.minsAway} min`)}
+                  </Text>
+                </View>
+                <Ionicons name="arrow-forward" size={16} color={colours.accent} />
+              </TouchableOpacity>
+            )}
+            </>
           ) : (
             <>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 8 }}>
@@ -4884,6 +5003,56 @@ function LiveScreenInner() {
           events={events as any}
           newsArticles={newsArticles}
         />
+
+        {/* Para Transpo Modal */}
+        <Modal visible={paraTranspoModal} animationType="slide" transparent onRequestClose={() => setParaTranspoModal(false)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
+            <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%', paddingBottom: 34 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={{ backgroundColor: '#7b5ea7' + '18', borderRadius: 10, width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="accessibility" size={18} color="#7b5ea7" />
+                  </View>
+                  <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>Para Transpo</Text>
+                </View>
+                <TouchableOpacity onPress={() => setParaTranspoModal(false)}>
+                  <Ionicons name="close-circle" size={24} color={colours.muted} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView contentContainerStyle={{ padding: 20 }}>
+                <Text style={{ fontSize: fonts.md, color: colours.text, lineHeight: 22, marginBottom: 16 }}>
+                  {t(
+                    'Para Transpo is OC Transpo\'s door-to-door shared-ride service for people with disabilities who are unable to use conventional transit some or all of the time.',
+                    'Para Transpo est le service de transport porte-\u00e0-porte partag\u00e9 d\'OC Transpo pour les personnes handicap\u00e9es qui ne peuvent pas utiliser le transport en commun conventionnel en tout ou en partie.'
+                  )}
+                </Text>
+                <View style={{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, padding: 14, marginBottom: 12 }}>
+                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>{t('Eligibility', 'Admissibilit\u00e9')}</Text>
+                  <Text style={{ fontSize: fonts.sm, color: colours.text, lineHeight: 20 }}>
+                    {t(
+                      '\u2022 People with physical, cognitive, or sensory disabilities\n\u2022 Temporary disabilities (e.g. broken leg)\n\u2022 Registration required \u2014 apply online or by phone',
+                      '\u2022 Personnes ayant un handicap physique, cognitif ou sensoriel\n\u2022 Handicaps temporaires (ex. jambe cass\u00e9e)\n\u2022 Inscription requise \u2014 postulez en ligne ou par t\u00e9l\u00e9phone'
+                    )}
+                  </Text>
+                </View>
+                <View style={{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, padding: 14, marginBottom: 12 }}>
+                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>{t('Contact', 'Contact')}</Text>
+                  <TouchableOpacity onPress={() => Linking.openURL('tel:6135605000')} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <Ionicons name="call" size={16} color={colours.accent} />
+                    <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.accent }}>613-560-5000</Text>
+                  </TouchableOpacity>
+                  <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Monday to Friday: 8:30am - 4:30pm', 'Lundi au vendredi: 8h30 - 16h30')}</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => Linking.openURL('https://www.octranspo.com/en/plan-your-trip/accessibility/para-transpo/')}
+                  style={{ backgroundColor: '#7b5ea7', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 4 }}
+                >
+                  <Text style={{ color: '#fff', fontSize: fonts.md, fontWeight: '700' }}>{t('Book a Ride', 'R\u00e9server un trajet')}</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
       </View>
     </KeyboardAvoidingView>
   );
