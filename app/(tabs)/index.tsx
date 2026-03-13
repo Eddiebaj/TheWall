@@ -58,7 +58,8 @@ import { CAMPUSES, CampusConfig, getNextDeparture, isLibraryOpen, fmt12h, getDay
 import { HAPPY_HOUR_VENUES } from '../../lib/happyHourData';
 import { Neighbourhood, NEIGHBOURHOODS } from '../../lib/neighbourhoodData';
 import { NewsArticle } from '../../lib/newsData';
-import { SK_NEWS_CACHE, SK_SAVED_NEIGHBOURHOODS, SK_TONIGHT_DISMISSED, SK_TRIP_HISTORY, SK_LAST_CROWDING_REPORT, SK_CROWDING_CACHE } from '../../lib/storageKeys';
+import { SK_NEWS_CACHE, SK_SAVED_NEIGHBOURHOODS, SK_TONIGHT_DISMISSED, SK_TRIP_HISTORY, SK_LAST_CROWDING_REPORT, SK_CROWDING_CACHE, SK_FREQUENT_CARD_DISMISSED } from '../../lib/storageKeys';
+import { FrequentRoute, detectFrequentRoutes } from '../../lib/frequentRoutes';
 import NewsSection from '../../components/NewsSection';
 import NeighbourhoodSection from '../../components/NeighbourhoodSection';
 import NeighbourhoodSheet from '../../components/NeighbourhoodSheet';
@@ -1309,6 +1310,9 @@ function LiveScreenInner() {
   const [crowdingReportItem, setCrowdingReportItem] = useState<Arrival | null>(null);
   const [crowdingSubmitting, setCrowdingSubmitting] = useState(false);
   const [crowdingToast, setCrowdingToast] = useState(false);
+  const [frequentRoutes, setFrequentRoutes] = useState<FrequentRoute[]>([]);
+  const [frequentArrivals, setFrequentArrivals] = useState<Record<string, { minsAway: number; delay: number; headsign: string } | null>>({});
+  const [frequentCardDismissed, setFrequentCardDismissed] = useState(true);
   const [timeFormat, setTimeFormat] = useState<'relative' | 'absolute'>('relative');
   const [scheduleRoute, setScheduleRoute] = useState<{ routeId: string; headsign: string } | null>(null);
   const [scheduleTrips, setScheduleTrips] = useState<{ time: string; tripId: string }[]>([]);
@@ -1546,6 +1550,19 @@ function LiveScreenInner() {
     // Register push token and configure notification handler
     configureNotificationHandler();
     registerPushToken(language).catch(() => {});
+    // Detect frequent routes for glanceable card
+    detectFrequentRoutes().then(routes => {
+      setFrequentRoutes(routes);
+      if (routes.length > 0) {
+        AsyncStorage.getItem(SK_FREQUENT_CARD_DISMISSED).then(val => {
+          if (val) {
+            const ts = parseInt(val, 10);
+            if (Date.now() - ts < 86400000) return; // 24hr cooldown
+          }
+          setFrequentCardDismissed(false);
+        }).catch(() => setFrequentCardDismissed(false));
+      }
+    }).catch(() => {});
     // Detect commute patterns from trip history
     AsyncStorage.getItem(SK_TRIP_HISTORY).then(val => {
       if (!val) return;
@@ -2228,10 +2245,52 @@ function LiveScreenInner() {
     setCrowdingSubmitting(false);
   };
 
+  // ── Frequent rider card arrivals polling ──────────────────────
+  const fetchFrequentArrivals = async (routes: FrequentRoute[]) => {
+    const stopIds = [...new Set(routes.filter(r => r.stopId).map(r => r.stopId))];
+    const results: Record<string, { minsAway: number; delay: number; headsign: string } | null> = {};
+    await Promise.allSettled(stopIds.map(async sid => {
+      try {
+        const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${sid}`, { signal: AbortSignal.timeout(5000) } as any);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const trips = data.trips || data.result?.trips || [];
+        for (const route of routes.filter(r => r.stopId === sid)) {
+          if (route.routeId) {
+            const match = trips.find((t: any) => String(t.routeId || t.RouteNo) === route.routeId);
+            if (match) {
+              const mins = typeof match.minsAway === 'number' ? match.minsAway : parseInt(match.AdjustedScheduleTime || '0', 10);
+              const delay = typeof match.delay === 'number' ? match.delay : (parseFloat(match.AdjustmentAge || '0') > 0 ? Math.round(parseFloat(match.AdjustmentAge)) : 0);
+              results[route.routeId] = { minsAway: mins, delay, headsign: match.headsign || match.TripDestination || '' };
+            }
+          } else {
+            // Fallback stop (no specific route) — show first arrival
+            const first = trips[0];
+            if (first) {
+              const mins = typeof first.minsAway === 'number' ? first.minsAway : parseInt(first.AdjustedScheduleTime || '0', 10);
+              const routeId = first.routeId || first.RouteNo || sid;
+              results[sid] = { minsAway: mins, delay: 0, headsign: first.headsign || first.TripDestination || '' };
+            }
+          }
+        }
+      } catch { /* network error */ }
+    }));
+    setFrequentArrivals(results);
+  };
+
   useEffect(() => {
-    const interval = setInterval(() => { if (AppState.currentState === 'active') fetchArrivals(stopId); }, 30000);
+    if (frequentRoutes.length > 0) fetchFrequentArrivals(frequentRoutes);
+  }, [frequentRoutes]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (AppState.currentState === 'active') {
+        fetchArrivals(stopId);
+        if (frequentRoutes.length > 0 && !frequentCardDismissed) fetchFrequentArrivals(frequentRoutes);
+      }
+    }, 30000);
     return () => clearInterval(interval);
-  }, [stopId, fetchArrivals]);
+  }, [stopId, fetchArrivals, frequentRoutes, frequentCardDismissed]);
 
   useEffect(() => {
     if (arrivals.length > 0 && arrivals[0].minsAway > 15) {
@@ -4481,6 +4540,66 @@ function LiveScreenInner() {
               </View>
             )}
           </View>
+
+          {/* Frequent Rider Card */}
+          {frequentRoutes.length > 0 && !frequentCardDismissed && (
+            <View style={{ marginHorizontal: 20, marginBottom: 14, borderRadius: 16, borderWidth: 1, borderColor: colours.accent + '30', backgroundColor: colours.surface, overflow: 'hidden', ...cardShadow }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="flash" size={16} color={colours.accent} />
+                  <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text }}>{t('Your Routes', 'Vos lignes')}</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => { setFrequentCardDismissed(true); AsyncStorage.setItem(SK_FREQUENT_CARD_DISMISSED, String(Date.now())); }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="close" size={18} color={colours.muted} />
+                </TouchableOpacity>
+              </View>
+              {frequentRoutes.map((route, i) => {
+                const key = route.routeId || route.stopId;
+                const arrival = frequentArrivals[key];
+                const hasAlert = route.routeId ? alerts.some(a => a.routes?.includes(route.routeId)) : false;
+                const isLate = arrival && arrival.delay > 0;
+                return (
+                  <TouchableOpacity
+                    key={`freq-${i}`}
+                    onPress={() => { if (route.stopId) { loadStop(route.stopId, route.stopName); setExpandedStopId(route.stopId); } }}
+                    style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: i < frequentRoutes.length - 1 ? 1 : 0, borderBottomColor: colours.border }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={{ backgroundColor: '#CE1126', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, minWidth: 36, alignItems: 'center', marginRight: 12 }}>
+                      <Text style={{ color: 'white', fontWeight: '800', fontSize: fonts.md }}>{route.routeId || '#'}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }} numberOfLines={1}>
+                        {arrival?.headsign || route.stopName || t('Loading...', 'Chargement...')}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                        {hasAlert ? (
+                          <><View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#FF3B30' }} /><Text style={{ fontSize: fonts.sm, color: '#FF3B30', fontWeight: '600' }}>{t('Service alert', 'Alerte de service')}</Text></>
+                        ) : isLate ? (
+                          <><View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#FF9500' }} /><Text style={{ fontSize: fonts.sm, color: '#FF9500', fontWeight: '600' }}>{t(`Running ${arrival.delay}m late`, `${arrival.delay}m de retard`)}</Text></>
+                        ) : arrival ? (
+                          <><View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#34C759' }} /><Text style={{ fontSize: fonts.sm, color: '#34C759', fontWeight: '600' }}>{t('On time', 'À l\'heure')}</Text></>
+                        ) : (
+                          <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Checking...', 'Vérification...')}</Text>
+                        )}
+                      </View>
+                    </View>
+                    {arrival && (
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: arrival.minsAway <= 2 ? '#FF3B30' : colours.accent }}>
+                          {arrival.minsAway === 0 ? t('Due', 'Imminent') : `${arrival.minsAway}m`}
+                        </Text>
+                        <Text style={{ fontSize: 10, color: colours.muted }}>{t('next', 'prochain')}</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
 
           {/* Universal Saved Board */}
           {savedBoard.length === 0 ? (

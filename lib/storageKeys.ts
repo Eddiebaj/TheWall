@@ -93,3 +93,6 @@ export const SK_WEATHER_BANNER_DISMISSED = 'routeo_weather_banner_dismissed';
 // Crowding reports
 export const SK_LAST_CROWDING_REPORT = 'routeo_last_crowding_report';
 export const SK_CROWDING_CACHE = 'routeo_crowding_cache';
+
+// Frequent rider card
+export const SK_FREQUENT_CARD_DISMISSED = 'routeo_frequent_card_dismissed';
