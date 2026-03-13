@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator, ImageBackground, Linking, ScrollView, StatusBar,
+  ImageBackground, Linking, RefreshControl, ScrollView, StatusBar,
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
@@ -14,6 +14,7 @@ import { NewsArticle, timeAgo } from '../../lib/newsData';
 import { SK_NEWS_CACHE, SK_SAVED_NEIGHBOURHOODS } from '../../lib/storageKeys';
 import { supabase } from '../../lib/supabase';
 import NeighbourhoodSheet from '../../components/NeighbourhoodSheet';
+import { FeedCardSkeleton, HorizontalCardsSkeleton } from '../../components/Shimmer';
 
 type CommunityDeal = {
   id: string;
@@ -62,6 +63,8 @@ export default function DiscoverScreen() {
   const [communityDeals, setCommunityDeals] = useState<CommunityDeal[]>([]);
   const [weekendEvents, setWeekendEvents] = useState<WeekendEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
+  const [dealsLoading, setDealsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [activeSection, setActiveSection] = useState<'feed' | 'neighbourhoods'>('feed');
 
   useEffect(() => {
@@ -80,8 +83,8 @@ export default function DiscoverScreen() {
     }).catch(() => {});
     // Fetch community deals
     supabase.from('community_deals').select('*').order('submitted_at', { ascending: false }).limit(10)
-      .then(({ data }) => { if (data) setCommunityDeals(data); return null; })
-      .then(() => {}, () => {});
+      .then(({ data }) => { if (data) setCommunityDeals(data); setDealsLoading(false); return null; })
+      .then(() => {}, () => { setDealsLoading(false); });
     // Fetch weekend events
     fetchWeekendEvents();
   }, []);
@@ -114,6 +117,29 @@ export default function DiscoverScreen() {
       }
     } catch (e) { if (__DEV__) console.warn('fetch weekend events failed:', e); }
     setEventsLoading(false);
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        supabase.from('community_deals').select('*').order('submitted_at', { ascending: false }).limit(10)
+          .then(({ data }) => { if (data) setCommunityDeals(data); return null; }),
+        fetchWeekendEvents(),
+        AsyncStorage.getItem(SK_NEWS_CACHE).then(val => {
+          if (val) { try { setNewsArticles(JSON.parse(val).articles || []); } catch {} }
+        }),
+        Location.requestForegroundPermissionsAsync().then(async ({ status }) => {
+          if (status === 'granted') {
+            const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            setUserLoc({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+          }
+        }).catch(() => {}),
+      ]);
+    } catch (e) {
+      if (__DEV__) console.warn('refresh failed:', e);
+    }
+    setRefreshing(false);
   };
 
   const toggleSave = (id: string) => {
@@ -176,43 +202,68 @@ export default function DiscoverScreen() {
       </View>
 
       {activeSection === 'feed' ? (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 100 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colours.accent} />}
+        >
           {/* Trending near you */}
           <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
             <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
               {t('Trending Near You', 'Tendances pres de vous')}
             </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
-              {trendingNeighbourhoods.map(n => {
-                const name = language === 'fr' ? n.name_fr : n.name_en;
-                const dist = userLoc ? `${haversineKm(userLoc.lat, userLoc.lng, n.lat, n.lng).toFixed(1)} km` : '';
-                return (
-                  <TouchableOpacity
-                    key={n.id}
-                    activeOpacity={0.9}
-                    onPress={() => { setSelected(n); setSheetVisible(true); }}
-                    style={[{ width: 150, height: 110, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: colours.border }, cardShadow]}
-                  >
-                    <ImageBackground source={{ uri: n.photoUrl }} style={{ width: '100%', height: '100%', justifyContent: 'flex-end' }} resizeMode="cover">
-                      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)' }} />
-                      <View style={{ padding: 10 }}>
-                        <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3 }}>{name}</Text>
-                        {dist ? <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11 }}>{dist}</Text> : null}
-                      </View>
-                    </ImageBackground>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+            {trendingNeighbourhoods.length === 0 ? (
+              <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                <Ionicons name="compass-outline" size={24} color={colours.muted} />
+                <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 6 }}>
+                  {t("Explore Ottawa's neighbourhoods", "Explorez les quartiers d'Ottawa")}
+                </Text>
+              </View>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+                {trendingNeighbourhoods.map(n => {
+                  const name = language === 'fr' ? n.name_fr : n.name_en;
+                  const dist = userLoc ? `${haversineKm(userLoc.lat, userLoc.lng, n.lat, n.lng).toFixed(1)} km` : '';
+                  return (
+                    <TouchableOpacity
+                      key={n.id}
+                      activeOpacity={0.9}
+                      onPress={() => { setSelected(n); setSheetVisible(true); }}
+                      style={[{ width: 150, height: 110, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: colours.border }, cardShadow]}
+                    >
+                      <ImageBackground source={{ uri: n.photoUrl }} style={{ width: '100%', height: '100%', justifyContent: 'flex-end' }} resizeMode="cover">
+                        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)' }} />
+                        <View style={{ padding: 10 }}>
+                          <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3 }}>{name}</Text>
+                          {dist ? <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11 }}>{dist}</Text> : null}
+                        </View>
+                      </ImageBackground>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
           </View>
 
           {/* New deals this week */}
-          {communityDeals.length > 0 && (
-            <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-                {t('New Deals This Week', 'Nouvelles offres cette semaine')}
-              </Text>
-              {communityDeals.slice(0, 5).map(deal => {
+          <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+              {t('New Deals This Week', 'Nouvelles offres cette semaine')}
+            </Text>
+            {dealsLoading ? (
+              <View style={{ marginHorizontal: -20 }}>
+                <FeedCardSkeleton colours={colours} />
+                <FeedCardSkeleton colours={colours} />
+              </View>
+            ) : communityDeals.length === 0 ? (
+              <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                <Ionicons name="pricetag-outline" size={24} color={colours.muted} />
+                <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 6 }}>
+                  {t('No deals this week', 'Aucune offre cette semaine')}
+                </Text>
+              </View>
+            ) : (
+              communityDeals.slice(0, 5).map(deal => {
                 const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
                 const isToday = deal.day_of_week === todayDow;
                 return (
@@ -234,9 +285,9 @@ export default function DiscoverScreen() {
                     </View>
                   </View>
                 );
-              })}
-            </View>
-          )}
+              })
+            )}
+          </View>
 
           {/* Events this weekend */}
           <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
@@ -244,12 +295,14 @@ export default function DiscoverScreen() {
               {t('Events This Weekend', 'Evenements ce week-end')}
             </Text>
             {eventsLoading ? (
-              <ActivityIndicator color={colours.accent} style={{ paddingVertical: 20 }} />
+              <View style={{ marginHorizontal: -20 }}>
+                <HorizontalCardsSkeleton colours={colours} count={3} />
+              </View>
             ) : weekendEvents.length === 0 ? (
               <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                <Ionicons name="calendar-outline" size={28} color={colours.muted} />
+                <Ionicons name="calendar-outline" size={24} color={colours.muted} />
                 <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 6 }}>
-                  {t('No events found for this weekend', 'Aucun evenement ce week-end')}
+                  {t('No events this weekend', 'Aucun evenement ce weekend')}
                 </Text>
               </View>
             ) : (
@@ -286,12 +339,19 @@ export default function DiscoverScreen() {
           </View>
 
           {/* Latest news */}
-          {newsArticles.length > 0 && (
-            <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-                {t('Latest News', 'Dernieres nouvelles')}
-              </Text>
-              {newsArticles.slice(0, 5).map(article => (
+          <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+              {t('Latest News', 'Dernieres nouvelles')}
+            </Text>
+            {newsArticles.length === 0 ? (
+              <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                <Ionicons name="newspaper-outline" size={24} color={colours.muted} />
+                <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 6 }}>
+                  {t('No news available', 'Aucune nouvelle disponible')}
+                </Text>
+              </View>
+            ) : (
+              newsArticles.slice(0, 5).map(article => (
                 <TouchableOpacity
                   key={article.id}
                   onPress={() => Linking.openURL(article.link)}
@@ -315,9 +375,9 @@ export default function DiscoverScreen() {
                     />
                   )}
                 </TouchableOpacity>
-              ))}
-            </View>
-          )}
+              ))
+            )}
+          </View>
         </ScrollView>
       ) : (
         <>

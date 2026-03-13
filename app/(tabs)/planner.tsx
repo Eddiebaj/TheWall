@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
+import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -12,6 +13,7 @@ import {
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useApp } from '../../context/AppContext';
+import { ItinerarySkeleton } from '../../components/Shimmer';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 
 // ── Error Boundary ───────────────────────────────────────────────
@@ -521,6 +523,7 @@ function PlannerScreenInner() {
 
   // ── Plan — called by button, resolves text inputs first ───────
   const plan = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Keyboard.dismiss();
     setFromResults([]);
     setToResults([]);
@@ -1713,7 +1716,9 @@ function PlannerScreenInner() {
         )}
 
         {/* Results */}
-        {!loading && searched && error ? (
+        {loading && searched ? (
+          <View style={{ paddingHorizontal: 20, paddingTop: 12 }}>{[0,1,2].map(i => <ItinerarySkeleton key={i} colours={colours} />)}</View>
+        ) : !loading && searched && error ? (
           <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 }}>
             <Ionicons name="map-outline" size={40} color={colours.muted} />
             <Text style={{ color: colours.text, fontSize: 16, fontWeight: '700', marginTop: 12, textAlign: 'center' }}>{t('No routes found', 'Aucun trajet trouve')}</Text>

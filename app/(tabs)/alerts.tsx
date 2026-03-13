@@ -6,6 +6,7 @@ import {
   ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
+import { AlertCardSkeleton } from '../../components/Shimmer';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 
 // ── Error Boundary ───────────────────────────────────────────────
@@ -406,12 +407,7 @@ function AlertsScreenInner() {
         {/* Alerts list */}
         <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
           {loading ? (
-            <View style={styles.centerState}>
-              <ActivityIndicator color={colours.accent} size="large" />
-              <Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.sm }}>
-                {t('Loading alerts...', 'Chargement des alertes...')}
-              </Text>
-            </View>
+            <View>{[0,1,2].map(i => <AlertCardSkeleton key={i} colours={colours} />)}</View>
           ) : filtered.length === 0 ? (
             <View style={[styles.centerState, {
               backgroundColor: colours.surface, borderRadius: 16,

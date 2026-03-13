@@ -5,11 +5,14 @@ import {
   ActivityIndicator, Linking, Modal, ScrollView,
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
+import { ContentSkeleton } from '../components/Shimmer';
 import { fetchWithTimeout } from '../lib/fetchWithTimeout';
 import { HAPPY_HOUR_VENUES } from '../lib/happyHourData';
 import { Neighbourhood } from '../lib/neighbourhoodData';
 import { NewsArticle, SOURCE_COLOURS, timeAgo } from '../lib/newsData';
+import { getDeviceId } from '../lib/pushNotifications';
 import { supabase } from '../lib/supabase';
 
 type Props = {
@@ -58,7 +61,9 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
   const [dealDescription, setDealDescription] = useState('');
   const [dealSubmitting, setDealSubmitting] = useState(false);
   const [dealSubmitted, setDealSubmitted] = useState(false);
-  const [communityDeals, setCommunityDeals] = useState<{ venue_name: string; deal_description: string; created_at: string }[]>([]);
+  const [communityDeals, setCommunityDeals] = useState<{ id: string; venue_name: string; deal_description: string; created_at: string }[]>([]);
+  const [dealVotes, setDealVotes] = useState<Record<string, { up: number; down: number }>>({});
+  const [myVotes, setMyVotes] = useState<Record<string, 'up' | 'down'>>({});
 
   const n = neighbourhood;
 
@@ -70,6 +75,8 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
     setShowDealForm(false);
     setDealSubmitted(false);
     setCommunityDeals([]);
+    setDealVotes({});
+    setMyVotes({});
     setTransitScore(null);
   }, [visible, n?.id]);
 
@@ -127,12 +134,27 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
     try {
       const { data } = await supabase
         .from('community_deals')
-        .select('venue_name, deal_description, created_at')
+        .select('id, venue_name, deal_description, created_at')
         .eq('neighbourhood_id', n.id)
         .eq('approved', true)
         .order('created_at', { ascending: false })
         .limit(10);
       if (data) setCommunityDeals(data);
+
+      // Fetch votes for deals in this neighbourhood
+      try {
+        const vResp = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/community?action=deal.votes&neighbourhood_id=${n.id}`);
+        if (vResp.ok) {
+          const vData = await vResp.json();
+          if (vData.votes) setDealVotes(vData.votes);
+        }
+      } catch (_) {}
+
+      // Load my votes from local storage
+      try {
+        const stored = await AsyncStorage.getItem('routeo_my_deal_votes');
+        if (stored) setMyVotes(JSON.parse(stored));
+      } catch (_) {}
     } catch (e) { if (__DEV__) console.warn('fetch community deals failed:', e); }
   };
 
@@ -151,6 +173,39 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
       setDealDescription('');
     } catch (e) { if (__DEV__) console.warn('submit deal failed:', e); }
     setDealSubmitting(false);
+  };
+
+  const voteDeal = async (dealId: string, voteType: 'up' | 'down') => {
+    const deviceId = await getDeviceId();
+    // Optimistic update
+    setDealVotes(prev => {
+      const current = prev[dealId] || { up: 0, down: 0 };
+      const oldVote = myVotes[dealId];
+      const updated = { ...current };
+      if (oldVote) updated[oldVote]--;
+      if (oldVote !== voteType) updated[voteType]++;
+      return { ...prev, [dealId]: updated };
+    });
+    const newVote = myVotes[dealId] === voteType ? undefined : voteType;
+    setMyVotes(prev => {
+      const next = { ...prev };
+      if (newVote) next[dealId] = newVote; else delete next[dealId];
+      return next;
+    });
+    // Save locally
+    const updated = { ...myVotes };
+    if (newVote) updated[dealId] = newVote; else delete updated[dealId];
+    await AsyncStorage.setItem('routeo_my_deal_votes', JSON.stringify(updated));
+    // Send to backend
+    if (newVote) {
+      try {
+        await fetchWithTimeout('https://routeo-backend.vercel.app/api/community?action=deal.vote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deal_id: dealId, device_id: deviceId, vote_type: newVote }),
+        });
+      } catch (e) { if (__DEV__) console.warn('vote deal failed:', e); }
+    }
   };
 
   if (!n) return null;
@@ -187,7 +242,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
   const renderContent = () => {
     switch (activeTab) {
       case 'places':
-        if (placesLoading) return <ActivityIndicator color={colours.accent} style={{ marginTop: 20 }} />;
+        if (placesLoading) return <ContentSkeleton colours={colours} />;
         if (places.length === 0) return <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 20 }}>{t('No places found', 'Aucun lieu trouve')}</Text>;
         return places.map((p: any, i: number) => (
           <TouchableOpacity key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border }} onPress={() => { if (p.place_id) Linking.openURL(`https://www.google.com/maps/place/?q=place_id:${p.place_id}`); }}>
@@ -238,12 +293,35 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
                 <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
                   {t('Community Deals', 'Offres communautaires')}
                 </Text>
-                {communityDeals.map((d, i) => (
-                  <View key={i} style={{ paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colours.border }}>
-                    <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{d.venue_name}</Text>
-                    <Text style={{ fontSize: fonts.sm, color: colours.accent, marginTop: 2 }}>{d.deal_description}</Text>
-                  </View>
-                ))}
+                {communityDeals.map((d, i) => {
+                  const votes = dealVotes[d.id] || { up: 0, down: 0 };
+                  const myVote = myVotes[d.id];
+                  const confirmed = votes.up >= 3;
+                  return (
+                    <View key={i} style={{ paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text, flex: 1 }}>{d.venue_name}</Text>
+                        {confirmed && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#00A78D' + '18', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                            <Ionicons name="checkmark-circle" size={12} color="#00A78D" />
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#00A78D' }}>{votes.up} {t('confirmed', 'confirme')}</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={{ fontSize: fonts.sm, color: colours.accent, marginTop: 2 }}>{d.deal_description}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 }}>
+                        <TouchableOpacity onPress={() => voteDeal(d.id, 'up')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <Ionicons name={myVote === 'up' ? 'thumbs-up' : 'thumbs-up-outline'} size={14} color={myVote === 'up' ? '#00A78D' : colours.muted} />
+                          <Text style={{ fontSize: fonts.sm, color: myVote === 'up' ? '#00A78D' : colours.muted, fontWeight: '600' }}>{votes.up}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => voteDeal(d.id, 'down')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <Ionicons name={myVote === 'down' ? 'thumbs-down' : 'thumbs-down-outline'} size={14} color={myVote === 'down' ? colours.orange : colours.muted} />
+                          <Text style={{ fontSize: fonts.sm, color: myVote === 'down' ? colours.orange : colours.muted, fontWeight: '600' }}>{votes.down}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })}
               </View>
             )}
 
@@ -325,7 +403,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
               </View>
             )}
             {/* Stops list */}
-            {stopsLoading && <ActivityIndicator color={colours.accent} style={{ marginTop: 20 }} />}
+            {stopsLoading && <ContentSkeleton colours={colours} />}
             {!stopsLoading && stops.length === 0 && (
               <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 20 }}>{t('No nearby stops', 'Aucun arret a proximite')}</Text>
             )}

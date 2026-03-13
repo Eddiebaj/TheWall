@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
 import React, { useEffect, useState } from 'react';
 import {
   ImageBackground, ScrollView, Text, TouchableOpacity, View,
@@ -61,6 +62,7 @@ export default function NeighbourhoodSection({ colours, fonts, cardShadow, event
   }, []);
 
   const toggleSave = (id: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSavedIds(prev => {
       const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
       AsyncStorage.setItem(SK_SAVED_NEIGHBOURHOODS, JSON.stringify(next));

@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
+import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useWindowDimensions } from 'react-native';
@@ -15,6 +16,7 @@ import {
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
 import { useApp } from '../../context/AppContext';
+import { ArrivalRowSkeleton } from '../../components/Shimmer';
 import { supabase } from '../../lib/supabase';
 import stopMap from './stopmap.json';
 import stopNameMap from './stopnamemap.json';
@@ -1355,6 +1357,9 @@ function LiveScreenInner() {
   const [error, setError] = useState('');
   const [weatherFetchFailed, setWeatherFetchFailed] = useState(false);
   const [arrivalsFetchFailed, setArrivalsFetchFailed] = useState(false);
+  const [stopReports, setStopReports] = useState<Record<string, { count: number; reports: any[] }>>({});
+  const [showReportSheet, setShowReportSheet] = useState(false);
+  const [reportSheetStopId, setReportSheetStopId] = useState('');
   const [timeFormat, setTimeFormat] = useState<'relative' | 'absolute'>('relative');
   const [scheduleRoute, setScheduleRoute] = useState<{ routeId: string; headsign: string } | null>(null);
   const [scheduleTrips, setScheduleTrips] = useState<{ time: string; tripId: string }[]>([]);
@@ -1517,9 +1522,9 @@ function LiveScreenInner() {
       try {
         const savedFavs: Fav[] = val ? JSON.parse(val) : [];
         setFavs(savedFavs);
-        if (savedFavs.length > 0) { setStopId(savedFavs[0].id); setStopName(savedFavs[0].name); fetchArrivals(savedFavs[0].id); }
-        else fetchArrivals('CD995');
-      } catch { fetchArrivals('CD995'); }
+        if (savedFavs.length > 0) { setStopId(savedFavs[0].id); setStopName(savedFavs[0].name); fetchArrivals(savedFavs[0].id); fetchStopReports(savedFavs[0].id); }
+        else { fetchArrivals('CD995'); fetchStopReports('CD995'); }
+      } catch { fetchArrivals('CD995'); fetchStopReports('CD995'); }
     });
     AsyncStorage.getItem(SK_SAVED_PLACES).then(val => { try { if (val) setSavedPlaces(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved places failed:', e); } });
     AsyncStorage.getItem(SK_SAVED_TEAMS).then(val => { try { if (val) setSavedTeams(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved teams failed:', e); } });
@@ -1655,6 +1660,7 @@ function LiveScreenInner() {
   };
 
   const addToBoardIfMissing = (item: SavedBoardItem) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSavedBoard(prev => {
       const exists = prev.some(i => {
         if (i.type !== item.type) return false;
@@ -1673,6 +1679,7 @@ function LiveScreenInner() {
   };
 
   const removeFromBoard = (item: SavedBoardItem) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSavedBoard(prev => {
       const updated = prev.filter(i => {
         if (i.type !== item.type) return true;
@@ -2135,6 +2142,17 @@ function LiveScreenInner() {
     finally { setLoading(false); }
   }, []);
 
+  const fetchStopReports = async (sid: string) => {
+    try {
+      const resp = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/community?action=reports&stop_id=${sid}`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.count > 0) {
+        setStopReports(prev => ({ ...prev, [sid]: { count: data.count, reports: data.reports } }));
+      }
+    } catch (e) { if (__DEV__) console.warn('fetch stop reports failed:', e); }
+  };
+
   useEffect(() => {
     const interval = setInterval(() => { if (AppState.currentState === 'active') fetchArrivals(stopId); }, 30000);
     return () => clearInterval(interval);
@@ -2220,7 +2238,7 @@ function LiveScreenInner() {
     return results.sort((a, b) => a.secsAway - b.secsAway).slice(0, 8);
   };
 
-  const loadStop = (id: string, name?: string) => { setStopId(id); setStopName(name || getStopName(id) || id); setLoading(true); fetchArrivals(id); };
+  const loadStop = (id: string, name?: string) => { setStopId(id); setStopName(name || getStopName(id) || id); setLoading(true); fetchArrivals(id); fetchStopReports(id); };
 
   const geocodeSeq = useRef(0);
 
@@ -2308,6 +2326,7 @@ function LiveScreenInner() {
         }),
       });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(t('Report submitted', 'Signalement envoye'), t('Thanks for helping improve transit!', 'Merci d\'aider a ameliorer le transport!'));
       setShowReportModal(false);
       setReportCategory(null);
@@ -3883,6 +3902,16 @@ function LiveScreenInner() {
             <TouchableOpacity onPress={() => shareETA(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Share arrival time', 'Partager l\'heure d\'arrivee')}>
               <Ionicons name="share-outline" size={16} color={colours.muted} />
             </TouchableOpacity>
+            {stopReports[stopId]?.count > 0 && (
+              <TouchableOpacity
+                onPress={() => { setReportSheetStopId(stopId); setShowReportSheet(true); }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}
+              >
+                <Ionicons name="flag" size={14} color={colours.orange} />
+                <Text style={{ fontSize: 10, fontWeight: '700', color: colours.orange }}>{stopReports[stopId].count}</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </View>
@@ -3973,7 +4002,7 @@ function LiveScreenInner() {
             ) : (
               <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
                 {loading ? (
-                  <View style={{ alignItems: 'center', padding: 40 }}><ActivityIndicator color={colours.accent} size="large" /></View>
+                  <View style={{ padding: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>
                 ) : arrivals.length === 0 ? (
                   <View style={{ alignItems: 'center', padding: 40 }}>
                     <Ionicons name="time-outline" size={36} color={colours.muted} />
@@ -4173,7 +4202,7 @@ function LiveScreenInner() {
             </View>
           </View>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }}>
-            {loading ? (<View style={styles.modalCenter}><ActivityIndicator color={colours.accent} size="large" /></View>) : error ? (<View style={styles.modalCenter}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.md, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text></View>) : arrivals.length === 0 ? (<View style={styles.modalCenter}><Ionicons name="time-outline" size={48} color={colours.muted} /><Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 12 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<View style={{ marginTop: 8 }}>{arrivals.map(renderArrival)}</View>)}
+            {loading ? (<View style={{ marginTop: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>) : error ? (<View style={styles.modalCenter}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.md, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text></View>) : arrivals.length === 0 ? (<View style={styles.modalCenter}><Ionicons name="time-outline" size={48} color={colours.muted} /><Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 12 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<View style={{ marginTop: 8 }}>{arrivals.map(renderArrival)}</View>)}
             {/* Report an issue button */}
             <TouchableOpacity
               onPress={() => { setReportCategory(null); setReportDescription(''); setShowReportModal(true); }}
@@ -4568,6 +4597,51 @@ function LiveScreenInner() {
           </TouchableWithoutFeedback>
         </Modal>
 
+        {/* Stop Reports Sheet */}
+        <Modal visible={showReportSheet} animationType="slide" transparent onRequestClose={() => setShowReportSheet(false)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
+            <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '60%', paddingBottom: 34 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+                <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>{t('Stop Reports', 'Signalements')}</Text>
+                <TouchableOpacity onPress={() => setShowReportSheet(false)}>
+                  <Ionicons name="close-circle" size={24} color={colours.muted} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView contentContainerStyle={{ padding: 20, gap: 10 }}>
+                {(stopReports[reportSheetStopId]?.reports || []).map((r: any, i: number) => {
+                  const categoryLabels: Record<string, string> = {
+                    bench_broken: t('Broken bench', 'Banc brise'),
+                    shelter_missing: t('Missing shelter', 'Abribus manquant'),
+                    accessibility: t('Accessibility issue', 'Probleme d\'accessibilite'),
+                    cleanliness: t('Cleanliness', 'Proprete'),
+                    schedule_missing: t('Missing schedule', 'Horaire manquant'),
+                    other: t('Other', 'Autre'),
+                  };
+                  const statusColors: Record<string, string> = { open: colours.orange, acknowledged: '#0072bc', resolved: '#00A78D' };
+                  return (
+                    <View key={r.id || i} style={{ backgroundColor: colours.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colours.border }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Ionicons name="flag" size={14} color={colours.orange} />
+                          <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>{categoryLabels[r.category] || r.category}</Text>
+                        </View>
+                        <View style={{ backgroundColor: (statusColors[r.status] || colours.muted) + '18', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                          <Text style={{ fontSize: 9, fontWeight: '800', color: statusColors[r.status] || colours.muted }}>{(r.status || 'open').toUpperCase()}</Text>
+                        </View>
+                      </View>
+                      {r.description ? <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 6 }}>{r.description}</Text> : null}
+                      <Text style={{ fontSize: 10, color: colours.muted, marginTop: 4 }}>{new Date(r.created_at).toLocaleDateString()}</Text>
+                    </View>
+                  );
+                })}
+                {(!stopReports[reportSheetStopId]?.reports || stopReports[reportSheetStopId]?.reports.length === 0) && (
+                  <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 20 }}>{t('No reports for this stop', 'Aucun signalement pour cet arret')}</Text>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true} onScrollBeginDrag={() => { Keyboard.dismiss(); setSearchResults([]); }}>
 
           {/* Header */}
@@ -4641,7 +4715,7 @@ function LiveScreenInner() {
                   </TouchableOpacity>
                 </View>
               </View>
-              {loading ? (<View style={styles.centerState}><ActivityIndicator color={colours.accent} size="large" /></View>) : error ? (<View style={styles.centerState}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text><TouchableOpacity style={[styles.retryBtn, { backgroundColor: colours.accent }]} onPress={() => fetchArrivals(stopId)}><Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.sm }}>{t('Retry', 'Réessayer')}</Text></TouchableOpacity></View>) : arrivals.length === 0 ? (<View style={styles.centerState}><Ionicons name="time-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 8 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<>{arrivals.slice(0, 4).map(renderArrival)}{arrivals.length > 4 && (<TouchableOpacity onPress={() => setShowAllArrivals(v => !v)} style={{ paddingVertical: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: colours.border }}><Text style={{ color: colours.accent, fontWeight: '700', fontSize: fonts.sm }}>{showAllArrivals ? t('Show less ▲', 'Voir moins ▲') : t(`Show ${arrivals.length - 4} more ▼`, `Voir ${arrivals.length - 4} de plus ▼`)}</Text></TouchableOpacity>)}</>)}
+              {loading ? (<View style={{ paddingVertical: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>) : error ? (<View style={styles.centerState}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text><TouchableOpacity style={[styles.retryBtn, { backgroundColor: colours.accent }]} onPress={() => fetchArrivals(stopId)}><Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.sm }}>{t('Retry', 'Réessayer')}</Text></TouchableOpacity></View>) : arrivals.length === 0 ? (<View style={styles.centerState}><Ionicons name="time-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 8 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<>{arrivals.slice(0, 4).map(renderArrival)}{arrivals.length > 4 && (<TouchableOpacity onPress={() => setShowAllArrivals(v => !v)} style={{ paddingVertical: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: colours.border }}><Text style={{ color: colours.accent, fontWeight: '700', fontSize: fonts.sm }}>{showAllArrivals ? t('Show less ▲', 'Voir moins ▲') : t(`Show ${arrivals.length - 4} more ▼`, `Voir ${arrivals.length - 4} de plus ▼`)}</Text></TouchableOpacity>)}</>)}
             </View>
           ) : (
             <>

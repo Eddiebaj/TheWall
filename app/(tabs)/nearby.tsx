@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../context/AppContext';
+import { PlaceCardSkeleton } from '../../components/Shimmer';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { SK_SAVED_PLACES } from '../../lib/storageKeys';
 import { supabase } from '../../lib/supabase';
@@ -476,11 +477,8 @@ export default function ExploreScreen() {
       </View>
     );
     if (loading) return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 }}>
-        <ActivityIndicator color={colours.accent} size="large" />
-        <Text style={{ color: colours.muted, fontSize: fonts.md, textAlign: 'center', marginTop: 12 }}>
-          {t(`Scanning nearby ${catLabel(selectedCategory).toLowerCase()}...`, `Recherche de ${catLabel(selectedCategory).toLowerCase()} à proximité...`)}
-        </Text>
+      <View style={{ flex: 1, padding: 20 }}>
+        {[0,1,2,3].map(i => <PlaceCardSkeleton key={i} colours={colours} />)}
       </View>
     );
     if (filteredPlaces.length === 0) return (
