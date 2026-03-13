@@ -5,14 +5,13 @@ import * as Haptics from 'expo-haptics';
 let Notifications: typeof import('expo-notifications') | null = null;
 try { Notifications = require('expo-notifications'); } catch {}
 import { useLocalSearchParams } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Dimensions, Keyboard, KeyboardAvoidingView,
-  Linking, Modal, Platform, ScrollView, Share,
+  ActivityIndicator, Alert, Dimensions, FlatList, Keyboard, KeyboardAvoidingView,
+  Linking, Modal, NativeScrollEvent, NativeSyntheticEvent, Platform, ScrollView, Share,
   Text,
   TextInput, TouchableOpacity, View
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useApp } from '../../context/AppContext';
 import { ItinerarySkeleton } from '../../components/Shimmer';
@@ -157,6 +156,90 @@ function fmtDistance(metres: number) {
   if (metres < 1000) return `${Math.round(metres / 10) * 10}m`;
   return `${(metres / 1000).toFixed(1)}km`;
 }
+
+// ── Custom Wheel Picker ─────────────────────────────────────────
+const WHEEL_ITEM_H = 40;
+const WHEEL_VISIBLE = 5;
+
+function WheelColumn({ items, selectedIndex, onSelect, width, colours }: {
+  items: string[];
+  selectedIndex: number;
+  onSelect: (index: number) => void;
+  width: number;
+  colours: any;
+}) {
+  const flatRef = useRef<FlatList>(null);
+  const mounted = useRef(false);
+
+  useEffect(() => {
+    if (mounted.current) return;
+    mounted.current = true;
+    setTimeout(() => {
+      flatRef.current?.scrollToOffset({ offset: selectedIndex * WHEEL_ITEM_H, animated: false });
+    }, 50);
+  }, []);
+
+  const onMomentumEnd = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const idx = Math.round(e.nativeEvent.contentOffset.y / WHEEL_ITEM_H);
+    const clamped = Math.max(0, Math.min(idx, items.length - 1));
+    onSelect(clamped);
+  }, [items.length, onSelect]);
+
+  const padCount = Math.floor(WHEEL_VISIBLE / 2);
+  const padded = useMemo(() => [
+    ...Array(padCount).fill(''),
+    ...items,
+    ...Array(padCount).fill(''),
+  ], [items, padCount]);
+
+  const renderItem = useCallback(({ item, index }: { item: string; index: number }) => {
+    const realIdx = index - padCount;
+    const isSelected = realIdx === selectedIndex;
+    return (
+      <View style={{ height: WHEEL_ITEM_H, justifyContent: 'center', alignItems: 'center', width }}>
+        <Text style={{
+          fontSize: isSelected ? 18 : 14,
+          fontWeight: isSelected ? '700' : '400',
+          color: isSelected ? colours.text : colours.muted,
+          opacity: item === '' ? 0 : (isSelected ? 1 : 0.5),
+        }}>{item}</Text>
+      </View>
+    );
+  }, [selectedIndex, width, colours]);
+
+  return (
+    <View style={{ width, height: WHEEL_ITEM_H * WHEEL_VISIBLE }}>
+      <FlatList
+        ref={flatRef}
+        data={padded}
+        keyExtractor={(_, i) => String(i)}
+        renderItem={renderItem}
+        showsVerticalScrollIndicator={false}
+        snapToInterval={WHEEL_ITEM_H}
+        decelerationRate="fast"
+        onMomentumScrollEnd={onMomentumEnd}
+        getItemLayout={(_, index) => ({ length: WHEEL_ITEM_H, offset: WHEEL_ITEM_H * index, index })}
+      />
+      {/* Selection highlight band */}
+      <View pointerEvents="none" style={{
+        position: 'absolute',
+        top: WHEEL_ITEM_H * padCount,
+        left: 0,
+        right: 0,
+        height: WHEEL_ITEM_H,
+        borderTopWidth: 1,
+        borderBottomWidth: 1,
+        borderColor: colours.accent + '40',
+        backgroundColor: colours.accent + '10',
+        borderRadius: 8,
+      }} />
+    </View>
+  );
+}
+
+const HOURS_12 = Array.from({ length: 12 }, (_, i) => String(i === 0 ? 12 : i));
+const MINUTES_60 = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
+const AM_PM = ['AM', 'PM'];
 
 // Strip ", Canada" and redundant province from place labels
 function shortenLabel(label: string): string {
@@ -1545,23 +1628,49 @@ function PlannerScreenInner() {
                 <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accent }}>{t('Now', 'Maintenant')}</Text>
               </TouchableOpacity>
 
-              {/* Native date+time spinner picker */}
-              <DateTimePicker
-                value={departTime}
-                mode="datetime"
-                display="spinner"
-                minuteInterval={5}
-                minimumDate={new Date()}
-                themeVariant={colours.bg === '#0d1117' ? 'dark' : 'light'}
-                accentColor={colours.accent}
-                onChange={(_event: any, date?: Date) => {
-                  if (date) {
-                    setDepartTime(date);
-                    savePlannerPrefs(date, arriveBy);
-                  }
-                }}
-                style={{ height: 180 }}
-              />
+              {/* Custom wheel time picker */}
+              {(() => {
+                const h24 = departTime.getHours();
+                const h12 = h24 % 12;
+                const curMin = departTime.getMinutes();
+                const minIdx = Math.round(curMin / 5);
+                const ampmIdx = h24 >= 12 ? 1 : 0;
+                const updateTime = (hour12: number, min5Idx: number, ampm: number) => {
+                  const d = new Date(departTime);
+                  let h = hour12 === 0 ? 0 : hour12; // 12 maps to index 0
+                  if (hour12 === 0) h = 12; // index 0 = 12
+                  const h24New = ampm === 1 ? (h === 12 ? 12 : h + 12) : (h === 12 ? 0 : h);
+                  d.setHours(h24New, min5Idx * 5, 0, 0);
+                  setDepartTime(d);
+                  savePlannerPrefs(d, arriveBy);
+                };
+                return (
+                  <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', height: WHEEL_ITEM_H * WHEEL_VISIBLE }}>
+                    <WheelColumn
+                      items={HOURS_12}
+                      selectedIndex={h12 === 0 ? 0 : HOURS_12.indexOf(String(h12 === 0 ? 12 : h12))}
+                      onSelect={(idx) => updateTime(idx === 0 ? 12 : idx, minIdx, ampmIdx)}
+                      width={60}
+                      colours={colours}
+                    />
+                    <Text style={{ fontSize: 20, fontWeight: '700', color: colours.text, marginHorizontal: 2 }}>:</Text>
+                    <WheelColumn
+                      items={MINUTES_60}
+                      selectedIndex={minIdx >= MINUTES_60.length ? MINUTES_60.length - 1 : minIdx}
+                      onSelect={(idx) => updateTime(h12 === 0 ? 12 : h12, idx, ampmIdx)}
+                      width={50}
+                      colours={colours}
+                    />
+                    <WheelColumn
+                      items={AM_PM}
+                      selectedIndex={ampmIdx}
+                      onSelect={(idx) => updateTime(h12 === 0 ? 12 : h12, minIdx, idx)}
+                      width={50}
+                      colours={colours}
+                    />
+                  </View>
+                );
+              })()}
 
               {/* Done button */}
               <TouchableOpacity
