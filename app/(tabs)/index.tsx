@@ -4241,12 +4241,7 @@ function LiveScreenInner() {
         <SectionWrapper key="discover" id="discover">
           <View style={styles.discoverHeader}>
             <Text style={[styles.sectionLabel, { color: colours.muted, fontSize: fonts.sm, marginBottom: 0 }]}>{t('Neighbourhoods', 'Quartiers')}</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <TouchableOpacity onPress={() => { const item: SavedBoardItem = { type: 'discover' }; isBoardSaved(item) ? removeFromBoard(item) : addToBoardIfMissing(item); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Save discover to board', 'Sauvegarder decouvrir au tableau')} accessibilityState={{ selected: isBoardSaved({ type: 'discover' }) }}>
-                <Ionicons name={isBoardSaved({ type: 'discover' }) ? 'bookmark' : 'bookmark-outline'} size={18} color={isBoardSaved({ type: 'discover' }) ? colours.accent : colours.muted} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => router.push('/(tabs)/discover' as any)}><Text style={{ color: colours.accent, fontSize: fonts.sm, fontWeight: '600' }}>{t('See all →', 'Voir tout →')}</Text></TouchableOpacity>
-            </View>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/discover' as any)}><Text style={{ color: colours.accent, fontSize: fonts.sm, fontWeight: '600' }}>{t('See all →', 'Voir tout →')}</Text></TouchableOpacity>
           </View>
           <NeighbourhoodSection
             colours={colours}

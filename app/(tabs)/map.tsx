@@ -91,7 +91,14 @@ const isLRT = (routeId: string) => {
 const validCoord = (lat: any, lng: any) => lat != null && lng != null && !isNaN(lat) && !isNaN(lng);
 
 // Styled square badge bus marker — OC red (#CE1126), STO teal (#00A78D)
+// tracksViewChanges must be true for first render so the custom View is captured
+// as a bitmap, then switches to false for scroll performance.
 const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) => void }) => {
+  const [tracked, setTracked] = React.useState(true);
+  React.useEffect(() => {
+    const id = setTimeout(() => setTracked(false), 500);
+    return () => clearTimeout(id);
+  }, []);
   if (!validCoord(bus.lat, bus.lng) || !bus.routeId || bus.routeId === '?') return null;
   const isSTO = bus.agency === 'STO';
   const label = isLRT(bus.routeId) ? 'LRT' : bus.routeId.split('-')[0];
@@ -100,7 +107,7 @@ const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) =>
   return (
     <Marker
       coordinate={{ latitude: bus.lat, longitude: bus.lng }}
-      tracksViewChanges={false}
+      tracksViewChanges={tracked}
       anchor={{ x: 0.5, y: 0.5 }}
       onPress={() => onPress(bus)}
     >

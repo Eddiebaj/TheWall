@@ -12,6 +12,7 @@ import {
   Text,
   TextInput, TouchableOpacity, View
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useApp } from '../../context/AppContext';
 import { ItinerarySkeleton } from '../../components/Shimmer';
@@ -1544,132 +1545,28 @@ function PlannerScreenInner() {
                 <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accent }}>{t('Now', 'Maintenant')}</Text>
               </TouchableOpacity>
 
-              {/* Wheel-style 12h time picker */}
-              {(() => {
-                const raw = departTime.getHours();
-                const isPM = raw >= 12;
-                const display12 = raw % 12 || 12;
-                const currentMin = departTime.getMinutes();
-                const nearestMin = Math.round(currentMin / 5) * 5 % 60;
-                const ITEM_H = 40;
-                const VISIBLE = 5;
-                const WHEEL_H = ITEM_H * VISIBLE;
-
-                const setTime12 = (hour12: number, minute: number, pm: boolean) => {
-                  let h24 = hour12 % 12;
-                  if (pm) h24 += 12;
-                  const d = new Date(departTime);
-                  d.setHours(h24, minute, 0, 0);
-                  setDepartTime(d);
-                  savePlannerPrefs(d, arriveBy);
-                };
-
-                const hours = Array.from({ length: 12 }, (_, i) => i + 1);
-                const minutes = Array.from({ length: 12 }, (_, i) => i * 5);
-                const periods = ['AM', 'PM'] as const;
-
-                const WheelColumn = ({ data, selected, onSelect, format }: { data: number[], selected: number, onSelect: (v: number) => void, format: (v: number) => string }) => {
-                  const scrollRef = React.useRef<ScrollView>(null);
-                  const idx = data.indexOf(selected);
-                  React.useEffect(() => {
-                    setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, idx * ITEM_H), animated: false }), 50);
-                  }, []);
-                  return (
-                    <View style={{ height: WHEEL_H, overflow: 'hidden', flex: 1 }}>
-                      <ScrollView
-                        ref={scrollRef}
-                        showsVerticalScrollIndicator={false}
-                        snapToInterval={ITEM_H}
-                        decelerationRate="fast"
-                        onMomentumScrollEnd={(e) => {
-                          const i = Math.round(e.nativeEvent.contentOffset.y / ITEM_H);
-                          if (i >= 0 && i < data.length) onSelect(data[i]);
-                        }}
-                        contentContainerStyle={{ paddingVertical: ITEM_H * 2 }}
-                      >
-                        {data.map(v => {
-                          const active = v === selected;
-                          return (
-                            <View key={v} style={{ height: ITEM_H, alignItems: 'center', justifyContent: 'center' }}>
-                              <Text style={{ fontSize: active ? 20 : 15, fontWeight: active ? '800' : '400', color: active ? colours.accent : colours.muted }}>{format(v)}</Text>
-                            </View>
-                          );
-                        })}
-                      </ScrollView>
-                    </View>
-                  );
-                };
-
-                return (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 4 }}>
-                    {/* Highlight bar behind selected row */}
-                    <View style={{ position: 'absolute', top: ITEM_H * 2, left: 0, right: 0, height: ITEM_H, borderRadius: 10, backgroundColor: colours.accent + '15', borderWidth: 1, borderColor: colours.accent + '30' }} pointerEvents="none" />
-                    <WheelColumn
-                      data={hours}
-                      selected={display12}
-                      onSelect={(h) => setTime12(h, nearestMin, isPM)}
-                      format={(v) => String(v)}
-                    />
-                    <Text style={{ fontSize: 22, fontWeight: '800', color: colours.accent, marginHorizontal: 2 }}>:</Text>
-                    <WheelColumn
-                      data={minutes}
-                      selected={nearestMin}
-                      onSelect={(m) => setTime12(display12, m, isPM)}
-                      format={(v) => String(v).padStart(2, '0')}
-                    />
-                    {/* AM/PM column */}
-                    <View style={{ flex: 0.7, gap: 4, paddingHorizontal: 4 }}>
-                      {periods.map(p => {
-                        const active = (p === 'PM') === isPM;
-                        return (
-                          <TouchableOpacity
-                            key={p}
-                            onPress={() => setTime12(display12, nearestMin, p === 'PM')}
-                            style={{ paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: active ? colours.accent + '18' : 'transparent', borderWidth: 1, borderColor: active ? colours.accent : colours.border }}
-                          >
-                            <Text style={{ fontSize: 14, fontWeight: active ? '800' : '500', color: active ? colours.accent : colours.muted }}>{p}</Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </View>
-                );
-              })()}
-
-              {/* Date picker strip */}
-              <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, marginBottom: 6 }}>{t('DATE', 'DATE')}</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={{ flexDirection: 'row', gap: 6 }}>
-                  {Array.from({ length: 31 }, (_, i) => {
-                    const d = new Date();
-                    d.setDate(d.getDate() + i);
-                    d.setHours(departTime.getHours(), departTime.getMinutes(), 0, 0);
-                    const isActive = departTime.toLocaleDateString('en-CA') === d.toLocaleDateString('en-CA');
-                    const dayName = i === 0 ? t('Today', 'Aujourd\'hui') : i === 1 ? t('Tomorrow', 'Demain') : d.toLocaleDateString(language === 'fr' ? 'fr-CA' : 'en-US', { weekday: 'short' });
-                    const dateLabel = d.toLocaleDateString(language === 'fr' ? 'fr-CA' : 'en-US', { month: 'short', day: 'numeric' });
-                    return (
-                      <TouchableOpacity
-                        key={i}
-                        onPress={() => {
-                          const updated = new Date(departTime);
-                          updated.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
-                          setDepartTime(updated);
-                          savePlannerPrefs(updated, arriveBy);
-                        }}
-                        style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, backgroundColor: isActive ? colours.accent + '18' : colours.bg, alignItems: 'center', minWidth: 64 }}
-                      >
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: isActive ? colours.accent : colours.muted }}>{dayName}</Text>
-                        <Text style={{ fontSize: 12, fontWeight: isActive ? '800' : '500', color: isActive ? colours.accent : colours.text, marginTop: 2 }}>{dateLabel}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </ScrollView>
+              {/* Native date+time spinner picker */}
+              <DateTimePicker
+                value={departTime}
+                mode="datetime"
+                display="spinner"
+                minuteInterval={5}
+                minimumDate={new Date()}
+                themeVariant={colours.bg === '#0d1117' ? 'dark' : 'light'}
+                accentColor={colours.accent}
+                onChange={(_event: any, date?: Date) => {
+                  if (date) {
+                    setDepartTime(date);
+                    savePlannerPrefs(date, arriveBy);
+                  }
+                }}
+                style={{ height: 180 }}
+              />
 
               {/* Done button */}
               <TouchableOpacity
                 onPress={() => setShowTimePicker(false)}
-                style={{ marginTop: 12, alignSelf: 'center', paddingHorizontal: 24, paddingVertical: 8, borderRadius: 20, backgroundColor: colours.accent }}
+                style={{ marginTop: 8, alignSelf: 'center', paddingHorizontal: 24, paddingVertical: 8, borderRadius: 20, backgroundColor: colours.accent }}
                 accessibilityRole="button"
                 accessibilityLabel={t('Done selecting time', 'Termine la selection de l\'heure')}
               >
