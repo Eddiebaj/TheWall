@@ -60,6 +60,7 @@ import { Neighbourhood, NEIGHBOURHOODS } from '../../lib/neighbourhoodData';
 import { NewsArticle } from '../../lib/newsData';
 import { SK_NEWS_CACHE, SK_SAVED_NEIGHBOURHOODS, SK_TONIGHT_DISMISSED, SK_TRIP_HISTORY, SK_LAST_CROWDING_REPORT, SK_CROWDING_CACHE, SK_FREQUENT_CARD_DISMISSED } from '../../lib/storageKeys';
 import { FrequentRoute, detectFrequentRoutes } from '../../lib/frequentRoutes';
+import { getDelayContext } from '../../lib/delayContext';
 import NewsSection from '../../components/NewsSection';
 import NeighbourhoodSection from '../../components/NeighbourhoodSection';
 import NeighbourhoodSheet from '../../components/NeighbourhoodSheet';
@@ -3739,6 +3740,16 @@ function LiveScreenInner() {
                 <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: color }} />
                 <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{label}</Text>
                 {c.confidence === 'low' && <Text style={{ fontSize: 9, color: colours.muted, fontStyle: 'italic' }}>{t('(few reports)', '(peu de données)')}</Text>}
+              </View>
+            );
+          })()}
+          {item.delay > 5 && (() => {
+            const ctx = getDelayContext(item.routeId, item.delay, alerts, weather, forecast);
+            if (!ctx) return null;
+            return (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
+                <Ionicons name={ctx.icon as any} size={11} color={ctx.colour} />
+                <Text style={{ fontSize: 11, fontWeight: '600', color: ctx.colour }}>{t(ctx.label, ctx.labelFr)}</Text>
               </View>
             );
           })()}
