@@ -73,7 +73,6 @@ export default function NeighbourhoodSection({ colours, fonts, cardShadow, event
 
   const todayStr = new Date().toLocaleDateString('en-CA');
 
-  // Sort: saved first, then original order
   const sorted = [...NEIGHBOURHOODS].sort((a, b) => {
     const as = savedIds.includes(a.id) ? 0 : 1;
     const bs = savedIds.includes(b.id) ? 0 : 1;
@@ -89,70 +88,79 @@ export default function NeighbourhoodSection({ colours, fonts, cardShadow, event
   };
 
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 20, paddingRight: 20, gap: 12, paddingBottom: 4 }}>
-      {sorted.map(n => {
-        const name = language === 'fr' ? n.name_fr : n.name_en;
-        const isSaved = savedIds.includes(n.id);
-        const evtCount = getEventCount(n);
-        const score = transitScores[n.id];
-        return (
-          <TouchableOpacity
-            key={n.id}
-            activeOpacity={0.92}
-            onPress={() => onPress(n)}
-            style={[{
-              width: 170,
-              height: 200,
-              borderRadius: 16,
-              overflow: 'hidden',
-              backgroundColor: colours.surface,
-              borderWidth: 1,
-              borderColor: colours.border,
-            }, cardShadow]}
-          >
-            <Image
-              source={{ uri: n.photoUrl }}
-              style={{ position: 'absolute', width: '100%', height: '100%' }}
-              resizeMode="cover"
-            />
-            <LinearGradient
-              colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.55)']}
-              style={{ position: 'absolute', width: '100%', height: '100%' }}
-              pointerEvents="none"
-            />
-            {/* Save toggle */}
+    <ScrollView
+      horizontal
+      nestedScrollEnabled
+      showsHorizontalScrollIndicator={false}
+      scrollEventThrottle={16}
+      style={{ flexGrow: 0 }}
+      contentContainerStyle={{ paddingLeft: 20, paddingRight: 20, paddingBottom: 4 }}
+    >
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        {sorted.map(n => {
+          const name = language === 'fr' ? n.name_fr : n.name_en;
+          const isSaved = savedIds.includes(n.id);
+          const evtCount = getEventCount(n);
+          const score = transitScores[n.id];
+          return (
             <TouchableOpacity
-              onPress={() => toggleSave(n.id)}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 14, width: 28, height: 28, alignItems: 'center', justifyContent: 'center', zIndex: 10 }}
+              key={n.id}
+              activeOpacity={0.92}
+              onPress={() => onPress(n)}
+              style={[{
+                width: 170,
+                height: 200,
+                borderRadius: 16,
+                overflow: 'hidden',
+                backgroundColor: colours.surface,
+                borderWidth: 1,
+                borderColor: colours.border,
+              }, cardShadow]}
             >
-              <Ionicons name={isSaved ? 'bookmark' : 'bookmark-outline'} size={14} color="#fff" />
-            </TouchableOpacity>
-            {/* Badges */}
-            <View style={{ position: 'absolute', top: 8, left: 8, flexDirection: 'row', gap: 4 }} pointerEvents="none">
+              <Image
+                source={{ uri: n.photoUrl }}
+                style={{ position: 'absolute', width: '100%', height: '100%' }}
+                resizeMode="cover"
+              />
+              <LinearGradient
+                colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.55)']}
+                style={{ position: 'absolute', width: '100%', height: '100%' }}
+                pointerEvents="none"
+              />
+              {/* Save toggle */}
+              <TouchableOpacity
+                onPress={() => toggleSave(n.id)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 14, width: 28, height: 28, alignItems: 'center', justifyContent: 'center', zIndex: 10 }}
+              >
+                <Ionicons name={isSaved ? 'bookmark' : 'bookmark-outline'} size={14} color="#fff" />
+              </TouchableOpacity>
+              {/* Badges */}
               {evtCount > 0 && (
-                <View style={{ backgroundColor: n.accent, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
-                  <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>{evtCount} {evtCount === 1 ? 'event' : 'events'}</Text>
+                <View style={{ position: 'absolute', top: 8, left: 8 }} pointerEvents="none">
+                  <View style={{ backgroundColor: n.accent, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                    <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>{evtCount} {evtCount === 1 ? 'event' : 'events'}</Text>
+                  </View>
                 </View>
               )}
-            </View>
-            {/* Transit score badge */}
-            {score && (
-              <View style={{ position: 'absolute', bottom: 40, left: 8, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 }} pointerEvents="none">
-                <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>
-                  {t('Transit Score', 'Score transit')}: {score.transit_score}/10
+              {/* Transit score badge */}
+              {score && (
+                <View style={{ position: 'absolute', bottom: 40, left: 8, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 }} pointerEvents="none">
+                  <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>
+                    {t('Transit Score', 'Score transit')}: {score.transit_score}/10
+                  </Text>
+                </View>
+              )}
+              {/* Name */}
+              <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 10 }} pointerEvents="none">
+                <Text numberOfLines={2} style={{ color: '#fff', fontSize: fonts.md, fontWeight: '800', lineHeight: 18, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 }}>
+                  {name}
                 </Text>
               </View>
-            )}
-            {/* Name */}
-            <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 10 }} pointerEvents="none">
-              <Text numberOfLines={2} style={{ color: '#fff', fontSize: fonts.md, fontWeight: '800', lineHeight: 18, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 }}>
-                {name}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        );
-      })}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
     </ScrollView>
   );
 }

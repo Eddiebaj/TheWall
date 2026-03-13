@@ -59,7 +59,7 @@ import { CAMPUSES, CampusConfig, getNextDeparture, isLibraryOpen, fmt12h, getDay
 import { HAPPY_HOUR_VENUES } from '../../lib/happyHourData';
 import { Neighbourhood, NEIGHBOURHOODS } from '../../lib/neighbourhoodData';
 import { NewsArticle } from '../../lib/newsData';
-import { SK_NEWS_CACHE, SK_SAVED_NEIGHBOURHOODS, SK_TONIGHT_DISMISSED, SK_TRIP_HISTORY, SK_LAST_CROWDING_REPORT, SK_CROWDING_CACHE, SK_FREQUENT_CARD_DISMISSED } from '../../lib/storageKeys';
+import { SK_NEWS_CACHE, SK_SAVED_NEIGHBOURHOODS, SK_TONIGHT_DISMISSED, SK_TRIP_HISTORY, SK_LAST_CROWDING_REPORT, SK_CROWDING_CACHE, SK_FREQUENT_CARD_DISMISSED, SK_FREQUENT_ARRIVALS_CACHE } from '../../lib/storageKeys';
 import { FrequentRoute, detectFrequentRoutes } from '../../lib/frequentRoutes';
 import { getDelayContext } from '../../lib/delayContext';
 import NewsSection from '../../components/NewsSection';
@@ -1542,6 +1542,9 @@ function LiveScreenInner() {
             if (insertAt >= 0) saved.splice(insertAt, 0, 'news');
             else saved.push('news');
           }
+          if (!saved.includes('discover')) {
+            saved.push('discover');
+          }
           setSectionOrder(saved);
           AsyncStorage.setItem(SK_SECTION_ORDER, JSON.stringify(saved));
         }
@@ -2253,12 +2256,25 @@ function LiveScreenInner() {
   };
 
   // ── Frequent rider card arrivals polling ──────────────────────
-  const fetchFrequentArrivals = async (routes: FrequentRoute[]) => {
+  const fetchFrequentArrivals = async (routes: FrequentRoute[], skipCache = false) => {
+    // Show cached data instantly while fetching fresh
+    if (!skipCache) {
+      try {
+        const cached = await AsyncStorage.getItem(SK_FREQUENT_ARRIVALS_CACHE);
+        if (cached) {
+          const { data, ts } = JSON.parse(cached);
+          if (Date.now() - ts < 60000 && data) {
+            setFrequentArrivals(data);
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
     const stopIds = [...new Set(routes.filter(r => r.stopId).map(r => r.stopId))];
     const results: Record<string, { minsAway: number; delay: number; headsign: string } | null> = {};
     await Promise.allSettled(stopIds.map(async sid => {
       try {
-        const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${sid}`, { signal: AbortSignal.timeout(5000) } as any);
+        const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${sid}`, { timeout: 5000 });
         if (!resp.ok) return;
         const data = await resp.json();
         const trips = data.trips || data.result?.trips || [];
@@ -2271,11 +2287,9 @@ function LiveScreenInner() {
               results[route.routeId] = { minsAway: mins, delay, headsign: match.headsign || match.TripDestination || '' };
             }
           } else {
-            // Fallback stop (no specific route) — show first arrival
             const first = trips[0];
             if (first) {
               const mins = typeof first.minsAway === 'number' ? first.minsAway : parseInt(first.AdjustedScheduleTime || '0', 10);
-              const routeId = first.routeId || first.RouteNo || sid;
               results[sid] = { minsAway: mins, delay: 0, headsign: first.headsign || first.TripDestination || '' };
             }
           }
@@ -2283,6 +2297,10 @@ function LiveScreenInner() {
       } catch { /* network error */ }
     }));
     setFrequentArrivals(results);
+    // Cache successful results
+    if (Object.keys(results).length > 0) {
+      AsyncStorage.setItem(SK_FREQUENT_ARRIVALS_CACHE, JSON.stringify({ data: results, ts: Date.now() })).catch(() => {});
+    }
   };
 
   useEffect(() => {
@@ -2293,7 +2311,7 @@ function LiveScreenInner() {
     const interval = setInterval(() => {
       if (AppState.currentState === 'active') {
         fetchArrivals(stopId);
-        if (frequentRoutes.length > 0 && !frequentCardDismissed) fetchFrequentArrivals(frequentRoutes);
+        if (frequentRoutes.length > 0 && !frequentCardDismissed) fetchFrequentArrivals(frequentRoutes, true);
       }
     }, 30000);
     return () => clearInterval(interval);
@@ -4501,7 +4519,7 @@ function LiveScreenInner() {
           </View>
         )}
 
-        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true} onScrollBeginDrag={() => { Keyboard.dismiss(); setSearchResults([]); }}>
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true} directionalLockEnabled={true} contentContainerStyle={{ paddingBottom: 90 }} onScrollBeginDrag={() => { Keyboard.dismiss(); setSearchResults([]); }}>
 
           {/* Header */}
           <View style={styles.header}>
@@ -4586,7 +4604,7 @@ function LiveScreenInner() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }} numberOfLines={1}>
-                        {arrival?.headsign || route.stopName || t('Loading...', 'Chargement...')}
+                        {arrival?.headsign || route.stopName || (route.routeId ? `${t('Route', 'Ligne')} ${route.routeId}` : t('Stop', 'Arret'))}
                       </Text>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
                         {hasAlert ? (
@@ -4596,18 +4614,22 @@ function LiveScreenInner() {
                         ) : arrival ? (
                           <><View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#34C759' }} /><Text style={{ fontSize: fonts.sm, color: '#34C759', fontWeight: '600' }}>{t('On time', 'À l\'heure')}</Text></>
                         ) : (
-                          <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Checking...', 'Vérification...')}</Text>
+                          <Text style={{ fontSize: fonts.sm, color: colours.muted }}>#{route.stopId}</Text>
                         )}
                       </View>
                     </View>
-                    {arrival && (
-                      <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: arrival.minsAway <= 2 ? '#FF3B30' : colours.accent }}>
-                          {arrival.minsAway === 0 ? t('Due', 'Imminent') : `${arrival.minsAway}m`}
-                        </Text>
-                        <Text style={{ fontSize: 10, color: colours.muted }}>{t('next', 'prochain')}</Text>
-                      </View>
-                    )}
+                    <View style={{ alignItems: 'flex-end', minWidth: 40 }}>
+                      {arrival ? (
+                        <>
+                          <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: arrival.minsAway <= 2 ? '#FF3B30' : colours.accent }}>
+                            {arrival.minsAway === 0 ? t('Due', 'Imminent') : `${arrival.minsAway}m`}
+                          </Text>
+                          <Text style={{ fontSize: 10, color: colours.muted }}>{t('next', 'prochain')}</Text>
+                        </>
+                      ) : (
+                        <ActivityIndicator size="small" color={colours.accent} />
+                      )}
+                    </View>
                   </TouchableOpacity>
                 );
               })}
