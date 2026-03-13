@@ -2161,11 +2161,11 @@ function LiveScreenInner() {
     setNearbyAlternative(null);
     if (currentMinAway <= 15) return;
     try {
-      const { data: stopData } = await supabase.from('stops').select('lat,lon').eq('stop_id', sid).single();
-      if (!stopData?.lat) return;
-      const { data: nearbyStops } = await supabase.from('stops').select('stop_id,name,lat,lon')
-        .gte('lat', stopData.lat - 0.004).lte('lat', stopData.lat + 0.004)
-        .gte('lon', stopData.lon - 0.005).lte('lon', stopData.lon + 0.005)
+      const { data: stopData } = await supabase.from('stops').select('stop_lat,stop_lon').eq('stop_id', sid).single();
+      if (!stopData?.stop_lat) return;
+      const { data: nearbyStops } = await supabase.from('stops').select('stop_id,stop_name,stop_lat,stop_lon')
+        .gte('stop_lat', stopData.stop_lat - 0.004).lte('stop_lat', stopData.stop_lat + 0.004)
+        .gte('stop_lon', stopData.stop_lon - 0.005).lte('stop_lon', stopData.stop_lon + 0.005)
         .neq('stop_id', sid).limit(8);
       if (!nearbyStops || nearbyStops.length === 0) return;
       for (const ns of nearbyStops) {
@@ -2175,11 +2175,11 @@ function LiveScreenInner() {
           const data = await resp.json();
           const firstArrival = (data.arrivals || [])[0];
           if (firstArrival && firstArrival.minsAway < currentMinAway - 3) {
-            const dlat = (ns.lat - stopData.lat) * 111320;
-            const dlng = (ns.lon - stopData.lon) * 111320 * Math.cos(stopData.lat * Math.PI / 180);
+            const dlat = (ns.stop_lat - stopData.stop_lat) * 111320;
+            const dlng = (ns.stop_lon - stopData.stop_lon) * 111320 * Math.cos(stopData.stop_lat * Math.PI / 180);
             const dist = Math.round(Math.sqrt(dlat * dlat + dlng * dlng));
             if (dist <= 500) {
-              setNearbyAlternative({ stopId: ns.stop_id, stopName: ns.name || `Stop #${ns.stop_id}`, routeId: firstArrival.routeId, minsAway: firstArrival.minsAway, walkMeters: dist });
+              setNearbyAlternative({ stopId: ns.stop_id, stopName: ns.stop_name || `Stop #${ns.stop_id}`, routeId: firstArrival.routeId, minsAway: firstArrival.minsAway, walkMeters: dist });
               return;
             }
           }
@@ -2188,13 +2188,8 @@ function LiveScreenInner() {
     } catch (e) { if (__DEV__) console.warn('nearby alternative failed:', e); }
   };
 
-  const fetchStopAmenities = async (sid: string) => {
-    setStopAmenities(null);
-    try {
-      const { data } = await supabase.from('stops').select('wheelchair_boarding,shelter,bench,lighting').eq('stop_id', sid).single();
-      if (data) setStopAmenities(data);
-    } catch (e) { if (__DEV__) console.warn('fetch amenities failed:', e); }
-  };
+  // Stop amenities — columns not yet in stops table; function is a no-op until schema is extended
+  const fetchStopAmenities = async (_sid: string) => { setStopAmenities(null); };
 
   useEffect(() => {
     const interval = setInterval(() => { if (AppState.currentState === 'active') fetchArrivals(stopId); }, 30000);
