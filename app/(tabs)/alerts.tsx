@@ -47,7 +47,7 @@ const LRT_URL = 'https://routeo-backend.vercel.app/api/alerts?action=lrt';
 
 const CATEGORY_COLOUR: { [key: string]: string } = {
   lrt: '#00A78D', detour: '#e8a020', cancellation: '#cc3b2a',
-  delay: '#e8a020', accessibility: '#7b5ea7', general: '#004890',
+  delay: '#e8a020', accessibility: '#7b5ea7', general: '#004890', sto: '#00A78D',
 };
 
 const LINE_COLOURS = { line1: '#004890', line2: '#00A78D', line4: '#8E44AD' };
@@ -56,6 +56,7 @@ const LINE_COLOURS = { line1: '#004890', line2: '#00A78D', line4: '#8E44AD' };
 type ServiceAlert = {
   id: number; title: string; description: string;
   link: string; pubDate: string; routes: string[]; category: string;
+  agency?: 'OC' | 'STO';
 };
 
 type LrtStation = { code: string; name: string; ok: boolean };
@@ -126,8 +127,11 @@ function AlertsScreenInner() {
   // ── Derived data ──────────────────────────────────────────────
   const activeAlerts = alerts.filter(a => a.category !== 'accessibility');
   const accessibilityAlerts = alerts.filter(a => a.category === 'accessibility');
+  const hasStoAlerts = alerts.some(a => a.agency === 'STO');
   const categories = [...new Set(alerts.map(a => a.category))].filter(Boolean);
-  const filtered = activeFilter ? alerts.filter(a => a.category === activeFilter) : alerts;
+  if (hasStoAlerts && !categories.includes('sto')) categories.push('sto');
+  const filtered = activeFilter === 'sto' ? alerts.filter(a => a.agency === 'STO')
+    : activeFilter ? alerts.filter(a => a.category === activeFilter) : alerts;
   const criticalCount = alerts.filter(a => a.category === 'cancellation' || a.category === 'lrt').length;
   const hasAlerts = activeAlerts.length > 0;
   const statusColor = !hasAlerts ? '#34c759' : CATEGORY_COLOUR[activeAlerts[0]?.category] || '#e8a020';
@@ -182,6 +186,11 @@ function AlertsScreenInner() {
         }, cardShadow]}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {alert.agency === 'STO' && (
+            <View style={[styles.catBadge, { backgroundColor: '#00A78D' + '20' }]}>
+              <Text style={{ fontSize: 9, fontWeight: '800', color: '#00A78D', textTransform: 'uppercase', letterSpacing: 0.5 }}>STO</Text>
+            </View>
+          )}
           <View style={[styles.catBadge, { backgroundColor: catColour + '20' }]}>
             <Text style={{ fontSize: 9, fontWeight: '800', color: catColour, textTransform: 'uppercase', letterSpacing: 0.5 }}>
               {alert.category}
@@ -216,7 +225,7 @@ function AlertsScreenInner() {
             ) : null}
             {alert.link ? (
               <TouchableOpacity onPress={() => Linking.openURL(alert.link)}>
-                <Text style={{ fontSize: 11, color: colours.accent, fontWeight: '600' }}>OC Transpo \u2197</Text>
+                <Text style={{ fontSize: 11, color: colours.accent, fontWeight: '600' }}>{alert.agency === 'STO' ? 'STO' : 'OC Transpo'} \u2197</Text>
               </TouchableOpacity>
             ) : null}
           </View>

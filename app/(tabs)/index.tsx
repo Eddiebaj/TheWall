@@ -56,7 +56,7 @@ import { CAMPUSES, CampusConfig, getNextDeparture, isLibraryOpen, fmt12h, getDay
 import { HAPPY_HOUR_VENUES } from '../../lib/happyHourData';
 import { Neighbourhood, NEIGHBOURHOODS } from '../../lib/neighbourhoodData';
 import { NewsArticle } from '../../lib/newsData';
-import { SK_NEWS_CACHE, SK_SAVED_NEIGHBOURHOODS, SK_TONIGHT_DISMISSED } from '../../lib/storageKeys';
+import { SK_NEWS_CACHE, SK_SAVED_NEIGHBOURHOODS, SK_TONIGHT_DISMISSED, SK_TRIP_HISTORY } from '../../lib/storageKeys';
 import NewsSection from '../../components/NewsSection';
 import NeighbourhoodSection from '../../components/NeighbourhoodSection';
 import NeighbourhoodSheet from '../../components/NeighbourhoodSheet';
@@ -266,6 +266,7 @@ const SERVICES_TABS: ServicesTab[] = [
       { id: '311',         label_en: '311 Report',   label_fr: 'Signaler 311',  icon: 'megaphone',        accent: '#cc3b2a', action: 'alert',    target: '311' },
       { id: 'garbage',     label_en: 'Garbage Day',  label_fr: 'Collecte',      icon: 'trash',            accent: '#6b7f99', action: 'alert',    target: 'garbage' },
       { id: 'hydro',       label_en: 'Hydro Ottawa', label_fr: 'Hydro Ottawa',  icon: 'flash',            accent: '#e8a020', action: 'link',     target: 'https://hydroottawa.com/en/outages' },
+      { id: 'parking',     label_en: 'Parking',      label_fr: 'Stationnement', icon: 'car',              accent: '#004890', action: 'alert',    target: 'parking' },
       { id: 'parking_tkt', label_en: 'Pay Ticket',   label_fr: 'Payer contrav.', icon: 'card',            accent: '#cc3b2a', action: 'link',     target: 'https://www.ottawapolice.ca/en/parking-and-traffic/pay-a-parking-ticket.aspx' },
       { id: 'road_511',    label_en: 'Road Events',  label_fr: 'Événements',    icon: 'warning',          accent: '#e8a020', action: 'alert',    target: 'road_closures' },
       { id: 'parks',       label_en: 'Parks & Rinks',label_fr: 'Parcs & Patins',icon: 'snow',             accent: '#004890', action: 'alert',    target: 'parks' },
@@ -297,7 +298,7 @@ const CATEGORY_COLOUR: { [key: string]: string } = {
   delay: '#e8a020', accessibility: '#7b5ea7', general: '#004890',
 };
 
-type ServiceAlert = { id: number; title: string; description: string; link: string; pubDate: string; routes: string[]; category: string };
+type ServiceAlert = { id: number; title: string; description: string; link: string; pubDate: string; routes: string[]; category: string; agency?: 'OC' | 'STO' };
 type Arrival = { id: string; routeId: string; headsign: string; minsAway: number; delay: number; secsAway: number; isScheduled?: boolean };
 type Fav = { id: string; name: string; icon: string };
 type ReportEntry = { count: number; expiresAt: number };
@@ -1411,6 +1412,13 @@ function LiveScreenInner() {
   const [bikeShareModal, setBikeShareModal] = useState(false);
   const [bikeStations, setBikeStations] = useState<{ name: string; bikes: number; docks: number; lat: number; lng: number; distance: number }[]>([]);
   const [bikeShareLoading, setBikeShareLoading] = useState(false);
+  // City parking garages
+  const [parkingModal, setParkingModal] = useState(false);
+  const [parkingGarages, setParkingGarages] = useState<{ name: string; address: string; total: number; available: number; occupancy: number; lat: number; lng: number; distance: number }[]>([]);
+  const [parkingLoading, setParkingLoading] = useState(false);
+  // Commute insights
+  const [commuteInsight, setCommuteInsight] = useState<{ fromLabel: string; toLabel: string; avgDuration: number; count: number; affectedAlert?: string } | null>(null);
+  const [weatherBannerDismissed, setWeatherBannerDismissed] = useState(false);
   // Events modal (Ticketmaster + Eventbrite)
   const [eventsModal, setEventsModal] = useState(false);
   const [eventsSource, setEventsSource] = useState<'ticketmaster' | 'eventbrite'>('ticketmaster');
@@ -1586,6 +1594,29 @@ function LiveScreenInner() {
     // Register push token and configure notification handler
     configureNotificationHandler();
     registerPushToken(language).catch(() => {});
+    // Detect commute patterns from trip history
+    AsyncStorage.getItem(SK_TRIP_HISTORY).then(val => {
+      if (!val) return;
+      try {
+        const trips: { fromLabel: string; fromLat: number; fromLng: number; toLabel: string; toLat: number; toLng: number; durationMins: number; plannedAt: string }[] = JSON.parse(val);
+        if (trips.length < 3) return;
+        // Group similar trips (same from/to within 500m)
+        const groups: { fromLabel: string; toLabel: string; durations: number[]; count: number }[] = [];
+        for (const trip of trips) {
+          const match = groups.find(g => {
+            const fromMatch = trips.filter(t => t.fromLabel === g.fromLabel).length > 0;
+            return fromMatch && g.toLabel === trip.toLabel;
+          });
+          if (match) { match.durations.push(trip.durationMins); match.count++; }
+          else { groups.push({ fromLabel: trip.fromLabel, toLabel: trip.toLabel, durations: [trip.durationMins], count: 1 }); }
+        }
+        const commute = groups.find(g => g.count >= 3);
+        if (commute) {
+          const avg = Math.round(commute.durations.reduce((a, b) => a + b, 0) / commute.durations.length);
+          setCommuteInsight({ fromLabel: commute.fromLabel, toLabel: commute.toLabel, avgDuration: avg, count: commute.count });
+        }
+      } catch {}
+    }).catch(() => {});
   }, []);
 
   const saveCustomization = async (order: string[], qaIds: string[], olIds: string[]) => {
@@ -1833,6 +1864,15 @@ function LiveScreenInner() {
     catch { setAlerts([]); } finally { setAlertsLoading(false); }
   };
 
+  // Cross-reference commute with active alerts
+  useEffect(() => {
+    if (!commuteInsight || alerts.length === 0) return;
+    const critical = alerts.find(a => a.category === 'cancellation' || a.category === 'lrt' || a.category === 'delay');
+    if (critical) {
+      setCommuteInsight(prev => prev ? { ...prev, affectedAlert: critical.title } : null);
+    }
+  }, [alerts.length]);
+
   // ── 511 Ontario road events ───────────────────────────────────
   const haversineDist = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
     const toRad = (d: number) => d * Math.PI / 180;
@@ -1941,6 +1981,24 @@ function LiveScreenInner() {
       setBikeStations(merged.slice(0, 30));
     } catch { setBikeStations([]); }
     setBikeShareLoading(false);
+  };
+
+  // ── City Parking Garages ────────────────────────────────────────
+  const fetchParkingData = async () => {
+    setParkingLoading(true);
+    try {
+      const coords = await getUserCoords();
+      const resp = await fetchWithTimeout('https://routeo-backend.vercel.app/api/community?action=parking');
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      const garages = (data.garages || []).map((g: any) => {
+        const dist = haversineDist(coords.lat, coords.lng, g.lat, g.lng);
+        return { ...g, distance: dist };
+      });
+      garages.sort((a: any, b: any) => a.distance - b.distance);
+      setParkingGarages(garages);
+    } catch { setParkingGarages([]); }
+    setParkingLoading(false);
   };
 
   // ── Ticketmaster events ───────────────────────────────────────
@@ -2319,6 +2377,7 @@ function LiveScreenInner() {
     if (tile.action === 'alert' && tile.target === 'road_closures') { fetchRoadClosures(); setRoadEventsModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'parks') { fetchParks(); setParksModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'bikeshare') { fetchBikeShare(); setBikeShareModal(true); return; }
+    if (tile.action === 'alert' && tile.target === 'parking') { fetchParkingData(); setParkingModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'campus') { if (!selectedCampus) setCampusPicker(true); else setCampusModal(true); return; }
     if (tile.action === 'alert') { setAlertsModalVisible(true); return; }
     if (tile.action === 'navigate' && tile.target?.includes('events?source=')) {
@@ -3293,6 +3352,98 @@ function LiveScreenInner() {
       </View>
     </Modal>
   );
+
+  // ── City Parking Modal ───────────────────────────────────────
+  const renderParkingModal = () => {
+    const openNavigation = (lat: number, lng: number, name: string) => {
+      const url = Platform.select({
+        ios: `maps:0,0?q=${encodeURIComponent(name)}@${lat},${lng}`,
+        android: `geo:${lat},${lng}?q=${lat},${lng}(${encodeURIComponent(name)})`,
+      });
+      if (url) Linking.openURL(url).catch(() => {});
+    };
+
+    const fillColor = (occ: number) => occ > 80 ? '#cc3b2a' : occ > 50 ? '#e8a020' : '#00A78D';
+
+    return (
+      <Modal visible={parkingModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setParkingModal(false)}>
+        <View style={[styles.modalContainer, { backgroundColor: colours.bg }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: colours.border }]}>
+            <View>
+              <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>{t('City Parking', 'Stationnement municipal')}</Text>
+              <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Sorted by distance', 'Tri\u00E9 par distance')}</Text>
+            </View>
+            <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setParkingModal(false)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
+              <Ionicons name="close" size={18} color={colours.text} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+            {parkingLoading ? (
+              <View style={styles.modalCenter}><ActivityIndicator color={colours.accent} size="large" /><Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('Loading parking data...', 'Chargement...')}</Text></View>
+            ) : parkingGarages.length === 0 ? (
+              <View style={styles.modalCenter}>
+                <Ionicons name="car-outline" size={40} color={colours.muted} />
+                <Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('No parking data available.', 'Aucune donn\u00E9e de stationnement disponible.')}</Text>
+              </View>
+            ) : (
+              <>
+                {parkingGarages.map((g, i) => {
+                  const occ = g.total > 0 ? Math.round((1 - g.available / g.total) * 100) : 0;
+                  const barColor = fillColor(occ);
+                  return (
+                    <View key={i} style={{ marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, ...cardShadow }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: '#004890' + '15', alignItems: 'center', justifyContent: 'center' }}>
+                          <Ionicons name="car" size={16} color="#004890" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text }} numberOfLines={1}>{g.name}</Text>
+                          <Text style={{ fontSize: 11, color: colours.muted, marginTop: 1 }} numberOfLines={1}>{g.address}</Text>
+                        </View>
+                        {g.distance < 900 && <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted }}>{g.distance < 1 ? `${(g.distance * 1000).toFixed(0)}m` : `${g.distance.toFixed(1)}km`}</Text>}
+                      </View>
+                      {/* Availability */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <Text style={{ fontSize: 22, fontWeight: '900', color: barColor }}>{g.available}</Text>
+                        <Text style={{ fontSize: fonts.sm, color: colours.muted, fontWeight: '600' }}>/ {g.total} {t('spots available', 'places disponibles')}</Text>
+                      </View>
+                      {/* Fill rate bar */}
+                      <View style={{ height: 6, borderRadius: 3, backgroundColor: colours.border, marginBottom: 10 }}>
+                        <View style={{ height: 6, borderRadius: 3, backgroundColor: barColor, width: `${Math.min(occ, 100)}%` }} />
+                      </View>
+                      {/* Action buttons */}
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity
+                          onPress={() => Linking.openURL('https://www.paybyphone.com/parking/ottawa').catch(() => {})}
+                          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: '#004890' + '12' }}
+                          activeOpacity={0.7}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('Pay for parking', 'Payer le stationnement')}
+                        >
+                          <Ionicons name="card-outline" size={14} color="#004890" />
+                          <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: '#004890' }}>{t('Pay', 'Payer')}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => openNavigation(g.lat, g.lng, g.name)}
+                          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: '#00A78D' + '12' }}
+                          activeOpacity={0.7}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('Navigate to garage', 'Naviguer vers le stationnement')}
+                        >
+                          <Ionicons name="navigate-outline" size={14} color="#00A78D" />
+                          <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: '#00A78D' }}>{t('Navigate', 'Naviguer')}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })}
+              </>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
+    );
+  };
 
   const isNight = new Date().getHours() >= 21;
   const isFav = favs.find(f => f.id === stopId);
@@ -4347,6 +4498,7 @@ function LiveScreenInner() {
         {renderRoadEventsModal()}
         {renderParksModal()}
         {renderBikeShareModal()}
+        {renderParkingModal()}
         {renderCampusModal()}
 
         {/* 311 Report Modal */}
@@ -4590,6 +4742,60 @@ function LiveScreenInner() {
             onPressEvents={() => { setEventsSource('ticketmaster'); fetchTicketmasterEvents(); setEventsModal(true); }}
             onPressDeals={() => setSocialModal(true)}
           />
+
+          {/* Weather-aware transit banner */}
+          {weather && !weatherBannerDismissed && (weather.temp <= -20 || (forecast.length > 0 && forecast.slice(0, 3).some(h => h.precip > 70))) && (
+            <View style={{ marginHorizontal: 20, marginBottom: 16, backgroundColor: '#004890' + '15', borderWidth: 1, borderColor: '#004890' + '40', borderRadius: 14, padding: 14, flexDirection: 'row', gap: 10, alignItems: 'flex-start', ...cardShadow }}>
+              <Ionicons name={weather.temp <= -20 ? 'snow' : 'rainy'} size={20} color="#004890" style={{ marginTop: 2 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#004890' }}>
+                  {weather.temp <= -20
+                    ? t('Extreme cold warning', 'Avertissement de froid extreme')
+                    : t('Heavy precipitation expected', 'Fortes precipitations prevues')}
+                </Text>
+                <Text style={{ fontSize: 12, color: colours.text, marginTop: 4, lineHeight: 17 }}>
+                  {t(
+                    'Expect delays — consider LRT + underground transfers.',
+                    'Prevoyez des retards — pensez au TLR et aux correspondances souterraines.'
+                  )}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setWeatherBannerDismissed(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={16} color={colours.muted} />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Commute insights card */}
+          {commuteInsight && (
+            <TouchableOpacity
+              onPress={() => router.push({ pathname: '/(tabs)/planner', params: { toLabel: commuteInsight.toLabel } } as any)}
+              activeOpacity={0.85}
+              style={{ marginHorizontal: 20, marginBottom: 16, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 14, padding: 14, ...cardShadow }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <Ionicons name="analytics" size={16} color={colours.accent} />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  {t('Your Commute', 'Votre trajet')}
+                </Text>
+              </View>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>
+                {commuteInsight.fromLabel} → {commuteInsight.toLabel}
+              </Text>
+              <Text style={{ fontSize: 12, color: colours.muted, marginTop: 4 }}>
+                {t(`Usually ${commuteInsight.avgDuration} min`, `Habituellement ${commuteInsight.avgDuration} min`)}
+                {' · '}{commuteInsight.count} {t('trips', 'trajets')}
+              </Text>
+              {commuteInsight.affectedAlert && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, backgroundColor: '#cc3b2a' + '12', borderRadius: 8, padding: 8 }}>
+                  <Ionicons name="warning" size={14} color="#cc3b2a" />
+                  <Text style={{ fontSize: 11, color: '#cc3b2a', fontWeight: '600', flex: 1 }} numberOfLines={2}>
+                    {commuteInsight.affectedAlert}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
 
           {sectionOrder.map(renderSection)}
 

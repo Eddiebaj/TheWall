@@ -5,8 +5,17 @@ import {
   ImageBackground, ScrollView, Text, TouchableOpacity, View,
 } from 'react-native';
 import { useApp } from '../context/AppContext';
+import { fetchWithTimeout } from '../lib/fetchWithTimeout';
 import { Neighbourhood, NEIGHBOURHOODS } from '../lib/neighbourhoodData';
 import { SK_SAVED_NEIGHBOURHOODS } from '../lib/storageKeys';
+
+type TransitScore = {
+  neighbourhood_id: string;
+  transit_score: number;
+  stop_count: number;
+  route_count: number;
+  avg_frequency: number;
+};
 
 type Props = {
   colours: any;
@@ -28,11 +37,27 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 export default function NeighbourhoodSection({ colours, fonts, cardShadow, events, dealCount, onPress }: Props) {
   const { t, language } = useApp();
   const [savedIds, setSavedIds] = useState<string[]>([]);
+  const [transitScores, setTransitScores] = useState<Record<string, TransitScore>>({});
 
   useEffect(() => {
     AsyncStorage.getItem(SK_SAVED_NEIGHBOURHOODS).then(val => {
       if (val) { try { setSavedIds(JSON.parse(val)); } catch {} }
     });
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const resp = await fetchWithTimeout('https://routeo-backend.vercel.app/api/community?action=transit_scores');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        if (data.scores && Array.isArray(data.scores)) {
+          const map: Record<string, TransitScore> = {};
+          data.scores.forEach((s: TransitScore) => { map[s.neighbourhood_id] = s; });
+          setTransitScores(map);
+        }
+      } catch (e) { if (__DEV__) console.warn('fetch transit scores failed:', e); }
+    })();
   }, []);
 
   const toggleSave = (id: string) => {
@@ -66,6 +91,7 @@ export default function NeighbourhoodSection({ colours, fonts, cardShadow, event
         const name = language === 'fr' ? n.name_fr : n.name_en;
         const isSaved = savedIds.includes(n.id);
         const evtCount = getEventCount(n);
+        const score = transitScores[n.id];
         return (
           <TouchableOpacity
             key={n.id}
@@ -103,6 +129,14 @@ export default function NeighbourhoodSection({ colours, fonts, cardShadow, event
                   </View>
                 )}
               </View>
+              {/* Transit score badge */}
+              {score && (
+                <View style={{ position: 'absolute', bottom: 40, left: 8, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 }}>
+                  <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>
+                    {t('Transit Score', 'Score transit')}: {score.transit_score}/10
+                  </Text>
+                </View>
+              )}
               {/* Name */}
               <View style={{ padding: 10 }}>
                 <Text numberOfLines={2} style={{ color: '#fff', fontSize: fonts.md, fontWeight: '800', lineHeight: 18, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 }}>

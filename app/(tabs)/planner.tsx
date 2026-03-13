@@ -51,6 +51,18 @@ import { SK_PLANNER_PREFS, SK_SAVED_ROUTES, SK_TRIP_HISTORY } from '../../lib/st
 const PLAN_URL = 'https://routeo-backend.vercel.app/api/plan';
 const PLACES_URL = 'https://routeo-backend.vercel.app/api/places';
 
+// Canadian Tire Centre coords (Sens home)
+const CTC_LAT = 45.2973;
+const CTC_LNG = -75.9267;
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 type PlaceResult = { placeId: string; label: string; lat?: number; lng?: number };
 type WalkStep = { distance: number; relativeDirection: string; streetName: string; instruction?: string | null };
 type Leg = {
@@ -236,6 +248,7 @@ function PlannerScreenInner() {
   const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
   const [tripHistory, setTripHistory] = useState<TripRecord[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [sensGameTonight, setSensGameTonight] = useState(false);
 
   // Holds Expo notification IDs so we can cancel them on stopTracking
   const transitNotifIds = useRef<string[]>([]);
@@ -252,6 +265,17 @@ function PlannerScreenInner() {
     }).catch(() => {});
     AsyncStorage.getItem(SK_TRIP_HISTORY).then(val => {
       try { if (val) setTripHistory(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse trip history failed:', e); }
+    }).catch(() => {});
+    // Check for Sens game tonight
+    fetchWithTimeout('https://api-web.nhle.com/v1/schedule/now').then(async r => {
+      if (!r.ok) return;
+      const data = await r.json();
+      const today = new Date().toLocaleDateString('en-CA');
+      const todayEntry = (data.gameWeek || []).find((d: any) => d.date === today);
+      const game = (todayEntry?.games || []).find((g: any) =>
+        (g.awayTeam?.abbrev === 'OTT' || g.homeTeam?.abbrev === 'OTT') && g.homeTeam?.abbrev === 'OTT'
+      );
+      if (game) setSensGameTonight(true);
     }).catch(() => {});
   }, []);
 
@@ -1715,6 +1739,23 @@ function PlannerScreenInner() {
                 </Text>
               </TouchableOpacity>
             </View>
+            {/* Sens game warning */}
+            {sensGameTonight && toPlace?.lat && haversineKm(toPlace.lat, toPlace.lng!, CTC_LAT, CTC_LNG) <= 2 && (
+              <View style={{ backgroundColor: '#c8102e' + '15', borderWidth: 1, borderColor: '#c8102e' + '40', borderRadius: 12, padding: 12, marginBottom: 12, flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
+                <Ionicons name="warning" size={18} color="#c8102e" style={{ marginTop: 2 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#c8102e' }}>
+                    {t('Sens game tonight', 'Match des Sens ce soir')}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: colours.text, marginTop: 4, lineHeight: 17 }}>
+                    {t(
+                      'Expect delays on routes 61/62 near Canadian Tire Centre after 10pm. Consider Fallowfield station.',
+                      'Prevoyez des retards sur les lignes 61/62 pres du Centre Canadian Tire apres 22h. Pensez a la station Fallowfield.'
+                    )}
+                  </Text>
+                </View>
+              </View>
+            )}
             {itineraries.map((itin, i) => renderItinerary(itin, i))}
           </View>
         ) : !loading && !searched ? (

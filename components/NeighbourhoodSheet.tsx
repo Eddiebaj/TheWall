@@ -49,6 +49,9 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
   const [stops, setStops] = useState<any[]>([]);
   const [stopsLoading, setStopsLoading] = useState(false);
 
+  // Transit score state
+  const [transitScore, setTransitScore] = useState<{ transit_score: number; stop_count: number; route_count: number; avg_frequency: number } | null>(null);
+
   // Deal submission state
   const [showDealForm, setShowDealForm] = useState(false);
   const [dealVenueName, setDealVenueName] = useState('');
@@ -67,12 +70,14 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
     setShowDealForm(false);
     setDealSubmitted(false);
     setCommunityDeals([]);
+    setTransitScore(null);
   }, [visible, n?.id]);
 
   useEffect(() => {
     if (!visible || !n) return;
     if (activeTab === 'places' && places.length === 0) fetchPlaces();
     if (activeTab === 'transit' && stops.length === 0) fetchStops();
+    if (activeTab === 'transit' && !transitScore) fetchTransitScore();
     if (activeTab === 'deals' && communityDeals.length === 0) fetchCommunityDeals();
   }, [activeTab, visible]);
 
@@ -98,6 +103,23 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
       setStops((data.stops || []).slice(0, 10));
     } catch (e) { if (__DEV__) console.warn('fetch neighbourhood stops failed:', e); }
     setStopsLoading(false);
+  };
+
+  const fetchTransitScore = async () => {
+    if (!n) return;
+    try {
+      const resp = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/community?action=transit_score&neighbourhood=${n.id}`);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      if (data.transit_score != null) {
+        setTransitScore({
+          transit_score: data.transit_score,
+          stop_count: data.stop_count,
+          route_count: data.route_count,
+          avg_frequency: data.avg_frequency,
+        });
+      }
+    } catch (e) { if (__DEV__) console.warn('fetch transit score failed:', e); }
   };
 
   const fetchCommunityDeals = async () => {
@@ -279,14 +301,42 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
         );
 
       case 'transit':
-        if (stopsLoading) return <ActivityIndicator color={colours.accent} style={{ marginTop: 20 }} />;
-        if (stops.length === 0) return <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 20 }}>{t('No nearby stops', 'Aucun arret a proximite')}</Text>;
-        return stops.map((s: any, i: number) => (
-          <View key={i} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border }}>
-            <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{s.name || `Stop #${s.id}`}</Text>
-            {s.routes && <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Routes', 'Lignes')}: {s.routes.join(', ')}</Text>}
-          </View>
-        ));
+        return (
+          <>
+            {/* Transit score card */}
+            {transitScore && (
+              <View style={{ backgroundColor: n.accent + '12', borderRadius: 14, padding: 16, marginTop: 12, marginBottom: 8, borderWidth: 1, borderColor: n.accent + '30', alignItems: 'center' }}>
+                <Text style={{ fontSize: 36, fontWeight: '900', color: n.accent }}>{transitScore.transit_score}</Text>
+                <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, marginTop: 2 }}>{t('Transit Score', 'Score transit')}</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-around', width: '100%', marginTop: 14 }}>
+                  <View style={{ alignItems: 'center' }}>
+                    <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>{transitScore.stop_count}</Text>
+                    <Text style={{ fontSize: fonts.xs || 10, color: colours.muted, fontWeight: '600', marginTop: 2 }}>{t('stops', 'arrets')}</Text>
+                  </View>
+                  <View style={{ alignItems: 'center' }}>
+                    <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>{transitScore.route_count}</Text>
+                    <Text style={{ fontSize: fonts.xs || 10, color: colours.muted, fontWeight: '600', marginTop: 2 }}>{t('routes', 'lignes')}</Text>
+                  </View>
+                  <View style={{ alignItems: 'center' }}>
+                    <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>{transitScore.avg_frequency}</Text>
+                    <Text style={{ fontSize: fonts.xs || 10, color: colours.muted, fontWeight: '600', marginTop: 2 }}>{t('min avg frequency', 'min freq. moy.')}</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+            {/* Stops list */}
+            {stopsLoading && <ActivityIndicator color={colours.accent} style={{ marginTop: 20 }} />}
+            {!stopsLoading && stops.length === 0 && (
+              <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 20 }}>{t('No nearby stops', 'Aucun arret a proximite')}</Text>
+            )}
+            {!stopsLoading && stops.map((s: any, i: number) => (
+              <View key={i} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+                <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{s.name || `Stop #${s.id}`}</Text>
+                {s.routes && <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Routes', 'Lignes')}: {s.routes.join(', ')}</Text>}
+              </View>
+            ))}
+          </>
+        );
 
       case 'news':
         if (filteredNews.length === 0) return <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 20 }}>{t('No local news', 'Aucune nouvelle locale')}</Text>;
