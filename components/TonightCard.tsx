@@ -24,6 +24,9 @@ type Props = {
   events: { name: string; date: string; time?: string; venue: string }[];
   weather: { temp: number; condition: string } | null;
   sportsSchedule?: { team: string; games: any[] }[];
+  onPressSports?: () => void;
+  onPressEvents?: () => void;
+  onPressDeals?: () => void;
 };
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -44,7 +47,7 @@ function nearestNeighbourhood(lat: number, lng: number): Neighbourhood {
   return best;
 }
 
-export default function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sportsSchedule }: Props) {
+export default function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sportsSchedule, onPressSports, onPressEvents, onPressDeals }: Props) {
   const { t, language } = useApp();
   const [show, setShow] = useState(false);
   const [summary, setSummary] = useState<TonightSummary | null>(null);
@@ -113,20 +116,21 @@ export default function TonightCard({ colours, fonts, cardShadow, sensGame, even
 
         {/* Sports — multiple entries */}
         {summary.sports.map((sport, i) => (
-          <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <TouchableOpacity key={i} onPress={onPressSports} activeOpacity={onPressSports ? 0.7 : 1} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <View style={{ backgroundColor: sport.colour + '18', borderRadius: 8, padding: 6 }}>
               <Ionicons name={SPORT_ICONS[sport.icon] as any} size={14} color={sport.colour} />
             </View>
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>{sport.label}</Text>
               <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{sport.detail}</Text>
             </View>
-          </View>
+            {onPressSports && <Ionicons name="chevron-forward" size={14} color={colours.muted} />}
+          </TouchableOpacity>
         ))}
 
         {/* Events */}
         {summary.events.count > 0 && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <TouchableOpacity onPress={onPressEvents} activeOpacity={onPressEvents ? 0.7 : 1} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <View style={{ backgroundColor: '#7b5ea718', borderRadius: 8, padding: 6 }}>
               <Ionicons name="calendar" size={14} color="#7b5ea7" />
             </View>
@@ -140,12 +144,13 @@ export default function TonightCard({ colours, fonts, cardShadow, sensGame, even
                 </Text>
               )}
             </View>
-          </View>
+            {onPressEvents && <Ionicons name="chevron-forward" size={14} color={colours.muted} />}
+          </TouchableOpacity>
         )}
 
         {/* Deals */}
         {summary.deals.count > 0 && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <TouchableOpacity onPress={onPressDeals} activeOpacity={onPressDeals ? 0.7 : 1} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <View style={{ backgroundColor: '#00A78D18', borderRadius: 8, padding: 6 }}>
               <Ionicons name="pricetag" size={14} color="#00A78D" />
             </View>
@@ -159,7 +164,8 @@ export default function TonightCard({ colours, fonts, cardShadow, sensGame, even
                 </Text>
               )}
             </View>
-          </View>
+            {onPressDeals && <Ionicons name="chevron-forward" size={14} color={colours.muted} />}
+          </TouchableOpacity>
         )}
 
         {/* Near venue bars (grouped by venue) */}

@@ -3,12 +3,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, ImageBackground, Linking, RefreshControl, ScrollView,
-  Text, TouchableOpacity, View,
+  Share, Text, TouchableOpacity, View,
 } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { fetchWithTimeout } from '../lib/fetchWithTimeout';
 import { NewsArticle, SOURCE_COLOURS, SOURCE_FALLBACK_ICONS, timeAgo } from '../lib/newsData';
-import { SK_NEWS_CACHE } from '../lib/storageKeys';
+import { SK_NEWS_CACHE, SK_SAVED_ARTICLES } from '../lib/storageKeys';
 
 const NEWS_URL = 'https://routeo-backend.vercel.app/api/news';
 const REFRESH_MS = 15 * 60 * 1000;
@@ -25,7 +25,27 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem(SK_SAVED_ARTICLES).then(val => {
+      if (val) try { setSavedIds(new Set(JSON.parse(val))); } catch {}
+    });
+  }, []);
+
+  const toggleSave = (id: string) => {
+    setSavedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      AsyncStorage.setItem(SK_SAVED_ARTICLES, JSON.stringify([...next]));
+      return next;
+    });
+  };
+
+  const shareArticle = (article: NewsArticle) => {
+    Share.share({ message: `${article.title}\n${article.link}`, url: article.link });
+  };
 
   const fetchNews = async (isManualRefresh = false) => {
     try {
@@ -144,7 +164,7 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
                 <View style={{ position: 'absolute', top: 8, right: 8 }}>
                   <Text style={{ color: article.thumbnail ? '#fff' : colours.muted, fontSize: 10, fontWeight: '700' }}>{timeAgo(article.pubDate, language)}</Text>
                 </View>
-                {/* Headline */}
+                {/* Headline + actions */}
                 <View style={{ padding: 10 }}>
                   <Text
                     numberOfLines={2}
@@ -158,6 +178,14 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
                   >
                     {article.title}
                   </Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+                    <TouchableOpacity onPress={() => toggleSave(article.id)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                      <Ionicons name={savedIds.has(article.id) ? 'bookmark' : 'bookmark-outline'} size={14} color={article.thumbnail ? '#fff' : colours.muted} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => shareArticle(article)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                      <Ionicons name="share-outline" size={14} color={article.thumbnail ? '#fff' : colours.muted} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </ImageBackground>
             </TouchableOpacity>

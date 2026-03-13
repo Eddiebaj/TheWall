@@ -20,7 +20,7 @@ export const NEIGHBOURHOODS: Neighbourhood[] = [
     description_fr: 'Le plus ancien marche public d\'Ottawa — rempli de restaurants, bars, galeries et vendeurs de rue toute l\'annee.',
     lat: 45.4285, lng: -75.6930,
     keywords: ['byward', 'market', 'clarence', 'york', 'george', 'sussex', 'rideau'],
-    photoUrl: 'https://images.unsplash.com/photo-1683917276588-7b6d28d43ee3?w=600',
+    photoUrl: 'https://images.unsplash.com/photo-1683917276588-7b6d28d43ee3?w=900&auto=format&fit=crop&q=60',
     accent: '#c0852a',
   },
   {
@@ -31,7 +31,7 @@ export const NEIGHBOURHOODS: Neighbourhood[] = [
     description_fr: 'Rues bordees d\'arbres avec boutiques sur la rue Bank, le parc Lansdowne et le canal Rideau.',
     lat: 45.3990, lng: -75.6890,
     keywords: ['glebe', 'bank', 'lansdowne', 'td place'],
-    photoUrl: 'https://images.unsplash.com/photo-1609170488691-3e41c0b97b4b?w=600',
+    photoUrl: 'https://lh3.googleusercontent.com/gps-cs-s/AHVAweoZVHP3W_fQYPTyZL6MBkJFxmxPlY1fnMEYAKySigSkIadfYIVAQvcfio59BigHlCn9heE3rr47-y86JYMt7mLPkmGiAREYJ6QNCAUIOKu2O7EQIsXUYoZFREDEiPb83z_qu0so=w900-h600-k-no',
     accent: '#00A78D',
   },
   {
@@ -42,7 +42,7 @@ export const NEIGHBOURHOODS: Neighbourhood[] = [
     description_fr: 'Le centre-ville — rue Elgin, mail de la rue Sparks, Colline du Parlement et le quartier principal des affaires.',
     lat: 45.4170, lng: -75.6970,
     keywords: ['centretown', 'downtown', 'elgin', 'sparks', 'parliament', 'bank', 'slater', 'albert'],
-    photoUrl: 'https://images.unsplash.com/photo-1611843467160-25afb8df1074?w=600',
+    photoUrl: 'https://lh3.googleusercontent.com/gps-cs-s/AHVAweq3zc8Ubg3vJvKvl9fBnDuQGaGAMg4qmavC3a6duFTrSgZ1NJ4duDMOsEk8PUPjzd3WnSOGCKVuNkCWQfNAVt_YOcgS-SWEInynzfMeuLvf1GwpW5OC5IlpnzdOFuviZgiugUY=w900-h600-k-no',
     accent: '#004890',
   },
   {
@@ -53,7 +53,7 @@ export const NEIGHBOURHOODS: Neighbourhood[] = [
     description_fr: 'Une ambiance village branchee sur la route Richmond avec boutiques, cafes et la plage Westboro sur la riviere des Outaouais.',
     lat: 45.3920, lng: -75.7560,
     keywords: ['westboro', 'richmond', 'byron', 'island park'],
-    photoUrl: 'https://images.unsplash.com/photo-1605639156273-ea4ef77f09f0?w=600',
+    photoUrl: 'https://lh3.googleusercontent.com/gps-cs-s/AHVAweqw_EEJnu5NzB8OySqCPWfjnNRpz_4Lii8r6wqJUpgV5NabzwKoGXDfnHbaZrVbWuspyWmSQiJbCdidSVUpz3x8s1qJ-FKNeIE8KV_sSw-hfRDHpSYjBMFYzFAW3FKkz-ULQvWZ=w900-h600-k-no',
     accent: '#7b5ea7',
   },
   {
@@ -64,7 +64,7 @@ export const NEIGHBOURHOODS: Neighbourhood[] = [
     description_fr: 'Un quartier artistique en plein essor le long de la rue Wellington Ouest avec brasseries artisanales et restaurants locaux.',
     lat: 45.4000, lng: -75.7310,
     keywords: ['hintonburg', 'wellington', 'parkdale', 'mechanicsville'],
-    photoUrl: 'https://images.unsplash.com/photo-1519999482648-25049ddd37b1?w=600',
+    photoUrl: 'https://lh3.googleusercontent.com/gps-cs-s/AHVAwepiBvFvcw8ClAe5vzSdJQMPTbcSqoREdzttqV--iphtr__M0qTd_Mbvv641NH_tk5N-NZsQFeiSiMeGH4qeKfqI9fOaZuoDK88-lb-9v-ywkztBedybjC1DOqp_auaS1LCNbo0nOg=w900-h900-k-no',
     accent: '#e8a020',
   },
   {
@@ -97,7 +97,7 @@ export const NEIGHBOURHOODS: Neighbourhood[] = [
     description_fr: 'Le pole technologique de l\'ouest d\'Ottawa — Centre Canadian Tire, grandes surfaces et vie familiale de banlieue.',
     lat: 45.3088, lng: -75.8985,
     keywords: ['kanata', 'canadian tire centre', 'ctc', 'terry fox', 'tanger'],
-    photoUrl: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=600',
+    photoUrl: 'https://lh3.googleusercontent.com/gps-cs-s/AHVAwerGjwCitGsnIhqNZz1nwbPS3Germw7PsL8i91byhCAqGGb8RG2kGSRFb_qtxT6EyWGy3nTXfwle6xi1xBIE3P7cUstKF5pfVE8dOjEgl8OigQxaBOQ_R48V85tXMsL6CCkt1Ay0=w900-h600-k-no',
     accent: '#cc3b2a',
   },
   {
@@ -108,7 +108,7 @@ export const NEIGHBOURHOODS: Neighbourhood[] = [
     description_fr: 'Une banlieue bilingue dans l\'est avec le centre commercial Place d\'Orleans, des parcs familiaux et un acces rapide au TLR.',
     lat: 45.4700, lng: -75.5160,
     keywords: ['orleans', 'place dorleans', 'innes', 'trim', 'jeanne darc'],
-    photoUrl: 'https://images.unsplash.com/photo-1523217582562-09d0def993a6?w=600',
+    photoUrl: 'https://lh3.googleusercontent.com/gps-cs-s/AHVAweq5Ub-FxL_VTBIgBX8juU2mL9eUjSOo-dpkANHyALgBLKJc7tvKuhYaE5EjRlaGljN-JqFeeq9yKapP6GQu-nByt-uqC1_x0ranQzFatLCPrU9mC7bHdQ9WVXHnZVQKYHR6feiU=w900-h600-k-no',
     accent: '#004890',
   },
   {
@@ -119,7 +119,7 @@ export const NEIGHBOURHOODS: Neighbourhood[] = [
     description_fr: 'Un quartier familial verdoyant le long de la riviere Rideau avec le parc Brewer et un acces facile au canal.',
     lat: 45.3920, lng: -75.6860,
     keywords: ['old ottawa south', 'bank', 'sunnyside', 'brewer', 'rideau river'],
-    photoUrl: 'https://images.unsplash.com/photo-1588880331179-bc9b93a8cb5e?w=600',
+    photoUrl: 'https://lh3.googleusercontent.com/gps-cs-s/AHVAweoW6aOfSEdmeWk5qlHduf2RFgrwjw5Tmfwyw9ZPvPeOFomuCr4fwS5nLjh3MgCnPXlfa-J9Y-erIjGxxqdmkEIMqSHnTTnNs9tnCvT1-7djvC84PKDMbFMW0f3J7PfdCJaIF8Oa=w900-h600-k-no',
     accent: '#00A78D',
   },
   {
@@ -130,7 +130,29 @@ export const NEIGHBOURHOODS: Neighbourhood[] = [
     description_fr: 'Une grande communaute de l\'ouest ancree par le College Algonquin, le Centre commercial Carlingwood et certains des meilleurs parcs suburbains d\'Ottawa.',
     lat: 45.3480, lng: -75.7549,
     keywords: ['nepean', 'algonquin', 'carlingwood', 'merivale', 'baseline', 'woodroffe', 'centrepointe'],
-    photoUrl: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=600',
+    photoUrl: 'https://lh3.googleusercontent.com/gps-cs-s/AHVAwepo6D8NUjVYUeGhO8OM8AIUxB6wgkk-BGsc6Mf28jNQlOeutXAA3xTmNLSB50qflCia8r3tdvGlsNovA6Sh5_8C0RZvEuuJ0Jv4y3w3Rubg2LJhk03SGdupVyH6pm24cI0F8NSX=w900-h600-k-no',
     accent: '#006341',
+  },
+  {
+    id: 'vanier',
+    name_en: 'Vanier',
+    name_fr: 'Vanier',
+    description_en: 'A diverse and rapidly gentrifying neighbourhood with authentic multicultural food and community spirit.',
+    description_fr: 'Un quartier diversifie en pleine gentrification avec une cuisine multiculturelle authentique et un fort esprit communautaire.',
+    lat: 45.4352, lng: -75.6588,
+    keywords: ['vanier', 'montreal road', 'globalfest'],
+    photoUrl: 'https://lh3.googleusercontent.com/gps-cs-s/AHVAwep-x6q2FXYn513MBuTZTsENSqR_NI6uOZ2ptmTfRJHvpHSQCbOYtsa6KBsOGYZK9vHMS_tvhlP7v0yj3pr_-MOYZFk96fji35t2CfcFejCjSy6XJTUUooLLvMM9GcJCic8PtYK4vQ=w900-h600-k-no',
+    accent: '#e8a020',
+  },
+  {
+    id: 'barrhaven',
+    name_en: 'Barrhaven',
+    name_fr: 'Barrhaven',
+    description_en: 'A growing south-end suburb known for young families, big box retail, and community parks.',
+    description_fr: 'Une banlieue en croissance au sud, connue pour les jeunes familles, les grandes surfaces et les parcs.',
+    lat: 45.2767, lng: -75.7366,
+    keywords: ['barrhaven', 'chapman mills', 'highbury park'],
+    photoUrl: 'https://encrypted-tbn0.gstatic.com/licensed-image?q=tbn:ANd9GcR1fwNZI8FQvohqdhLYM6K5jFeD_51-4-xko7gxIrw41VQsrxaZJfCila3BSZJd2cSYL9M2MyOJIOVzz8U0DOmoOhpE&s=19',
+    accent: '#004890',
   },
 ];

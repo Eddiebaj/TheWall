@@ -70,3 +70,22 @@ export const SK_SAVED_NEIGHBOURHOODS = 'routeo_saved_neighbourhoods';
 
 // Tonight card
 export const SK_TONIGHT_DISMISSED = 'routeo_tonight_dismissed';
+
+// Saved news articles
+export const SK_SAVED_ARTICLES = 'routeo_saved_articles';
+
+// Trip history
+export const SK_TRIP_HISTORY = 'routeo_trip_history';
+
+// Commute patterns
+export const SK_COMMUTE_PATTERNS = 'routeo_commute_patterns';
+
+// Push notifications
+export const SK_PUSH_TOKEN = 'routeo_push_token';
+export const SK_DEVICE_ID = 'routeo_device_id';
+
+// Parking cache
+export const SK_PARKING_CACHE = 'routeo_parking_cache';
+
+// Weather banner
+export const SK_WEATHER_BANNER_DISMISSED = 'routeo_weather_banner_dismissed';
