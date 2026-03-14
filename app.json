@@ -71,13 +71,7 @@
           "cameraPermission": "RouteO needs access to your camera to take photos."
         }
       ],
-      "@react-native-community/datetimepicker",
-      [
-        "react-native-maps",
-        {
-          "googleMapsApiKey": ""
-        }
-      ]
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true
