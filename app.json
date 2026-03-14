@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "routeo",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.eddie.routeo",
@@ -76,7 +76,7 @@
         "expo-build-properties",
         {
           "ios": {
-            "newArchEnabled": false
+            "newArchEnabled": true
           }
         }
       ]
