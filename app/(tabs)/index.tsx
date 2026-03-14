@@ -4060,7 +4060,7 @@ function LiveScreenInner() {
               <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setExpandedStopId(null)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}><Ionicons name="close" size={18} color={colours.text} /></TouchableOpacity>
             </View>
           </View>
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }}>
             {loading ? (<View style={{ marginTop: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>) : error ? (<View style={styles.modalCenter}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.md, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text></View>) : arrivals.length === 0 ? (<View style={styles.modalCenter}><Ionicons name="time-outline" size={48} color={colours.muted} /><Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 12 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<View style={{ marginTop: 8 }}>{cachedAt && (<View style={{ backgroundColor: '#ff9500' + '15', borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8 }}><Text style={{ fontSize: fonts.sm, color: '#ff9500', fontWeight: '600' }}>{t(`Offline — last updated ${Math.round((Date.now() - cachedAt) / 60000)} min ago`, `Hors ligne — dernière mise à jour il y a ${Math.round((Date.now() - cachedAt) / 60000)} min`)}</Text></View>)}{arrivals.map(renderArrival)}</View>)}
             {/* Report an issue button */}
             <TouchableOpacity
@@ -4272,7 +4272,7 @@ function LiveScreenInner() {
             dealCount={HAPPY_HOUR_VENUES.length}
             onPress={(n) => { setSelectedNeighbourhood(n); setNeighbourhoodSheetVisible(true); }}
           />
-          <View style={{ height: 32 }} />
+          <View style={{ height: 8 }} />
         </SectionWrapper>
       );
 
@@ -4522,7 +4522,7 @@ function LiveScreenInner() {
           </View>
         )}
 
-        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true} directionalLockEnabled={true} contentContainerStyle={{ paddingBottom: 90 }} onScrollBeginDrag={() => { Keyboard.dismiss(); setSearchResults([]); }}>
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true} directionalLockEnabled={true} contentContainerStyle={{ paddingBottom: 20 }} onScrollBeginDrag={() => { Keyboard.dismiss(); setSearchResults([]); }}>
 
           {/* Header */}
           <View style={styles.header}>
@@ -4961,7 +4961,7 @@ const styles = StyleSheet.create({
   categoryBadge: { position: 'absolute', top: 10, left: 10, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   discoverCardBottom: { padding: 10 },
   modalContainer: { flex: 1 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 20, borderBottomWidth: 1 },
   modalClose: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   modalCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
   lrtStatusCard: { flexDirection: 'row', alignItems: 'center', margin: 16, padding: 14, borderRadius: 14, borderWidth: 1 },

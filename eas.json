@@ -9,7 +9,10 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_USE_METRO_WORKSPACE_ROOT": "1"
+      }
     },
     "production": {
       "autoIncrement": true
