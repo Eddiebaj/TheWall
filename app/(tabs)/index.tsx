@@ -8,7 +8,7 @@ let Haptics: typeof import('expo-haptics') | null = null;
 try { Haptics = require('expo-haptics'); } catch {}
 let Notifications: typeof import('expo-notifications') | null = null;
 try { Notifications = require('expo-notifications'); } catch {}
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useWindowDimensions } from 'react-native';
 import {
   ActivityIndicator, Alert, AppState, FlatList, Image, ImageBackground, Keyboard,
@@ -1441,7 +1441,7 @@ function LiveScreenInner() {
   const [report311Location, setReport311Location] = useState('');
 
   const isLight = theme === 'light' || (theme === 'system' && colours.bg === '#f0f4f8');
-  const cardShadow = isLight ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 } : {};
+  const cardShadow = useMemo(() => isLight ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 } : {}, [isLight]);
 
   // ── Fetch Senators live game for board card ──
   useEffect(() => {
@@ -4530,7 +4530,7 @@ function LiveScreenInner() {
           </View>
         )}
 
-        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true} directionalLockEnabled={true} contentContainerStyle={{ paddingBottom: 20 }} onScrollBeginDrag={() => { Keyboard.dismiss(); setSearchResults([]); }}>
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true} contentContainerStyle={{ paddingBottom: 20 }} onScrollBeginDrag={() => { Keyboard.dismiss(); setSearchResults([]); }}>
 
           {/* Header */}
           <View style={styles.header}>

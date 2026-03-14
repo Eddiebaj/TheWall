@@ -90,8 +90,8 @@ export default function ServicesGrid({ colours, fonts, t, language, activeTab, o
         })}
       </View>
       <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
-        {[0, 1].map(row => (
-          <View key={row} style={{ flexDirection: 'row', gap: 10, marginBottom: row === 0 ? 10 : 0 }}>
+        {Array.from({ length: Math.ceil(currentTab.tiles.length / 4) }, (_, row) => (
+          <View key={row} style={{ flexDirection: 'row', gap: 10, marginBottom: row < Math.ceil(currentTab.tiles.length / 4) - 1 ? 10 : 0 }}>
             {currentTab.tiles.slice(row * 4, row * 4 + 4).map(tile => (
                 <TouchableOpacity key={tile.id} onPress={() => onTileTap(tile)} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, borderTopWidth: 3, borderTopColor: tile.accent, paddingVertical: 14, paddingHorizontal: 4, ...cardShadow }} activeOpacity={0.75} accessibilityRole="button" accessibilityLabel={language === 'fr' ? tile.label_fr : tile.label_en}>
                   <Ionicons name={tile.icon as any} size={22} color={tile.accent} />
