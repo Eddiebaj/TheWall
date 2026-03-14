@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LinearGradient } from 'expo-linear-gradient';
+let LinearGradientModule: typeof import('expo-linear-gradient') | null = null;
+try { LinearGradientModule = require('expo-linear-gradient'); } catch {}
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
@@ -12,6 +13,7 @@ import { SK_CAMPUS, SK_HOME_NEIGHBOURHOOD, SK_ONBOARDED } from '../lib/storageKe
 import { NEIGHBOURHOODS } from '../lib/neighbourhoodData';
 import type { CampusId } from '../lib/campusData';
 
+const LinearGradient: any = LinearGradientModule?.LinearGradient ?? View;
 const { width } = Dimensions.get('window');
 
 const SLIDES = [

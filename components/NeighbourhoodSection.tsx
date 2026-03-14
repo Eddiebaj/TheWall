@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LinearGradient } from 'expo-linear-gradient';
-import * as Haptics from 'expo-haptics';
+let LinearGradientModule: typeof import('expo-linear-gradient') | null = null;
+try { LinearGradientModule = require('expo-linear-gradient'); } catch {}
+let Haptics: typeof import('expo-haptics') | null = null;
+try { Haptics = require('expo-haptics'); } catch {}
 import React, { useEffect, useState } from 'react';
 import {
   Image, ScrollView, Text, TouchableOpacity, View,
@@ -10,6 +12,8 @@ import { useApp } from '../context/AppContext';
 import { fetchWithTimeout } from '../lib/fetchWithTimeout';
 import { Neighbourhood, NEIGHBOURHOODS } from '../lib/neighbourhoodData';
 import { SK_SAVED_NEIGHBOURHOODS } from '../lib/storageKeys';
+
+const LinearGradient: any = LinearGradientModule?.LinearGradient ?? View;
 
 type TransitScore = {
   neighbourhood_id: string;
@@ -63,7 +67,7 @@ export default function NeighbourhoodSection({ colours, fonts, cardShadow, event
   }, []);
 
   const toggleSave = (id: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics?.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSavedIds(prev => {
       const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
       AsyncStorage.setItem(SK_SAVED_NEIGHBOURHOODS, JSON.stringify(next));

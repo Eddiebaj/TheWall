@@ -6,7 +6,11 @@ import {
   ActivityIndicator, Animated, AppState, Keyboard, Linking,
   ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
-import MapView, { Marker, Region } from 'react-native-maps';
+let RNMaps: typeof import('react-native-maps') | null = null;
+try { RNMaps = require('react-native-maps'); } catch {}
+const MapView = RNMaps?.default ?? null;
+const Marker = (RNMaps as any)?.Marker ?? null;
+type Region = import('react-native-maps').Region;
 import { useApp } from '../../context/AppContext';
 import { SK_SAVED_ROUTES, SK_FAVS, SK_SAVED_BOARD, SK_SAVED_NEIGHBOURHOODS, SK_SAVED_PLACES } from '../../lib/storageKeys';
 import { NEIGHBOURHOODS } from '../../lib/neighbourhoodData';
@@ -431,7 +435,7 @@ const fetchAllEvents = async (): Promise<MapEvent[]> => {
 export default function MapScreen() {
   const { colours, theme, t, fonts } = useApp();
   const isLight = theme === 'light';
-  const mapRef = useRef<MapView>(null);
+  const mapRef = useRef<any>(null);
   const deepLinkParams = useLocalSearchParams();
 
   const [buses, setBuses] = useState<Bus[]>([]);
@@ -809,7 +813,11 @@ export default function MapScreen() {
     <View style={{ flex: 1, backgroundColor: colours.bg }}>
       <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
 
-      <MapView
+      {!MapView ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={{ color: colours.muted, fontSize: 15 }}>{t('Map unavailable', 'Carte indisponible')}</Text>
+        </View>
+      ) : <MapView
         ref={mapRef}
         style={{ flex: 1 }}
         initialRegion={OTTAWA_REGION}
@@ -906,7 +914,7 @@ export default function MapScreen() {
             }}
           />
         )}
-      </MapView>
+      </MapView>}
 
       {/* Header */}
       <View style={{

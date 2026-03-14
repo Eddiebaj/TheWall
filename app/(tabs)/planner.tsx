@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
-import * as Haptics from 'expo-haptics';
+let Haptics: typeof import('expo-haptics') | null = null;
+try { Haptics = require('expo-haptics'); } catch {}
 let Notifications: typeof import('expo-notifications') | null = null;
 try { Notifications = require('expo-notifications'); } catch {}
 import { useLocalSearchParams } from 'expo-router';
@@ -12,7 +13,12 @@ import {
   Text,
   TextInput, TouchableOpacity, View
 } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
+let RNMaps: typeof import('react-native-maps') | null = null;
+try { RNMaps = require('react-native-maps'); } catch {}
+const MapView = RNMaps?.default ?? null;
+const Marker = (RNMaps as any)?.Marker ?? null;
+const Polyline = (RNMaps as any)?.Polyline ?? null;
+const PROVIDER_DEFAULT = (RNMaps as any)?.PROVIDER_DEFAULT ?? null;
 import { useApp } from '../../context/AppContext';
 import { ItinerarySkeleton } from '../../components/Shimmer';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
@@ -329,7 +335,7 @@ function PlannerScreenInner() {
   const [activeLeg, setActiveLeg] = useState<number>(0);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [tracking, setTracking] = useState(false);
-  const mapRef = useRef<MapView>(null);
+  const mapRef = useRef<any>(null);
   const locationSubRef = useRef<any>(null);
   const stepsScrollRef = useRef<ScrollView>(null);
 
@@ -617,7 +623,7 @@ function PlannerScreenInner() {
 
   // ── Plan — called by button, resolves text inputs first ───────
   const plan = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics?.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Keyboard.dismiss();
     setFromResults([]);
     setToResults([]);
@@ -1199,7 +1205,7 @@ function PlannerScreenInner() {
 
           {/* Map */}
           <View style={{ height: SCREEN_H * 0.38 }}>
-            <MapView
+            {!MapView ? <View style={{ flex: 1, backgroundColor: colours.surface }} /> : <MapView
               ref={mapRef}
               style={{ flex: 1 }}
               provider={PROVIDER_DEFAULT}
@@ -1251,7 +1257,7 @@ function PlannerScreenInner() {
                   <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: '#007AFF', borderWidth: 3, borderColor: 'white', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4 }} />
                 </Marker>
               )}
-            </MapView>
+            </MapView>}
             {tracking && (
               <TouchableOpacity
                 onPress={() => userLocation && mapRef.current?.animateToRegion({ ...userLocation, latitudeDelta: 0.005, longitudeDelta: 0.005 }, 400)}

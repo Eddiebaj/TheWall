@@ -2,8 +2,10 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
-import * as ImagePicker from 'expo-image-picker';
-import * as Haptics from 'expo-haptics';
+let ImagePicker: typeof import('expo-image-picker') | null = null;
+try { ImagePicker = require('expo-image-picker'); } catch {}
+let Haptics: typeof import('expo-haptics') | null = null;
+try { Haptics = require('expo-haptics'); } catch {}
 let Notifications: typeof import('expo-notifications') | null = null;
 try { Notifications = require('expo-notifications'); } catch {}
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -1634,7 +1636,7 @@ function LiveScreenInner() {
   };
 
   const addToBoardIfMissing = (item: SavedBoardItem) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics?.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSavedBoard(prev => {
       const exists = prev.some(i => {
         if (i.type !== item.type) return false;
@@ -1653,7 +1655,7 @@ function LiveScreenInner() {
   };
 
   const removeFromBoard = (item: SavedBoardItem) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics?.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSavedBoard(prev => {
       const updated = prev.filter(i => {
         if (i.type !== item.type) return true;
@@ -2531,7 +2533,7 @@ function LiveScreenInner() {
         }),
       });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Haptics?.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(t('Report submitted', 'Signalement envoye'), t('Thanks for helping improve transit!', 'Merci d\'aider a ameliorer le transport!'));
       setShowReportModal(false);
       setReportCategory(null);
@@ -2563,6 +2565,7 @@ function LiveScreenInner() {
   };
 
   const pick311Photo = async () => {
+    if (!ImagePicker) return;
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
     if (!result.canceled && result.assets[0]) setReport311Photo(result.assets[0].uri);
   };
