@@ -2043,7 +2043,7 @@ function LiveScreenInner() {
       const newCache = { ...eventsGeoCache };
       await Promise.all(toGeocode.map(async e => {
         try {
-          const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=geocode&input=${encodeURIComponent(e.address)}`);
+          const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=geocode&input=${encodeURIComponent(e.address || '')}`);
           if (!r.ok) throw new Error('HTTP ' + r.status);
           const d = await r.json();
           if (d.results?.[0]?.lat) newCache[e.address!] = { lat: d.results[0].lat, lng: d.results[0].lng };
