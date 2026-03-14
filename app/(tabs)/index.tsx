@@ -16,7 +16,6 @@ import {
   StyleSheet, Text, TextInput, TouchableOpacity,
   TouchableWithoutFeedback, View
 } from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
 import { useApp } from '../../context/AppContext';
 import { ArrivalRowSkeleton } from '../../components/Shimmer';

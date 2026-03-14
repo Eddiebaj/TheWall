@@ -113,7 +113,17 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
     );
   }
 
-  if (articles.length === 0) return null;
+  if (articles.length === 0) {
+    return (
+      <View style={{ paddingHorizontal: 20, paddingVertical: 20, alignItems: 'center' }}>
+        <Ionicons name="newspaper-outline" size={28} color={colours.muted} />
+        <Text style={{ color: colours.muted, fontSize: fonts.sm, marginTop: 6 }}>{t('No news available', 'Aucune nouvelle disponible')}</Text>
+        <TouchableOpacity onPress={onRefresh} style={{ marginTop: 8, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}>
+          <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Retry', 'Réessayer')}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View>
