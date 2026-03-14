@@ -4288,7 +4288,7 @@ function LiveScreenInner() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} pointerEvents="box-none">
       <View style={[styles.container, { backgroundColor: colours.bg }]}>
         <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
         {renderAlertsModal()}
