@@ -65,7 +65,7 @@ import { SK_NEWS_CACHE, SK_SAVED_NEIGHBOURHOODS, SK_TONIGHT_DISMISSED, SK_TRIP_H
 import { FrequentRoute, detectFrequentRoutes } from '../../lib/frequentRoutes';
 import { getDelayContext } from '../../lib/delayContext';
 import NewsSection from '../../components/NewsSection';
-import NeighbourhoodSection from '../../components/NeighbourhoodSection';
+// NeighbourhoodSection removed — inlined for scroll reliability
 import NeighbourhoodSheet from '../../components/NeighbourhoodSheet';
 import TonightCard from '../../components/TonightCard';
 import SportsModal, { OTTAWA_TEAMS } from '../../components/SportsModal';
@@ -237,7 +237,7 @@ const ALL_OTTAWA_LIFE = [
 
 const DEFAULT_OTTAWA_LIFE_IDS = ['restaurant', 'cafe', 'shopping', 'events'];
 // 'map' removed from default section order
-const DEFAULT_SECTION_ORDER = ['otrain', 'saved', 'news', 'services', 'gas', 'alerts', 'discover'];
+const DEFAULT_SECTION_ORDER = ['otrain', 'saved', 'news', 'services', 'alerts', 'discover'];
 
 // DISCOVER_CARDS removed — replaced by NEIGHBOURHOODS from lib/neighbourhoodData.ts
 
@@ -1533,7 +1533,7 @@ function LiveScreenInner() {
         if (val) {
           let saved: string[] = JSON.parse(val);
           // Remove legacy keys and 'map' section
-          saved = saved.filter(s => s !== 'quick' && s !== 'ottawa' && s !== 'map');
+          saved = saved.filter(s => s !== 'quick' && s !== 'ottawa' && s !== 'map' && s !== 'gas');
           if (!saved.includes('services')) {
             const insertAt = saved.indexOf('alerts');
             if (insertAt >= 0) saved.splice(insertAt, 0, 'services');
@@ -2607,6 +2607,7 @@ function LiveScreenInner() {
     if (tile.action === 'alert' && tile.target === 'parking') { fetchParkingData(); setParkingModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'campus') { if (!selectedCampus) setCampusPicker(true); else setCampusModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'para_transpo') { setParaTranspoModal(true); return; }
+    if (tile.action === 'alert' && tile.target === 'gas_prices') { setBoardExpandItem({ type: 'gas_prices' }); return; }
     if (tile.action === 'alert') { setAlertsModalVisible(true); return; }
     if (tile.action === 'navigate' && tile.target?.includes('events?source=')) {
       const source = tile.target.includes('eventbrite') ? 'eventbrite' : 'ticketmaster';
@@ -4220,12 +4221,6 @@ function LiveScreenInner() {
           </SectionWrapper>
         );
 
-      case 'gas': return (
-        <SectionWrapper key="gas" id="gas">
-          <GasPricesWidget colours={colours} fonts={fonts} t={t} cardShadow={cardShadow} isBoardSaved={isBoardSaved({ type: 'gas_prices' })} toggleBoard={() => { const item: SavedBoardItem = { type: 'gas_prices' }; isBoardSaved(item) ? removeFromBoard(item) : addToBoardIfMissing(item); }} />
-        </SectionWrapper>
-      );
-
       case 'alerts': return (
         <SectionWrapper key="alerts" id="alerts">
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 6 }}>
@@ -4264,14 +4259,27 @@ function LiveScreenInner() {
             <Text style={[styles.sectionLabel, { color: colours.muted, fontSize: fonts.sm, marginBottom: 0 }]}>{t('Neighbourhoods', 'Quartiers')}</Text>
             <TouchableOpacity onPress={() => router.push('/(tabs)/discover' as any)}><Text style={{ color: colours.accent, fontSize: fonts.sm, fontWeight: '600' }}>{t('See all →', 'Voir tout →')}</Text></TouchableOpacity>
           </View>
-          <NeighbourhoodSection
-            colours={colours}
-            fonts={fonts}
-            cardShadow={cardShadow}
-            events={events as any}
-            dealCount={HAPPY_HOUR_VENUES.length}
-            onPress={(n) => { setSelectedNeighbourhood(n); setNeighbourhoodSheetVisible(true); }}
-          />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
+            {NEIGHBOURHOODS.map(n => {
+              const name = language === 'fr' ? n.name_fr : n.name_en;
+              return (
+                <TouchableOpacity
+                  key={n.id}
+                  activeOpacity={0.85}
+                  onPress={() => { setSelectedNeighbourhood(n); setNeighbourhoodSheetVisible(true); }}
+                  style={[{ width: 160, height: 190, borderRadius: 16, overflow: 'hidden', backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }, cardShadow]}
+                >
+                  <Image source={{ uri: n.photoUrl }} style={{ position: 'absolute', width: '100%', height: '100%' }} resizeMode="cover" />
+                  <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 10, paddingBottom: 10, paddingTop: 24, backgroundColor: 'rgba(0,0,0,0)' }}>
+                    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' }} />
+                    <Text numberOfLines={2} style={{ color: '#fff', fontSize: fonts.md, fontWeight: '800', lineHeight: 18, textShadowColor: 'rgba(0,0,0,0.7)', textShadowRadius: 4 }}>
+                      {name}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
           <View style={{ height: 8 }} />
         </SectionWrapper>
       );
