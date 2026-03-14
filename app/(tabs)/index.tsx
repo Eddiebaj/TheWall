@@ -1531,25 +1531,24 @@ function LiveScreenInner() {
       try {
         if (val) {
           let saved: string[] = JSON.parse(val);
-          // Remove legacy keys and 'map' section
+          // Remove legacy keys
           saved = saved.filter(s => s !== 'quick' && s !== 'ottawa' && s !== 'map' && s !== 'gas');
-          if (!saved.includes('services')) {
-            const insertAt = saved.indexOf('alerts');
-            if (insertAt >= 0) saved.splice(insertAt, 0, 'services');
-            else saved.push('services');
+          // Ensure all required sections exist
+          const required = DEFAULT_SECTION_ORDER;
+          for (const key of required) {
+            if (!saved.includes(key)) saved.push(key);
           }
-          if (!saved.includes('news')) {
-            const insertAt = saved.indexOf('services');
-            if (insertAt >= 0) saved.splice(insertAt, 0, 'news');
-            else saved.push('news');
-          }
-          if (!saved.includes('discover')) {
-            saved.push('discover');
-          }
+          // Remove any unknown sections
+          saved = saved.filter(s => required.includes(s));
           setSectionOrder(saved);
           AsyncStorage.setItem(SK_SECTION_ORDER, JSON.stringify(saved));
         }
-      } catch (e) { if (__DEV__) console.warn('JSON parse section order failed:', e); }
+      } catch (e) {
+        if (__DEV__) console.warn('JSON parse section order failed:', e);
+        // Reset to default on parse failure
+        setSectionOrder(DEFAULT_SECTION_ORDER);
+        AsyncStorage.setItem(SK_SECTION_ORDER, JSON.stringify(DEFAULT_SECTION_ORDER));
+      }
     });
     AsyncStorage.removeItem(SK_QUICK_ACTIONS);
     AsyncStorage.removeItem(SK_OTTAWA_LIFE);
@@ -4258,27 +4257,29 @@ function LiveScreenInner() {
             <Text style={[styles.sectionLabel, { color: colours.muted, fontSize: fonts.sm, marginBottom: 0 }]}>{t('Neighbourhoods', 'Quartiers')}</Text>
             <TouchableOpacity onPress={() => router.push('/(tabs)/discover' as any)}><Text style={{ color: colours.accent, fontSize: fonts.sm, fontWeight: '600' }}>{t('See all →', 'Voir tout →')}</Text></TouchableOpacity>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
-            {NEIGHBOURHOODS.map(n => {
-              const name = language === 'fr' ? n.name_fr : n.name_en;
-              return (
-                <TouchableOpacity
-                  key={n.id}
-                  activeOpacity={0.85}
-                  onPress={() => { setSelectedNeighbourhood(n); setNeighbourhoodSheetVisible(true); }}
-                  style={[{ width: 160, height: 190, borderRadius: 16, overflow: 'hidden', backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }, cardShadow]}
-                >
-                  <Image source={{ uri: n.photoUrl }} style={{ position: 'absolute', width: '100%', height: '100%' }} resizeMode="cover" />
-                  <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 10, paddingBottom: 10, paddingTop: 24, backgroundColor: 'rgba(0,0,0,0)' }}>
-                    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' }} />
-                    <Text numberOfLines={2} style={{ color: '#fff', fontSize: fonts.md, fontWeight: '800', lineHeight: 18, textShadowColor: 'rgba(0,0,0,0.7)', textShadowRadius: 4 }}>
-                      {name}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+          <View onStartShouldSetResponder={() => true}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
+              {NEIGHBOURHOODS.map(n => {
+                const name = language === 'fr' ? n.name_fr : n.name_en;
+                return (
+                  <TouchableOpacity
+                    key={n.id}
+                    activeOpacity={0.85}
+                    onPress={() => { setSelectedNeighbourhood(n); setNeighbourhoodSheetVisible(true); }}
+                    style={[{ width: 160, height: 190, borderRadius: 16, overflow: 'hidden', backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }, cardShadow]}
+                  >
+                    <Image source={{ uri: n.photoUrl }} style={{ position: 'absolute', width: '100%', height: '100%' }} resizeMode="cover" />
+                    <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 10, paddingBottom: 10, paddingTop: 24, backgroundColor: 'rgba(0,0,0,0)' }}>
+                      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' }} />
+                      <Text numberOfLines={2} style={{ color: '#fff', fontSize: fonts.md, fontWeight: '800', lineHeight: 18, textShadowColor: 'rgba(0,0,0,0.7)', textShadowRadius: 4 }}>
+                        {name}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
           <View style={{ height: 8 }} />
         </SectionWrapper>
       );
@@ -4289,7 +4290,7 @@ function LiveScreenInner() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} pointerEvents="box-none">
-      <View style={[styles.container, { backgroundColor: colours.bg }]}>
+      <View style={[styles.container, { backgroundColor: colours.bg }]} pointerEvents="box-none">
         <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
         {renderAlertsModal()}
         <WeatherModal visible={weatherModalVisible} onClose={() => setWeatherModalVisible(false)} colours={colours} fonts={fonts} t={t} weather={weather} forecast={forecast} dailyForecast={dailyForecast} locationName={locationName} />
