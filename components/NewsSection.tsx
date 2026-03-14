@@ -83,9 +83,12 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
     fetchNews(true);
   }, []);
 
+  const mountedRef = useRef(true);
   useEffect(() => {
+    mountedRef.current = true;
     // Load from cache first, then fetch
     AsyncStorage.getItem(SK_NEWS_CACHE).then(val => {
+      if (!mountedRef.current) return;
       if (val) {
         try {
           const parsed = JSON.parse(val);
@@ -102,7 +105,7 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
     });
 
     intervalRef.current = setInterval(fetchNews, REFRESH_MS);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    return () => { mountedRef.current = false; if (intervalRef.current) clearInterval(intervalRef.current); };
   }, []);
 
   if (loading && articles.length === 0) {

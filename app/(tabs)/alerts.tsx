@@ -103,7 +103,7 @@ function AlertsScreenInner() {
         setLrt(lrtResult.value);
       }
       const now = new Date();
-      setLastUpdated(`${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`);
+      setLastUpdated(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
     } catch (err) {
       if (__DEV__) console.warn('[Alerts] fetch failed:', err);
       setAlerts([]);

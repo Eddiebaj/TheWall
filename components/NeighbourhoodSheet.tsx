@@ -435,6 +435,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: colours.bg }}>
+        {!n ? null : <>
         {/* Header */}
         <View style={{ paddingTop: 16, paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colours.border }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -489,6 +490,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
             <Text style={{ color: '#fff', fontSize: fonts.md, fontWeight: '700' }}>{t('Plan Route', 'Planifier un trajet')}</Text>
           </TouchableOpacity>
         </View>
+      </>}
       </View>
     </Modal>
   );

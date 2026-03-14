@@ -367,7 +367,7 @@ function PlannerScreenInner() {
       const today = new Date().toLocaleDateString('en-CA');
       const todayEntry = (data.gameWeek || []).find((d: any) => d.date === today);
       const game = (todayEntry?.games || []).find((g: any) =>
-        (g.awayTeam?.abbrev === 'OTT' || g.homeTeam?.abbrev === 'OTT') && g.homeTeam?.abbrev === 'OTT'
+        g.awayTeam?.abbrev === 'OTT' || g.homeTeam?.abbrev === 'OTT'
       );
       if (game) setSensGameTonight(true);
     }).catch(() => {});

@@ -83,18 +83,18 @@ export default function ServicesGrid({ colours, fonts, t, language, activeTab, o
   const currentTab = SERVICES_TABS.find(t => t.id === activeTab) || SERVICES_TABS[0];
   return (
     <View>
-      <View style={{ flexDirection: 'row', paddingHorizontal: 20, gap: 8, marginBottom: 12 }}>
+      <View style={{ flexDirection: 'row', paddingHorizontal: 20, gap: 6, marginBottom: 10 }}>
         {SERVICES_TABS.map(tab => {
           const active = activeTab === tab.id;
-          return (<TouchableOpacity key={tab.id} onPress={() => onTabChange(tab.id)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, flex: 1, height: 34, borderRadius: 17, borderWidth: 1, backgroundColor: active ? colours.accent : colours.surface, borderColor: active ? colours.accent : colours.border }} accessibilityRole="tab" accessibilityLabel={language === 'fr' ? tab.label_fr : tab.label_en} accessibilityState={{ selected: active }}><Ionicons name={tab.icon as any} size={13} color={active ? 'white' : colours.muted} /><Text style={{ fontSize: fonts.sm, fontWeight: '700', color: active ? 'white' : colours.muted }}>{language === 'fr' ? tab.label_fr : tab.label_en}</Text></TouchableOpacity>);
+          return (<TouchableOpacity key={tab.id} onPress={() => onTabChange(tab.id)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, flex: 1, height: 32, borderRadius: 16, borderWidth: 1, backgroundColor: active ? colours.accent : colours.surface, borderColor: active ? colours.accent : colours.border }} accessibilityRole="tab" accessibilityLabel={language === 'fr' ? tab.label_fr : tab.label_en} accessibilityState={{ selected: active }}><Ionicons name={tab.icon as any} size={12} color={active ? 'white' : colours.muted} /><Text style={{ fontSize: fonts.sm, fontWeight: '700', color: active ? 'white' : colours.muted }}>{language === 'fr' ? tab.label_fr : tab.label_en}</Text></TouchableOpacity>);
         })}
       </View>
-      <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
+      <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
         {Array.from({ length: Math.ceil(currentTab.tiles.length / 4) }, (_, row) => (
-          <View key={row} style={{ flexDirection: 'row', gap: 10, marginBottom: row < Math.ceil(currentTab.tiles.length / 4) - 1 ? 10 : 0 }}>
+          <View key={row} style={{ flexDirection: 'row', gap: 8, marginBottom: row < Math.ceil(currentTab.tiles.length / 4) - 1 ? 8 : 0 }}>
             {currentTab.tiles.slice(row * 4, row * 4 + 4).map(tile => (
-                <TouchableOpacity key={tile.id} onPress={() => onTileTap(tile)} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, borderTopWidth: 3, borderTopColor: tile.accent, paddingVertical: 14, paddingHorizontal: 4, ...cardShadow }} activeOpacity={0.75} accessibilityRole="button" accessibilityLabel={language === 'fr' ? tile.label_fr : tile.label_en}>
-                  <Ionicons name={tile.icon as any} size={22} color={tile.accent} />
+                <TouchableOpacity key={tile.id} onPress={() => onTileTap(tile)} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5, backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, borderTopWidth: 3, borderTopColor: tile.accent, paddingVertical: 10, paddingHorizontal: 4, ...cardShadow }} activeOpacity={0.75} accessibilityRole="button" accessibilityLabel={language === 'fr' ? tile.label_fr : tile.label_en}>
+                  <Ionicons name={tile.icon as any} size={20} color={tile.accent} />
                   <Text style={{ fontSize: 10, fontWeight: '600', color: colours.text, textAlign: 'center', lineHeight: 13 }} numberOfLines={2}>{language === 'fr' ? tile.label_fr : tile.label_en}</Text>
                 </TouchableOpacity>
             ))}

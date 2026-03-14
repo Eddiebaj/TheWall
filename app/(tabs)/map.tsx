@@ -749,6 +749,7 @@ export default function MapScreen() {
     if (query.length < 3) { setPlaceSuggestions([]); return; }
     try {
       const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=autocomplete&input=${encodeURIComponent(query)}&location=45.4215,-75.6972&radius=50000`);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
       const data = await r.json();
       if (data.predictions) {
         setPlaceSuggestions(data.predictions.slice(0, 5).map((p: any) => ({

@@ -306,6 +306,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   timeFormat?: 'relative' | 'absolute';
   campusData?: CampusConfig | null;
 }) {
+  const boardRouter = useRouter();
   const [preview, setPreview] = useState<{ routeId: string; headsign: string; minsAway: number }[]>([]);
   const [previewLoading, setPreviewLoading] = useState(true);
   const [previewSource, setPreviewSource] = useState<'gtfs-rt' | 'gtfs-static' | 'sto-gtfs-rt' | null>(null);
@@ -316,7 +317,6 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
     if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'saved_team' || item.type === 'campus' || item.type === 'news' || item.type === 'neighbourhood') { setPreviewLoading(false); return; }
     if (item.type === 'gas_prices') {
       setPreviewLoading(false);
-      fetchWithTimeout(GAS_URL, { timeout: 30000 }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(d => { if (d.price) setGasPrice(d.price); else setGasFailed(true); }).catch((e) => { if (__DEV__) console.warn('gas fetch failed:', e); setGasFailed(true); });
       return;
     }
     let cancelled = false;
@@ -334,9 +334,9 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
     };
     fetchPreview();
     return () => { cancelled = true; };
-  }, []);
+  }, [item.type, (item as any).id]);
 
-  const cardBase: any = [{ width: 160, height: 160, borderRadius: 16, padding: 14, backgroundColor: isActive ? colours.accent + '22' : colours.surface, borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, justifyContent: 'space-between' }, cardShadow];
+  const cardBase: any = [{ width: 152, height: 148, borderRadius: 14, padding: 12, backgroundColor: isActive ? colours.accent + '22' : colours.surface, borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, justifyContent: 'space-between' }, cardShadow];
 
   // ── Garbage card ──
   if (item.type === 'garbage') {
@@ -405,10 +405,14 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   }
 
   // ── Gas Prices card ──
+  const fetchGasPrice = useCallback(() => {
+    if (gasPrice || gasFailed) return;
+    fetchWithTimeout(GAS_URL, { timeout: 30000 }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(d => { if (d.price) setGasPrice(d.price); else setGasFailed(true); }).catch((e) => { if (__DEV__) console.warn('gas fetch failed:', e); setGasFailed(true); });
+  }, [gasPrice, gasFailed]);
   if (item.type === 'gas_prices') {
     return (
       <ScaleDecorator>
-      <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
+      <TouchableOpacity style={cardBase} onPress={() => { fetchGasPrice(); onPress(); }} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#6b7f9918', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="speedometer" size={12} color="#6b7f99" />
@@ -617,7 +621,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   const isSTO = (item as any).agency === 'STO' || isStoStop(item.id);
   const stoBlue = '#0072bc';
   // Check if any alert routes match this stop's routes
-  const stopRouteIds = preview.map(a => a.routeId.split('-')[0]);
+  const stopRouteIds = preview.map(a => (a.routeId || '').split('-')[0]);
   const activeAlerts = alerts.filter((a: any) => a.category !== 'accessibility');
   const matchingAlertRoutes = activeAlerts.flatMap((a: any) => (a.routes || []).filter((r: string) => stopRouteIds.includes(r)));
   const alertRouteSet = [...new Set(matchingAlertRoutes)];
@@ -669,9 +673,9 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
           preview.map((a, i) => {
             const badgeColor = isSTO ? stoBlue : colours.accent;
             return (
-            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <TouchableOpacity key={i} activeOpacity={0.7} onPress={() => boardRouter.push('/(tabs)/map' as any)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <View style={{ backgroundColor: badgeColor + '18', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, minWidth: 26, alignItems: 'center' }}>
-                <Text style={{ fontSize: 10, fontWeight: '800', color: badgeColor }}>{a.routeId.split('-')[0]}</Text>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: badgeColor }}>{(a.routeId || '').split('-')[0]}</Text>
               </View>
               <Text style={{ fontSize: 11, fontWeight: '800', color: a.minsAway <= 2 ? colours.red : badgeColor }}>
                 {timeFormat === 'absolute'
@@ -679,7 +683,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
                   : (a.minsAway === 0 ? t('Now', 'Maint.') : `${a.minsAway}m`)}
               </Text>
               <Text style={{ fontSize: 10, color: colours.muted, flex: 1 }} numberOfLines={1}>{a.headsign || ''}</Text>
-            </View>
+            </TouchableOpacity>
             );
           })
         )}
@@ -714,7 +718,7 @@ function SavedStopCard({ fav, isActive, colours, fonts, t, onPress, onLongPress,
   const isLive = previewSource === 'gtfs-rt' || previewSource === 'sto-gtfs-rt';
   const liveColor = isSTO ? '#0072bc' : '#22c55e';
   return (
-    <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 16, padding: 14, backgroundColor: isActive ? stopColor : colours.surface, borderWidth: 1, borderColor: isActive ? stopColor : colours.border, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
+    <TouchableOpacity style={[{ width: 152, height: 148, borderRadius: 14, padding: 12, backgroundColor: isActive ? stopColor : colours.surface, borderWidth: 1, borderColor: isActive ? stopColor : colours.border, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : stopColor + '18', alignItems: 'center', justifyContent: 'center' }}>
           <Ionicons name="bus" size={12} color={isActive ? 'white' : stopColor} />
@@ -733,7 +737,7 @@ function SavedStopCard({ fav, isActive, colours, fonts, t, onPress, onLongPress,
           preview.map((a, i) => (
             <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
               <View style={{ backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : stopColor + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, minWidth: 28, alignItems: 'center' }}>
-                <Text style={{ fontSize: 10, fontWeight: '800', color: isActive ? 'white' : stopColor }}>{a.routeId.split('-')[0]}</Text>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: isActive ? 'white' : stopColor }}>{(a.routeId || '').split('-')[0]}</Text>
               </View>
               <Text style={{ fontSize: 11, color: isActive ? 'rgba(255,255,255,0.7)' : colours.muted, flex: 1 }} numberOfLines={1}>{a.headsign ? `→ ${a.headsign}` : ''}</Text>
               <Text style={{ fontSize: 12, fontWeight: '800', color: isActive ? 'white' : (a.minsAway <= 2 ? colours.red : stopColor) }}>{a.minsAway === 0 ? t('Now', 'Maint.') : `${a.minsAway}m`}</Text>
@@ -876,7 +880,7 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
     if (text.length < 2) { setStationResults([]); return; }
     const seq = ++stationSeq.current;
     fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=autocomplete-geocode&input=${encodeURIComponent(text)}`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(d => { if (seq === stationSeq.current) setStationResults((d.results || []).filter((r: any) => r.label).slice(0, 4)); })
       .catch(() => { if (seq === stationSeq.current) setStationResults([]); });
   };
@@ -900,7 +904,7 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
       return;
     }
     setSubmitting(true);
-    await supabase.from('gas_prices').insert({
+    const { error } = await supabase.from('gas_prices').insert({
       station_name: stationName.trim(),
       address: stationAddress || null,
       lat: stationLat,
@@ -908,6 +912,11 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
       price_per_litre: priceNum,
       fuel_type: fuelType,
     });
+    if (error) {
+      setSubmitting(false);
+      Alert.alert(t('Error', 'Erreur'), t('Failed to submit price. Try again.', 'Impossible de soumettre le prix. Reessayez.'));
+      return;
+    }
     setStationQuery(''); setStationName(''); setStationAddress(''); setStationLat(null); setStationLng(null);
     setPrice(''); setFuelType('regular');
     setSubmitting(false); setReportModal(false);
@@ -924,7 +933,7 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
     const col = type === 'confirm' ? 'confirmed_count' : 'disputed_count';
     const report = reports.find(r => r.id === id);
     if (!report) return;
-    await supabase.from('gas_prices').update({ [col]: (report[col] || 0) + 1 }).eq('id', id);
+    supabase.from('gas_prices').update({ [col]: (report[col] || 0) + 1 }).eq('id', id).then(() => {}, () => {});
     setReports(prev => prev.map(r => r.id === id ? { ...r, [col]: (r[col] || 0) + 1 } : r));
   };
 
@@ -1852,7 +1861,7 @@ function LiveScreenInner() {
     if (critical) {
       setCommuteInsight(prev => prev ? { ...prev, affectedAlert: critical.title } : null);
     }
-  }, [alerts.length]);
+  }, [alerts]);
 
   // ── 511 Ontario road events ───────────────────────────────────
   const haversineDist = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
@@ -1984,7 +1993,7 @@ function LiveScreenInner() {
 
   // ── Ticketmaster events ───────────────────────────────────────
   const fetchTicketmasterEvents = async () => {
-    if (events.length > 0 && Date.now() - eventsCacheTime.current.ticketmaster < 30 * 60 * 1000) return;
+    if (eventsSource === 'ticketmaster' && events.length > 0 && Date.now() - eventsCacheTime.current.ticketmaster < 30 * 60 * 1000) return;
     setEventsLoading(true);
     try {
       const resp = await fetchWithTimeout(`https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TICKETMASTER_API_KEY}&city=Ottawa&countryCode=CA&size=40&sort=date,asc`);
@@ -2007,7 +2016,7 @@ function LiveScreenInner() {
 
   // ── Eventbrite events ─────────────────────────────────────────
   const fetchEventbriteEvents = async () => {
-    if (events.length > 0 && Date.now() - eventsCacheTime.current.eventbrite < 30 * 60 * 1000) return;
+    if (eventsSource === 'eventbrite' && events.length > 0 && Date.now() - eventsCacheTime.current.eventbrite < 30 * 60 * 1000) return;
     setEventsLoading(true);
     try {
       const resp = await fetchWithTimeout('https://routeo-backend.vercel.app/api/ebevents');
@@ -2237,7 +2246,7 @@ function LiveScreenInner() {
           return;
         }
       }
-      await fetchWithTimeout('https://routeo-backend.vercel.app/api/crowding', {
+      const crowdResp = await fetchWithTimeout('https://routeo-backend.vercel.app/api/crowding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2247,6 +2256,7 @@ function LiveScreenInner() {
           crowding_level: level,
         }),
       });
+      if (!crowdResp.ok) throw new Error('HTTP ' + crowdResp.status);
       await AsyncStorage.setItem(SK_LAST_CROWDING_REPORT, JSON.stringify({ vehicleId: crowdingReportItem.id, ts: Date.now() }));
       setShowCrowdingSheet(false);
       setCrowdingToast(true);
@@ -2324,7 +2334,7 @@ function LiveScreenInner() {
       setNearbyAlternative(null);
     }
     if (arrivals.length > 0) fetchCrowdingForArrivals(arrivals, stopId);
-  }, [arrivals]);
+  }, [arrivals, stopId]);
 
   // ── Route reliability tracking (silent data collection) ────────
   const recordedTripsRef = useRef<Set<string>>(new Set());
@@ -2470,7 +2480,7 @@ function LiveScreenInner() {
               const stoResults: StopResult[] = data.filter(s => !prev.find(p => p.id === s.stop_id)).map(s => ({ id: s.stop_id, internalId: s.stop_id, name: s.name }));
               return [...prev, ...stoResults].slice(0, 6);
             });
-          });
+          }).then(null, () => {});
       }
     } else { setSearchResults([]); setAddressResults([]); return; }
     if (text.length >= 3) {
@@ -2681,10 +2691,10 @@ function LiveScreenInner() {
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}>
         <View style={{ width: '92%', maxWidth: 420, backgroundColor: colours.surface, borderRadius: 20, overflow: 'hidden', maxHeight: '85%' }}>
           {/* Header */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: colours.border }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Ionicons name="beer" size={20} color="#7b5ea7" />
-              <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text }}>Social</Text>
+              <Ionicons name="beer" size={18} color="#7b5ea7" />
+              <Text style={{ fontSize: 17, fontWeight: '800', color: colours.text }}>Social</Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <TouchableOpacity onPress={() => { setSocialModal(false); router.push('/(tabs)/map'); }} style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center' }}>
@@ -2696,7 +2706,7 @@ function LiveScreenInner() {
             </View>
           </View>
           {/* Tabs */}
-          <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, gap: 8 }}>
+          <View style={{ flexDirection: 'row', paddingHorizontal: 14, paddingTop: 10, paddingBottom: 8, gap: 6 }}>
             {([{ id: 'all' as const, label: 'All' }, { id: 'bars' as const, label: 'Bars' }, { id: 'restaurants' as const, label: 'Eats' }, { id: 'clubs' as const, label: 'Clubs' }]).map(tab => {
               const active = socialTab === tab.id;
               return (
@@ -2707,7 +2717,7 @@ function LiveScreenInner() {
             })}
           </View>
           {/* Venue list */}
-          <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 6, gap: 10 }}>
+          <ScrollView contentContainerStyle={{ padding: 14, paddingTop: 4, gap: 8 }}>
             {(() => {
               const venues = getSocialVenues() || [];
               if (venues.length === 0) return (
@@ -2920,7 +2930,7 @@ function LiveScreenInner() {
               {eventsSource === 'ticketmaster' ? 'Ticketmaster · Ottawa' : 'Arts & Community · Ottawa'}
             </Text>
           </View>
-          <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => { setEventsModal(false); setEventsSearch(''); setEventsCategory(null); }} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
+          <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => { setEventsModal(false); setEventsSearch(''); setEventsCategory(null); setEventsNearMe(false); }} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
             <Ionicons name="close" size={18} color={colours.text} />
           </TouchableOpacity>
         </View>
@@ -3025,15 +3035,15 @@ function LiveScreenInner() {
   };
 
   const inferEventCategory = (name: string, venue: string): { label: string; color: string } => {
-    const t = (name + ' ' + venue).toLowerCase();
-    if (/concert|music|jazz|band|orchestra|choir|karaoke|vinyl|piano|singer|live.*music|opéra|opera|folk|rock|metal|indie|acoustic|blues|country.*night|dj\b|dubstep|hip.hop|rnb|r&b|punk|funk|reggae|dueling piano|open mic|standup|stand-up|comedy|improv/.test(t)) return { label: 'Music & Arts', color: '#6c3fc7' };
-    if (/drag|theatre|théâtre|lecture.*théâtrale|spoken|storytelling|poetry|burlesque|cabaret|variety|film|cinema|screening|art show|gallery|exhibit|museum|craft|paint|drawing|sketch|photography|ceramic|mural|studio|wallack|art supply|art fair|art hang/.test(t)) return { label: 'Arts & Culture', color: '#b5450b' };
-    if (/food|eat|drink|wine|beer|cocktail|dinner|lunch|brunch|breakfast|tasting|culinary|cuisine|chef|iftar|feast|brew|supper|tea|bistro|pub night|trivia|bingo|bowl/.test(t)) return { label: 'Food & Drink', color: '#1a7a4a' };
-    if (/yoga|fitness|run|5k|10k|race|workout|gym|wellness|pilates|meditation|health|dance|zumba|sport|hockey|basketball|soccer|tennis|swim|hike|cycling|bike/.test(t)) return { label: 'Wellness', color: '#0077b6' };
-    if (/career|hiring|job|networking|entrepreneur|business|startup|invest|workshop|seminar|conference|summit|panel|professional|tech|ai\b|data science|machine learning|fastest growing|breakfast of champions/.test(t)) return { label: 'Business', color: '#444' };
-    if (/family|kids|children|child|parent|youth|teen|baby|toddler|camp|school|tinkering|playgroup|march break/.test(t)) return { label: 'Family', color: '#e67e22' };
-    if (/disco|party|mixer|singles|social|nightclub|gala|celebration|fest|festival|reunion|meetup|meet-up|speed dating|trivia night/.test(t)) return { label: 'Social', color: '#8e44ad' };
-    if (/charity|fundrais|volunteer|community|indigenous|multicultural|cultural|awareness|inclusion|diversity|women|black|pride|spiritual|religious|church|mosque|iftar|reconcili/.test(t)) return { label: 'Community', color: '#0077a0' };
+    const txt = (name + ' ' + venue).toLowerCase();
+    if (/concert|music|jazz|band|orchestra|choir|karaoke|vinyl|piano|singer|live.*music|opéra|opera|folk|rock|metal|indie|acoustic|blues|country.*night|dj\b|dubstep|hip.hop|rnb|r&b|punk|funk|reggae|dueling piano|open mic|standup|stand-up|comedy|improv/.test(txt)) return { label: 'Music & Arts', color: '#6c3fc7' };
+    if (/drag|theatre|théâtre|lecture.*théâtrale|spoken|storytelling|poetry|burlesque|cabaret|variety|film|cinema|screening|art show|gallery|exhibit|museum|craft|paint|drawing|sketch|photography|ceramic|mural|studio|wallack|art supply|art fair|art hang/.test(txt)) return { label: 'Arts & Culture', color: '#b5450b' };
+    if (/food|eat|drink|wine|beer|cocktail|dinner|lunch|brunch|breakfast|tasting|culinary|cuisine|chef|iftar|feast|brew|supper|tea|bistro|pub night|trivia|bingo|bowl/.test(txt)) return { label: 'Food & Drink', color: '#1a7a4a' };
+    if (/yoga|fitness|run|5k|10k|race|workout|gym|wellness|pilates|meditation|health|dance|zumba|sport|hockey|basketball|soccer|tennis|swim|hike|cycling|bike/.test(txt)) return { label: 'Wellness', color: '#0077b6' };
+    if (/career|hiring|job|networking|entrepreneur|business|startup|invest|workshop|seminar|conference|summit|panel|professional|tech|ai\b|data science|machine learning|fastest growing|breakfast of champions/.test(txt)) return { label: 'Business', color: '#444' };
+    if (/family|kids|children|child|parent|youth|teen|baby|toddler|camp|school|tinkering|playgroup|march break/.test(txt)) return { label: 'Family', color: '#e67e22' };
+    if (/disco|party|mixer|singles|social|nightclub|gala|celebration|fest|festival|reunion|meetup|meet-up|speed dating|trivia night/.test(txt)) return { label: 'Social', color: '#8e44ad' };
+    if (/charity|fundrais|volunteer|community|indigenous|multicultural|cultural|awareness|inclusion|diversity|women|black|pride|spiritual|religious|church|mosque|iftar|reconcili/.test(txt)) return { label: 'Community', color: '#0077a0' };
     return { label: 'Community', color: '#0077a0' };
   };
 
@@ -3496,7 +3506,7 @@ function LiveScreenInner() {
                 </TouchableOpacity>
               ) : null}
               {campusTab === 'shuttle' && campus?.shuttleDestination ? (
-                <TouchableOpacity activeOpacity={0.7} onPress={() => routeToCampusPlace(campus.shuttleDestination!.name, campus.shuttleDestination!.lat, campus.shuttleDestination!.lng)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
+                <TouchableOpacity activeOpacity={0.7} onPress={() => { const dest = campus?.shuttleDestination; if (dest) routeToCampusPlace(dest.name, dest.lat, dest.lng); }} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
                   <Ionicons name="navigate" size={14} color={accent} />
                   <Text style={{ fontSize: 13, fontWeight: '700', color: accent }}>{t("Can't catch shuttle? Route via transit", 'Navette manquée? Itinéraire en transport')}</Text>
                 </TouchableOpacity>
@@ -4156,8 +4166,8 @@ function LiveScreenInner() {
     switch (sectionId) {
       case 'otrain': return (
         <SectionWrapper key="otrain" id="otrain">
-          <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 6, letterSpacing: 1, textTransform: 'uppercase' }}>{t('O-Train', 'O-Train')}</Text>
-          <TouchableOpacity style={[{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 20, marginBottom: showLine1 ? 0 : 10, borderWidth: 1, borderRadius: 16, borderBottomLeftRadius: showLine1 ? 0 : 16, borderBottomRightRadius: showLine1 ? 0 : 16, padding: 14, backgroundColor: showLine1 ? colours.lrt + '12' : colours.surface, borderColor: showLine1 ? colours.lrt : colours.border }, cardShadow]} onPress={() => { setShowLine1(!showLine1); setShowLine2(false); setShowEast(false); setShowWest(false); setShowNorth(false); setShowSouth(false); }}>
+          <Text style={[styles.sectionLabel, { color: colours.muted, fontSize: fonts.sm, marginBottom: 6 }]}>{t('O-Train', 'O-Train')}</Text>
+          <TouchableOpacity style={[{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 20, marginBottom: showLine1 ? 0 : 8, borderWidth: 1, borderRadius: 14, borderBottomLeftRadius: showLine1 ? 0 : 14, borderBottomRightRadius: showLine1 ? 0 : 14, padding: 12, backgroundColor: showLine1 ? colours.lrt + '12' : colours.surface, borderColor: showLine1 ? colours.lrt : colours.border }, cardShadow]} onPress={() => { setShowLine1(!showLine1); setShowLine2(false); setShowEast(false); setShowWest(false); setShowNorth(false); setShowSouth(false); }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colours.lrt + '20', alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 11, fontWeight: '900', color: colours.lrt }}>L1</Text></View>
               <View><Text style={{ fontSize: fonts.md, fontWeight: '700', color: showLine1 ? colours.lrt : colours.text }}>{t('Confederation Line', 'Ligne Confédération')}</Text><Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>{t("Tunney's Pasture ↔ Blair", "Tunney's ↔ Blair")}</Text></View>
@@ -4178,7 +4188,7 @@ function LiveScreenInner() {
               {showWest && LRT_WEST.map((station, index) => (<TouchableOpacity key={station.id} style={[styles.stationRow, { borderBottomColor: colours.border }, stopId === station.id && { backgroundColor: colours.lrt + '12' }]} onPress={() => { loadStop(station.id, station.name); setExpandedStopId(station.id); setShowLine1(false); setShowWest(false); }} activeOpacity={0.7}><View style={styles.stationDotCol}><View style={[styles.stationDot, { borderColor: colours.border }, stopId === station.id && { backgroundColor: colours.lrt, borderColor: colours.lrt }]} />{index < LRT_WEST.length - 1 && <View style={[styles.stationLine, { backgroundColor: colours.border }]} />}</View><Text style={{ flex: 1, fontSize: fonts.md, fontWeight: stopId === station.id ? '700' : '500', color: stopId === station.id ? colours.lrt : colours.text }}>{station.name}</Text><Ionicons name="chevron-forward" size={14} color={colours.muted} /></TouchableOpacity>))}
             </View>
           )}
-          <TouchableOpacity style={[{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 20, marginBottom: showLine2 ? 0 : 16, borderWidth: 1, borderRadius: 16, borderBottomLeftRadius: showLine2 ? 0 : 16, borderBottomRightRadius: showLine2 ? 0 : 16, padding: 14, backgroundColor: showLine2 ? '#7b5ea7' + '12' : colours.surface, borderColor: showLine2 ? '#7b5ea7' : colours.border }, cardShadow]} onPress={() => { setShowLine2(!showLine2); setShowLine1(false); setShowEast(false); setShowWest(false); setShowNorth(false); setShowSouth(false); }}>
+          <TouchableOpacity style={[{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 20, marginBottom: showLine2 ? 0 : 12, borderWidth: 1, borderRadius: 14, borderBottomLeftRadius: showLine2 ? 0 : 14, borderBottomRightRadius: showLine2 ? 0 : 14, padding: 12, backgroundColor: showLine2 ? '#7b5ea7' + '12' : colours.surface, borderColor: showLine2 ? '#7b5ea7' : colours.border }, cardShadow]} onPress={() => { setShowLine2(!showLine2); setShowLine1(false); setShowEast(false); setShowWest(false); setShowNorth(false); setShowSouth(false); }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#7b5ea7' + '20', alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 11, fontWeight: '900', color: '#7b5ea7' }}>L2</Text></View>
               <View><Text style={{ fontSize: fonts.md, fontWeight: '700', color: showLine2 ? '#7b5ea7' : colours.text }}>{t('Trillium Line', 'Ligne Trillium')}</Text><Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>{t('Bayview ↔ Limebank', 'Bayview ↔ Limebank')}</Text></View>
@@ -4257,8 +4267,8 @@ function LiveScreenInner() {
             <Text style={[styles.sectionLabel, { color: colours.muted, fontSize: fonts.sm, marginBottom: 0 }]}>{t('Neighbourhoods', 'Quartiers')}</Text>
             <TouchableOpacity onPress={() => router.push('/(tabs)/discover' as any)}><Text style={{ color: colours.accent, fontSize: fonts.sm, fontWeight: '600' }}>{t('See all →', 'Voir tout →')}</Text></TouchableOpacity>
           </View>
-          <View onStartShouldSetResponder={() => true}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
+          <View onStartShouldSetResponder={() => false} onMoveShouldSetResponder={() => false}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} scrollEnabled={true} nestedScrollEnabled={true} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
               {NEIGHBOURHOODS.map(n => {
                 const name = language === 'fr' ? n.name_fr : n.name_en;
                 return (
@@ -4266,7 +4276,7 @@ function LiveScreenInner() {
                     key={n.id}
                     activeOpacity={0.85}
                     onPress={() => { setSelectedNeighbourhood(n); setNeighbourhoodSheetVisible(true); }}
-                    style={[{ width: 160, height: 190, borderRadius: 16, overflow: 'hidden', backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }, cardShadow]}
+                    style={[{ width: 150, height: 170, borderRadius: 14, overflow: 'hidden', backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }, cardShadow]}
                   >
                     <Image source={{ uri: n.photoUrl }} style={{ position: 'absolute', width: '100%', height: '100%' }} resizeMode="cover" />
                     <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 10, paddingBottom: 10, paddingTop: 24, backgroundColor: 'rgba(0,0,0,0)' }}>
@@ -4290,7 +4300,7 @@ function LiveScreenInner() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} pointerEvents="box-none">
-      <View style={[styles.container, { backgroundColor: colours.bg }]} pointerEvents="box-none">
+      <View style={[styles.container, { backgroundColor: colours.bg }]}>
         <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
         {renderAlertsModal()}
         <WeatherModal visible={weatherModalVisible} onClose={() => setWeatherModalVisible(false)} colours={colours} fonts={fonts} t={t} weather={weather} forecast={forecast} dailyForecast={dailyForecast} locationName={locationName} />
@@ -4530,7 +4540,7 @@ function LiveScreenInner() {
           </View>
         )}
 
-        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true} contentContainerStyle={{ paddingBottom: 20 }} onScrollBeginDrag={() => { Keyboard.dismiss(); setSearchResults([]); }}>
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true} contentContainerStyle={{ paddingBottom: 20 }} onScrollBeginDrag={() => { Keyboard.dismiss(); setSearchResults([]); }}>
 
           {/* Header */}
           <View style={styles.header}>
@@ -4707,6 +4717,7 @@ function LiveScreenInner() {
               </View>
               <DraggableFlatList
                 horizontal
+                activationDistance={10}
                 data={savedBoard}
                 keyExtractor={(item, i) => {
                   if (item.type === 'garbage') return 'garbage';
@@ -4930,12 +4941,12 @@ export default function LiveScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 20, paddingTop: 60, paddingBottom: 16 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 20, paddingTop: 56, paddingBottom: 10 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '60%' },
   nightBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
   liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
   liveDot: { width: 6, height: 6, borderRadius: 3 },
-  searchContainer: { paddingHorizontal: 20, marginBottom: 16, zIndex: 100 },
+  searchContainer: { paddingHorizontal: 20, marginBottom: 12, zIndex: 100 },
   searchRow: { flexDirection: 'row', gap: 10 },
   searchInput: { flex: 1, borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12, fontWeight: '500' },
   searchBtn: { paddingHorizontal: 18, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
@@ -4953,7 +4964,7 @@ const styles = StyleSheet.create({
   reportBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
   centerState: { alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 },
   retryBtn: { marginTop: 12, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12 },
-  sectionLabel: { fontWeight: '700', paddingHorizontal: 20, marginBottom: 10, letterSpacing: 1, textTransform: 'uppercase' },
+  sectionLabel: { fontWeight: '700', paddingHorizontal: 20, marginBottom: 8, letterSpacing: 1, textTransform: 'uppercase' },
   notifBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 20, marginBottom: 16, padding: 14, borderRadius: 14, borderWidth: 1 },
   notifLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   notifDot: { width: 8, height: 8, borderRadius: 4, marginRight: 10 },
