@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
 import { registerPushToken, syncSubscriptions } from '../../lib/pushNotifications';
-import { SK_FAVS, SK_SAVED_PLACES, SK_SAVED_BOARD, SK_NOTIF_SETTINGS } from '../../lib/storageKeys';
+import { SK_FAVS, SK_SAVED_PLACES, SK_SAVED_BOARD, SK_NOTIF_SETTINGS, SK_TRIP_SHARING } from '../../lib/storageKeys';
 
 const isNightTime = () => { const h = new Date().getHours(); return h >= 21 || h < 4; };
 
@@ -163,10 +163,11 @@ export default function AccountScreen() {
     const loc = await Location.getCurrentPositionAsync({});
     setLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
     setTripSharing(true);
+    AsyncStorage.setItem(SK_TRIP_SHARING, 'true');
     Alert.alert(t('Trip sharing on', 'Partage activé'), t('Your location is being shared. Stay safe!', 'Votre position est partagée. Soyez prudent!'));
   };
 
-  const stopTripSharing = () => { setTripSharing(false); setLocation(null); };
+  const stopTripSharing = () => { setTripSharing(false); setLocation(null); AsyncStorage.removeItem(SK_TRIP_SHARING); };
 
   const shareLocation = () => {
     if (!location) return;

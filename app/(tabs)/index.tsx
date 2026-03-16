@@ -62,7 +62,7 @@ import { CAMPUSES, CampusConfig, getNextDeparture, isLibraryOpen, fmt12h, getDay
 import { HAPPY_HOUR_VENUES } from '../../lib/happyHourData';
 import { Neighbourhood, NEIGHBOURHOODS } from '../../lib/neighbourhoodData';
 import { NewsArticle } from '../../lib/newsData';
-import { SK_NEWS_CACHE, SK_SAVED_NEIGHBOURHOODS, SK_TONIGHT_DISMISSED, SK_TRIP_HISTORY, SK_LAST_CROWDING_REPORT, SK_CROWDING_CACHE, SK_FREQUENT_CARD_DISMISSED, SK_FREQUENT_ARRIVALS_CACHE } from '../../lib/storageKeys';
+import { SK_NEWS_CACHE, SK_SAVED_NEIGHBOURHOODS, SK_TONIGHT_DISMISSED, SK_TRIP_HISTORY, SK_LAST_CROWDING_REPORT, SK_CROWDING_CACHE, SK_FREQUENT_CARD_DISMISSED, SK_FREQUENT_ARRIVALS_CACHE, SK_TRIP_SHARING } from '../../lib/storageKeys';
 import { FrequentRoute, detectFrequentRoutes } from '../../lib/frequentRoutes';
 import { getDelayContext } from '../../lib/delayContext';
 // NewsSection removed from home — news lives in Account tab modal
@@ -2380,6 +2380,8 @@ function LiveScreenInner() {
 
   useEffect(() => {
     const checkSavedStopArrivals = async () => {
+      const sharing = await AsyncStorage.getItem(SK_TRIP_SHARING);
+      if (sharing !== 'true') return;
       if (AppState.currentState !== 'active') return;
       try {
         const raw = await AsyncStorage.getItem(SK_NOTIF_SETTINGS);

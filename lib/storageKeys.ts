@@ -99,5 +99,8 @@ export const SK_CROWDING_CACHE = 'routeo_crowding_cache';
 export const SK_FREQUENT_CARD_DISMISSED = 'routeo_frequent_card_dismissed';
 export const SK_FREQUENT_ARRIVALS_CACHE = 'routeo_frequent_arrivals_cache';
 
+// Trip sharing
+export const SK_TRIP_SHARING = 'routeo_trip_sharing';
+
 // Crash diagnostics
 export const SK_CRASH_LOG = 'routeo_crash_log';
