@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, ImageBackground, Linking,
@@ -63,6 +63,7 @@ type NearbyTransit = { stopName: string; stopId: string; walkMin: number; routeI
 
 export default function ExploreScreen() {
   const { colours, theme, language, t, fonts } = useApp();
+  const router = useRouter();
   const isLight = theme === 'light';
 
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -291,8 +292,8 @@ export default function ExploreScreen() {
   const getPhotoUrl = (ref: string) =>
     `https://routeo-backend.vercel.app/api/places?action=photo&photo_reference=${ref}&maxwidth=600`;
 
-  const openInMaps = (name: string, vicinity: string) =>
-    Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(`${name} ${vicinity}`)}`);
+  const navigateToPlanner = (place: Place) =>
+    router.push({ pathname: '/(tabs)/planner', params: { toLabel: place.name, toLat: String(place.lat), toLng: String(place.lng) } } as any);
 
   const formatDistance = (m: number) => m < 1000 ? `${m}m` : `${(m / 1000).toFixed(1)}km`;
   const catLabel = (cat: Category) => language === 'fr' ? cat.label_fr : cat.label_en;
@@ -320,7 +321,7 @@ export default function ExploreScreen() {
           shadowRadius: 8,
           elevation: 2,
         }}
-        onPress={() => openInMaps(place.name, place.vicinity)}
+        onPress={() => navigateToPlanner(place)}
         activeOpacity={0.92}
       >
         <ImageBackground
@@ -415,7 +416,7 @@ export default function ExploreScreen() {
             </Text>
           </View>
           <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>
-            {t('Maps →', 'Cartes →')}
+            {t('Plan trip →', 'Planifier →')}
           </Text>
         </View>
 
