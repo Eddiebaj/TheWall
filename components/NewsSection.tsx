@@ -15,20 +15,28 @@ import { SK_NEWS_CACHE, SK_SAVED_ARTICLES } from '../lib/storageKeys';
 const NEWS_URL = 'https://routeo-backend.vercel.app/api/news';
 const REFRESH_MS = 15 * 60 * 1000;
 
+export type SortMode = 'latest' | 'oldest' | 'source';
+
 type Props = {
   colours: any;
   fonts: any;
   cardShadow: any;
   onArticlesLoaded?: (articles: NewsArticle[]) => void;
+  sortMode?: SortMode;
+  sourceFilter?: string | null;
 };
 
-export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoaded }: Props) {
+export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoaded, sortMode = 'latest', sourceFilter }: Props) {
   const { t, language } = useApp();
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+  const [visibleCount, setVisibleCount] = useState(20);
+
+  // Reset visible count when sort/filter changes
+  useEffect(() => { setVisibleCount(20); }, [sortMode, sourceFilter]);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const isValidImageUrl = (url: string | undefined): url is string =>
@@ -60,6 +68,7 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       const items: NewsArticle[] = data.articles || [];
+      if (__DEV__) console.log('News fetched:', items.length, 'articles');
       setArticles(items);
       onArticlesLoaded?.(items);
       AsyncStorage.setItem(SK_NEWS_CACHE, JSON.stringify({ articles: items, ts: Date.now() }));
@@ -128,6 +137,8 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
     );
   }
 
+  if (__DEV__) console.log('articles.length:', articles.length, 'visibleCount:', visibleCount);
+
   return (
     <View>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 10 }}>
@@ -140,7 +151,14 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
         </TouchableOpacity>
       </View>
       <View style={{ paddingHorizontal: 20, gap: 12 }}>
-        {articles.slice(0, 8).map(article => {
+        {(() => {
+          let sorted = [...articles];
+          if (sourceFilter) sorted = sorted.filter(a => a.source === sourceFilter);
+          if (sortMode === 'oldest') sorted.sort((a, b) => new Date(a.pubDate).getTime() - new Date(b.pubDate).getTime());
+          else if (sortMode === 'source') sorted.sort((a, b) => a.source.localeCompare(b.source));
+          else sorted.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
+          return sorted.slice(0, visibleCount);
+        })().map(article => {
           const sourceColour = SOURCE_COLOURS[article.source] || colours.accent;
           const fallbackIcon = SOURCE_FALLBACK_ICONS[article.source] || 'newspaper-outline';
           const hasImage = isValidImageUrl(article.thumbnail) && !failedImages.has(article.id);
@@ -208,7 +226,20 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
             </TouchableOpacity>
           );
         })}
+        {(() => {
+          let total = sourceFilter ? articles.filter(a => a.source === sourceFilter).length : articles.length;
+          if (visibleCount < total) return (
+            <TouchableOpacity
+              onPress={() => setVisibleCount(prev => prev + 20)}
+              style={{ alignSelf: 'center', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: colours.accent + '40', backgroundColor: colours.accent + '10', marginTop: 4 }}
+            >
+              <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Load more', 'Charger plus')}</Text>
+            </TouchableOpacity>
+          );
+          return null;
+        })()}
       </View>
+
     </View>
   );
 }
