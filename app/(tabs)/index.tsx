@@ -2222,7 +2222,7 @@ function LiveScreenInner() {
         }
       } catch { /* no cache */ }
       try {
-        const resp = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/crowding?route_id=${routeId}&stop_id=${sid}`);
+        const resp = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/community?action=crowding.predict&route_id=${routeId}&stop_id=${sid}`);
         if (resp.ok) {
           const d = await resp.json();
           if (d.avg_crowding != null && d.report_count >= 3) {
@@ -2249,7 +2249,7 @@ function LiveScreenInner() {
           return;
         }
       }
-      const crowdResp = await fetchWithTimeout('https://routeo-backend.vercel.app/api/crowding', {
+      const crowdResp = await fetchWithTimeout('https://routeo-backend.vercel.app/api/community?action=crowding.report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
