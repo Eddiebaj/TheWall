@@ -1869,7 +1869,19 @@ function PlannerScreenInner() {
                           {trip.durationMins} min · {agoLabel} {t('ago', 'il y a')}
                         </Text>
                       </View>
-                      <Ionicons name="chevron-forward" size={16} color={colours.muted} />
+                      <TouchableOpacity
+                        onPress={() => {
+                          setTripHistory(prev => {
+                            const updated = prev.filter(t => t.id !== trip.id);
+                            AsyncStorage.setItem(SK_TRIP_HISTORY, JSON.stringify(updated)).catch(() => {});
+                            return updated;
+                          });
+                        }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.border, alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <Ionicons name="close" size={14} color={colours.muted} />
+                      </TouchableOpacity>
                     </TouchableOpacity>
                   );
                 })}

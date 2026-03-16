@@ -1325,6 +1325,10 @@ function LiveScreenInner() {
   const [nearbyAlternative, setNearbyAlternative] = useState<{ stopId: string; stopName: string; routeId: string; minsAway: number; walkMeters: number } | null>(null);
   const [stopAmenities, setStopAmenities] = useState<{ has_shelter?: boolean; has_bench?: boolean; has_bin?: boolean } | null>(null);
   const [crowdingData, setCrowdingData] = useState<Record<string, { avg: number; count: number; confidence: string }>>({});
+  const [crowdingHourly, setCrowdingHourly] = useState<{ hour: number; avg: number; count: number }[]>([]);
+  const [crowdingHourlyLoading, setCrowdingHourlyLoading] = useState(false);
+  const [reliabilityScores, setReliabilityScores] = useState<Record<string, { onTimeRate: number; totalTrips: number }>>({});
+  const reliabilityCacheRef = useRef<{ data: Record<string, { onTimeRate: number; totalTrips: number }>; ts: number } | null>(null);
   const [showCrowdingSheet, setShowCrowdingSheet] = useState(false);
   const [crowdingReportItem, setCrowdingReportItem] = useState<Arrival | null>(null);
   const [crowdingSubmitting, setCrowdingSubmitting] = useState(false);
@@ -2095,7 +2099,8 @@ function LiveScreenInner() {
         const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${id}`);
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
-        const stoParsed = (data.arrivals || []).map((a: any) => ({ id: `${a.stopId || id}-${a.scheduledTime || Math.random()}`, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway, delay: 0, secsAway: a.minsAway * 60, isScheduled: false }));
+        const stoIsStatic = data.source === 'gtfs-static';
+        const stoParsed = (data.arrivals || []).map((a: any) => ({ id: `${a.stopId || id}-${a.scheduledTime || Math.random()}`, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway, delay: 0, secsAway: a.minsAway * 60, isScheduled: stoIsStatic }));
         setArrivals(stoParsed);
         AsyncStorage.setItem(`routeo_arrivals_${id}`, JSON.stringify({ arrivals: stoParsed, timestamp: Date.now() }));
         setCachedAt(null);
@@ -2232,6 +2237,55 @@ function LiveScreenInner() {
     setCrowdingData(results);
   };
 
+  // ── Route reliability scores ──────────────────────────────────────
+  const fetchReliabilityScores = async (routeIds: string[], sid: string) => {
+    if (routeIds.length === 0) return;
+    // Use 1-hour cache
+    if (reliabilityCacheRef.current && Date.now() - reliabilityCacheRef.current.ts < 3600000) {
+      setReliabilityScores(reliabilityCacheRef.current.data);
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('route_reliability')
+        .select('route_id, delta_minutes')
+        .in('route_id', routeIds);
+      if (error || !data || data.length === 0) return;
+      const grouped: Record<string, { onTime: number; total: number }> = {};
+      for (const row of data) {
+        if (!grouped[row.route_id]) grouped[row.route_id] = { onTime: 0, total: 0 };
+        grouped[row.route_id].total++;
+        if (Math.abs(row.delta_minutes) <= 3) grouped[row.route_id].onTime++;
+      }
+      const scores: Record<string, { onTimeRate: number; totalTrips: number }> = {};
+      for (const [routeId, stats] of Object.entries(grouped)) {
+        if (stats.total >= 5) scores[routeId] = { onTimeRate: Math.round((stats.onTime / stats.total) * 100), totalTrips: stats.total };
+      }
+      setReliabilityScores(scores);
+      reliabilityCacheRef.current = { data: scores, ts: Date.now() };
+    } catch { /* silent */ }
+  };
+
+  // ── Crowding hourly breakdown ───────────────────────────────────
+  const fetchCrowdingHourly = async (routeId: string, sid: string) => {
+    setCrowdingHourlyLoading(true);
+    setCrowdingHourly([]);
+    try {
+      const dow = new Date().getDay();
+      const { data, error } = await supabase
+        .from('crowding_averages')
+        .select('hour_of_day, avg_crowding, report_count')
+        .eq('route_id', routeId)
+        .eq('stop_id', sid)
+        .eq('day_of_week', dow)
+        .order('hour_of_day', { ascending: true });
+      if (!error && data) {
+        setCrowdingHourly(data.map(d => ({ hour: d.hour_of_day, avg: Number(d.avg_crowding), count: Number(d.report_count) })));
+      }
+    } catch { /* silent */ }
+    setCrowdingHourlyLoading(false);
+  };
+
   const submitCrowdingReport = async (level: number) => {
     if (!crowdingReportItem) return;
     setCrowdingSubmitting(true);
@@ -2333,7 +2387,10 @@ function LiveScreenInner() {
     } else {
       setNearbyAlternative(null);
     }
-    if (arrivals.length > 0) fetchCrowdingForArrivals(arrivals, stopId);
+    if (arrivals.length > 0) {
+      fetchCrowdingForArrivals(arrivals, stopId);
+      fetchReliabilityScores([...new Set(arrivals.map(a => a.routeId))], stopId);
+    }
   }, [arrivals, stopId]);
 
   // ── Route reliability tracking (silent data collection) ────────
@@ -3754,22 +3811,43 @@ function LiveScreenInner() {
     const timeDisplay = timeFormat === 'absolute'
       ? fmtAbsTime(item.minsAway)
       : (item.minsAway === 0 ? t('Due', 'Imminent') : `${item.minsAway}m`);
+    const rel = reliabilityScores[item.routeId];
+    const relColor = rel ? (rel.onTimeRate > 85 ? '#34C759' : rel.onTimeRate >= 70 ? '#FFD60A' : '#FF3B30') : null;
     return (
       <View key={item.id} style={[styles.arrivalRow, { borderBottomColor: colours.border, backgroundColor: colours.surface }, ghostBus && styles.ghostRow]}>
-        <TouchableOpacity onPress={() => fetchFullSchedule(item.routeId, item.headsign)} style={[styles.badge, { backgroundColor: isLRT ? colours.accentAlt + '18' : colours.accent + '18' }]}>
-          <Text style={{ fontWeight: '800', fontSize: fonts.md, color: isLRT ? colours.lrt : colours.accent }}>{isLRT ? '🚊' : item.routeId}</Text>
-        </TouchableOpacity>
+        <View style={{ alignItems: 'center', gap: 3 }}>
+          <TouchableOpacity onPress={() => fetchFullSchedule(item.routeId, item.headsign)} style={[styles.badge, { backgroundColor: isLRT ? colours.accentAlt + '18' : colours.accent + '18' }]}>
+            <Text style={{ fontWeight: '800', fontSize: fonts.md, color: isLRT ? colours.lrt : colours.accent }}>{isLRT ? '🚊' : item.routeId}</Text>
+          </TouchableOpacity>
+          {rel && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+              <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: relColor! }} />
+              <Text style={{ fontSize: 9, fontWeight: '700', color: relColor! }}>{rel.onTimeRate}%</Text>
+            </View>
+          )}
+        </View>
         <View style={styles.arrivalInfo}>
           <TouchableOpacity onPress={() => fetchFullSchedule(item.routeId, item.headsign)}>
             <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
               {isLRT ? 'O-Train' : `${t('Route', 'Route')} ${item.routeId}`}
               {item.delay > 0 ? <Text style={{ color: colours.orange, fontSize: fonts.sm }}> (+{item.delay}m {t('late', 'retard')})</Text> : null}
-              {ghostBus ? <Text style={{ color: colours.muted, fontSize: fonts.sm }}> {t('Ghost bus', 'Bus fantôme')}</Text> : null}
+
             </Text>
           </TouchableOpacity>
           <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }} numberOfLines={1}>{item.headsign ? `→ ${item.headsign}` : `→ ${t('Checking route...', 'Vérification...')}`}</Text>
-          {item.isScheduled && <Text style={{ fontSize: 10, color: colours.muted, marginTop: 3, fontStyle: 'italic' }}>{t('Scheduled time', 'Heure prévue')}</Text>}
-          {reportCount > 0 && <Text style={{ fontSize: fonts.sm, color: colours.orange, marginTop: 3 }}>{reportCount} {t(reportCount > 1 ? 'riders say passed' : 'rider says passed', reportCount > 1 ? 'usagers disent passé' : 'usager dit passé')}</Text>}
+          {item.isScheduled && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
+              <Ionicons name="warning" size={11} color={colours.orange} />
+              <Text style={{ fontSize: 10, color: colours.orange, fontWeight: '600' }}>{t('Scheduled only', 'Horaire seulement')}</Text>
+            </View>
+          )}
+          {ghostBus && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
+              <Text style={{ fontSize: 11 }}>{'👻'}</Text>
+              <Text style={{ fontSize: 10, fontWeight: '700', color: colours.orange }}>{t('Ghost bus reported', 'Bus fantôme signalé')}</Text>
+            </View>
+          )}
+          {!ghostBus && reportCount > 0 && <Text style={{ fontSize: fonts.sm, color: colours.orange, marginTop: 3 }}>{reportCount} {t(reportCount > 1 ? 'riders say passed' : 'rider says passed', reportCount > 1 ? 'usagers disent passé' : 'usager dit passé')}</Text>}
           {crowdingData[item.routeId] && (() => {
             const c = crowdingData[item.routeId];
             const label = c.avg <= 0.8 ? t('Usually empty', 'Habituellement vide') : c.avg <= 1.7 ? t('Some seats', 'Quelques places') : c.avg <= 2.4 ? t('Gets crowded', 'Souvent bondé') : t('Usually packed', 'Habituellement plein');
@@ -3802,7 +3880,7 @@ function LiveScreenInner() {
               </TouchableOpacity>
             )}
             {!item.isScheduled && (
-              <TouchableOpacity onPress={() => { setCrowdingReportItem(item); setShowCrowdingSheet(true); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Report crowding', 'Signaler l\'achalandage')}>
+              <TouchableOpacity onPress={() => { setCrowdingReportItem(item); setShowCrowdingSheet(true); fetchCrowdingHourly(item.routeId, expandedStopId || stopId); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Report crowding', 'Signaler l\'achalandage')}>
                 <Ionicons name="people-outline" size={16} color={colours.muted} />
               </TouchableOpacity>
             )}
@@ -4488,6 +4566,36 @@ function LiveScreenInner() {
                   </TouchableOpacity>
                 ))}
               </View>
+              {/* Hourly crowding chart */}
+              {crowdingHourly.length > 0 && (
+                <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Today by hour', 'Aujourd\'hui par heure')}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 60 }}>
+                    {Array.from({ length: 17 }, (_, i) => i + 6).map(hour => {
+                      const entry = crowdingHourly.find(e => e.hour === hour);
+                      const avg = entry?.avg ?? 0;
+                      const barH = entry ? Math.max(6, (avg / 3) * 52) : 4;
+                      const barColor = !entry ? colours.border : avg <= 0.8 ? '#34C759' : avg <= 1.7 ? '#FFD60A' : avg <= 2.4 ? '#FF9500' : '#FF3B30';
+                      const isNow = new Date().getHours() === hour;
+                      return (
+                        <View key={hour} style={{ flex: 1, alignItems: 'center' }}>
+                          <View style={{ width: '80%', height: barH, borderRadius: 3, backgroundColor: barColor, opacity: isNow ? 1 : 0.7 }} />
+                          {(hour % 3 === 0 || isNow) && <Text style={{ fontSize: 7, color: isNow ? colours.accent : colours.muted, fontWeight: isNow ? '800' : '600', marginTop: 2 }}>{hour}</Text>}
+                        </View>
+                      );
+                    })}
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 10, marginTop: 6 }}>
+                    {[{ c: '#34C759', l: t('Empty', 'Vide') }, { c: '#FFD60A', l: t('Some', 'Moyen') }, { c: '#FF9500', l: t('Busy', 'Occupé') }, { c: '#FF3B30', l: t('Full', 'Plein') }].map(x => (
+                      <View key={x.c} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: x.c }} />
+                        <Text style={{ fontSize: 8, color: colours.muted, fontWeight: '600' }}>{x.l}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+              {crowdingHourlyLoading && <ActivityIndicator color={colours.accent} size="small" style={{ marginBottom: 12 }} />}
               <Text style={{ textAlign: 'center', fontSize: fonts.sm, color: colours.muted, paddingHorizontal: 20 }}>{t('Your report helps other riders plan their trip', 'Votre signalement aide les autres usagers')}</Text>
             </View>
           </View>

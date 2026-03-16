@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
 import { registerPushToken, syncSubscriptions } from '../../lib/pushNotifications';
-import { SK_FAVS, SK_SAVED_PLACES, SK_SAVED_BOARD, SK_NOTIF_SETTINGS, SK_TRIP_SHARING } from '../../lib/storageKeys';
+import { SK_FAVS, SK_SAVED_PLACES, SK_SAVED_BOARD, SK_NOTIF_SETTINGS, SK_TRIP_SHARING, SK_TRIP_HISTORY } from '../../lib/storageKeys';
 
 const isNightTime = () => { const h = new Date().getHours(); return h >= 21 || h < 4; };
 
@@ -101,6 +101,33 @@ export default function AccountScreen() {
   const [savedFavs, setSavedFavs] = useState<any[]>([]);
   const [savedPlaces, setSavedPlaces] = useState<any[]>([]);
   const [savedBoard, setSavedBoard] = useState<any[]>([]);
+  const [commuteStats, setCommuteStats] = useState<{ tripsThisWeek: number; totalMinutes: number; avgDuration: number; topRoute: string | null } | null>(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem(SK_TRIP_HISTORY).then(val => {
+      try {
+        if (!val) return;
+        const trips = JSON.parse(val);
+        if (!Array.isArray(trips) || trips.length === 0) return;
+        const now = new Date();
+        const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay()); weekStart.setHours(0, 0, 0, 0);
+        const weekTrips = trips.filter((tr: any) => new Date(tr.plannedAt).getTime() >= weekStart.getTime());
+        const totalMins = weekTrips.reduce((s: number, tr: any) => s + (tr.durationMins || 0), 0);
+        const routeCounts: Record<string, number> = {};
+        for (const tr of weekTrips) {
+          const label = `${tr.fromLabel} → ${tr.toLabel}`;
+          routeCounts[label] = (routeCounts[label] || 0) + 1;
+        }
+        const topRoute = Object.entries(routeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+        setCommuteStats({
+          tripsThisWeek: weekTrips.length,
+          totalMinutes: totalMins,
+          avgDuration: weekTrips.length > 0 ? Math.round(totalMins / weekTrips.length) : 0,
+          topRoute,
+        });
+      } catch {}
+    });
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => setIsNight(isNightTime()), 60000);
@@ -313,6 +340,37 @@ export default function AccountScreen() {
             <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Sign in coming in Phase 6', 'Connexion disponible en Phase 6')}</Text>
           </View>
         </View>
+
+        {/* MY COMMUTE */}
+        {commuteStats && commuteStats.tripsThisWeek > 0 && (<>
+          <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 8, letterSpacing: 1 }}>
+            {t('MY COMMUTE', 'MON TRAJET')}
+          </Text>
+          <Card>
+            <View style={{ padding: 16 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginBottom: 12 }}>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ fontSize: fonts.xxl, fontWeight: '800', color: colours.accent }}>{commuteStats.tripsThisWeek}</Text>
+                  <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted, marginTop: 2 }}>{t('trips', 'trajets')}</Text>
+                </View>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ fontSize: fonts.xxl, fontWeight: '800', color: colours.text }}>{commuteStats.totalMinutes}</Text>
+                  <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted, marginTop: 2 }}>{t('min total', 'min total')}</Text>
+                </View>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ fontSize: fonts.xxl, fontWeight: '800', color: colours.text }}>{commuteStats.avgDuration}</Text>
+                  <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted, marginTop: 2 }}>{t('min avg', 'min moy')}</Text>
+                </View>
+              </View>
+              {commuteStats.topRoute && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 10, borderTopWidth: 1, borderTopColor: colours.border }}>
+                  <Ionicons name="navigate" size={14} color={colours.accent} />
+                  <Text style={{ fontSize: fonts.sm, color: colours.muted, flex: 1 }} numberOfLines={1}>{t('Top route', 'Trajet principal')}: <Text style={{ fontWeight: '700', color: colours.text }}>{commuteStats.topRoute}</Text></Text>
+                </View>
+              )}
+            </View>
+          </Card>
+        </>)}
 
         {/* SAFETY */}
         <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 8, letterSpacing: 1 }}>
