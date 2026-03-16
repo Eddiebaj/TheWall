@@ -1337,6 +1337,8 @@ function LiveScreenInner() {
   const [frequentArrivals, setFrequentArrivals] = useState<Record<string, { minsAway: number; delay: number; headsign: string } | null>>({});
   const [frequentCardDismissed, setFrequentCardDismissed] = useState(true);
   const [timeFormat, setTimeFormat] = useState<'relative' | 'absolute'>('relative');
+  const [passedHintShown, setPassedHintShown] = useState(false);
+  const [helpBannerDismissed, setHelpBannerDismissed] = useState(false);
   const [scheduleRoute, setScheduleRoute] = useState<{ routeId: string; headsign: string } | null>(null);
   const [scheduleTrips, setScheduleTrips] = useState<{ time: string; tripId: string }[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(false);
@@ -2259,7 +2261,7 @@ function LiveScreenInner() {
       }
       const scores: Record<string, { onTimeRate: number; totalTrips: number }> = {};
       for (const [routeId, stats] of Object.entries(grouped)) {
-        if (stats.total >= 5) scores[routeId] = { onTimeRate: Math.round((stats.onTime / stats.total) * 100), totalTrips: stats.total };
+        if (stats.total >= 10) scores[routeId] = { onTimeRate: Math.round((stats.onTime / stats.total) * 100), totalTrips: stats.total };
       }
       setReliabilityScores(scores);
       reliabilityCacheRef.current = { data: scores, ts: Date.now() };
@@ -3847,16 +3849,35 @@ function LiveScreenInner() {
               <Text style={{ fontSize: 10, fontWeight: '700', color: colours.orange }}>{t('Ghost bus reported', 'Bus fantôme signalé')}</Text>
             </View>
           )}
-          {!ghostBus && reportCount > 0 && <Text style={{ fontSize: fonts.sm, color: colours.orange, marginTop: 3 }}>{reportCount} {t(reportCount > 1 ? 'riders say passed' : 'rider says passed', reportCount > 1 ? 'usagers disent passé' : 'usager dit passé')}</Text>}
-          {crowdingData[item.routeId] && (() => {
+          {!ghostBus && reportCount === 1 && (
+            <TouchableOpacity onPress={() => reportBusPassed(item.routeId)} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, backgroundColor: colours.orange + '12' }} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
+              <Text style={{ fontSize: 10, color: colours.orange, fontWeight: '600' }}>{t('1 rider says passed', '1 usager dit passé')}</Text>
+              <Text style={{ fontSize: 10, color: colours.orange, fontWeight: '600' }}> — </Text>
+              <Text style={{ fontSize: 10, color: colours.orange, fontWeight: '800' }}>{t('agree?', 'd\'accord?')}</Text>
+            </TouchableOpacity>
+          )}
+          {(() => {
             const c = crowdingData[item.routeId];
-            const label = c.avg <= 0.8 ? t('Usually empty', 'Habituellement vide') : c.avg <= 1.7 ? t('Some seats', 'Quelques places') : c.avg <= 2.4 ? t('Gets crowded', 'Souvent bondé') : t('Usually packed', 'Habituellement plein');
-            const color = c.avg <= 0.8 ? '#34C759' : c.avg <= 1.7 ? '#FFD60A' : c.avg <= 2.4 ? '#FF9500' : '#FF3B30';
+            if (c) {
+              const label = c.avg <= 0.8 ? t('Usually empty', 'Habituellement vide') : c.avg <= 1.7 ? t('Some seats', 'Quelques places') : c.avg <= 2.4 ? t('Gets crowded', 'Souvent bondé') : t('Usually packed', 'Habituellement plein');
+              const color = c.avg <= 0.8 ? '#34C759' : c.avg <= 1.7 ? '#FFD60A' : c.avg <= 2.4 ? '#FF9500' : '#FF3B30';
+              return (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
+                  <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: color }} />
+                  <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{label}</Text>
+                  {c.confidence === 'low' && <Text style={{ fontSize: 9, color: colours.muted, fontStyle: 'italic' }}>{t('(few reports)', '(peu de données)')}</Text>}
+                </View>
+              );
+            }
             return (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
-                <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: color }} />
-                <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{label}</Text>
-                {c.confidence === 'low' && <Text style={{ fontSize: 9, color: colours.muted, fontStyle: 'italic' }}>{t('(few reports)', '(peu de données)')}</Text>}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{t('Did this bus come?', 'Ce bus est-il passé?')}</Text>
+                <TouchableOpacity onPress={() => reportBusPassed(item.routeId)} style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#FF3B30' + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Report as missed', 'Signaler comme manqué')}>
+                  <Ionicons name="close" size={12} color="#FF3B30" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => { Haptics?.impactAsync(Haptics.ImpactFeedbackStyle.Light); }} style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#34C759' + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Confirm it came', 'Confirmer son passage')}>
+                  <Ionicons name="checkmark" size={12} color="#34C759" />
+                </TouchableOpacity>
               </View>
             );
           })()}
@@ -3873,17 +3894,31 @@ function LiveScreenInner() {
         </View>
         <View style={styles.arrivalRight}>
           <Text style={{ fontSize: fonts.xl, fontWeight: '700', color: item.minsAway <= 2 ? colours.red : colours.accent }}>{timeDisplay}</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
             {!item.isScheduled && (
-              <TouchableOpacity style={[styles.reportBtn, { borderColor: colours.border, backgroundColor: colours.card }]} onPress={() => reportBusPassed(item.routeId)} accessibilityRole="button" accessibilityLabel={t('Report bus passed', 'Signaler le bus passe')}>
-                <Text style={{ fontSize: fonts.sm, color: colours.orange, fontWeight: '600' }}>{t('Passed?', 'Passé?')}</Text>
-              </TouchableOpacity>
+              <View>
+                <TouchableOpacity onPress={() => { reportBusPassed(item.routeId); setPassedHintShown(true); }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.muted + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Report bus passed', 'Signaler le bus passé')}>
+                  <Ionicons name="hand-left-outline" size={14} color={colours.orange} />
+                </TouchableOpacity>
+                {!passedHintShown && item === arrivals[0] && (
+                  <View style={{ position: 'absolute', top: -22, right: -4, backgroundColor: colours.text, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                    <Text style={{ fontSize: 8, fontWeight: '700', color: colours.bg }}>{t('Did it pass?', 'Passé?')}</Text>
+                  </View>
+                )}
+              </View>
             )}
-            {!item.isScheduled && (
-              <TouchableOpacity onPress={() => { setCrowdingReportItem(item); setShowCrowdingSheet(true); fetchCrowdingHourly(item.routeId, expandedStopId || stopId); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Report crowding', 'Signaler l\'achalandage')}>
-                <Ionicons name="people-outline" size={16} color={colours.muted} />
-              </TouchableOpacity>
-            )}
+            {!item.isScheduled && (() => {
+              const c = crowdingData[item.routeId];
+              const pillLabel = c ? (c.avg <= 0.8 ? t('Empty', 'Vide') : c.avg <= 1.7 ? t('Some seats', 'Places') : c.avg <= 2.4 ? t('Crowded', 'Bondé') : t('Packed', 'Plein')) : t('Rate', 'Noter');
+              const pillBg = c ? (c.avg <= 0.8 ? '#34C759' : c.avg <= 1.7 ? '#FFD60A' : c.avg <= 2.4 ? '#FF9500' : '#FF3B30') + '20' : colours.muted + '18';
+              const pillColor = c ? (c.avg <= 0.8 ? '#34C759' : c.avg <= 1.7 ? '#b8960a' : c.avg <= 2.4 ? '#FF9500' : '#FF3B30') : colours.muted;
+              return (
+                <TouchableOpacity onPress={() => { setCrowdingReportItem(item); setShowCrowdingSheet(true); fetchCrowdingHourly(item.routeId, expandedStopId || stopId); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 10, backgroundColor: pillBg }} accessibilityRole="button" accessibilityLabel={t('Report crowding', 'Signaler l\'achalandage')}>
+                  <Ionicons name="people" size={11} color={pillColor} />
+                  <Text style={{ fontSize: 9, fontWeight: '700', color: pillColor }}>{pillLabel}</Text>
+                </TouchableOpacity>
+              );
+            })()}
             <TouchableOpacity onPress={() => shareETA(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Share arrival time', 'Partager l\'heure d\'arrivee')}>
               <Ionicons name="share-outline" size={16} color={colours.muted} />
             </TouchableOpacity>
@@ -4125,8 +4160,8 @@ function LiveScreenInner() {
       <Modal visible={!!expandedStopId} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setExpandedStopId(null)}>
         <View style={[styles.modalContainer, { backgroundColor: colours.bg }]}>
           <View style={[styles.modalHeader, { borderBottomColor: colours.border }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>{expandedName}</Text>
+            <View style={{ flex: 1, marginRight: 12 }}>
+              <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }} numberOfLines={2}>{expandedName}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
                 <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{lastUpdated ? `${t('Updated', 'Mis \u00E0 jour')} ${lastUpdated}` : t('All arrivals', 'Toutes les arriv\u00E9es')}</Text>
                 <TouchableOpacity onPress={toggleTimeFormat} style={{ flexDirection: 'row', borderRadius: 8, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }} accessibilityRole="button" accessibilityLabel={t('Toggle time format', 'Changer le format de l\'heure')}>
@@ -4139,21 +4174,23 @@ function LiveScreenInner() {
                 </TouchableOpacity>
               </View>
             </View>
-            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-              <TouchableOpacity onPress={() => { if (expandedStopId) { isSaved ? removeFav(expandedStopId) : addFav(expandedStopId, expandedName); } }} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: isSaved ? colours.accent : colours.border, backgroundColor: isSaved ? colours.accent + '15' : colours.surface }}>
-                <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: isSaved ? colours.accent : colours.muted }}>{isSaved ? t('\u2713 Saved', '\u2713 Sauvegard\u00E9') : t('+ Save', '+ Sauvegarder')}</Text>
+            <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+              <TouchableOpacity onPress={() => { if (expandedStopId) { isSaved ? removeFav(expandedStopId) : addFav(expandedStopId, expandedName); } }} style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: isSaved ? colours.accent : colours.border, backgroundColor: isSaved ? colours.accent + '15' : colours.surface, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={isSaved ? t('Saved', 'Sauvegardé') : t('Save stop', 'Sauvegarder')}>
+                <Ionicons name={isSaved ? 'bookmark' : 'bookmark-outline'} size={15} color={isSaved ? colours.accent : colours.muted} />
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => fetchArrivals(stopId)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}>
-                <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Refresh \u21BA', 'Actualiser \u21BA')}</Text>
+              <TouchableOpacity onPress={() => fetchArrivals(stopId)} style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Refresh', 'Actualiser')}>
+                <Ionicons name="refresh" size={15} color={colours.accent} />
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setExpandedStopId(null)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}><Ionicons name="close" size={18} color={colours.text} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => setExpandedStopId(null)} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
+                <Ionicons name="close" size={16} color={colours.text} />
+              </TouchableOpacity>
             </View>
           </View>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }}>
             {loading ? (<View style={{ marginTop: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>) : error ? (<View style={styles.modalCenter}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.md, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text></View>) : arrivals.length === 0 ? (<View style={styles.modalCenter}><Ionicons name="time-outline" size={48} color={colours.muted} /><Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 12 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<View style={{ marginTop: 8 }}>{cachedAt && (<View style={{ backgroundColor: '#ff9500' + '15', borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8 }}><Text style={{ fontSize: fonts.sm, color: '#ff9500', fontWeight: '600' }}>{t(`Offline — last updated ${Math.round((Date.now() - cachedAt) / 60000)} min ago`, `Hors ligne — dernière mise à jour il y a ${Math.round((Date.now() - cachedAt) / 60000)} min`)}</Text></View>)}{arrivals.map(renderArrival)}</View>)}
             {/* Report an issue button */}
             <TouchableOpacity
-              onPress={() => { setReportCategory(null); setReportDescription(''); setShowReportModal(true); }}
+              onPress={() => { setReportCategory(null); setReportDescription(''); if (!expandedStopId && stopId) setExpandedStopId(stopId); setShowReportModal(true); }}
               style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginHorizontal: 20, marginTop: 16, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: '#cc3b2a40', backgroundColor: '#cc3b2a10' }}
               activeOpacity={0.7}
               accessibilityRole="button"
@@ -4164,6 +4201,15 @@ function LiveScreenInner() {
                 {t('Report an issue at this stop', 'Signaler un probleme a cet arret')}
               </Text>
             </TouchableOpacity>
+            {!helpBannerDismissed && arrivals.length > 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginTop: 12, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colours.muted + '12' }}>
+                <Ionicons name="people-outline" size={14} color={colours.muted} style={{ marginRight: 8 }} />
+                <Text style={{ flex: 1, fontSize: 10, color: colours.muted, fontWeight: '600' }}>{t('Help Ottawa riders — tap to report crowding or missed buses', 'Aidez les usagers — signalez l\'achalandage ou les bus manqués')}</Text>
+                <TouchableOpacity onPress={() => setHelpBannerDismissed(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginLeft: 8 }}>
+                  <Ionicons name="close" size={14} color={colours.muted} />
+                </TouchableOpacity>
+              </View>
+            )}
           </ScrollView>
         </View>
       </Modal>
