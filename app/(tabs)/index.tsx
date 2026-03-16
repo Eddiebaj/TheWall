@@ -60,14 +60,14 @@ import {
 } from '../../lib/storageKeys';
 import { CAMPUSES, CampusConfig, getNextDeparture, isLibraryOpen, fmt12h, getDayLabel } from '../../lib/campusData';
 import { HAPPY_HOUR_VENUES } from '../../lib/happyHourData';
-import { Neighbourhood, NEIGHBOURHOODS } from '../../lib/neighbourhoodData';
-import { NewsArticle } from '../../lib/newsData';
-import { SK_NEWS_CACHE, SK_SAVED_NEIGHBOURHOODS, SK_TONIGHT_DISMISSED, SK_TRIP_HISTORY, SK_LAST_CROWDING_REPORT, SK_CROWDING_CACHE, SK_FREQUENT_CARD_DISMISSED, SK_FREQUENT_ARRIVALS_CACHE, SK_TRIP_SHARING } from '../../lib/storageKeys';
+// neighbourhoodData import removed — discover section moved to dedicated tab
+// NewsArticle import removed — news lives in dedicated News tab
+import { SK_SAVED_NEIGHBOURHOODS, SK_TONIGHT_DISMISSED, SK_TRIP_HISTORY, SK_LAST_CROWDING_REPORT, SK_CROWDING_CACHE, SK_FREQUENT_CARD_DISMISSED, SK_FREQUENT_ARRIVALS_CACHE, SK_TRIP_SHARING } from '../../lib/storageKeys';
 import { FrequentRoute, detectFrequentRoutes } from '../../lib/frequentRoutes';
 import { getDelayContext } from '../../lib/delayContext';
 // NewsSection removed from home — news lives in Account tab modal
 // NeighbourhoodSection removed — inlined for scroll reliability
-import NeighbourhoodSheet from '../../components/NeighbourhoodSheet';
+// NeighbourhoodSheet removed — discover section moved to dedicated tab
 import TonightCard from '../../components/TonightCard';
 import SportsModal, { OTTAWA_TEAMS } from '../../components/SportsModal';
 import WeatherModal from '../../components/WeatherModal';
@@ -238,7 +238,7 @@ const ALL_OTTAWA_LIFE = [
 
 const DEFAULT_OTTAWA_LIFE_IDS = ['restaurant', 'cafe', 'shopping', 'events'];
 // 'map' removed from default section order
-const DEFAULT_SECTION_ORDER = ['otrain', 'saved', 'services', 'alerts', 'discover'];
+const DEFAULT_SECTION_ORDER = ['otrain', 'saved', 'services', 'alerts'];
 
 // DISCOVER_CARDS removed — replaced by NEIGHBOURHOODS from lib/neighbourhoodData.ts
 
@@ -1359,9 +1359,7 @@ function LiveScreenInner() {
   const [showWest, setShowWest] = useState(false);
   const [showNorth, setShowNorth] = useState(false);
   const [showSouth, setShowSouth] = useState(false);
-  const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([]);
-  const [selectedNeighbourhood, setSelectedNeighbourhood] = useState<Neighbourhood | null>(null);
-  const [neighbourhoodSheetVisible, setNeighbourhoodSheetVisible] = useState(false);
+  // newsArticles, selectedNeighbourhood, neighbourhoodSheetVisible removed — discover section moved to dedicated tab
   const [alerts, setAlerts] = useState<ServiceAlert[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [alertsModalVisible, setAlertsModalVisible] = useState(false);
@@ -1497,7 +1495,6 @@ function LiveScreenInner() {
       } catch { fetchArrivals('CD995'); fetchStopReports('CD995'); }
     });
     AsyncStorage.getItem(SK_SAVED_PLACES).then(val => { try { if (val) setSavedPlaces(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved places failed:', e); } });
-    AsyncStorage.getItem(SK_NEWS_CACHE).then(val => { try { if (val) { const parsed = JSON.parse(val); if (parsed.articles?.length) setNewsArticles(parsed.articles); } } catch {} });
     AsyncStorage.getItem(SK_SAVED_TEAMS).then(val => { try { if (val) setSavedTeams(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved teams failed:', e); } });
     AsyncStorage.getItem(SK_SAVED_ROUTES).then(val => { try { if (val) setSavedRoutes(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved routes failed:', e); } });
     AsyncStorage.getItem(SK_TIME_FORMAT).then(val => { if (val === 'absolute') setTimeFormat('absolute'); });
@@ -1544,7 +1541,7 @@ function LiveScreenInner() {
         if (val) {
           let saved: string[] = JSON.parse(val);
           // Remove legacy keys
-          saved = saved.filter(s => s !== 'quick' && s !== 'ottawa' && s !== 'map' && s !== 'gas' && s !== 'news');
+          saved = saved.filter(s => s !== 'quick' && s !== 'ottawa' && s !== 'map' && s !== 'gas' && s !== 'news' && s !== 'discover');
           // Ensure all required sections exist
           const required = DEFAULT_SECTION_ORDER;
           for (const key of required) {
@@ -4256,38 +4253,7 @@ function LiveScreenInner() {
 
       // 'news' case removed — news lives in Account tab modal
 
-      case 'discover': return (
-        <React.Fragment key="discover">{wrapSection('discover', <>
-          <View style={styles.discoverHeader}>
-            <Text style={[styles.sectionLabel, { color: colours.muted, fontSize: fonts.sm, marginBottom: 0 }]}>{t('Neighbourhoods', 'Quartiers')}</Text>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/discover' as any)}><Text style={{ color: colours.accent, fontSize: fonts.sm, fontWeight: '600' }}>{t('See all →', 'Voir tout →')}</Text></TouchableOpacity>
-          </View>
-          <View onStartShouldSetResponder={() => false} onMoveShouldSetResponder={() => false}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} scrollEnabled={true} nestedScrollEnabled={true} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
-              {NEIGHBOURHOODS.map(n => {
-                const name = language === 'fr' ? n.name_fr : n.name_en;
-                return (
-                  <TouchableOpacity
-                    key={n.id}
-                    activeOpacity={0.85}
-                    onPress={() => { setSelectedNeighbourhood(n); setNeighbourhoodSheetVisible(true); }}
-                    style={[{ width: 150, height: 170, borderRadius: 14, overflow: 'hidden', backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }, cardShadow]}
-                  >
-                    <Image source={{ uri: n.photoUrl }} style={{ position: 'absolute', width: '100%', height: '100%' }} resizeMode="cover" />
-                    <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 10, paddingBottom: 10, paddingTop: 24, backgroundColor: 'rgba(0,0,0,0)' }}>
-                      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' }} />
-                      <Text numberOfLines={2} style={{ color: '#fff', fontSize: fonts.md, fontWeight: '800', lineHeight: 18, textShadowColor: 'rgba(0,0,0,0.7)', textShadowRadius: 4 }}>
-                        {name}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
-          <View style={{ height: 8 }} />
-        </>)}</React.Fragment>
-      );
+      // 'discover' case removed — neighbourhoods live in dedicated Discover tab
 
       default: return null;
     }
@@ -4770,11 +4736,10 @@ function LiveScreenInner() {
                       if (item.type === 'campus') { if (!selectedCampus) setCampusPicker(true); else setCampusModal(true); return; }
                       if (item.type === 'news') { /* scroll handled by section visibility */ }
                       if (item.type === 'neighbourhood') {
-                        const n = NEIGHBOURHOODS.find(nb => nb.id === item.id);
-                        if (n) { setSelectedNeighbourhood(n); setNeighbourhoodSheetVisible(true); }
+                        router.push('/(tabs)/discover' as any);
                         return;
                       }
-                      if (item.type === 'otrain' || item.type === 'services' || item.type === 'discover') { /* scroll handled by section visibility */ }
+                      if (item.type === 'otrain' || item.type === 'services') { /* scroll handled by section visibility */ }
                     }}
                   />
                   );
@@ -4853,16 +4818,6 @@ function LiveScreenInner() {
           {sectionOrder.map(renderSection)}
 
         </ScrollView>
-
-        {neighbourhoodSheetVisible && <NeighbourhoodSheet
-          visible={neighbourhoodSheetVisible}
-          neighbourhood={selectedNeighbourhood}
-          onClose={() => setNeighbourhoodSheetVisible(false)}
-          colours={colours}
-          fonts={fonts}
-          events={events as any}
-          newsArticles={newsArticles}
-        />}
 
         {/* Para Transpo Modal */}
         {paraTranspoModal && <Modal visible={paraTranspoModal} animationType="slide" transparent onRequestClose={() => setParaTranspoModal(false)}>
@@ -4959,9 +4914,7 @@ const styles = StyleSheet.create({
   stationDotCol: { width: 20, alignItems: 'center', marginRight: 12 },
   stationDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 2 },
   stationLine: { width: 2, height: 16, marginTop: 2 },
-  discoverHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 10 },
   cardsRow: { paddingLeft: 20, paddingRight: 20, gap: 12, paddingBottom: 4 },
-  discoverCard: { width: 200, height: 140, borderRadius: 16 },
   discoverCardImage: { width: '100%', height: '100%', justifyContent: 'flex-end' },
   discoverCardFallback: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   categoryBadge: { position: 'absolute', top: 10, left: 10, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
