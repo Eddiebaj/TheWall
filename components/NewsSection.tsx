@@ -109,11 +109,7 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
   }, []);
 
   if (loading && articles.length === 0) {
-    return (
-      <View style={{ paddingHorizontal: 20, paddingVertical: 24, alignItems: 'center' }}>
-        <ActivityIndicator color={colours.accent} />
-      </View>
-    );
+    return null;
   }
 
   if (articles.length === 0) {

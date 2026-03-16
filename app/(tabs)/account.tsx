@@ -3,6 +3,7 @@ let Notifications: typeof import('expo-notifications') | null = null;
 try { Notifications = require('expo-notifications'); } catch {}
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
     Alert, Linking, ScrollView,
@@ -75,6 +76,7 @@ export default function AccountScreen() {
     language, setLanguage, t,
   } = useApp();
 
+  const router = useRouter();
   const isLight = theme === 'light';
 
   const cardShadow = isLight ? {
@@ -380,6 +382,30 @@ export default function AccountScreen() {
               </TouchableOpacity>
             </View>
           ))}
+        </Card>
+
+        {/* SAVED ITEMS */}
+        <Card>
+          <TouchableOpacity
+            onPress={() => router.push('/(tabs)/saved' as any)}
+            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}
+            activeOpacity={0.7}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+              <View style={{
+                width: 36, height: 36, borderRadius: 10,
+                backgroundColor: colours.accent + '15',
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Ionicons name="bookmark" size={18} color={colours.accent} />
+              </View>
+              <View>
+                <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{t('Saved Items', 'Articles sauvegardés')}</Text>
+                <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Stops, places & board items', 'Arrêts, lieux et éléments du tableau')}</Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colours.muted} />
+          </TouchableOpacity>
         </Card>
 
         {/* NOTIFICATIONS (collapsible) */}

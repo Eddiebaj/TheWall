@@ -65,6 +65,15 @@ function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="saved"
+        options={{
+          tabBarLabel: 'News',
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={focused ? 'newspaper' : 'newspaper-outline'} size={22} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="account"
         options={{
           tabBarLabel: 'Account',
@@ -73,7 +82,6 @@ function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen name="saved" options={{ href: null }} />
       <Tabs.Screen name="discover" options={{ href: null }} />
       <Tabs.Screen name="alerts" options={{ href: null }} />
     </Tabs>

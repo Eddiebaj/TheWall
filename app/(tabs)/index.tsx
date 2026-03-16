@@ -16,7 +16,9 @@ import {
   StyleSheet, Text, TextInput, TouchableOpacity,
   TouchableWithoutFeedback, View
 } from 'react-native';
-import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
+// DraggableFlatList disabled for beta — using plain FlatList to fix touch blocking
+// import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
+const ScaleDecorator = ({ children }: { children: React.ReactNode }) => <>{children}</>;
 import { useApp } from '../../context/AppContext';
 import { ArrivalRowSkeleton } from '../../components/Shimmer';
 import { supabase } from '../../lib/supabase';
@@ -427,7 +429,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
         ) : gasFailed ? (
           <Text style={{ fontSize: 11, color: colours.muted }}>{t('Gas prices unavailable', 'Prix d\'essence indisponible')}</Text>
         ) : (
-          <ActivityIndicator size="small" color={colours.accent} />
+          <Text style={{ fontSize: 11, color: colours.muted }}>{t('Tap to load prices', 'Appuyez pour charger')}</Text>
         )}
         <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>Tap for nearby stations →</Text>
       </TouchableOpacity>
@@ -3666,8 +3668,8 @@ function LiveScreenInner() {
 
   const alertDotColour = () => { if (!hasAlerts) return colours.accent; return CATEGORY_COLOUR[activeAlerts[0]?.category] || colours.orange; };
 
-  const SectionWrapper = ({ id, children }: { id: string; children: React.ReactNode }) => {
-    if (!editMode) return <>{children}</>;
+  const wrapSection = (id: string, children: React.ReactNode) => {
+    if (!editMode) return children;
     const idx = sectionOrder.indexOf(id);
     return (
       <View style={{ position: 'relative' }}>
@@ -4165,7 +4167,7 @@ function LiveScreenInner() {
   const renderSection = (sectionId: string) => {
     switch (sectionId) {
       case 'otrain': return (
-        <SectionWrapper key="otrain" id="otrain">
+        <React.Fragment key="otrain">{wrapSection('otrain', <>
           <Text style={[styles.sectionLabel, { color: colours.muted, fontSize: fonts.sm, marginBottom: 6 }]}>{t('O-Train', 'O-Train')}</Text>
           <TouchableOpacity style={[{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 20, marginBottom: showLine1 ? 0 : 8, borderWidth: 1, borderRadius: 14, borderBottomLeftRadius: showLine1 ? 0 : 14, borderBottomRightRadius: showLine1 ? 0 : 14, padding: 12, backgroundColor: showLine1 ? colours.lrt + '12' : colours.surface, borderColor: showLine1 ? colours.lrt : colours.border }, cardShadow]} onPress={() => { setShowLine1(!showLine1); setShowLine2(false); setShowEast(false); setShowWest(false); setShowNorth(false); setShowSouth(false); }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -4209,28 +4211,28 @@ function LiveScreenInner() {
               {showSouth && LRT2_SOUTH.map((station, index) => (<TouchableOpacity key={`s${index}`} style={[styles.stationRow, { borderBottomColor: colours.border }, stopId === station.id && { backgroundColor: '#7b5ea7' + '12' }]} onPress={() => { loadStop(station.id, station.name); setExpandedStopId(station.id); setShowLine2(false); setShowSouth(false); }} activeOpacity={0.7}><View style={styles.stationDotCol}><View style={[styles.stationDot, { borderColor: colours.border }, stopId === station.id && { backgroundColor: '#7b5ea7', borderColor: '#7b5ea7' }]} />{index < LRT2_SOUTH.length - 1 && <View style={[styles.stationLine, { backgroundColor: colours.border }]} />}</View><Text style={{ flex: 1, fontSize: fonts.md, fontWeight: stopId === station.id ? '700' : '500', color: stopId === station.id ? '#7b5ea7' : colours.text }}>{station.name}</Text><Ionicons name="chevron-forward" size={14} color={colours.muted} /></TouchableOpacity>))}
             </View>
           )}
-        </SectionWrapper>
+        </>)}</React.Fragment>
       );
 
       case 'saved': return savedPlaces.length === 0 ? null : (
-        <SectionWrapper key="saved" id="saved">
+        <React.Fragment key="saved">{wrapSection('saved', <>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 10 }}>
             <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Saved Places', 'Lieux sauvegardés')}</Text>
             <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Long press to remove', 'Appui long pour retirer')}</Text>
           </View>
           <FlatList horizontal data={savedPlaces} keyExtractor={p => p.id} showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 20, paddingRight: 20, gap: 10, paddingBottom: 4 }} style={{ marginBottom: 20 }} snapToInterval={170} decelerationRate="fast" renderItem={({ item: place }) => (<SavedPlaceCard place={place} colours={colours} fonts={fonts} language={language} t={t} onPress={() => Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(`${place.name} ${place.vicinity}`)}`)} onLongPress={() => Alert.alert(t('Remove?', 'Retirer?'), place.name, [{ text: t('Cancel', 'Annuler'), style: 'cancel' }, { text: t('Remove', 'Retirer'), style: 'destructive', onPress: () => removeSavedPlace(place.id) }])} cardShadow={cardShadow} />)} />
-        </SectionWrapper>
+        </>)}</React.Fragment>
       );
 
       case 'services': return (
-          <SectionWrapper key="services" id="services">
+          <React.Fragment key="services">{wrapSection('services', <>
             <Text style={[styles.sectionLabel, { color: colours.muted, fontSize: fonts.sm }]}>{t('Ottawa Services', 'Services Ottawa')}</Text>
             <ServicesGrid colours={colours} fonts={fonts} t={t} language={language} activeTab={activeServicesTab} onTabChange={setActiveServicesTab} onTileTap={handleServiceTile} cardShadow={cardShadow} />
-          </SectionWrapper>
+          </>)}</React.Fragment>
         );
 
       case 'alerts': return (
-        <SectionWrapper key="alerts" id="alerts">
+        <React.Fragment key="alerts">{wrapSection('alerts', <>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 6 }}>
             <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, letterSpacing: 1, textTransform: 'uppercase' }}>{t('Service Alerts', 'Alertes')}</Text>
             <TouchableOpacity onPress={() => { const item: SavedBoardItem = { type: 'service_alert' }; isBoardSaved(item) ? removeFromBoard(item) : addToBoardIfMissing(item); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Save alerts to board', 'Sauvegarder les alertes au tableau')} accessibilityState={{ selected: isBoardSaved({ type: 'service_alert' }) }}>
@@ -4244,13 +4246,13 @@ function LiveScreenInner() {
             </View>
             <Text style={{ color: hasAlerts ? alertDotColour() : colours.accent, fontSize: fonts.sm, fontWeight: '600', marginLeft: 8 }}>{t('View all →', 'Voir tout →')}</Text>
           </TouchableOpacity>
-        </SectionWrapper>
+        </>)}</React.Fragment>
       );
 
       // 'map' case removed — Live Map is accessible via the dedicated tab
 
       case 'news': return (
-        <SectionWrapper key="news" id="news">
+        <React.Fragment key="news">{wrapSection('news', <>
           <NewsSection
             colours={colours}
             fonts={fonts}
@@ -4258,11 +4260,11 @@ function LiveScreenInner() {
             onArticlesLoaded={setNewsArticles}
           />
           <View style={{ height: 16 }} />
-        </SectionWrapper>
+        </>)}</React.Fragment>
       );
 
       case 'discover': return (
-        <SectionWrapper key="discover" id="discover">
+        <React.Fragment key="discover">{wrapSection('discover', <>
           <View style={styles.discoverHeader}>
             <Text style={[styles.sectionLabel, { color: colours.muted, fontSize: fonts.sm, marginBottom: 0 }]}>{t('Neighbourhoods', 'Quartiers')}</Text>
             <TouchableOpacity onPress={() => router.push('/(tabs)/discover' as any)}><Text style={{ color: colours.accent, fontSize: fonts.sm, fontWeight: '600' }}>{t('See all →', 'Voir tout →')}</Text></TouchableOpacity>
@@ -4291,7 +4293,7 @@ function LiveScreenInner() {
             </ScrollView>
           </View>
           <View style={{ height: 8 }} />
-        </SectionWrapper>
+        </>)}</React.Fragment>
       );
 
       default: return null;
@@ -4299,18 +4301,18 @@ function LiveScreenInner() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} pointerEvents="box-none">
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={[styles.container, { backgroundColor: colours.bg }]}>
         <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
-        {renderAlertsModal()}
-        <WeatherModal visible={weatherModalVisible} onClose={() => setWeatherModalVisible(false)} colours={colours} fonts={fonts} t={t} weather={weather} forecast={forecast} dailyForecast={dailyForecast} locationName={locationName} />
-        {renderGarbageModal()}
-        {renderSwapSheet()}
-        {renderExpandedArrivals()}
-        {renderStopReportModal()}
+        {alertsModalVisible && renderAlertsModal()}
+        {weatherModalVisible && <WeatherModal visible={weatherModalVisible} onClose={() => setWeatherModalVisible(false)} colours={colours} fonts={fonts} t={t} weather={weather} forecast={forecast} dailyForecast={dailyForecast} locationName={locationName} />}
+        {garbageModalVisible && renderGarbageModal()}
+        {swapSheetVisible && renderSwapSheet()}
+        {!!expandedStopId && renderExpandedArrivals()}
+        {showReportModal && renderStopReportModal()}
 
         {/* Full Schedule Modal */}
-        <Modal visible={!!scheduleRoute} animationType="slide" transparent onRequestClose={() => setScheduleRoute(null)}>
+        {!!scheduleRoute && <Modal visible={!!scheduleRoute} animationType="slide" transparent onRequestClose={() => setScheduleRoute(null)}>
           <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
             <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '75%' }}>
               <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 4 }} />
@@ -4370,20 +4372,20 @@ function LiveScreenInner() {
               </ScrollView>
             </View>
           </View>
-        </Modal>
+        </Modal>}
 
-        {renderBoardExpandModal()}
-        <SportsModal visible={sportsModal} onClose={() => setSportsModal(false)} colours={colours} fonts={fonts} t={t} language={language} savedTeams={savedTeams} onToggleTeam={toggleSavedTeam} initialTab={sportsInitialTab} onScheduleLoaded={setSportsSchedule} />
-        {renderSocialModal()}
-        {renderEventsModal()}
-        {renderRoadEventsModal()}
-        {renderParksModal()}
-        {renderBikeShareModal()}
-        {renderParkingModal()}
-        {renderCampusModal()}
+        {!!boardExpandItem && renderBoardExpandModal()}
+        {sportsModal && <SportsModal visible={sportsModal} onClose={() => setSportsModal(false)} colours={colours} fonts={fonts} t={t} language={language} savedTeams={savedTeams} onToggleTeam={toggleSavedTeam} initialTab={sportsInitialTab} onScheduleLoaded={setSportsSchedule} />}
+        {socialModal && renderSocialModal()}
+        {eventsModal && renderEventsModal()}
+        {roadEventsModal && renderRoadEventsModal()}
+        {parksModal && renderParksModal()}
+        {bikeShareModal && renderBikeShareModal()}
+        {parkingModal && renderParkingModal()}
+        {(campusPicker || campusModal) && renderCampusModal()}
 
         {/* 311 Report Modal */}
-        <Modal visible={show311Modal} animationType="slide" transparent onRequestClose={() => setShow311Modal(false)}>
+        {show311Modal && <Modal visible={show311Modal} animationType="slide" transparent onRequestClose={() => setShow311Modal(false)}>
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
               <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40 }}>
@@ -4447,10 +4449,10 @@ function LiveScreenInner() {
               </View>
             </View>
           </TouchableWithoutFeedback>
-        </Modal>
+        </Modal>}
 
         {/* Stop Reports Sheet */}
-        <Modal visible={showReportSheet} animationType="slide" transparent onRequestClose={() => setShowReportSheet(false)}>
+        {showReportSheet && <Modal visible={showReportSheet} animationType="slide" transparent onRequestClose={() => setShowReportSheet(false)}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
             <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '60%', paddingBottom: 34 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colours.border }}>
@@ -4492,10 +4494,10 @@ function LiveScreenInner() {
               </ScrollView>
             </View>
           </View>
-        </Modal>
+        </Modal>}
 
         {/* Crowding Report Sheet */}
-        <Modal visible={showCrowdingSheet} animationType="slide" transparent onRequestClose={() => setShowCrowdingSheet(false)}>
+        {showCrowdingSheet && <Modal visible={showCrowdingSheet} animationType="slide" transparent onRequestClose={() => setShowCrowdingSheet(false)}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
             <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 40 }}>
               <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 4 }} />
@@ -4530,7 +4532,7 @@ function LiveScreenInner() {
               <Text style={{ textAlign: 'center', fontSize: fonts.sm, color: colours.muted, paddingHorizontal: 20 }}>{t('Your report helps other riders plan their trip', 'Votre signalement aide les autres usagers')}</Text>
             </View>
           </View>
-        </Modal>
+        </Modal>}
 
         {/* Crowding toast */}
         {crowdingToast && (
@@ -4539,9 +4541,7 @@ function LiveScreenInner() {
             <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>{t('Thanks! Helping Ottawa riders', 'Merci! Vous aidez les usagers')}</Text>
           </View>
         )}
-
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true} contentContainerStyle={{ paddingBottom: 20 }} onScrollBeginDrag={() => { Keyboard.dismiss(); setSearchResults([]); }}>
-
           {/* Header */}
           <View style={styles.header}>
             <View>
@@ -4578,7 +4578,7 @@ function LiveScreenInner() {
           {editMode && (<View style={{ marginHorizontal: 20, marginBottom: 12, padding: 12, borderRadius: 12, backgroundColor: colours.accent + '15', borderWidth: 1, borderColor: colours.accent + '40', flexDirection: 'row', alignItems: 'center', gap: 8 }}><Ionicons name="reorder-three" size={18} color={colours.accent} /><Text style={{ flex: 1, fontSize: fonts.sm, color: colours.accent, fontWeight: '600' }}>{t('Use ↑↓ arrows to reorder sections. Long press Ottawa Life tiles to swap.', 'Utilisez les flèches ↑↓ pour réorganiser. Appui long sur les tuiles pour changer.')}</Text></View>)}
 
           {/* Search */}
-          <View style={styles.searchContainer}>
+          <View style={[styles.searchContainer, (searchResults.length > 0 || addressResults.length > 0) ? { zIndex: 100 } : { zIndex: 0 }]}>
             <View style={styles.searchRow}>
               <TextInput style={[styles.searchInput, { backgroundColor: colours.surface, borderColor: colours.border, color: colours.text, fontSize: fonts.lg, ...cardShadow }]} placeholder={t('Street name or stop number...', "Nom de rue ou numéro d'arrêt...")} placeholderTextColor={colours.muted} value={searchText} onChangeText={handleSearchChange} keyboardType="default" returnKeyType="search" onSubmitEditing={handleSearch} accessibilityLabel={t('Search for a stop or street', 'Rechercher un arret ou une rue')} accessibilityRole="search" />
               <TouchableOpacity style={[styles.searchBtn, { backgroundColor: colours.accent }]} onPress={handleSearch} accessibilityRole="button" accessibilityLabel={t('Search', 'Rechercher')}>
@@ -4713,11 +4713,10 @@ function LiveScreenInner() {
             <>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 8 }}>
                 <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('My Board', 'Mon tableau')}</Text>
-                <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Hold to reorder', 'Maintenir pour réordonner')}</Text>
+                <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Use arrows to reorder', 'Utilisez les flèches')}</Text>
               </View>
-              <DraggableFlatList
+              <FlatList
                 horizontal
-                activationDistance={10}
                 data={savedBoard}
                 keyExtractor={(item, i) => {
                   if (item.type === 'garbage') return 'garbage';
@@ -4736,12 +4735,7 @@ function LiveScreenInner() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ paddingHorizontal: 20, gap: 10, paddingBottom: 4 }}
                 style={{ marginBottom: 16 }}
-                onDragEnd={({ data }) => {
-                  setSavedBoard(data);
-                  AsyncStorage.setItem(SK_SAVED_BOARD, JSON.stringify(data));
-                }}
-                renderItem={({ item, drag, isActive, getIndex }: RenderItemParams<SavedBoardItem>) => {
-                  const idx = getIndex() ?? -1;
+                renderItem={({ item, index: idx }) => {
                   const moveBoard = (from: number, to: number) => {
                     setSavedBoard(prev => {
                       const next = [...prev];
@@ -4754,8 +4748,8 @@ function LiveScreenInner() {
                   return (
                   <SavedBoardCard
                     item={item}
-                    drag={drag}
-                    isActive={isActive}
+                    drag={() => {}}
+                    isActive={false}
                     colours={colours}
                     fonts={fonts}
                     t={t}
@@ -4867,7 +4861,7 @@ function LiveScreenInner() {
 
         </ScrollView>
 
-        <NeighbourhoodSheet
+        {neighbourhoodSheetVisible && <NeighbourhoodSheet
           visible={neighbourhoodSheetVisible}
           neighbourhood={selectedNeighbourhood}
           onClose={() => setNeighbourhoodSheetVisible(false)}
@@ -4875,10 +4869,10 @@ function LiveScreenInner() {
           fonts={fonts}
           events={events as any}
           newsArticles={newsArticles}
-        />
+        />}
 
         {/* Para Transpo Modal */}
-        <Modal visible={paraTranspoModal} animationType="slide" transparent onRequestClose={() => setParaTranspoModal(false)}>
+        {paraTranspoModal && <Modal visible={paraTranspoModal} animationType="slide" transparent onRequestClose={() => setParaTranspoModal(false)}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
             <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%', paddingBottom: 34 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colours.border }}>
@@ -4925,7 +4919,7 @@ function LiveScreenInner() {
               </ScrollView>
             </View>
           </View>
-        </Modal>
+        </Modal>}
       </View>
     </KeyboardAvoidingView>
   );
@@ -4946,7 +4940,7 @@ const styles = StyleSheet.create({
   nightBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
   liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
   liveDot: { width: 6, height: 6, borderRadius: 3 },
-  searchContainer: { paddingHorizontal: 20, marginBottom: 12, zIndex: 100 },
+  searchContainer: { paddingHorizontal: 20, marginBottom: 12 },
   searchRow: { flexDirection: 'row', gap: 10 },
   searchInput: { flex: 1, borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12, fontWeight: '500' },
   searchBtn: { paddingHorizontal: 18, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
