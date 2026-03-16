@@ -14,6 +14,7 @@ export const SOURCE_COLOURS: { [key: string]: string } = {
   'Ottawa Sun': '#e8a020',
   'Capital Current': '#00A78D',
   'City of Ottawa': '#7b5ea7',
+  'Apt613': '#e85d75',
 };
 
 export const SOURCE_FALLBACK_ICONS: { [key: string]: string } = {
@@ -22,6 +23,7 @@ export const SOURCE_FALLBACK_ICONS: { [key: string]: string } = {
   'Ottawa Sun': 'sunny-outline',
   'Capital Current': 'flash-outline',
   'City of Ottawa': 'business-outline',
+  'Apt613': 'home-outline',
 };
 
 export function timeAgo(dateStr: string, lang: string): string {

@@ -65,7 +65,7 @@ import { NewsArticle } from '../../lib/newsData';
 import { SK_NEWS_CACHE, SK_SAVED_NEIGHBOURHOODS, SK_TONIGHT_DISMISSED, SK_TRIP_HISTORY, SK_LAST_CROWDING_REPORT, SK_CROWDING_CACHE, SK_FREQUENT_CARD_DISMISSED, SK_FREQUENT_ARRIVALS_CACHE } from '../../lib/storageKeys';
 import { FrequentRoute, detectFrequentRoutes } from '../../lib/frequentRoutes';
 import { getDelayContext } from '../../lib/delayContext';
-import NewsSection from '../../components/NewsSection';
+// NewsSection removed from home — news lives in Account tab modal
 // NeighbourhoodSection removed — inlined for scroll reliability
 import NeighbourhoodSheet from '../../components/NeighbourhoodSheet';
 import TonightCard from '../../components/TonightCard';
@@ -238,7 +238,7 @@ const ALL_OTTAWA_LIFE = [
 
 const DEFAULT_OTTAWA_LIFE_IDS = ['restaurant', 'cafe', 'shopping', 'events'];
 // 'map' removed from default section order
-const DEFAULT_SECTION_ORDER = ['otrain', 'saved', 'news', 'services', 'alerts', 'discover'];
+const DEFAULT_SECTION_ORDER = ['otrain', 'saved', 'services', 'alerts', 'discover'];
 
 // DISCOVER_CARDS removed — replaced by NEIGHBOURHOODS from lib/neighbourhoodData.ts
 
@@ -1497,6 +1497,7 @@ function LiveScreenInner() {
       } catch { fetchArrivals('CD995'); fetchStopReports('CD995'); }
     });
     AsyncStorage.getItem(SK_SAVED_PLACES).then(val => { try { if (val) setSavedPlaces(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved places failed:', e); } });
+    AsyncStorage.getItem(SK_NEWS_CACHE).then(val => { try { if (val) { const parsed = JSON.parse(val); if (parsed.articles?.length) setNewsArticles(parsed.articles); } } catch {} });
     AsyncStorage.getItem(SK_SAVED_TEAMS).then(val => { try { if (val) setSavedTeams(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved teams failed:', e); } });
     AsyncStorage.getItem(SK_SAVED_ROUTES).then(val => { try { if (val) setSavedRoutes(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved routes failed:', e); } });
     AsyncStorage.getItem(SK_TIME_FORMAT).then(val => { if (val === 'absolute') setTimeFormat('absolute'); });
@@ -1543,7 +1544,7 @@ function LiveScreenInner() {
         if (val) {
           let saved: string[] = JSON.parse(val);
           // Remove legacy keys
-          saved = saved.filter(s => s !== 'quick' && s !== 'ottawa' && s !== 'map' && s !== 'gas');
+          saved = saved.filter(s => s !== 'quick' && s !== 'ottawa' && s !== 'map' && s !== 'gas' && s !== 'news');
           // Ensure all required sections exist
           const required = DEFAULT_SECTION_ORDER;
           for (const key of required) {
@@ -4251,17 +4252,7 @@ function LiveScreenInner() {
 
       // 'map' case removed — Live Map is accessible via the dedicated tab
 
-      case 'news': return (
-        <React.Fragment key="news">{wrapSection('news', <>
-          <NewsSection
-            colours={colours}
-            fonts={fonts}
-            cardShadow={cardShadow}
-            onArticlesLoaded={setNewsArticles}
-          />
-          <View style={{ height: 16 }} />
-        </>)}</React.Fragment>
-      );
+      // 'news' case removed — news lives in Account tab modal
 
       case 'discover': return (
         <React.Fragment key="discover">{wrapSection('discover', <>

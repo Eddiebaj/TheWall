@@ -28,7 +28,11 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const isValidImageUrl = (url: string | undefined): url is string =>
+    typeof url === 'string' && (url.startsWith('https://') || url.startsWith('http://'));
 
   useEffect(() => {
     AsyncStorage.getItem(SK_SAVED_ARTICLES).then(val => {
@@ -135,18 +139,18 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
           }
         </TouchableOpacity>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 20, paddingRight: 20, gap: 12, paddingBottom: 4 }}>
+      <View style={{ paddingHorizontal: 20, gap: 12 }}>
         {articles.slice(0, 8).map(article => {
           const sourceColour = SOURCE_COLOURS[article.source] || colours.accent;
           const fallbackIcon = SOURCE_FALLBACK_ICONS[article.source] || 'newspaper-outline';
+          const hasImage = isValidImageUrl(article.thumbnail) && !failedImages.has(article.id);
           return (
             <TouchableOpacity
               key={article.id}
               activeOpacity={0.92}
               onPress={() => Linking.openURL(article.link)}
               style={[{
-                width: 200,
-                height: 160,
+                height: 180,
                 borderRadius: 16,
                 overflow: 'hidden',
                 backgroundColor: colours.surface,
@@ -155,17 +159,18 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
               }, cardShadow]}
             >
               <ImageBackground
-                source={article.thumbnail ? { uri: article.thumbnail } : undefined}
+                source={hasImage ? { uri: article.thumbnail } : undefined}
+                onError={() => setFailedImages(prev => new Set(prev).add(article.id))}
                 style={{ width: '100%', height: '100%', justifyContent: 'flex-end' }}
                 resizeMode="cover"
               >
-                {!article.thumbnail && (
+                {!hasImage && (
                   <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: sourceColour + '15' }}>
                     <Ionicons name={fallbackIcon as any} size={28} color={sourceColour} />
                     <Text style={{ fontSize: 10, fontWeight: '700', color: sourceColour, marginTop: 4, textTransform: 'uppercase' }}>{article.source}</Text>
                   </View>
                 )}
-                {article.thumbnail && (
+                {hasImage && (
                   <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)' }} />
                 )}
                 {/* Source badge */}
@@ -174,28 +179,28 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
                 </View>
                 {/* Time ago */}
                 <View style={{ position: 'absolute', top: 8, right: 8 }}>
-                  <Text style={{ color: article.thumbnail ? '#fff' : colours.muted, fontSize: 10, fontWeight: '700' }}>{timeAgo(article.pubDate, language)}</Text>
+                  <Text style={{ color: hasImage ? '#fff' : colours.muted, fontSize: 10, fontWeight: '700' }}>{timeAgo(article.pubDate, language)}</Text>
                 </View>
                 {/* Headline + actions */}
-                <View style={{ padding: 10 }}>
+                <View style={{ padding: 12 }}>
                   <Text
                     numberOfLines={2}
                     style={{
-                      color: article.thumbnail ? '#fff' : colours.text,
+                      color: hasImage ? '#fff' : colours.text,
                       fontSize: fonts.md,
                       fontWeight: '800',
-                      lineHeight: 18,
-                      ...(article.thumbnail ? { textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 } : {}),
+                      lineHeight: 20,
+                      ...(hasImage ? { textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 } : {}),
                     }}
                   >
                     {article.title}
                   </Text>
-                  <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 6 }}>
                     <TouchableOpacity onPress={() => toggleSave(article.id)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                      <Ionicons name={savedIds.has(article.id) ? 'bookmark' : 'bookmark-outline'} size={14} color={article.thumbnail ? '#fff' : colours.muted} />
+                      <Ionicons name={savedIds.has(article.id) ? 'bookmark' : 'bookmark-outline'} size={16} color={hasImage ? '#fff' : colours.muted} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => shareArticle(article)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                      <Ionicons name="share-outline" size={14} color={article.thumbnail ? '#fff' : colours.muted} />
+                      <Ionicons name="share-outline" size={16} color={hasImage ? '#fff' : colours.muted} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -203,7 +208,7 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
             </TouchableOpacity>
           );
         })}
-      </ScrollView>
+      </View>
     </View>
   );
 }

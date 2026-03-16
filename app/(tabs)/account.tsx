@@ -3,16 +3,15 @@ let Notifications: typeof import('expo-notifications') | null = null;
 try { Notifications = require('expo-notifications'); } catch {}
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-    Alert, Linking, ScrollView,
+    Alert, Linking, Modal, ScrollView,
     StatusBar, Switch, Text,
     TouchableOpacity, View
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
 import { registerPushToken, syncSubscriptions } from '../../lib/pushNotifications';
-import { SK_NOTIF_SETTINGS } from '../../lib/storageKeys';
+import { SK_FAVS, SK_SAVED_PLACES, SK_SAVED_BOARD, SK_NOTIF_SETTINGS } from '../../lib/storageKeys';
 
 const isNightTime = () => { const h = new Date().getHours(); return h >= 21 || h < 4; };
 
@@ -76,7 +75,6 @@ export default function AccountScreen() {
     language, setLanguage, t,
   } = useApp();
 
-  const router = useRouter();
   const isLight = theme === 'light';
 
   const cardShadow = isLight ? {
@@ -99,6 +97,10 @@ export default function AccountScreen() {
   const [showEventsNotifs, setShowEventsNotifs] = useState(false);
   const [showTips, setShowTips] = useState(false);
   const [showA11y, setShowA11y] = useState(false);
+  const [showSaved, setShowSaved] = useState(false);
+  const [savedFavs, setSavedFavs] = useState<any[]>([]);
+  const [savedPlaces, setSavedPlaces] = useState<any[]>([]);
+  const [savedBoard, setSavedBoard] = useState<any[]>([]);
 
   useEffect(() => {
     const interval = setInterval(() => setIsNight(isNightTime()), 60000);
@@ -387,7 +389,17 @@ export default function AccountScreen() {
         {/* SAVED ITEMS */}
         <Card>
           <TouchableOpacity
-            onPress={() => router.push('/(tabs)/saved' as any)}
+            onPress={async () => {
+              const [f, p, b] = await Promise.all([
+                AsyncStorage.getItem(SK_FAVS),
+                AsyncStorage.getItem(SK_SAVED_PLACES),
+                AsyncStorage.getItem(SK_SAVED_BOARD),
+              ]);
+              try { setSavedFavs(f ? JSON.parse(f) : []); } catch { setSavedFavs([]); }
+              try { setSavedPlaces(p ? JSON.parse(p) : []); } catch { setSavedPlaces([]); }
+              try { setSavedBoard(b ? JSON.parse(b) : []); } catch { setSavedBoard([]); }
+              setShowSaved(true);
+            }}
             style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}
             activeOpacity={0.7}
           >
@@ -668,6 +680,83 @@ export default function AccountScreen() {
         </Card>
 
       </ScrollView>
+
+      {showSaved && <Modal visible={showSaved} animationType="slide" transparent onRequestClose={() => setShowSaved(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '85%', paddingBottom: 34 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+              <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>{t('Saved Items', 'Articles sauvegardés')}</Text>
+              <TouchableOpacity onPress={() => setShowSaved(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Ionicons name="close" size={22} color={colours.muted} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ paddingTop: 8, paddingBottom: 20 }}>
+              {savedFavs.length === 0 && savedPlaces.length === 0 && savedBoard.length === 0 && (
+                <View style={{ alignItems: 'center', padding: 40 }}>
+                  <Ionicons name="bookmark-outline" size={40} color={colours.muted} />
+                  <Text style={{ fontSize: fonts.md, color: colours.muted, marginTop: 10 }}>{t('No saved items yet', 'Aucun élément sauvegardé')}</Text>
+                </View>
+              )}
+              {savedFavs.length > 0 && (
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>
+                    {t('STOPS', 'ARRÊTS')} ({savedFavs.length})
+                  </Text>
+                  {savedFavs.map((fav: any) => (
+                    <View key={fav.id} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 12 }}>
+                      <View style={{ width: 34, height: 34, borderRadius: 9, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="bus" size={16} color={colours.accent} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{fav.name}</Text>
+                        <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Stop', 'Arrêt')} #{fav.id}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+              {savedPlaces.length > 0 && (
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>
+                    {t('PLACES', 'LIEUX')} ({savedPlaces.length})
+                  </Text>
+                  {savedPlaces.map((place: any) => (
+                    <View key={place.id} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 12 }}>
+                      <View style={{ width: 34, height: 34, borderRadius: 9, backgroundColor: (place.categoryColor || colours.accent) + '15', alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name={(place.categoryIcon || 'location') as any} size={16} color={place.categoryColor || colours.accent} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }} numberOfLines={1}>{place.name}</Text>
+                        {place.vicinity && <Text style={{ fontSize: fonts.sm, color: colours.muted }} numberOfLines={1}>{place.vicinity}</Text>}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+              {savedBoard.length > 0 && (
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>
+                    {t('BOARD ITEMS', 'ÉLÉMENTS DU TABLEAU')} ({savedBoard.length})
+                  </Text>
+                  {savedBoard.map((item: any, idx: number) => (
+                    <View key={`${item.type}-${item.id || idx}`} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 12 }}>
+                      <View style={{ width: 34, height: 34, borderRadius: 9, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name={({ bus_stop: 'bus', lrt_station: 'train', garbage: 'trash', service_alert: 'alert-circle', gas_prices: 'speedometer', otrain: 'train', services: 'grid', discover: 'compass', saved_team: 'american-football', external_link: 'link', campus: 'school', news: 'newspaper', neighbourhood: 'map' }[item.type] || 'cube') as any} size={16} color={colours.accent} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }} numberOfLines={1}>
+                          {item.name || (language === 'fr' ? (item.name_fr || item.label_fr) : (item.name_en || item.label_en)) || item.type.replace(/_/g, ' ')}
+                        </Text>
+                        <Text style={{ fontSize: fonts.sm, color: colours.muted, textTransform: 'capitalize' }}>{item.type.replace(/_/g, ' ')}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>}
     </View>
   );
 }
