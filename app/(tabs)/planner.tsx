@@ -56,7 +56,7 @@ class PlannerErrorBoundary extends React.Component<
     return this.props.children;
   }
 }
-import { SK_PLANNER_PREFS, SK_SAVED_ROUTES, SK_TRIP_HISTORY, SK_LEAVE_REMINDERS } from '../../lib/storageKeys';
+import { SK_PLANNER_PREFS, SK_SAVED_ROUTES, SK_TRIP_HISTORY, SK_LEAVE_REMINDERS, SK_ACCESSIBILITY_ROUTING } from '../../lib/storageKeys';
 
 const PLAN_URL = 'https://routeo-backend.vercel.app/api/plan';
 const PLACES_URL = 'https://routeo-backend.vercel.app/api/places';
@@ -349,6 +349,7 @@ function PlannerScreenInner() {
   const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
   const [tripHistory, setTripHistory] = useState<TripRecord[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [accessibleRouting, setAccessibleRouting] = useState(false);
   const [sensGameTonight, setSensGameTonight] = useState(false);
   const [reminderModal, setReminderModal] = useState<{ itin: Itinerary; idx: number } | null>(null);
   const [reminderTime, setReminderTime] = useState<Date>(new Date());
@@ -357,6 +358,9 @@ function PlannerScreenInner() {
   // Holds Expo notification IDs so we can cancel them on stopTracking
   const transitNotifIds = useRef<string[]>([]);
   const autoCompleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const itinLayoutMap = useRef<Record<number, number>>({});
+  const mainScrollRef = useRef<ScrollView>(null);
+  const itinListYOffset = useRef(0);
 
   const isLight = colours.bg === '#f0f4f8';
   const cardShadow = isLight ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 } : {};
@@ -382,6 +386,10 @@ function PlannerScreenInner() {
         }
         setLeaveReminders(active);
       } catch (e) { if (__DEV__) console.warn('JSON parse leave reminders failed:', e); }
+    }).catch(() => {});
+    // Load accessibility routing preference
+    AsyncStorage.getItem(SK_ACCESSIBILITY_ROUTING).then(val => {
+      if (val === 'true') setAccessibleRouting(true);
     }).catch(() => {});
     // Check for Sens game tonight
     fetchWithTimeout('https://api-web.nhle.com/v1/schedule/now').then(async r => {
@@ -589,7 +597,7 @@ function PlannerScreenInner() {
     const day = String(d.getDate()).padStart(2,'0');
     const dateStr = `${month}-${day}-${d.getFullYear()}`;
 
-    const url = `${PLAN_URL}?fromLat=${resolvedFrom.lat}&fromLng=${resolvedFrom.lng}&fromLabel=${encodeURIComponent(resolvedFrom.label)}&toLat=${resolvedTo.lat}&toLng=${resolvedTo.lng}&toLabel=${encodeURIComponent(resolvedTo.label)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=${arriveBy}&mode=${travelMode}`;
+    const url = `${PLAN_URL}?fromLat=${resolvedFrom.lat}&fromLng=${resolvedFrom.lng}&fromLabel=${encodeURIComponent(resolvedFrom.label)}&toLat=${resolvedTo.lat}&toLng=${resolvedTo.lng}&toLabel=${encodeURIComponent(resolvedTo.label)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=${arriveBy}&mode=${travelMode}${accessibleRouting ? '&wheelchair=true' : ''}`;
 
     try {
       const resp = await fetchWithTimeout(url);
@@ -716,7 +724,7 @@ function PlannerScreenInner() {
           const month = String(arrivalTime.getMonth() + 1).padStart(2,'0');
           const day = String(arrivalTime.getDate()).padStart(2,'0');
           const dateStr = `${month}-${day}-${arrivalTime.getFullYear()}`;
-          const url = `${PLAN_URL}?fromLat=${from.lat}&fromLng=${from.lng}&fromLabel=${encodeURIComponent(from.label)}&toLat=${to.lat}&toLng=${to.lng}&toLabel=${encodeURIComponent(to.label)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=false&mode=${travelMode}`;
+          const url = `${PLAN_URL}?fromLat=${from.lat}&fromLng=${from.lng}&fromLabel=${encodeURIComponent(from.label)}&toLat=${to.lat}&toLng=${to.lng}&toLabel=${encodeURIComponent(to.label)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=false&mode=${travelMode}${accessibleRouting ? '&wheelchair=true' : ''}`;
           const resp = await fetchWithTimeout(url);
           if (!resp.ok) throw new Error(`Leg ${i + 1}: HTTP ${resp.status}`);
           const data = await resp.json();
@@ -802,6 +810,8 @@ function PlannerScreenInner() {
   const [isoStops, setIsoStops] = useState<{ name: string; travelTime: number; routes: string[] }[]>([]);
   const [isoLoading, setIsoLoading] = useState(false);
   const [isoVisible, setIsoVisible] = useState(false);
+  const [isoPlaces, setIsoPlaces] = useState<{ name: string; category: string; icon: string; time: number }[]>([]);
+  const [isoPlacesLoading, setIsoPlacesLoading] = useState(false);
 
   const fetchIsochrone = async () => {
     setIsoLoading(true);
@@ -879,6 +889,33 @@ function PlannerScreenInner() {
 
       results.sort((a, b) => a.travelTime - b.travelTime);
       setIsoStops(results);
+
+      // Fetch nearby places within isochrone coverage
+      setIsoPlacesLoading(true);
+      setIsoPlaces([]);
+      try {
+        const PLACE_CATEGORIES: { type: string; category: string; icon: string }[] = [
+          { type: 'restaurant', category: 'Food', icon: 'restaurant-outline' },
+          { type: 'park', category: 'Parks', icon: 'leaf-outline' },
+          { type: 'transit_station', category: 'Transit', icon: 'train-outline' },
+        ];
+        const placeResults: { name: string; category: string; icon: string; time: number }[] = [];
+        for (const cat of PLACE_CATEGORIES) {
+          try {
+            const pResp = await fetchWithTimeout(`${PLACES_URL}?action=nearby&lat=${lat}&lng=${lng}&radius=2000&type=${cat.type}`);
+            if (!pResp.ok) continue;
+            const pData = await pResp.json();
+            const places = (pData.results || []).slice(0, 4);
+            for (const p of places) {
+              const dKm = haversineKm(lat, lng, p.lat || p.geometry?.location?.lat || 0, p.lng || p.geometry?.location?.lng || 0);
+              const walkMin = Math.round((dKm / 1.4) * 60 / 60); // ~1.4 m/s walk speed
+              placeResults.push({ name: p.name, category: cat.category, icon: cat.icon, time: Math.max(walkMin, 1) });
+            }
+          } catch {}
+        }
+        setIsoPlaces(placeResults);
+      } catch {}
+      setIsoPlacesLoading(false);
     } catch (e) {
       Alert.alert(t('Error', 'Erreur'), t('Could not fetch reachable stops.', 'Impossible de trouver les arrets accessibles.'));
     }
@@ -1451,7 +1488,7 @@ function PlannerScreenInner() {
         />
       )}
 
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 40 }}>
+      <ScrollView ref={mainScrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 40 }}>
         {/* Input card */}
         <View style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 18, borderWidth: 1, borderColor: colours.border, padding: 4, marginBottom: 12 }, cardShadow]}>
           {/* From */}
@@ -1659,7 +1696,26 @@ function PlannerScreenInner() {
                 </TouchableOpacity>
               );
             })}
+            {/* Accessible routing toggle */}
+            <TouchableOpacity
+              onPress={() => {
+                const next = !accessibleRouting;
+                setAccessibleRouting(next);
+                AsyncStorage.setItem(SK_ACCESSIBILITY_ROUTING, String(next)).catch(() => {});
+              }}
+              style={{ width: 42, alignItems: 'center', justifyContent: 'center', paddingVertical: 9, borderRadius: 12, borderWidth: 1, borderColor: accessibleRouting ? '#007AFF' : colours.border, backgroundColor: accessibleRouting ? '#007AFF' + '15' : colours.surface }}
+              accessibilityRole="button"
+              accessibilityLabel={t('Accessible routes', 'Trajets accessibles')}
+              accessibilityState={{ selected: accessibleRouting }}
+            >
+              <Ionicons name="accessibility-outline" size={17} color={accessibleRouting ? '#007AFF' : colours.muted} />
+            </TouchableOpacity>
           </View>
+          {accessibleRouting && (
+            <Text style={{ fontSize: 11, fontWeight: '600', color: '#007AFF', marginTop: 4 }}>
+              {t('Accessible routes only', 'Trajets accessibles uniquement')}
+            </Text>
+          )}
         </View>
 
         {/* Depart at / Arrive by toggle */}
@@ -1788,7 +1844,7 @@ function PlannerScreenInner() {
               <Text style={{ color: colours.accent, fontWeight: '700', fontSize: 14 }}>{t('What can I reach in 20 min?', 'Que puis-je atteindre en 20 min?')}</Text>
             </TouchableOpacity>
 
-            {isoVisible && (
+            {isoVisible && (<>
               <View style={[{ marginTop: 12, backgroundColor: colours.surface, borderRadius: 16, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }, cardShadow]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderBottomWidth: 1, borderBottomColor: colours.border }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -1829,7 +1885,42 @@ function PlannerScreenInner() {
                   ))
                 )}
               </View>
-            )}
+
+              {/* Nearby places within isochrone */}
+              {isoPlaces.length > 0 && (
+                <View style={{ marginTop: 12 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                    {t('Nearby places', 'Lieux a proximite')}
+                  </Text>
+                  {(['Food', 'Parks', 'Transit'] as const).map(cat => {
+                    const items = isoPlaces.filter(p => p.category === cat);
+                    if (items.length === 0) return null;
+                    return (
+                      <View key={cat} style={{ marginBottom: 8 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                          <Ionicons name={(items[0].icon) as any} size={13} color={colours.accent} />
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: colours.text }}>{t(cat, cat === 'Food' ? 'Restos' : cat === 'Parks' ? 'Parcs' : 'Transport')}</Text>
+                        </View>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
+                          {items.map((place, pi) => (
+                            <View key={pi} style={{ backgroundColor: colours.surface, borderRadius: 10, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 10, paddingVertical: 8, minWidth: 120 }}>
+                              <Text style={{ fontSize: 12, fontWeight: '700', color: colours.text }} numberOfLines={1}>{place.name}</Text>
+                              <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }}>~{place.time} min</Text>
+                            </View>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+              {isoPlacesLoading && (
+                <View style={{ padding: 12, alignItems: 'center' }}>
+                  <ActivityIndicator color={colours.accent} size="small" />
+                  <Text style={{ color: colours.muted, fontSize: 11, marginTop: 4 }}>{t('Finding nearby places...', 'Recherche des lieux...')}</Text>
+                </View>
+              )}
+            </>)}
           </View>
         )}
 
@@ -1879,7 +1970,85 @@ function PlannerScreenInner() {
                 </View>
               </View>
             )}
-            {itineraries.map((itin, i) => renderItinerary(itin, i))}
+            {/* Route comparison pills */}
+            {itineraries.length > 1 && (() => {
+              const fastest = itineraries.reduce((best, cur, i) => cur.duration < itineraries[best].duration ? i : best, 0);
+              const fewestTransfers = itineraries.reduce((best, cur, i) => cur.transfers < itineraries[best].transfers ? i : best, 0);
+              const leastWalking = itineraries.reduce((best, cur, i) => cur.walkDistance < itineraries[best].walkDistance ? i : best, 0);
+              const pills = [
+                { label: `${t('Fastest', 'Plus rapide')}: ${fmtDuration(itineraries[fastest].duration)}`, icon: 'flash-outline' as const, idx: fastest },
+                { label: `${t('Fewest transfers', 'Moins de corresp.')}: ${itineraries[fewestTransfers].transfers}`, icon: 'swap-horizontal-outline' as const, idx: fewestTransfers },
+                { label: `${t('Least walking', 'Moins de marche')}: ${fmtWalk(itineraries[leastWalking].walkDistance)}`, icon: 'walk-outline' as const, idx: leastWalking },
+              ];
+              return (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ gap: 8 }}>
+                  {pills.map((pill, pi) => (
+                    <TouchableOpacity
+                      key={pi}
+                      onPress={() => {
+                        const y = itinLayoutMap.current[pill.idx];
+                        if (y != null) mainScrollRef.current?.scrollTo({ y: itinListYOffset.current + y, animated: true });
+                      }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: colours.accent + '12', borderWidth: 1, borderColor: colours.accent + '30' }}
+                      accessibilityRole="button"
+                    >
+                      <Ionicons name={pill.icon} size={13} color={colours.accent} />
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent }}>{pill.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              );
+            })()}
+            <View onLayout={(e) => { itinListYOffset.current = e.nativeEvent.layout.y; }}>
+              {itineraries.map((itin, i) => (
+                <View key={i} onLayout={(e) => { itinLayoutMap.current[i] = e.nativeEvent.layout.y; }}>
+                  {renderItinerary(itin, i)}
+                  {/* First/last mile suggestion */}
+                  {i < 2 && (() => {
+                    const legs = itin.legs || [];
+                    const firstWalk = legs.length > 0 && legs[0].mode === 'WALK' && legs[0].distance > 800 ? legs[0] : null;
+                    const lastWalk = legs.length > 1 && legs[legs.length - 1].mode === 'WALK' && legs[legs.length - 1].distance > 800 ? legs[legs.length - 1] : null;
+                    const mile = firstWalk || lastWalk;
+                    if (!mile) return null;
+                    const isFirst = mile === firstWalk;
+                    const distLabel = fmtDistance(mile.distance);
+                    return (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.accent + '08', borderWidth: 1, borderColor: colours.accent + '20', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginTop: -4, marginBottom: 10 }}>
+                        <Ionicons name="bulb-outline" size={14} color={colours.accent} />
+                        <Text style={{ flex: 1, fontSize: 12, color: colours.text }}>
+                          {isFirst ? t(`First ${distLabel} walk`, `Premiere marche de ${distLabel}`) : t(`Last ${distLabel} walk`, `Derniere marche de ${distLabel}`)}
+                          {' '}{t('Uber or Bike Share nearby?', 'Uber ou Velo-partage a proximite?')}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => {
+                            const lat = mile.from.lat;
+                            const lon = mile.from.lon;
+                            Linking.openURL(`uber://?action=setPickup&pickup[latitude]=${lat}&pickup[longitude]=${lon}`).catch(() => {
+                              Linking.openURL(`https://m.uber.com/ul/?action=setPickup&pickup[latitude]=${lat}&pickup[longitude]=${lon}`).catch(() => {});
+                            });
+                          }}
+                          style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}
+                          accessibilityRole="button"
+                          accessibilityLabel="Uber"
+                        >
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: colours.text }}>Uber</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => {
+                            Linking.openURL('https://velogo.ca').catch(() => {});
+                          }}
+                          style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('Bike Share', 'Velo-partage')}
+                        >
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: colours.text }}>{t('Bike', 'Velo')}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })()}
+                </View>
+              ))}
+            </View>
           </View>
         ) : !loading && !searched ? (
           <View style={{ paddingHorizontal: 20 }}>

@@ -105,5 +105,8 @@ export const SK_TRIP_SHARING = 'routeo_trip_sharing';
 // Leave reminders
 export const SK_LEAVE_REMINDERS = 'routeo_leave_reminders';
 
+// Accessibility routing
+export const SK_ACCESSIBILITY_ROUTING = 'routeo_accessibility_routing';
+
 // Crash diagnostics
 export const SK_CRASH_LOG = 'routeo_crash_log';
