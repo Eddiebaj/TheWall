@@ -1393,11 +1393,6 @@ function LiveScreenInner() {
   const [bikeShareModal, setBikeShareModal] = useState(false);
   const [bikeStations, setBikeStations] = useState<{ name: string; bikes: number; docks: number; lat: number; lng: number; distance: number }[]>([]);
   const [bikeShareLoading, setBikeShareLoading] = useState(false);
-  // City parking garages
-  const [parkingModal, setParkingModal] = useState(false);
-  const [paraTranspoModal, setParaTranspoModal] = useState(false);
-  const [parkingGarages, setParkingGarages] = useState<{ name: string; address: string; total: number; available: number; occupancy: number; lat: number; lng: number; distance: number }[]>([]);
-  const [parkingLoading, setParkingLoading] = useState(false);
   // Commute insights
   const [commuteInsight, setCommuteInsight] = useState<{ fromLabel: string; toLabel: string; avgDuration: number; count: number; affectedAlert?: string } | null>(null);
   const [weatherBannerDismissed, setWeatherBannerDismissed] = useState(false);
@@ -1979,23 +1974,6 @@ function LiveScreenInner() {
     setBikeShareLoading(false);
   };
 
-  // ── City Parking Garages ────────────────────────────────────────
-  const fetchParkingData = async () => {
-    setParkingLoading(true);
-    try {
-      const coords = await getUserCoords();
-      const resp = await fetchWithTimeout('https://routeo-backend.vercel.app/api/community?action=parking');
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const data = await resp.json();
-      const garages = (data.garages || []).map((g: any) => {
-        const dist = haversineDist(coords.lat, coords.lng, g.lat, g.lng);
-        return { ...g, distance: dist };
-      });
-      garages.sort((a: any, b: any) => a.distance - b.distance);
-      setParkingGarages(garages);
-    } catch { setParkingGarages([]); }
-    setParkingLoading(false);
-  };
 
   // ── Ticketmaster events ───────────────────────────────────────
   const fetchTicketmasterEvents = async () => {
@@ -2673,9 +2651,9 @@ function LiveScreenInner() {
     if (tile.action === 'alert' && tile.target === 'road_closures') { fetchRoadClosures(); setRoadEventsModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'parks') { fetchParks(); setParksModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'bikeshare') { fetchBikeShare(); setBikeShareModal(true); return; }
-    if (tile.action === 'alert' && tile.target === 'parking') { fetchParkingData(); setParkingModal(true); return; }
+
     if (tile.action === 'alert' && tile.target === 'campus') { if (!selectedCampus) setCampusPicker(true); else setCampusModal(true); return; }
-    if (tile.action === 'alert' && tile.target === 'para_transpo') { setParaTranspoModal(true); return; }
+
     if (tile.action === 'alert' && tile.target === 'gas_prices') { setBoardExpandItem({ type: 'gas_prices' }); return; }
     if (tile.action === 'alert') { setAlertsModalVisible(true); return; }
     if (tile.action === 'navigate' && tile.target?.includes('events?source=')) {
@@ -3311,97 +3289,6 @@ function LiveScreenInner() {
     </Modal>
   );
 
-  // ── City Parking Modal ───────────────────────────────────────
-  const renderParkingModal = () => {
-    const openNavigation = (lat: number, lng: number, name: string) => {
-      const url = Platform.select({
-        ios: `maps:0,0?q=${encodeURIComponent(name)}@${lat},${lng}`,
-        android: `geo:${lat},${lng}?q=${lat},${lng}(${encodeURIComponent(name)})`,
-      });
-      if (url) Linking.openURL(url).catch(() => {});
-    };
-
-    const fillColor = (occ: number) => occ > 80 ? '#cc3b2a' : occ > 50 ? '#e8a020' : '#00A78D';
-
-    return (
-      <Modal visible={parkingModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setParkingModal(false)}>
-        <View style={[styles.modalContainer, { backgroundColor: colours.bg }]}>
-          <View style={[styles.modalHeader, { borderBottomColor: colours.border }]}>
-            <View>
-              <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>{t('City Parking', 'Stationnement municipal')}</Text>
-              <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Sorted by distance', 'Tri\u00E9 par distance')}</Text>
-            </View>
-            <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setParkingModal(false)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
-              <Ionicons name="close" size={18} color={colours.text} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-            {parkingLoading ? (
-              <View style={styles.modalCenter}><ActivityIndicator color={colours.accent} size="large" /><Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('Loading parking data...', 'Chargement...')}</Text></View>
-            ) : parkingGarages.length === 0 ? (
-              <View style={styles.modalCenter}>
-                <Ionicons name="car-outline" size={40} color={colours.muted} />
-                <Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('No parking data available.', 'Aucune donn\u00E9e de stationnement disponible.')}</Text>
-              </View>
-            ) : (
-              <>
-                {parkingGarages.map((g, i) => {
-                  const occ = g.total > 0 ? Math.round((1 - g.available / g.total) * 100) : 0;
-                  const barColor = fillColor(occ);
-                  return (
-                    <View key={i} style={{ marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, ...cardShadow }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                        <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: '#004890' + '15', alignItems: 'center', justifyContent: 'center' }}>
-                          <Ionicons name="car" size={16} color="#004890" />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text }} numberOfLines={1}>{g.name}</Text>
-                          <Text style={{ fontSize: 11, color: colours.muted, marginTop: 1 }} numberOfLines={1}>{g.address}</Text>
-                        </View>
-                        {g.distance < 900 && <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted }}>{g.distance < 1 ? `${(g.distance * 1000).toFixed(0)}m` : `${g.distance.toFixed(1)}km`}</Text>}
-                      </View>
-                      {/* Availability */}
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                        <Text style={{ fontSize: 22, fontWeight: '900', color: barColor }}>{g.available}</Text>
-                        <Text style={{ fontSize: fonts.sm, color: colours.muted, fontWeight: '600' }}>/ {g.total} {t('spots available', 'places disponibles')}</Text>
-                      </View>
-                      {/* Fill rate bar */}
-                      <View style={{ height: 6, borderRadius: 3, backgroundColor: colours.border, marginBottom: 10 }}>
-                        <View style={{ height: 6, borderRadius: 3, backgroundColor: barColor, width: `${Math.min(occ, 100)}%` }} />
-                      </View>
-                      {/* Action buttons */}
-                      <View style={{ flexDirection: 'row', gap: 8 }}>
-                        <TouchableOpacity
-                          onPress={() => Linking.openURL('https://www.paybyphone.com/parking/ottawa').catch(() => {})}
-                          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: '#004890' + '12' }}
-                          activeOpacity={0.7}
-                          accessibilityRole="button"
-                          accessibilityLabel={t('Pay for parking', 'Payer le stationnement')}
-                        >
-                          <Ionicons name="card-outline" size={14} color="#004890" />
-                          <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: '#004890' }}>{t('Pay', 'Payer')}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => openNavigation(g.lat, g.lng, g.name)}
-                          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: '#00A78D' + '12' }}
-                          activeOpacity={0.7}
-                          accessibilityRole="button"
-                          accessibilityLabel={t('Navigate to garage', 'Naviguer vers le stationnement')}
-                        >
-                          <Ionicons name="navigate-outline" size={14} color="#00A78D" />
-                          <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: '#00A78D' }}>{t('Navigate', 'Naviguer')}</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  );
-                })}
-              </>
-            )}
-          </ScrollView>
-        </View>
-      </Modal>
-    );
-  };
 
   const isNight = new Date().getHours() >= 21;
   const isFav = favs.find(f => f.id === stopId);
@@ -4474,7 +4361,6 @@ function LiveScreenInner() {
         {roadEventsModal && renderRoadEventsModal()}
         {parksModal && renderParksModal()}
         {bikeShareModal && renderBikeShareModal()}
-        {parkingModal && renderParkingModal()}
         {(campusPicker || campusModal) && renderCampusModal()}
 
         {/* 311 Report Modal */}
@@ -4983,55 +4869,6 @@ function LiveScreenInner() {
 
         </ScrollView>
 
-        {/* Para Transpo Modal */}
-        {paraTranspoModal && <Modal visible={paraTranspoModal} animationType="slide" transparent onRequestClose={() => setParaTranspoModal(false)}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
-            <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%', paddingBottom: 34 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colours.border }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <View style={{ backgroundColor: '#7b5ea7' + '18', borderRadius: 10, width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}>
-                    <Ionicons name="accessibility" size={18} color="#7b5ea7" />
-                  </View>
-                  <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>Para Transpo</Text>
-                </View>
-                <TouchableOpacity onPress={() => setParaTranspoModal(false)}>
-                  <Ionicons name="close-circle" size={24} color={colours.muted} />
-                </TouchableOpacity>
-              </View>
-              <ScrollView contentContainerStyle={{ padding: 20 }}>
-                <Text style={{ fontSize: fonts.md, color: colours.text, lineHeight: 22, marginBottom: 16 }}>
-                  {t(
-                    'Para Transpo is OC Transpo\'s door-to-door shared-ride service for people with disabilities who are unable to use conventional transit some or all of the time.',
-                    'Para Transpo est le service de transport porte-\u00e0-porte partag\u00e9 d\'OC Transpo pour les personnes handicap\u00e9es qui ne peuvent pas utiliser le transport en commun conventionnel en tout ou en partie.'
-                  )}
-                </Text>
-                <View style={{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, padding: 14, marginBottom: 12 }}>
-                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>{t('Eligibility', 'Admissibilit\u00e9')}</Text>
-                  <Text style={{ fontSize: fonts.sm, color: colours.text, lineHeight: 20 }}>
-                    {t(
-                      '\u2022 People with physical, cognitive, or sensory disabilities\n\u2022 Temporary disabilities (e.g. broken leg)\n\u2022 Registration required \u2014 apply online or by phone',
-                      '\u2022 Personnes ayant un handicap physique, cognitif ou sensoriel\n\u2022 Handicaps temporaires (ex. jambe cass\u00e9e)\n\u2022 Inscription requise \u2014 postulez en ligne ou par t\u00e9l\u00e9phone'
-                    )}
-                  </Text>
-                </View>
-                <View style={{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, padding: 14, marginBottom: 12 }}>
-                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>{t('Contact', 'Contact')}</Text>
-                  <TouchableOpacity onPress={() => Linking.openURL('tel:6135605000')} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <Ionicons name="call" size={16} color={colours.accent} />
-                    <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.accent }}>613-560-5000</Text>
-                  </TouchableOpacity>
-                  <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Monday to Friday: 8:30am - 4:30pm', 'Lundi au vendredi: 8h30 - 16h30')}</Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => Linking.openURL('https://www.octranspo.com/en/plan-your-trip/accessibility/para-transpo/')}
-                  style={{ backgroundColor: '#7b5ea7', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 4 }}
-                >
-                  <Text style={{ color: '#fff', fontSize: fonts.md, fontWeight: '700' }}>{t('Book a Ride', 'R\u00e9server un trajet')}</Text>
-                </TouchableOpacity>
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>}
       </View>
     </KeyboardAvoidingView>
   );
