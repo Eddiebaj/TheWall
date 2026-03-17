@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Animated, Modal, Platform, Text, TouchableOpacity, View,
+  Alert, Animated, Modal, Platform, Text, TouchableOpacity, View,
 } from 'react-native';
 import { fetchWithTimeout } from '../lib/fetchWithTimeout';
 
@@ -102,9 +102,10 @@ type ActiveTripProps = {
   colours: any;
   fonts: any;
   t: (en: string, fr: string) => string;
+  reducedMotion?: boolean;
 };
 
-export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, t }: ActiveTripProps) {
+export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, t, reducedMotion }: ActiveTripProps) {
   const [activeLeg, setActiveLeg] = useState(0);
   const [now, setNow] = useState(Date.now());
   const [userCoords, setUserCoords] = useState<{ lat: number; lon: number } | null>(null);
@@ -305,6 +306,21 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
 
   // ── Cleanup on unmount ───────────────────────────────────────
   const handleEnd = () => {
+    if (tripEnded) {
+      cleanup();
+      return;
+    }
+    Alert.alert(
+      t('End trip?', 'Terminer le trajet?'),
+      t('Are you sure you want to end this trip?', 'Voulez-vous vraiment terminer ce trajet?'),
+      [
+        { text: t('Cancel', 'Annuler'), style: 'cancel' },
+        { text: t('End Trip', 'Terminer'), style: 'destructive', onPress: cleanup },
+      ]
+    );
+  };
+
+  const cleanup = () => {
     locationSubRef.current?.remove();
     locationSubRef.current = null;
     if (arrivalPollRef.current) clearInterval(arrivalPollRef.current);
@@ -333,7 +349,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
     const depMs = liveArrival || currentLeg.startTime;
     const hasDeparted = depMs <= now;
     const minLeft = Math.floor(Math.max(0, (depMs - now) / 1000) / 60);
-    if (!isTransitLeg || hasDeparted || minLeft >= 5) {
+    if (!isTransitLeg || hasDeparted || minLeft >= 5 || reducedMotion) {
       pulseAnim.setValue(1);
       return;
     }

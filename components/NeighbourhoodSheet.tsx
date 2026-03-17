@@ -331,6 +331,17 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
                 <View style={{ alignItems: 'center', paddingVertical: 12 }}>
                   <Ionicons name="checkmark-circle" size={28} color="#00A78D" />
                   <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, marginTop: 6 }}>{t('Thanks! Your deal will be reviewed.', 'Merci! Votre offre sera examinee.')}</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setDealSubmitted(false);
+                      setDealVenueName('');
+                      setDealDescription('');
+                    }}
+                    style={{ marginTop: 12, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, backgroundColor: colours.accent + '15', borderWidth: 1, borderColor: colours.accent + '30' }}
+                    accessibilityRole="button"
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: colours.accent, textAlign: 'center' }}>{t('Done', 'Fermer')}</Text>
+                  </TouchableOpacity>
                 </View>
               ) : showDealForm ? (
                 <View style={{ backgroundColor: colours.bg, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colours.border }}>

@@ -4,7 +4,7 @@ let Haptics: typeof import('expo-haptics') | null = null;
 try { Haptics = require('expo-haptics'); } catch {}
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, ImageBackground, Linking, RefreshControl, ScrollView,
+  ActivityIndicator, AppState, ImageBackground, Linking, RefreshControl, ScrollView,
   Share, Text, TouchableOpacity, View,
 } from 'react-native';
 import { useApp } from '../context/AppContext';
@@ -38,6 +38,14 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
   // Reset visible count when sort/filter changes
   useEffect(() => { setVisibleCount(20); }, [sortMode, sourceFilter]);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const appStateRef = useRef(AppState.currentState);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      appStateRef.current = state;
+    });
+    return () => sub.remove();
+  }, []);
 
   const isValidImageUrl = (url: string | undefined): url is string =>
     typeof url === 'string' && (url.startsWith('https://') || url.startsWith('http://'));
@@ -117,7 +125,9 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
       fetchNews();
     });
 
-    intervalRef.current = setInterval(fetchNews, REFRESH_MS);
+    intervalRef.current = setInterval(() => {
+      if (appStateRef.current === 'active') fetchNews();
+    }, REFRESH_MS);
     return () => { mountedRef.current = false; if (intervalRef.current) clearInterval(intervalRef.current); };
   }, []);
 

@@ -56,7 +56,7 @@ class PlannerErrorBoundary extends React.Component<
     return this.props.children;
   }
 }
-import { SK_PLANNER_PREFS, SK_SAVED_ROUTES, SK_TRIP_HISTORY, SK_LEAVE_REMINDERS, SK_ACCESSIBILITY_ROUTING } from '../../lib/storageKeys';
+import { SK_PLANNER_PREFS, SK_SAVED_ROUTES, SK_TRIP_HISTORY, SK_LEAVE_REMINDERS, SK_ACCESSIBILITY_ROUTING, SK_MOTION } from '../../lib/storageKeys';
 
 const PLAN_URL = 'https://routeo-backend.vercel.app/api/plan';
 const PLACES_URL = 'https://routeo-backend.vercel.app/api/places';
@@ -352,6 +352,7 @@ function PlannerScreenInner() {
   const [accessibleRouting, setAccessibleRouting] = useState(false);
   const [sensGameTonight, setSensGameTonight] = useState(false);
   const [autoLoading, setAutoLoading] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [reminderModal, setReminderModal] = useState<{ itin: Itinerary; idx: number } | null>(null);
   const [reminderTime, setReminderTime] = useState<Date>(new Date());
@@ -392,6 +393,10 @@ function PlannerScreenInner() {
     // Load accessibility routing preference
     AsyncStorage.getItem(SK_ACCESSIBILITY_ROUTING).then(val => {
       if (val === 'true') setAccessibleRouting(true);
+    }).catch(() => {});
+    // Load reduced motion preference
+    AsyncStorage.getItem(SK_MOTION).then(val => {
+      if (val === 'true') setReducedMotion(true);
     }).catch(() => {});
     // Check for Sens game tonight
     fetchWithTimeout('https://api-web.nhle.com/v1/schedule/now').then(async r => {
@@ -1490,6 +1495,7 @@ function PlannerScreenInner() {
           colours={colours}
           fonts={fonts}
           t={t}
+          reducedMotion={reducedMotion}
         />
       )}
 
@@ -1648,7 +1654,7 @@ function PlannerScreenInner() {
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: i < fromResults.length - 1 ? 1 : 0, borderBottomColor: colours.border }}
               >
                 <Ionicons name="location-outline" size={16} color={colours.muted} />
-                <Text style={{ flex: 1, fontSize: 13, color: colours.text }} numberOfLines={1}>{shortenLabel(r.label)}</Text>
+                <Text style={{ flex: 1, fontSize: 13, color: colours.text }} numberOfLines={2}>{shortenLabel(r.label)}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -1671,7 +1677,7 @@ function PlannerScreenInner() {
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: i < toResults.length - 1 ? 1 : 0, borderBottomColor: colours.border }}
               >
                 <Ionicons name="location-outline" size={16} color={colours.muted} />
-                <Text style={{ flex: 1, fontSize: 13, color: colours.text }} numberOfLines={1}>{shortenLabel(r.label)}</Text>
+                <Text style={{ flex: 1, fontSize: 13, color: colours.text }} numberOfLines={2}>{shortenLabel(r.label)}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -1694,7 +1700,7 @@ function PlannerScreenInner() {
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: i < results.length - 1 ? 1 : 0, borderBottomColor: colours.border }}
                 >
                   <Ionicons name="location-outline" size={16} color={colours.muted} />
-                  <Text style={{ flex: 1, fontSize: 13, color: colours.text }} numberOfLines={1}>{shortenLabel(r.label)}</Text>
+                  <Text style={{ flex: 1, fontSize: 13, color: colours.text }} numberOfLines={2}>{shortenLabel(r.label)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
