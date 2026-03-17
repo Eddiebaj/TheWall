@@ -60,7 +60,7 @@ import {
   SK_CAMPUS, SK_NOTIF_SETTINGS,
 } from '../../lib/storageKeys';
 import { CAMPUSES, CampusConfig, getNextDeparture, isLibraryOpen, fmt12h, getDayLabel } from '../../lib/campusData';
-import { ClassSchedule, nextClass, nextClassDate, fmt12h as schedFmt12h } from '../../lib/scheduleData';
+import { ClassSchedule, ClassEntry, nextClass, nextClassDate, todayRemainingClasses, todayClassDay, classesForDay, DAY_LABELS_FR, fmt12h as schedFmt12h } from '../../lib/scheduleData';
 import ClassScheduleModal from '../../components/ClassScheduleModal';
 import { HAPPY_HOUR_VENUES } from '../../lib/happyHourData';
 // neighbourhoodData import removed — discover section moved to dedicated tab
@@ -600,66 +600,89 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
 
   // ── Schedule card ──
   if (item.type === 'class_schedule') {
-    const next = scheduleData ? nextClass(scheduleData) : null;
     const hasSchedule = scheduleData && scheduleData.classes.length > 0;
     const campus = campusData;
+    const today = todayClassDay();
+    const todayClasses = hasSchedule && today ? todayRemainingClasses(scheduleData!) : [];
+    const next = hasSchedule ? nextClass(scheduleData!) : null;
+    const isToday = next && next.day === today;
+    // For GO button
+    const classDate = hasSchedule ? nextClassDate(scheduleData!) : null;
+    const arriveAt = classDate ? new Date(classDate.getTime() - 15 * 60000) : null;
+    const arriveTime = arriveAt ? `${String(arriveAt.getHours()).padStart(2, '0')}:${String(arriveAt.getMinutes()).padStart(2, '0')}` : undefined;
+    const arriveDate = arriveAt ? `${String(arriveAt.getMonth() + 1).padStart(2, '0')}-${String(arriveAt.getDate()).padStart(2, '0')}-${arriveAt.getFullYear()}` : undefined;
+    const lang = t('en', 'fr') === 'fr' ? 'fr' : 'en';
+
     return (
       <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 4, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="school" size={12} color={colours.accent} />
+        {/* Header row */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <Ionicons name="school" size={11} color={colours.accent} />
+            <Text style={{ fontSize: 9, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              {hasSchedule && isToday ? t('Today', "Aujourd'hui") : hasSchedule && next ? (lang === 'fr' ? DAY_LABELS_FR[next.day] : next.day) : t('Schedule', 'Horaire')}
+            </Text>
           </View>
-          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Schedule', 'Horaire')}</Text>
+          {campus && next && (
+            <TouchableOpacity
+              onPress={() => boardRouter.push({ pathname: '/(tabs)/planner', params: { toLabel: campus.name, toLat: String(campus.lat), toLng: String(campus.lng), ...(arriveTime ? { arriveBy: 'true', time: arriveTime, date: arriveDate } : {}) } } as any)}
+              style={{ backgroundColor: colours.accent, borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              activeOpacity={0.7}
+            >
+              <Text style={{ fontSize: 9, fontWeight: '800', color: 'white' }}>GO</Text>
+            </TouchableOpacity>
+          )}
         </View>
-        {hasSchedule && next ? (
-          <>
-            <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text, lineHeight: 16 }} numberOfLines={1}>{next.entry.name}</Text>
-            <View style={{ gap: 2 }}>
-              <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{schedFmt12h(next.entry.startTime)}{next.entry.room ? ` · ${next.entry.room}` : ''}</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                {next.minsUntilLeave > 0 && next.minsUntilLeave < 120 ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                    <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: '#00A78D' }} />
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: '#00A78D' }}>
-                      {t(`Leave ${next.minsUntilLeave}m`, `Partir ${next.minsUntilLeave}m`)}
-                    </Text>
+
+        {/* Body */}
+        {hasSchedule && isToday && todayClasses.length > 0 ? (
+          // Today's classes list
+          <View style={{ flex: 1, justifyContent: 'center', gap: 3 }}>
+            {todayClasses.slice(0, 3).map((c, i) => {
+              const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+              const startMins = parseInt(c.startTime.split(':')[0]) * 60 + parseInt(c.startTime.split(':')[1]);
+              const endMins = parseInt(c.endTime.split(':')[0]) * 60 + parseInt(c.endTime.split(':')[1]);
+              const inProgress = nowMins >= startMins && nowMins < endMins;
+              const isNext = !inProgress && i === 0;
+              return (
+                <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ width: 3, height: 20, borderRadius: 2, backgroundColor: inProgress ? '#00A78D' : isNext ? colours.accent : c.colour + '60' }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 11, fontWeight: inProgress || isNext ? '800' : '600', color: inProgress ? '#00A78D' : colours.text }} numberOfLines={1}>{c.name}</Text>
+                    <Text style={{ fontSize: 9, color: colours.muted }}>{schedFmt12h(c.startTime)}{c.room ? ` · ${c.room}` : ''}</Text>
                   </View>
-                ) : next.minsUntilLeave === 0 ? (
-                  <Text style={{ fontSize: 10, fontWeight: '700', color: '#00A78D' }}>{t('In class', 'En cours')}</Text>
-                ) : (
-                  <Text style={{ fontSize: 10, color: colours.muted }}>{next.day}</Text>
-                )}
-                {campus && (() => {
-                  // Arrive 15min before class starts
-                  const classDate = scheduleData ? nextClassDate(scheduleData) : null;
-                  const arriveAt = classDate ? new Date(classDate.getTime() - 15 * 60000) : null;
-                  const arriveTime = arriveAt ? `${String(arriveAt.getHours()).padStart(2, '0')}:${String(arriveAt.getMinutes()).padStart(2, '0')}` : undefined;
-                  const arriveDate = arriveAt ? `${String(arriveAt.getMonth() + 1).padStart(2, '0')}-${String(arriveAt.getDate()).padStart(2, '0')}-${arriveAt.getFullYear()}` : undefined;
-                  return (
-                    <TouchableOpacity
-                      onPress={() => boardRouter.push({ pathname: '/(tabs)/planner', params: { toLabel: campus.name, toLat: String(campus.lat), toLng: String(campus.lng), ...(arriveTime ? { arriveBy: 'true', time: arriveTime, date: arriveDate } : {}) } } as any)}
-                      style={{ backgroundColor: colours.accent, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}
-                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={{ fontSize: 10, fontWeight: '800', color: 'white' }}>GO</Text>
-                    </TouchableOpacity>
-                  );
-                })()}
+                </View>
+              );
+            })}
+            {todayClasses.length > 3 && (
+              <Text style={{ fontSize: 9, color: colours.muted, marginLeft: 9 }}>+{todayClasses.length - 3} {t('more', 'de plus')}</Text>
+            )}
+          </View>
+        ) : hasSchedule && next ? (
+          // Future class (not today)
+          <View style={{ flex: 1, justifyContent: 'center' }}>
+            <Text style={{ fontSize: 15, fontWeight: '800', color: colours.text, lineHeight: 18, marginBottom: 2 }} numberOfLines={2}>{next.entry.name}</Text>
+            <Text style={{ fontSize: 10, color: colours.muted }}>{schedFmt12h(next.entry.startTime)}{next.entry.room ? ` · ${next.entry.room}` : ''}</Text>
+            {next.minsUntilLeave > 0 && next.minsUntilLeave < 120 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3 }}>
+                <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: '#00A78D' }} />
+                <Text style={{ fontSize: 10, fontWeight: '700', color: '#00A78D' }}>
+                  {t(`Leave in ${next.minsUntilLeave}m`, `Partir dans ${next.minsUntilLeave}m`)}
+                </Text>
               </View>
-            </View>
-          </>
+            )}
+          </View>
         ) : hasSchedule ? (
-          <>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted }}>{t('Done for today', 'Fini pour aujourd\'hui')}</Text>
-            <Text style={{ fontSize: 10, color: colours.muted }}>{t('No more classes', 'Plus de cours')}</Text>
-          </>
+          <View style={{ flex: 1, justifyContent: 'center' }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: colours.muted }}>{t('No classes left', 'Fini pour aujourd\'hui')}</Text>
+          </View>
         ) : (
-          <>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>{t('My Schedule', 'Mon horaire')}</Text>
-            <Text style={{ fontSize: 10, color: colours.muted }}>{t('Tap to set up', 'Appuyez pour configurer')}</Text>
-          </>
+          <View style={{ flex: 1, justifyContent: 'center' }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{t('My Schedule', 'Mon horaire')}</Text>
+            <Text style={{ fontSize: 10, color: colours.muted, marginTop: 2 }}>{t('Tap to set up', 'Appuyez pour configurer')}</Text>
+          </View>
         )}
       </TouchableOpacity>
       </ScaleDecorator>
