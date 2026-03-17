@@ -103,9 +103,10 @@ type ActiveTripProps = {
   fonts: any;
   t: (en: string, fr: string) => string;
   reducedMotion?: boolean;
+  batterySaver?: boolean;
 };
 
-export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, t, reducedMotion }: ActiveTripProps) {
+export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, t, reducedMotion, batterySaver }: ActiveTripProps) {
   const [activeLeg, setActiveLeg] = useState(0);
   const [now, setNow] = useState(Date.now());
   const [userCoords, setUserCoords] = useState<{ lat: number; lon: number } | null>(null);
@@ -114,6 +115,9 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
   const [getOffAlert, setGetOffAlert] = useState(false);
   const [tripEnded, setTripEnded] = useState(false);
   const [altRoutes, setAltRoutes] = useState<string[]>([]);
+  const [busDisappeared, setBusDisappeared] = useState(false);
+  const [busDisappearedAt, setBusDisappearedAt] = useState<number | null>(null);
+  const [switchedRoute, setSwitchedRoute] = useState<string | null>(null);
 
   const locationSubRef = useRef<any>(null);
   const arrivalPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -152,7 +156,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') return;
         sub = await Location.watchPositionAsync(
-          { accuracy: Location.Accuracy.BestForNavigation, distanceInterval: 10 },
+          { accuracy: batterySaver ? Location.Accuracy.Balanced : Location.Accuracy.BestForNavigation, distanceInterval: batterySaver ? 30 : 10 },
           (pos: any) => {
             const { latitude, longitude } = pos.coords;
             setUserCoords({ lat: latitude, lon: longitude });
@@ -195,11 +199,10 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
   const pollArrivals = useCallback(async () => {
     if (!currentLeg || currentLeg.mode === 'WALK' || currentLeg.mode === 'CAR' || currentLeg.mode === 'BICYCLE') return;
     const stopName = currentLeg.from.name;
-    const routeId = currentLeg.routeShortName;
+    const routeId = switchedRoute || currentLeg.routeShortName;
     if (!routeId) return;
 
     try {
-      // Fetch ALL arrivals at this stop (no route filter) to find alternatives
       const resp = await fetchWithTimeout(
         `https://routeo-backend.vercel.app/api/arrivals?stop=${encodeURIComponent(stopName)}`
       );
@@ -207,11 +210,14 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
       const data = await resp.json();
       const arrivals = data.arrivals || [];
 
-      // Find our planned route's arrival
+      // Find our tracked route's arrival
       const match = arrivals.find((a: any) =>
         String(a.routeId || a.route || '').replace(/-.*/,'') === String(routeId).replace(/-.*/,'')
       );
       if (match) {
+        // Bus found — clear disappearance state
+        setBusDisappeared(false);
+        setBusDisappearedAt(null);
         const arrMs = match.expectedMs || match.scheduledMs || match.expected_ms || match.scheduled_ms;
         if (arrMs) {
           setLiveArrival(arrMs);
@@ -228,6 +234,14 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
             }
           }
         }
+      } else {
+        // Bus not found — 3 min grace period before warning
+        const now = Date.now();
+        if (!busDisappearedAt) {
+          setBusDisappearedAt(now);
+        } else if (now - busDisappearedAt > 180000) {
+          setBusDisappeared(true);
+        }
       }
 
       // Find alternative routes within ±5 min of planned departure
@@ -240,11 +254,10 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
 
       for (const a of arrivals) {
         const aRoute = String(a.routeId || a.route || '').replace(/-.*/,'');
-        if (aRoute === String(routeId).replace(/-.*/,'')) continue; // skip our route
+        if (aRoute === String(routeId).replace(/-.*/,'')) continue;
         const aMs = a.expectedMs || a.scheduledMs || a.expected_ms || a.scheduled_ms;
         if (!aMs) continue;
         if (Math.abs(aMs - plannedMs) > windowMs) continue;
-        // Check if headsign matches destination
         const aHeadsign = String(a.headsign || a.destination || '').toLowerCase();
         if (aHeadsign && destName && aHeadsign.includes(destName.split('/')[0].trim().slice(0, 8))) {
           if (!alts.includes(aRoute)) alts.push(aRoute);
@@ -252,12 +265,12 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
       }
       setAltRoutes(alts);
     } catch {}
-  }, [currentLeg, nextLeg, activeLeg]);
+  }, [currentLeg, nextLeg, activeLeg, switchedRoute, busDisappearedAt]);
 
   useEffect(() => {
     if (!visible) return;
     pollArrivals();
-    arrivalPollRef.current = setInterval(pollArrivals, 30000);
+    arrivalPollRef.current = setInterval(pollArrivals, batterySaver ? 60000 : 30000);
     return () => { if (arrivalPollRef.current) clearInterval(arrivalPollRef.current); };
   }, [visible, activeLeg, pollArrivals]);
 
@@ -379,9 +392,11 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
   const departed = departureMs <= now;
 
   // Step description
+  const trackedRoute = switchedRoute || currentLeg.routeShortName;
   const routeLabel = (() => {
     if (!isTransit) return '';
-    const primary = currentLeg.routeShortName || 'Bus';
+    const primary = trackedRoute || 'Bus';
+    if (switchedRoute) return `Route ${primary}`;
     if (altRoutes.length === 0) return currentLeg.routeShortName ? `Route ${primary}` : 'Bus';
     const all = [primary, ...altRoutes];
     if (all.length === 2) return `Route ${all[0]} ${t('or', 'ou')} ${all[1]}`;
@@ -464,6 +479,21 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
           </View>
         )}
 
+        {/* Bus disappeared from feed */}
+        {busDisappeared && isTransit && !departed && (
+          <View style={{ marginHorizontal: 20, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FF9500' + '22', borderWidth: 1, borderColor: '#FF9500', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 }}>
+            <Ionicons name="alert-circle" size={18} color="#FF9500" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#FF9500' }}>
+                {t('Bus disappeared from feed', 'Bus disparu du flux')}
+              </Text>
+              <Text style={{ fontSize: 11, color: '#FF9500', marginTop: 2 }}>
+                {t('May be cancelled or GPS lost — check alternatives below', 'Possiblement annulé ou GPS perdu — voir les alternatives')}
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* Get off alert */}
         {getOffAlert && (
           <View style={{ marginHorizontal: 20, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#ff3b30' + '22', borderWidth: 1, borderColor: '#ff3b30', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 }}>
@@ -499,9 +529,41 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
           </View>
           <Text style={{ fontSize: 13, color: '#8b949e', marginBottom: altRoutes.length > 0 ? 4 : 14 }}>{stepSubtitle}</Text>
           {altRoutes.length > 0 && (
-            <Text style={{ fontSize: 12, fontWeight: '600', color: '#58a6ff', marginBottom: 14 }}>
-              {t('Any of these routes work for this trip', 'Toutes ces lignes fonctionnent pour ce trajet')}
-            </Text>
+            <View style={{ marginBottom: 14 }}>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#58a6ff', marginBottom: 8 }}>
+                {t('Any of these routes work for this trip', 'Toutes ces lignes fonctionnent pour ce trajet')}
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                {altRoutes.map(alt => (
+                  <TouchableOpacity
+                    key={alt}
+                    onPress={() => {
+                      setSwitchedRoute(alt);
+                      setBusDisappeared(false);
+                      setBusDisappearedAt(null);
+                      setLiveArrival(null);
+                      Haptics?.impactAsync?.(Haptics.ImpactFeedbackStyle.Light);
+                    }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: switchedRoute === alt ? '#58a6ff' + '33' : '#21262d', borderWidth: 1, borderColor: switchedRoute === alt ? '#58a6ff' : '#30363d' }}
+                  >
+                    <Ionicons name="swap-horizontal" size={12} color="#58a6ff" />
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#58a6ff' }}>{t('Switch to', 'Passer au')} {alt}</Text>
+                  </TouchableOpacity>
+                ))}
+                {switchedRoute && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSwitchedRoute(null);
+                      setLiveArrival(null);
+                      Haptics?.impactAsync?.(Haptics.ImpactFeedbackStyle.Light);
+                    }}
+                    style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#21262d', borderWidth: 1, borderColor: '#30363d' }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#8b949e' }}>{t('Reset', 'Réinitialiser')}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
           )}
 
           {/* Countdown — only for transit legs */}

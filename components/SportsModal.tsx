@@ -181,17 +181,9 @@ export default function SportsModal({ visible, onClose, colours, fonts, t, langu
     // Hardcoded schedules for teams without API
     const now = new Date();
     const CHARGE_SCHEDULE = [
-      { date: '2026-03-14T19:00:00Z', opponent: 'Vancouver', opponentAbbr: 'VAN', homeAway: 'vs' },
-      { date: '2026-03-18T23:00:00Z', opponent: 'Minnesota', opponentAbbr: 'MIN', homeAway: 'vs' },
-      { date: '2026-03-22T23:00:00Z', opponent: 'Montreal', opponentAbbr: 'MTL', homeAway: '@' },
-      { date: '2026-03-29T23:00:00Z', opponent: 'Seattle', opponentAbbr: 'SEA', homeAway: 'vs' },
-      { date: '2026-04-02T01:30:00Z', opponent: 'Toronto', opponentAbbr: 'TOR', homeAway: '@' },
-      { date: '2026-04-03T23:00:00Z', opponent: 'Montreal', opponentAbbr: 'MTL', homeAway: '@' },
-      { date: '2026-04-08T23:00:00Z', opponent: 'Seattle', opponentAbbr: 'SEA', homeAway: '@' },
-      { date: '2026-04-11T18:00:00Z', opponent: 'Toronto', opponentAbbr: 'TOR', homeAway: 'vs' },
-      { date: '2026-04-18T18:00:00Z', opponent: 'New York', opponentAbbr: 'NY', homeAway: '@' },
-      { date: '2026-04-22T23:00:00Z', opponent: 'Boston', opponentAbbr: 'BOS', homeAway: 'vs' },
-      { date: '2026-04-25T20:00:00Z', opponent: 'Toronto', opponentAbbr: 'TOR', homeAway: '@' },
+      { date: '2026-04-08T23:00:00Z', opponent: 'Seattle Torrent', opponentAbbr: 'SEA', homeAway: 'vs' },
+      { date: '2026-04-18T18:00:00Z', opponent: 'New York Sirens', opponentAbbr: 'NY', homeAway: 'vs' },
+      { date: '2026-04-25T23:00:00Z', opponent: 'Toronto Sceptres', opponentAbbr: 'TOR', homeAway: 'vs' },
     ].filter(g => new Date(g.date) > now).slice(0, 5).map(g => ({ ...g, status: '' }));
     if (CHARGE_SCHEDULE.length > 0) results.push({ team: 'Charge', games: CHARGE_SCHEDULE });
 
@@ -208,6 +200,28 @@ export default function SportsModal({ visible, onClose, colours, fonts, t, langu
       { date: '2026-06-09T23:00:00Z', opponent: 'Surge', opponentAbbr: 'SUR', homeAway: 'vs' },
     ].filter(g => new Date(g.date) > now).slice(0, 5).map(g => ({ ...g, status: '' }));
     if (ATLETICO_SCHEDULE.length > 0) results.push({ team: 'Atl\u00E9tico', games: ATLETICO_SCHEDULE });
+
+    const BLACKJACKS_SCHEDULE = [
+      { date: '2026-05-12T23:30:00Z', opponent: 'Surge', opponentAbbr: 'SUR', homeAway: 'vs' },
+      { date: '2026-05-18T23:00:00Z', opponent: 'River Lions', opponentAbbr: 'NIA', homeAway: 'vs' },
+      { date: '2026-05-21T23:30:00Z', opponent: 'Honey Badgers', opponentAbbr: 'HB', homeAway: 'vs' },
+      { date: '2026-05-23T23:00:00Z', opponent: 'Alliance', opponentAbbr: 'MTL', homeAway: 'vs' },
+      { date: '2026-06-02T23:30:00Z', opponent: 'Bandits', opponentAbbr: 'VAN', homeAway: 'vs' },
+      { date: '2026-06-04T23:30:00Z', opponent: 'Sea Bears', opponentAbbr: 'WPG', homeAway: 'vs' },
+      { date: '2026-06-21T23:00:00Z', opponent: 'SSK', opponentAbbr: 'SSK', homeAway: 'vs' },
+      { date: '2026-06-23T23:30:00Z', opponent: 'Shooting Stars', opponentAbbr: 'SCB', homeAway: 'vs' },
+      { date: '2026-06-28T17:00:00Z', opponent: 'River Lions', opponentAbbr: 'NIA', homeAway: 'vs' },
+      { date: '2026-07-08T23:30:00Z', opponent: 'Alliance', opponentAbbr: 'MTL', homeAway: 'vs' },
+      { date: '2026-07-12T20:00:00Z', opponent: 'Honey Badgers', opponentAbbr: 'HB', homeAway: 'vs' },
+      { date: '2026-07-22T23:30:00Z', opponent: 'Shooting Stars', opponentAbbr: 'SCB', homeAway: 'vs' },
+    ].filter(g => new Date(g.date) > now).slice(0, 5).map(g => ({ ...g, status: '' }));
+    if (BLACKJACKS_SCHEDULE.length > 0) results.push({ team: 'Blackjacks', games: BLACKJACKS_SCHEDULE });
+
+    const SIXTYSEVENS_SCHEDULE = [
+      { date: '2026-03-18T19:00:00Z', opponent: 'Oshawa Generals', opponentAbbr: 'OSH', homeAway: 'vs' },
+      { date: '2026-03-21T19:00:00Z', opponent: 'Kingston Frontenacs', opponentAbbr: 'KGN', homeAway: 'vs' },
+    ].filter(g => new Date(g.date) > now).slice(0, 5).map(g => ({ ...g, status: '' }));
+    if (SIXTYSEVENS_SCHEDULE.length > 0) results.push({ team: "67's", games: SIXTYSEVENS_SCHEDULE });
 
     setSportsSchedule(results);
     setSportsScheduleLoading(false);

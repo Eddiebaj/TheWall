@@ -30,6 +30,7 @@ export const SK_GARBAGE_NOTIF_ID = 'routeo_garbage_notif_id';
 
 // Alerts
 export const SK_SEEN_ALERT_IDS = 'routeo_seen_alert_ids';
+export const SK_ALERT_HISTORY = 'routeo_alert_history';
 
 // Display
 export const SK_TIME_FORMAT = 'routeo_time_format';
@@ -107,6 +108,19 @@ export const SK_LEAVE_REMINDERS = 'routeo_leave_reminders';
 
 // Accessibility routing
 export const SK_ACCESSIBILITY_ROUTING = 'routeo_accessibility_routing';
+
+// Walk distance preference
+export const SK_WALK_PREFERENCE = 'routeo_walk_preference';
+
+// Walk pace preference
+export const SK_WALK_PACE = 'routeo_walk_pace';
+
+// Battery saver mode
+export const SK_BATTERY_SAVER = 'routeo_battery_saver';
+
+// Presto balance
+export const SK_PRESTO_BALANCE = 'routeo_presto_balance';
+export const SK_PRESTO_RESET_DATE = 'routeo_presto_reset_date';
 
 // Crash diagnostics
 export const SK_CRASH_LOG = 'routeo_crash_log';

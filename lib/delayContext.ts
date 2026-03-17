@@ -7,6 +7,8 @@ export interface DelayContext {
   reason: 'alert' | 'weather' | 'event' | 'construction' | 'unknown';
   label: string;
   labelFr: string;
+  detail: string;
+  detailFr: string;
   icon: string;
   colour: string;
 }
@@ -61,6 +63,8 @@ export function getDelayContext(
       reason: 'alert',
       label: `Service alert on Route ${routeId}`,
       labelFr: `Alerte de service sur la ligne ${routeId}`,
+      detail: routeAlert.title || routeAlert.description || 'Active service alert affecting this route',
+      detailFr: routeAlert.title || routeAlert.description || 'Alerte de service active affectant cette ligne',
       icon: 'warning-outline',
       colour: '#CE1126',
     };
@@ -73,6 +77,8 @@ export function getDelayContext(
         reason: 'weather',
         label: 'Extreme cold affecting service',
         labelFr: 'Froid extrême affectant le service',
+        detail: `Current temperature: ${weather.temp}°C. Buses run slower in extreme cold due to mechanical strain and slower boarding.`,
+        detailFr: `Température actuelle : ${weather.temp}°C. Les autobus roulent plus lentement par froid extrême en raison du stress mécanique et de l'embarquement plus lent.`,
         icon: 'snow-outline',
         colour: '#4A90D9',
       };
@@ -83,6 +89,8 @@ export function getDelayContext(
         reason: 'weather',
         label: 'Weather affecting service',
         labelFr: 'Météo affectant le service',
+        detail: `${weather.condition} with high precipitation. Roads are slippery or congested, causing delays across the network.`,
+        detailFr: `${weather.condition} avec fortes précipitations. Les routes sont glissantes ou encombrées, causant des retards sur le réseau.`,
         icon: weather.condition.includes('Snow') ? 'snow-outline' : 'rainy-outline',
         colour: '#4A90D9',
       };
@@ -95,6 +103,8 @@ export function getDelayContext(
       reason: 'event',
       label: 'Sens game traffic near downtown',
       labelFr: 'Circulation match des Sens au centre-ville',
+      detail: 'Ottawa Senators home game at Canadian Tire Centre. Routes through downtown and the CTC area experience heavier traffic before and after games.',
+      detailFr: 'Match local des Sénateurs d\'Ottawa au Centre Canadian Tire. Les lignes passant par le centre-ville et la zone du CTC subissent un trafic plus dense avant et après les matchs.',
       icon: 'american-football-outline',
       colour: '#CE1126',
     };
@@ -110,6 +120,8 @@ export function getDelayContext(
       reason: 'construction',
       label: 'Construction detour in effect',
       labelFr: 'Détour de construction en vigueur',
+      detail: constructionAlert.title || constructionAlert.description || 'Active construction or detour affecting nearby routes.',
+      detailFr: constructionAlert.title || constructionAlert.description || 'Construction ou détour actif affectant les lignes à proximité.',
       icon: 'construct-outline',
       colour: '#F5A623',
     };
@@ -121,6 +133,8 @@ export function getDelayContext(
       reason: 'unknown',
       label: 'Longer delays than usual',
       labelFr: 'Retards plus longs que d\'habitude',
+      detail: `This bus is ${delayMinutes} minutes behind schedule. No specific cause identified — could be traffic, operator shortage, or mechanical issue.`,
+      detailFr: `Ce bus a ${delayMinutes} minutes de retard. Aucune cause spécifique identifiée — possiblement la circulation, un manque d'opérateurs ou un problème mécanique.`,
       icon: 'time-outline',
       colour: '#888',
     };

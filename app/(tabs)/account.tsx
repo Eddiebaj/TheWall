@@ -6,12 +6,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import {
     Alert, Linking, Modal, Platform, ScrollView,
-    StatusBar, Switch, Text,
+    StatusBar, Switch, Text, TextInput,
     TouchableOpacity, View
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
 import { registerPushToken, syncSubscriptions } from '../../lib/pushNotifications';
-import { SK_FAVS, SK_SAVED_PLACES, SK_SAVED_BOARD, SK_NOTIF_SETTINGS, SK_TRIP_SHARING, SK_TRIP_HISTORY } from '../../lib/storageKeys';
+import { SK_FAVS, SK_SAVED_PLACES, SK_SAVED_BOARD, SK_NOTIF_SETTINGS, SK_TRIP_SHARING, SK_TRIP_HISTORY, SK_PRESTO_BALANCE, SK_PRESTO_RESET_DATE, SK_BATTERY_SAVER } from '../../lib/storageKeys';
 
 const isNightTime = () => { const h = new Date().getHours(); return h >= 21 || h < 4; };
 
@@ -103,6 +103,11 @@ export default function AccountScreen() {
   const [savedBoard, setSavedBoard] = useState<any[]>([]);
   const [commuteStats, setCommuteStats] = useState<{ tripsThisWeek: number; totalMinutes: number; avgDuration: number; topRoute: string | null } | null>(null);
   const [fareStats, setFareStats] = useState<{ tripsToday: number; tripsWeek: number; tripsMonth: number; costToday: number; costWeek: number; costMonth: number } | null>(null);
+  const [prestoBalance, setPrestoBalance] = useState<string>('');
+  const [prestoResetDay, setPrestoResetDay] = useState<string>('');
+  const [prestoSaved, setPrestoSaved] = useState(false);
+  const [showPrestoEdit, setShowPrestoEdit] = useState(false);
+  const [batterySaver, setBatterySaver] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem(SK_TRIP_HISTORY).then(val => {
@@ -131,7 +136,10 @@ export default function AccountScreen() {
   }, []);
 
   useEffect(() => {
-    AsyncStorage.getItem(SK_TRIP_HISTORY).then(val => {
+    Promise.all([
+      AsyncStorage.getItem(SK_TRIP_HISTORY),
+      AsyncStorage.getItem(SK_PRESTO_RESET_DATE),
+    ]).then(([val, resetVal]) => {
       try {
         if (!val) return;
         const trips = JSON.parse(val);
@@ -141,11 +149,20 @@ export default function AccountScreen() {
         const day = now.getDay(); // 0=Sun
         const mondayOffset = day === 0 ? 6 : day - 1;
         const weekStart = new Date(now); weekStart.setDate(now.getDate() - mondayOffset); weekStart.setHours(0, 0, 0, 0);
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+        // Period start: use custom reset day if set, otherwise 1st of month
+        const resetDay = resetVal ? parseInt(resetVal, 10) : 0;
+        let periodStart: Date;
+        if (resetDay >= 1 && resetDay <= 28) {
+          periodStart = now.getDate() >= resetDay
+            ? new Date(now.getFullYear(), now.getMonth(), resetDay, 0, 0, 0, 0)
+            : new Date(now.getFullYear(), now.getMonth() - 1, resetDay, 0, 0, 0, 0);
+        } else {
+          periodStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+        }
         let tripsToday = 0, tripsWeek = 0, tripsMonth = 0;
         for (const tr of trips) {
           const d = new Date(tr.plannedAt);
-          if (d.getTime() >= monthStart.getTime()) { tripsMonth++; }
+          if (d.getTime() >= periodStart.getTime()) { tripsMonth++; }
           if (d.getTime() >= weekStart.getTime()) { tripsWeek++; }
           if (d.getTime() >= todayStart.getTime()) { tripsToday++; }
         }
@@ -160,7 +177,42 @@ export default function AccountScreen() {
         });
       } catch {}
     });
+  }, [prestoSaved]);
+
+  useEffect(() => {
+    AsyncStorage.getItem(SK_PRESTO_BALANCE).then(v => { if (v) { setPrestoBalance(v); setPrestoSaved(true); } });
+    AsyncStorage.getItem(SK_PRESTO_RESET_DATE).then(v => { if (v) setPrestoResetDay(v); });
+    AsyncStorage.getItem(SK_BATTERY_SAVER).then(v => { if (v === 'true') setBatterySaver(true); });
   }, []);
+
+  const savePresto = () => {
+    const bal = parseFloat(prestoBalance);
+    if (isNaN(bal) || bal < 0) { Alert.alert(t('Invalid balance', 'Solde invalide')); return; }
+    const dayNum = parseInt(prestoResetDay, 10);
+    if (prestoResetDay && (isNaN(dayNum) || dayNum < 1 || dayNum > 28)) { Alert.alert(t('Reset day must be 1-28', 'Le jour doit etre entre 1 et 28')); return; }
+    AsyncStorage.setItem(SK_PRESTO_BALANCE, String(bal));
+    if (prestoResetDay) AsyncStorage.setItem(SK_PRESTO_RESET_DATE, String(dayNum));
+    else AsyncStorage.removeItem(SK_PRESTO_RESET_DATE);
+    setPrestoSaved(true);
+    setShowPrestoEdit(false);
+  };
+
+  const clearPresto = () => {
+    AsyncStorage.removeItem(SK_PRESTO_BALANCE);
+    AsyncStorage.removeItem(SK_PRESTO_RESET_DATE);
+    setPrestoBalance('');
+    setPrestoResetDay('');
+    setPrestoSaved(false);
+    setShowPrestoEdit(false);
+  };
+
+  // Compute remaining Presto balance after this period's trips
+  const prestoRemaining = (() => {
+    if (!prestoSaved || !fareStats) return null;
+    const bal = parseFloat(prestoBalance);
+    if (isNaN(bal)) return null;
+    return Math.max(0, bal - fareStats.costMonth);
+  })();
 
   useEffect(() => {
     const interval = setInterval(() => setIsNight(isNightTime()), 60000);
@@ -537,8 +589,8 @@ export default function AccountScreen() {
               {/* Daily cap */}
               <Text style={{ fontSize: fonts.xs, color: colours.muted, marginBottom: 4 }}>
                 {t(
-                  `$${fareStats.costToday.toFixed(2)} / $13.50 daily cap`,
-                  `${fareStats.costToday.toFixed(2)} $ / 13,50 $ plafond quotidien`
+                  `${fareStats.tripsToday} ${fareStats.tripsToday === 1 ? 'tap' : 'taps'} · $${fareStats.costToday.toFixed(2)} / $13.50 daily cap`,
+                  `${fareStats.tripsToday} ${fareStats.tripsToday === 1 ? 'tap' : 'taps'} · ${fareStats.costToday.toFixed(2)} $ / 13,50 $ plafond quotidien`
                 )}
               </Text>
               <View style={{ height: 6, borderRadius: 3, backgroundColor: colours.border, marginBottom: 12 }}>
@@ -556,7 +608,98 @@ export default function AccountScreen() {
                 <View style={{ height: 6, borderRadius: 3, backgroundColor: colours.accent, width: `${Math.max(2, Math.min(100, (fareStats.costMonth / 139) * 100))}%` }} />
               </View>
 
-              <Text style={{ fontSize: fonts.xs, color: colours.muted, fontStyle: 'italic' }}>
+              {/* Presto Balance */}
+              <View style={{ borderTopWidth: 1, borderTopColor: colours.border, marginTop: 4, paddingTop: 14 }}>
+                {prestoSaved && prestoRemaining !== null && !showPrestoEdit ? (
+                  <View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Ionicons name="card" size={16} color={colours.accent} />
+                        <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.text }}>{t('Presto Balance', 'Solde Presto')}</Text>
+                      </View>
+                      <TouchableOpacity onPress={() => setShowPrestoEdit(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Ionicons name="pencil" size={14} color={colours.muted} />
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={{ fontSize: 28, fontWeight: '200', color: colours.text, marginBottom: 4 }}>${prestoRemaining.toFixed(2)}</Text>
+                    <Text style={{ fontSize: fonts.xs, color: colours.muted }}>
+                      {t(
+                        `$${parseFloat(prestoBalance).toFixed(2)} loaded − $${fareStats.costMonth.toFixed(2)} spent${prestoResetDay ? ` · resets on the ${prestoResetDay}${prestoResetDay === '1' ? 'st' : prestoResetDay === '2' ? 'nd' : prestoResetDay === '3' ? 'rd' : 'th'}` : ''}`,
+                        `${parseFloat(prestoBalance).toFixed(2)} $ charge − ${fareStats.costMonth.toFixed(2)} $ depense${prestoResetDay ? ` · reinitialise le ${prestoResetDay}` : ''}`
+                      )}
+                    </Text>
+                    {prestoRemaining < 10 && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, backgroundColor: '#FF9500' + '15', borderRadius: 8, padding: 8 }}>
+                        <Ionicons name="warning" size={14} color="#FF9500" />
+                        <Text style={{ fontSize: fonts.xs, color: '#FF9500', fontWeight: '600' }}>
+                          {t('Low balance — consider reloading', 'Solde bas — pensez a recharger')}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                ) : (
+                  <View>
+                    <TouchableOpacity
+                      onPress={() => setShowPrestoEdit(!showPrestoEdit)}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: showPrestoEdit ? 12 : 0 }}
+                    >
+                      <Ionicons name="card-outline" size={16} color={colours.accent} />
+                      <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.accent }}>
+                        {t('Set Presto Balance', 'Entrer le solde Presto')}
+                      </Text>
+                    </TouchableOpacity>
+                    {showPrestoEdit && (
+                      <View>
+                        <Text style={{ fontSize: fonts.xs, color: colours.muted, marginBottom: 8 }}>
+                          {t('Enter your loaded balance to track remaining funds', 'Entrez votre solde charge pour suivre les fonds restants')}
+                        </Text>
+                        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: fonts.xs, color: colours.muted, marginBottom: 4 }}>{t('Balance ($)', 'Solde ($)')}</Text>
+                            <TextInput
+                              value={prestoBalance}
+                              onChangeText={setPrestoBalance}
+                              keyboardType="decimal-pad"
+                              placeholder="139.00"
+                              placeholderTextColor={colours.muted}
+                              style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: fonts.sm, color: colours.text, backgroundColor: colours.bg }}
+                            />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: fonts.xs, color: colours.muted, marginBottom: 4 }}>{t('Resets on day (1-28)', 'Reinitialise le jour (1-28)')}</Text>
+                            <TextInput
+                              value={prestoResetDay}
+                              onChangeText={setPrestoResetDay}
+                              keyboardType="number-pad"
+                              placeholder={t('e.g. 15', 'ex. 15')}
+                              placeholderTextColor={colours.muted}
+                              style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: fonts.sm, color: colours.text, backgroundColor: colours.bg }}
+                            />
+                          </View>
+                        </View>
+                        <View style={{ flexDirection: 'row', gap: 10 }}>
+                          <TouchableOpacity
+                            onPress={savePresto}
+                            style={{ flex: 1, backgroundColor: colours.accent, borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}
+                          >
+                            <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.sm }}>{t('Save', 'Sauvegarder')}</Text>
+                          </TouchableOpacity>
+                          {prestoSaved && (
+                            <TouchableOpacity
+                              onPress={clearPresto}
+                              style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }}
+                            >
+                              <Text style={{ color: colours.muted, fontWeight: '600', fontSize: fonts.sm }}>{t('Clear', 'Effacer')}</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+
+              <Text style={{ fontSize: fonts.xs, color: colours.muted, fontStyle: 'italic', marginTop: 12 }}>
                 {t('Based on $4.10/tap with daily ($13.50) and monthly ($139) caps', 'Bas\u00E9 sur 4,10 $/tap avec plafonds quotidien (13,50 $) et mensuel (139 $)')}
               </Text>
             </View>
@@ -708,6 +851,7 @@ export default function AccountScreen() {
             { label: t('Large Text', 'Grand texte'), desc: t('Increase font size throughout the app', 'Augmenter la taille de police'), val: largeText, set: setLargeText },
             { label: t('High Contrast', 'Contraste élevé'), desc: t('Stronger colour contrast for readability', 'Meilleur contraste pour la lisibilité'), val: highContrast, set: setHighContrast },
             { label: t('Reduced Motion', 'Mouvement réduit'), desc: t('Minimize animations and transitions', 'Minimiser les animations'), val: reducedMotion, set: setReducedMotion },
+            { label: t('Battery Saver', 'Économie de batterie'), desc: t('Reduce GPS accuracy & polling frequency', 'Réduire la précision GPS et la fréquence de mise à jour'), val: batterySaver, set: (v: boolean) => { setBatterySaver(v); AsyncStorage.setItem(SK_BATTERY_SAVER, String(v)); } },
           ].map((item, i) => (
             <View key={i}>
               {i > 0 && <Divider />}
@@ -821,6 +965,42 @@ export default function AccountScreen() {
             </View>
           </View>
         </Card>
+
+        {/* Bug Report */}
+        <Card>
+          <TouchableOpacity
+            onPress={() => {
+              const deviceInfo = `${Platform.OS} ${Platform.Version}`;
+              const subject = encodeURIComponent('RouteO Bug Report');
+              const body = encodeURIComponent(`\n\n---\nDevice: ${deviceInfo}\nApp: RouteO\nDate: ${new Date().toLocaleDateString('en-CA')}\n`);
+              Linking.openURL(`mailto:support@routeo.ca?subject=${subject}&body=${body}`).catch(() => Alert.alert(t('Could not open email', 'Impossible d\'ouvrir le courriel')));
+            }}
+            style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t('Report a bug', 'Signaler un bug')}
+          >
+            <View style={{
+              width: 36, height: 36, borderRadius: 8,
+              backgroundColor: '#cc3b2a' + '15',
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Ionicons name="bug-outline" size={18} color="#cc3b2a" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{t('Report a Bug', 'Signaler un bug')}</Text>
+              <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Send us feedback or report an issue', 'Envoyez-nous vos commentaires ou signalez un problème')}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colours.muted} />
+          </TouchableOpacity>
+        </Card>
+
+        {/* Free forever */}
+        <View style={{ alignItems: 'center', paddingVertical: 20, paddingHorizontal: 20 }}>
+          <Text style={{ fontSize: fonts.sm, color: colours.muted, textAlign: 'center' }}>
+            {t('RouteO is free. No subscriptions, no paywalled routes.', 'RouteO est gratuit. Aucun abonnement, aucune ligne payante.')}
+          </Text>
+        </View>
 
       </ScrollView>
 

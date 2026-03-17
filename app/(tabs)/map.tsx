@@ -915,7 +915,7 @@ export default function MapScreen() {
           {/* Venue markers */}
           {filteredVenues.map((v, i) => {
             if (!validCoord(v.lat, v.lng)) return null;
-            const venueIcon: keyof typeof Ionicons.glyphMap = v.type.includes('restaurant') ? 'restaurant' : v.type.includes('club') ? 'musical-notes' : v.type.includes('fitness') ? 'barbell' : 'beer';
+            const venueIcon: keyof typeof Ionicons.glyphMap = v.type.includes('cafe') || v.type.includes('coffee') ? 'cafe' : v.type.includes('bar') || v.type.includes('pub') ? 'beer' : v.type.includes('restaurant') || v.type.includes('food') ? 'restaurant' : v.type.includes('club') || v.type.includes('night') ? 'musical-notes' : v.type.includes('fitness') || v.type.includes('gym') ? 'barbell' : 'pint';
             const venueColor = getVenuePinColor(v);
             const { active, upcoming } = getVenueTodayDeals(v);
             const hasDeals = active.length > 0 || upcoming.length > 0;

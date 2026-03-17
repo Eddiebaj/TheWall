@@ -45,6 +45,7 @@ export const SERVICES_TABS: ServicesTab[] = [
       { id: 'social',      label_en: 'Social',       label_fr: 'Social',        icon: 'beer',             accent: '#7b5ea7', action: 'alert',    target: 'social' },
       { id: 'tm_events',   label_en: 'Live Events',  label_fr: '\u00C9v\u00E9nements',    icon: 'ticket',           accent: '#026CDF', action: 'navigate', target: '/(tabs)/events?source=ticketmaster' },
       { id: 'eb_events',   label_en: 'Community',    label_fr: 'Communaut\u00E9',    icon: 'people',           accent: '#F05537', action: 'navigate', target: '/(tabs)/events?source=eventbrite' },
+      { id: 'local_events', label_en: '613flea & TD', label_fr: '613flea & TD', icon: 'storefront',       accent: '#c0852a', action: 'navigate', target: '/(tabs)/events?source=local' },
       { id: 'reddit',      label_en: 'r/ottawa',     label_fr: 'r/ottawa',      icon: 'chatbubbles',      accent: '#FF4500', action: 'link',     target: 'https://www.reddit.com/r/ottawa/' },
     ],
   },

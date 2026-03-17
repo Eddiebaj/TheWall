@@ -11,7 +11,7 @@ try { Notifications = require('expo-notifications'); } catch {}
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useWindowDimensions } from 'react-native';
 import {
-  ActivityIndicator, Alert, AppState, FlatList, Image, ImageBackground, Keyboard,
+  ActivityIndicator, Alert, Animated, AppState, FlatList, Image, ImageBackground, Keyboard,
   KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, Share, StatusBar,
   StyleSheet, Text, TextInput, TouchableOpacity,
   TouchableWithoutFeedback, View
@@ -53,7 +53,7 @@ import { getDeviceId, registerPushToken, configureNotificationHandler } from '..
 import {
   SK_FAVS, SK_SAVED_BOARD, SK_SAVED_TEAMS, SK_SAVED_ROUTES, SK_SAVED_PLACES,
   SK_GARBAGE_ADDRESS, SK_GARBAGE_LAT, SK_GARBAGE_LNG, SK_GARBAGE_PLACE_ID,
-  SK_GARBAGE_NOTIF_ID, SK_SEEN_ALERT_IDS, SK_TIME_FORMAT, SK_GHOST_REPORTS,
+  SK_GARBAGE_NOTIF_ID, SK_SEEN_ALERT_IDS, SK_ALERT_HISTORY, SK_TIME_FORMAT, SK_GHOST_REPORTS,
   SK_SECTION_ORDER, SK_QUICK_ACTIONS, SK_OTTAWA_LIFE, SK_TODAY_EVENTS,
   SK_GAS_VOTED_IDS, SK_CACHE_WEATHER, SK_CACHE_ALERTS, SK_CACHE_ARRIVALS,
   SK_CAMPUS, SK_NOTIF_SETTINGS,
@@ -62,8 +62,9 @@ import { CAMPUSES, CampusConfig, getNextDeparture, isLibraryOpen, fmt12h, getDay
 import { HAPPY_HOUR_VENUES } from '../../lib/happyHourData';
 // neighbourhoodData import removed — discover section moved to dedicated tab
 // NewsArticle import removed — news lives in dedicated News tab
-import { SK_SAVED_NEIGHBOURHOODS, SK_TONIGHT_DISMISSED, SK_TRIP_HISTORY, SK_LAST_CROWDING_REPORT, SK_CROWDING_CACHE, SK_FREQUENT_CARD_DISMISSED, SK_FREQUENT_ARRIVALS_CACHE, SK_TRIP_SHARING } from '../../lib/storageKeys';
+import { SK_SAVED_NEIGHBOURHOODS, SK_TONIGHT_DISMISSED, SK_TRIP_HISTORY, SK_LAST_CROWDING_REPORT, SK_CROWDING_CACHE, SK_FREQUENT_CARD_DISMISSED, SK_FREQUENT_ARRIVALS_CACHE, SK_TRIP_SHARING, SK_BATTERY_SAVER } from '../../lib/storageKeys';
 import { FrequentRoute, detectFrequentRoutes } from '../../lib/frequentRoutes';
+import { getLocalEvents } from '../../lib/localEvents';
 import { getDelayContext } from '../../lib/delayContext';
 // NewsSection removed from home — news lives in Account tab modal
 // NeighbourhoodSection removed — inlined for scroll reliability
@@ -72,6 +73,13 @@ import TonightCard from '../../components/TonightCard';
 import SportsModal, { OTTAWA_TEAMS } from '../../components/SportsModal';
 import WeatherModal from '../../components/WeatherModal';
 import ServicesGrid, { SERVICES_TABS, ServiceTile } from '../../components/ServicesGrid';
+
+function shortenLabel(label: string): string {
+  let s = label.replace(/, Canada$/, '').replace(/, ON,/, ',').replace(/, QC,/, ',').trim();
+  const parts = s.split(',').map(p => p.trim());
+  if (parts.length > 2) s = parts.slice(0, 2).join(', ');
+  return s;
+}
 
 const TRIP_UPDATES = 'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt-tp/beta/v1/TripUpdates?format=json';
 const BACKEND_URL = 'https://routeo-backend.vercel.app/api/arrivals';
@@ -1346,6 +1354,9 @@ function LiveScreenInner() {
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [showAllArrivals, setShowAllArrivals] = useState(false);
   const [expandedStopId, setExpandedStopId] = useState<string | null>(null);
+  const [expandedDelayId, setExpandedDelayId] = useState<string | null>(null);
+  const [disappearedTrips, setDisappearedTrips] = useState<{ routeId: string; headsign: string }[]>([]);
+  const [batterySaver, setBatterySaver] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportCategory, setReportCategory] = useState<string | null>(null);
   const [reportDescription, setReportDescription] = useState('');
@@ -1372,7 +1383,10 @@ function LiveScreenInner() {
   const [alerts, setAlerts] = useState<ServiceAlert[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [alertsModalVisible, setAlertsModalVisible] = useState(false);
+  const [alertHistory, setAlertHistory] = useState<{ title: string; category: string; routes: string[]; firstSeen: string; lastSeen: string }[]>([]);
   const [editMode, setEditMode] = useState(false);
+  const [boardHintShown, setBoardHintShown] = useState(false);
+  const boardHintOpacity = useRef(new Animated.Value(1)).current;
   const [showScrollTop, setShowScrollTop] = useState(false);
   const mainScrollRef = useRef<ScrollView>(null);
   const [sectionOrder, setSectionOrder] = useState<string[]>(DEFAULT_SECTION_ORDER);
@@ -1421,8 +1435,8 @@ function LiveScreenInner() {
   }, []);
   // Events modal (Ticketmaster + Eventbrite)
   const [eventsModal, setEventsModal] = useState(false);
-  const [eventsSource, setEventsSource] = useState<'ticketmaster' | 'eventbrite'>('ticketmaster');
-  const [events, setEvents] = useState<{ id: string; name: string; date: string; time?: string; venue: string; address?: string; url: string; image?: string; category?: string; free?: boolean; source?: string }[]>([]);
+  const [eventsSource, setEventsSource] = useState<'ticketmaster' | 'eventbrite' | 'local'>('ticketmaster');
+  const [events, setEvents] = useState<{ id: string; name: string; date: string; time?: string; venue: string; address?: string; url: string; image?: string; category?: string; free?: boolean; source?: string; description?: string }[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const eventsCacheTime = useRef<{ ticketmaster: number; eventbrite: number }>({ ticketmaster: 0, eventbrite: 0 });
   const weatherCacheTime = useRef<number>(0);
@@ -1522,6 +1536,7 @@ function LiveScreenInner() {
     AsyncStorage.getItem(SK_SAVED_TEAMS).then(val => { try { if (val) setSavedTeams(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved teams failed:', e); } });
     AsyncStorage.getItem(SK_SAVED_ROUTES).then(val => { try { if (val) setSavedRoutes(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved routes failed:', e); } });
     AsyncStorage.getItem(SK_TIME_FORMAT).then(val => { if (val === 'absolute') setTimeFormat('absolute'); });
+    AsyncStorage.getItem(SK_BATTERY_SAVER).then(val => { if (val === 'true') setBatterySaver(true); });
     AsyncStorage.getItem(SK_CAMPUS).then(val => { if (val) { const c = CAMPUSES.find(x => x.id === val); if (c) setSelectedCampus(c); } }).catch(() => {});
     Promise.all([
       AsyncStorage.getItem(SK_SAVED_BOARD),
@@ -1632,6 +1647,16 @@ function LiveScreenInner() {
       } catch {}
     }).catch(() => {});
   }, []);
+
+  // Fade out "Hold to reorder" hint after 3 seconds
+  useEffect(() => {
+    if (boardLoaded && savedBoard.length > 0 && !boardHintShown) {
+      const timer = setTimeout(() => {
+        Animated.timing(boardHintOpacity, { toValue: 0, duration: 600, useNativeDriver: true }).start(() => setBoardHintShown(true));
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [boardLoaded, savedBoard.length]);
 
   const saveCustomization = async (order: string[], qaIds: string[], olIds: string[]) => {
     await AsyncStorage.setItem(SK_SECTION_ORDER, JSON.stringify(order));
@@ -1881,6 +1906,46 @@ function LiveScreenInner() {
     catch { setAlerts([]); } finally { setAlertsLoading(false); }
   };
 
+  // Track alert history — record active alerts, prune entries older than 7 days
+  useEffect(() => {
+    if (alerts.length === 0) return;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(SK_ALERT_HISTORY);
+        let history: { title: string; category: string; routes: string[]; firstSeen: string; lastSeen: string }[] = [];
+        try { if (raw) history = JSON.parse(raw); } catch {}
+        const nowISO = new Date().toISOString();
+        const weekAgo = Date.now() - 7 * 86400000;
+        // Prune old entries
+        history = history.filter(h => new Date(h.lastSeen).getTime() > weekAgo);
+        // Upsert current alerts
+        for (const alert of alerts) {
+          const existing = history.find(h => h.title === alert.title);
+          if (existing) {
+            existing.lastSeen = nowISO;
+            existing.routes = alert.routes;
+          } else {
+            history.push({ title: alert.title, category: alert.category, routes: alert.routes, firstSeen: nowISO, lastSeen: nowISO });
+          }
+        }
+        await AsyncStorage.setItem(SK_ALERT_HISTORY, JSON.stringify(history));
+        setAlertHistory(history);
+      } catch {}
+    })();
+  }, [alerts]);
+
+  // Load alert history on mount
+  useEffect(() => {
+    AsyncStorage.getItem(SK_ALERT_HISTORY).then(raw => {
+      try {
+        if (!raw) return;
+        const history = JSON.parse(raw);
+        const weekAgo = Date.now() - 7 * 86400000;
+        setAlertHistory(history.filter((h: any) => new Date(h.lastSeen).getTime() > weekAgo));
+      } catch {}
+    });
+  }, []);
+
   // Cross-reference commute with active alerts
   useEffect(() => {
     if (!commuteInsight || alerts.length === 0) return;
@@ -2048,6 +2113,25 @@ function LiveScreenInner() {
       const todayEvents = allEvents.filter((e: any) => e.date === today && e.address);
       AsyncStorage.setItem(SK_TODAY_EVENTS, JSON.stringify(todayEvents));
     } catch { setEvents([]); }
+    setEventsLoading(false);
+  };
+
+  const loadLocalEvents = () => {
+    setEventsLoading(true);
+    const local = getLocalEvents().map(e => ({
+      id: e.id,
+      name: e.name,
+      date: e.date,
+      time: e.time,
+      venue: e.venue,
+      address: e.address,
+      url: e.url,
+      category: e.category,
+      free: e.free,
+      source: '613flea / TD Place',
+      description: e.description,
+    }));
+    setEvents(local);
     setEventsLoading(false);
   };
 
@@ -2385,15 +2469,31 @@ function LiveScreenInner() {
     if (frequentRoutes.length > 0) fetchFrequentArrivals(frequentRoutes);
   }, [frequentRoutes]);
 
+  // Watch mode: poll faster (15s) when a bus is ≤10 min away, else 30s
+  const prevArrivalsRef = useRef<{ id: string; routeId: string; minsAway: number }[]>([]);
   useEffect(() => {
+    const hasSoonBus = arrivals.some(a => a.minsAway <= 10);
+    const pollInterval = batterySaver ? 60000 : hasSoonBus ? 15000 : 30000;
     const interval = setInterval(() => {
       if (AppState.currentState === 'active') {
+        // Check for disappeared trips (possible cancellation)
+        const prevIds = new Set(prevArrivalsRef.current.filter(p => p.minsAway <= 10).map(p => p.id));
+        if (prevIds.size > 0) {
+          const currentIds = new Set(arrivals.map(a => a.id));
+          const disappeared = prevArrivalsRef.current.filter(p => prevIds.has(p.id) && !currentIds.has(p.id) && p.minsAway > 1);
+          if (disappeared.length > 0) {
+            setDisappearedTrips(disappeared.map(d => ({ routeId: d.routeId, headsign: '' })));
+            setTimeout(() => setDisappearedTrips([]), 60000);
+            if (__DEV__) console.log('Watch mode: trips disappeared', disappeared.map(d => d.routeId));
+          }
+        }
+        prevArrivalsRef.current = arrivals.map(a => ({ id: a.id, routeId: a.routeId, minsAway: a.minsAway }));
         fetchArrivals(stopId);
         if (frequentRoutes.length > 0 && !frequentCardDismissed) fetchFrequentArrivals(frequentRoutes, true);
       }
-    }, 30000);
+    }, pollInterval);
     return () => clearInterval(interval);
-  }, [stopId, fetchArrivals, frequentRoutes, frequentCardDismissed]);
+  }, [stopId, fetchArrivals, frequentRoutes, frequentCardDismissed, arrivals, batterySaver]);
 
   useEffect(() => {
     if (arrivals.length > 0 && arrivals[0].minsAway > 15) {
@@ -2691,11 +2791,12 @@ function LiveScreenInner() {
     if (tile.action === 'alert' && tile.target === 'gas_prices') { setBoardExpandItem({ type: 'gas_prices' }); return; }
     if (tile.action === 'alert') { setAlertsModalVisible(true); return; }
     if (tile.action === 'navigate' && tile.target?.includes('events?source=')) {
-      const source = tile.target.includes('eventbrite') ? 'eventbrite' : 'ticketmaster';
-      setEventsSource(source);
+      const source = tile.target.includes('local') ? 'local' : tile.target.includes('eventbrite') ? 'eventbrite' : 'ticketmaster';
+      setEventsSource(source as any);
       setEventsModal(true);
       if (source === 'ticketmaster') fetchTicketmasterEvents();
-      else fetchEventbriteEvents();
+      else if (source === 'eventbrite') fetchEventbriteEvents();
+      else loadLocalEvents();
       return;
     }
     if (tile.action === 'navigate' && tile.target) {
@@ -2961,6 +3062,7 @@ function LiveScreenInner() {
   // ── Events Modal (Ticketmaster / Eventbrite) ─────────────────
   const renderEventsModal = () => {
     const EB_CATS = ['Music', 'Food & Drink', 'Arts & Culture', 'Health', 'Sports', 'Business', 'Community', 'Family', 'Science & Tech', 'Hobbies'];
+    const LOCAL_CATS = ['Market', 'Sports'];
     const TM_CATS = eventsSource === 'ticketmaster' ? [...new Set(events.map(e => e.category || 'Other'))].sort() : [];
 
     const filteredEvents = events.filter(ev => {
@@ -2977,7 +3079,7 @@ function LiveScreenInner() {
       return true;
     });
 
-    const catPills = eventsSource === 'ticketmaster' ? TM_CATS : EB_CATS;
+    const catPills = eventsSource === 'ticketmaster' ? TM_CATS : eventsSource === 'local' ? LOCAL_CATS : EB_CATS;
 
     // Sort by distance if Near Me active
     let displayEvents = filteredEvents;
@@ -2997,10 +3099,10 @@ function LiveScreenInner() {
         <View style={[styles.modalHeader, { borderBottomColor: colours.border }]}>
           <View>
             <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>
-              {eventsSource === 'ticketmaster' ? 'Live Events' : 'Community Events'}
+              {eventsSource === 'ticketmaster' ? 'Live Events' : eventsSource === 'local' ? 'Local Events' : 'Community Events'}
             </Text>
             <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
-              {eventsSource === 'ticketmaster' ? 'Ticketmaster · Ottawa' : 'Arts & Community · Ottawa'}
+              {eventsSource === 'ticketmaster' ? 'Ticketmaster · Ottawa' : eventsSource === 'local' ? '613flea · TD Place · Ottawa' : 'Arts & Community · Ottawa'}
             </Text>
           </View>
           <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => { setEventsModal(false); setEventsSearch(''); setEventsCategory(null); setEventsNearMe(false); }} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
@@ -3014,13 +3116,19 @@ function LiveScreenInner() {
             onPress={() => { setEventsSource('ticketmaster'); setEventsCategory(null); fetchTicketmasterEvents(); }}
             style={{ flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: eventsSource === 'ticketmaster' ? colours.accent : colours.surface }}
           >
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: eventsSource === 'ticketmaster' ? '#fff' : colours.text }}>{t('Live Events', 'Événements')}</Text>
+            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: eventsSource === 'ticketmaster' ? '#fff' : colours.text }}>{t('Live', 'En direct')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => { setEventsSource('eventbrite'); setEventsCategory(null); fetchEventbriteEvents(); }}
             style={{ flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: eventsSource === 'eventbrite' ? colours.accent : colours.surface }}
           >
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: eventsSource === 'eventbrite' ? '#fff' : colours.text }}>{t('Community', 'Communauté')}</Text>
+            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: eventsSource === 'eventbrite' ? '#fff' : colours.text }}>{t('Community', 'Communaut\u00E9')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => { setEventsSource('local'); setEventsCategory(null); loadLocalEvents(); }}
+            style={{ flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: eventsSource === 'local' ? colours.accent : colours.surface }}
+          >
+            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: eventsSource === 'local' ? '#fff' : colours.text }}>{t('Local', 'Locaux')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -3124,11 +3232,12 @@ function LiveScreenInner() {
     'Music': '#6c3fc7', 'Food & Drink': '#1a7a4a', 'Arts & Culture': '#b5450b',
     'Health': '#0077b6', 'Sports': '#006400', 'Business': '#444',
     'Community': '#0077a0', 'Family': '#e67e22', 'Science & Tech': '#2c3e7a', 'Hobbies': '#7b5ea7',
+    'Market': '#c0852a',
   };
 
   const renderEventCard = (ev: typeof events[0]) => {
-    const catLabel = eventsSource === 'eventbrite' ? (ev.category || 'Community') : null;
-    const catColor = catLabel ? (CATEGORY_COLORS[catLabel] || '#555') : null;
+    const catLabel = (eventsSource === 'eventbrite' || eventsSource === 'local') ? (ev.category || 'Community') : null;
+    const catColor = catLabel ? (CATEGORY_COLORS[catLabel] || CATEGORY_COLORS['Community'] || '#555') : null;
     return (
       <TouchableOpacity key={ev.id} onPress={() => ev.url && Linking.openURL(ev.url)} style={{ marginHorizontal: 16, marginTop: 10, padding: 12, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, ...cardShadow }}>
         {ev.image && (
@@ -3149,9 +3258,18 @@ function LiveScreenInner() {
             </ImageBackground>
           </View>
         )}
-        {!ev.image && catLabel && catColor && (
-          <View style={{ backgroundColor: catColor + '18', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2, alignSelf: 'flex-start', marginBottom: 6, borderWidth: 1, borderColor: catColor + '40' }}>
-            <Text style={{ color: catColor, fontSize: 10, fontWeight: '700' }}>{catLabel}</Text>
+        {!ev.image && (catLabel || ev.free) && (
+          <View style={{ flexDirection: 'row', gap: 5, marginBottom: 6 }}>
+            {catLabel && catColor && (
+              <View style={{ backgroundColor: catColor + '18', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: catColor + '40' }}>
+                <Text style={{ color: catColor, fontSize: 10, fontWeight: '700' }}>{catLabel}</Text>
+              </View>
+            )}
+            {ev.free && (
+              <View style={{ backgroundColor: '#2d7a3a18', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: '#2d7a3a40' }}>
+                <Text style={{ color: '#2d7a3a', fontSize: 10, fontWeight: '800' }}>FREE</Text>
+              </View>
+            )}
           </View>
         )}
         <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text, marginBottom: 3 }} numberOfLines={2}>{ev.name}</Text>
@@ -3162,8 +3280,9 @@ function LiveScreenInner() {
           </Text>
         )}
         {ev.venue ? <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{ev.venue}</Text> : null}
+        {ev.description && <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 4 }} numberOfLines={2}>{ev.description}</Text>}
         {ev.url && <Text style={{ fontSize: fonts.sm, color: colours.accent, fontWeight: '600', marginTop: 7 }}>
-          {eventsSource === 'ticketmaster' ? 'Get tickets →' : ev.source === 'City of Ottawa' ? 'View on ottawa.ca →' : 'Get tickets →'}
+          {eventsSource === 'local' ? (ev.free ? t('Learn more →', 'En savoir plus →') : t('Get tickets →', 'Billets →')) : eventsSource === 'ticketmaster' ? 'Get tickets →' : ev.source === 'City of Ottawa' ? 'View on ottawa.ca →' : 'Get tickets →'}
         </Text>}
       </TouchableOpacity>
     );
@@ -3759,7 +3878,13 @@ function LiveScreenInner() {
             </Text>
           </TouchableOpacity>
           <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }} numberOfLines={1}>{item.headsign ? `→ ${item.headsign}` : `→ ${t('Checking route...', 'Vérification...')}`}</Text>
-          {item.isScheduled && (
+          {item.isScheduled && isLRT && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
+              <Ionicons name="time-outline" size={11} color={colours.muted} />
+              <Text style={{ fontSize: 10, color: colours.muted, fontWeight: '600' }}>{t('Schedule only — every 3-5 min peak', 'Horaire seulement — aux 3-5 min en pointe')}</Text>
+            </View>
+          )}
+          {item.isScheduled && !isLRT && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
               <Ionicons name="warning" size={11} color={colours.orange} />
               <Text style={{ fontSize: 10, color: colours.orange, fontWeight: '600' }}>{t('Scheduled only', 'Horaire seulement')}</Text>
@@ -3806,11 +3931,18 @@ function LiveScreenInner() {
           {item.delay > 5 && (() => {
             const ctx = getDelayContext(item.routeId, item.delay, alerts, weather, forecast);
             if (!ctx) return null;
+            const isExpanded = expandedDelayId === item.id;
             return (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
-                <Ionicons name={ctx.icon as any} size={11} color={ctx.colour} />
-                <Text style={{ fontSize: 11, fontWeight: '600', color: ctx.colour }}>{t(ctx.label, ctx.labelFr)}</Text>
-              </View>
+              <TouchableOpacity onPress={() => setExpandedDelayId(isExpanded ? null : item.id)} activeOpacity={0.7} style={{ marginTop: 3 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Ionicons name={ctx.icon as any} size={11} color={ctx.colour} />
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: ctx.colour }}>{t(ctx.label, ctx.labelFr)}</Text>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: ctx.colour }}>{t('Why?', 'Pourquoi?')}</Text>
+                </View>
+                {isExpanded && (
+                  <Text style={{ fontSize: 11, color: colours.muted, marginTop: 4, lineHeight: 16 }}>{t(ctx.detail, ctx.detailFr)}</Text>
+                )}
+              </TouchableOpacity>
             );
           })()}
         </View>
@@ -3961,7 +4093,17 @@ function LiveScreenInner() {
                     <Text style={{ color: colours.muted, marginTop: 8 }}>No upcoming arrivals</Text>
                   </View>
                 ) : (
-                  arrivals.map(renderArrival)
+                  <>
+                    {disappearedTrips.length > 0 && (
+                      <View style={{ marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FF9500' + '15', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
+                        <Ionicons name="alert-circle" size={16} color="#FF9500" />
+                        <Text style={{ flex: 1, fontSize: 12, fontWeight: '600', color: '#FF9500' }}>
+                          {t(`Route ${disappearedTrips.map(d => d.routeId).join(', ')} may be cancelled — disappeared from feed`, `Route ${disappearedTrips.map(d => d.routeId).join(', ')} possiblement annulée — disparue du flux`)}
+                        </Text>
+                      </View>
+                    )}
+                    {arrivals.map(renderArrival)}
+                  </>
                 )}
               </ScrollView>
             )}
@@ -4059,6 +4201,52 @@ function LiveScreenInner() {
             const catColour = CATEGORY_COLOUR[alert.category] || colours.accent;
             return (<TouchableOpacity key={alert.id} style={[styles.alertCard, { backgroundColor: colours.surface, borderColor: colours.border, borderLeftColor: catColour, ...cardShadow }]} onPress={() => alert.link && Linking.openURL(alert.link)} activeOpacity={alert.link ? 0.8 : 1}><View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}><View style={[styles.alertCatBadge, { backgroundColor: catColour + '20' }]}><Text style={{ fontSize: 9, fontWeight: '800', color: catColour, textTransform: 'uppercase', letterSpacing: 0.5 }}>{alert.category}</Text></View>{alert.routes.length > 0 && (<View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap', flex: 1 }}>{alert.routes.slice(0, 4).map(route => (<View key={route} style={[styles.routeBadge, { backgroundColor: colours.accent + '18' }]}><Text style={{ fontSize: 9, fontWeight: '700', color: colours.accent }}>{route}</Text></View>))}</View>)}</View><Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, marginTop: 8, lineHeight: 20 }}>{alert.title}</Text>{alert.description ? <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 4, lineHeight: 18 }} numberOfLines={3}>{alert.description}</Text> : null}{alert.pubDate ? <Text style={{ fontSize: 10, color: colours.muted, marginTop: 6 }}>{alert.pubDate}</Text> : null}{alert.link ? <Text style={{ fontSize: fonts.sm, color: colours.accent, fontWeight: '600', marginTop: 6 }}>{t('View details →', 'Voir les détails →')}</Text> : null}</TouchableOpacity>);
           })}
+          {/* Past week alert history */}
+          {(() => {
+            const activeTitles = new Set(alerts.map(a => a.title));
+            const pastAlerts = alertHistory
+              .filter(h => !activeTitles.has(h.title))
+              .sort((a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime());
+            if (pastAlerts.length === 0) return null;
+            const formatHistoryTime = (iso: string) => {
+              const d = new Date(iso);
+              const now = new Date();
+              const diffH = Math.round((now.getTime() - d.getTime()) / 3600000);
+              if (diffH < 1) return t('Just now', 'À l\'instant');
+              if (diffH < 24) return t(`${diffH}h ago`, `il y a ${diffH}h`);
+              const diffD = Math.round(diffH / 24);
+              return t(`${diffD}d ago`, `il y a ${diffD}j`);
+            };
+            return (
+              <View style={{ marginTop: 24, paddingHorizontal: 20 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+                  <Ionicons name="time-outline" size={16} color={colours.muted} />
+                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>{t('Past Week', 'Dernière semaine')}</Text>
+                  <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Resolved alerts', 'Alertes résolues')}</Text>
+                </View>
+                {pastAlerts.map((h, i) => {
+                  const catColour = CATEGORY_COLOUR[h.category] || colours.muted;
+                  return (
+                    <View key={`hist-${i}`} style={{ flexDirection: 'row', gap: 10, paddingVertical: 10, borderBottomWidth: i < pastAlerts.length - 1 ? 1 : 0, borderBottomColor: colours.border }}>
+                      <View style={{ width: 3, borderRadius: 2, backgroundColor: catColour, marginTop: 2 }} />
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                          <View style={{ backgroundColor: catColour + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                            <Text style={{ fontSize: 8, fontWeight: '800', color: catColour, textTransform: 'uppercase', letterSpacing: 0.5 }}>{h.category}</Text>
+                          </View>
+                          {h.routes.slice(0, 3).map(r => (
+                            <Text key={r} style={{ fontSize: 9, fontWeight: '700', color: colours.accent }}>#{r}</Text>
+                          ))}
+                        </View>
+                        <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.text, lineHeight: 18 }} numberOfLines={2}>{h.title}</Text>
+                        <Text style={{ fontSize: 10, color: colours.muted, marginTop: 2 }}>{formatHistoryTime(h.lastSeen)}</Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            );
+          })()}
         </ScrollView>
       </View>
     </Modal>
@@ -4590,15 +4778,11 @@ function LiveScreenInner() {
           <View style={styles.header}>
             <View>
               <Text style={{ fontSize: fonts.xxl, fontWeight: '800', color: colours.text, letterSpacing: -1 }}>Route<Text style={{ color: colours.accent }}>O</Text></Text>
-              <Text style={{ fontSize: fonts.sm, color: colours.muted, letterSpacing: 2, marginTop: -2 }}>OC TRANSPO · OTTAWA</Text>
             </View>
             <View style={styles.headerRight}>
               {isNight && (<View style={[styles.nightBadge, { backgroundColor: colours.accentAlt + '22', borderColor: colours.accentAlt }]}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Ionicons name="moon" size={12} color={colours.accentAlt} /><Text style={{ color: colours.accentAlt, fontSize: fonts.sm, fontWeight: '700' }}>{t('Night', 'Nuit')}</Text></View></View>)}
               {weather && (<TouchableOpacity onPress={() => setWeatherModalVisible(true)} style={[styles.nightBadge, { backgroundColor: colours.surface, borderColor: colours.border, flexDirection: 'row', alignItems: 'center', gap: 4 }]} accessibilityRole="button" accessibilityLabel={t(`Weather ${weather.temp} degrees`, `Meteo ${weather.temp} degres`)}><Ionicons name={weather.icon as any} size={13} color={iconColor(weather.icon)} /><Text style={{ color: colours.text, fontSize: fonts.sm, fontWeight: '700' }}>{weather.temp}°</Text></TouchableOpacity>)}
               <View style={[styles.liveBadge, { backgroundColor: colours.accent + '18', borderColor: colours.accent + '40' }]}><View style={[styles.liveDot, { backgroundColor: colours.accent }]} /><Text style={{ color: colours.accent, fontSize: fonts.sm, fontWeight: '700' }}>LIVE</Text></View>
-              <TouchableOpacity onPress={() => { if (editMode) { saveCustomization(sectionOrder, quickActionIds, ottawaLifeIds); } setEditMode(!editMode); }} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: editMode ? colours.accent : colours.border, backgroundColor: editMode ? colours.accent : colours.surface }} accessibilityRole="button" accessibilityLabel={editMode ? t('Done editing', 'Terminer la modification') : t('Edit layout', 'Modifier la disposition')}>
-                <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: editMode ? 'white' : colours.text }}>{editMode ? t('Done', 'Terminé') : t('Edit', 'Modifier')}</Text>
-              </TouchableOpacity>
             </View>
           </View>
 
@@ -4626,7 +4810,7 @@ function LiveScreenInner() {
             <View style={styles.searchRow}>
               <TextInput style={[styles.searchInput, { backgroundColor: colours.surface, borderColor: colours.border, color: colours.text, fontSize: fonts.lg, ...cardShadow }]} placeholder={t('Street name or stop number...', "Nom de rue ou numéro d'arrêt...")} placeholderTextColor={colours.muted} value={searchText} onChangeText={handleSearchChange} keyboardType="default" returnKeyType="search" onSubmitEditing={handleSearch} accessibilityLabel={t('Search for a stop or street', 'Rechercher un arret ou une rue')} accessibilityRole="search" />
               <TouchableOpacity style={[styles.searchBtn, { backgroundColor: colours.accent }]} onPress={handleSearch} accessibilityRole="button" accessibilityLabel={t('Search', 'Rechercher')}>
-                <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>{t('Go', 'Aller')}</Text>
+                <Text style={{ color: 'white', fontWeight: '800', fontSize: fonts.lg }}>{t('Go', 'Aller')}</Text>
               </TouchableOpacity>
             </View>
             {(searchResults.length > 0 || addressResults.length > 0) && (
@@ -4762,8 +4946,17 @@ function LiveScreenInner() {
           ) : (
             <>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 8 }}>
-                <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('My Board', 'Mon tableau')}</Text>
-                <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Use arrows to reorder', 'Utilisez les flèches')}</Text>
+                <View>
+                  <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('My Board', 'Mon tableau')}</Text>
+                  {!boardHintShown && !editMode && (
+                    <Animated.Text style={{ fontSize: 10, color: colours.muted, marginTop: 2, opacity: boardHintOpacity }}>{t('Hold a card to reorder', 'Maintenez une carte pour réorganiser')}</Animated.Text>
+                  )}
+                </View>
+                {editMode && (
+                  <TouchableOpacity onPress={() => { saveCustomization(sectionOrder, quickActionIds, ottawaLifeIds); setEditMode(false); }} style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 16, backgroundColor: colours.accent }} accessibilityRole="button" accessibilityLabel={t('Done editing', 'Terminer la modification')}>
+                    <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: 'white' }}>{t('Done', 'Terminé')}</Text>
+                  </TouchableOpacity>
+                )}
               </View>
               <FlatList
                 horizontal
@@ -4798,7 +4991,15 @@ function LiveScreenInner() {
                   return (
                   <SavedBoardCard
                     item={item}
-                    drag={() => {}}
+                    drag={() => {
+                      if (!editMode) {
+                        setEditMode(true);
+                        if (!boardHintShown) {
+                          setBoardHintShown(true);
+                          Animated.timing(boardHintOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start();
+                        }
+                      }
+                    }}
                     isActive={false}
                     colours={colours}
                     fonts={fonts}
@@ -4900,7 +5101,7 @@ function LiveScreenInner() {
                 </Text>
               </View>
               <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>
-                {commuteInsight.fromLabel} → {commuteInsight.toLabel}
+                {shortenLabel(commuteInsight.fromLabel)} → {shortenLabel(commuteInsight.toLabel)}
               </Text>
               <Text style={{ fontSize: 12, color: colours.muted, marginTop: 4 }}>
                 {t(`Usually ${commuteInsight.avgDuration} min`, `Habituellement ${commuteInsight.avgDuration} min`)}
@@ -4971,8 +5172,8 @@ const styles = StyleSheet.create({
   liveDot: { width: 6, height: 6, borderRadius: 3 },
   searchContainer: { paddingHorizontal: 20, marginBottom: 12 },
   searchRow: { flexDirection: 'row', gap: 10 },
-  searchInput: { flex: 1, borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, fontWeight: '500' },
-  searchBtn: { paddingHorizontal: 18, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  searchInput: { flex: 1, borderWidth: 1, borderRadius: 14, paddingHorizontal: 18, paddingVertical: 16, fontWeight: '500' },
+  searchBtn: { paddingHorizontal: 26, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
   dropdown: { borderWidth: 1, borderRadius: 12, marginTop: 6, overflow: 'hidden' },
   dropdownItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
   arrivalsCard: { marginHorizontal: 20, borderRadius: 16, borderWidth: 1, marginBottom: 16, overflow: 'hidden' },

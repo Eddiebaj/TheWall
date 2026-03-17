@@ -56,7 +56,7 @@ class PlannerErrorBoundary extends React.Component<
     return this.props.children;
   }
 }
-import { SK_PLANNER_PREFS, SK_SAVED_ROUTES, SK_TRIP_HISTORY, SK_LEAVE_REMINDERS, SK_ACCESSIBILITY_ROUTING, SK_MOTION } from '../../lib/storageKeys';
+import { SK_PLANNER_PREFS, SK_SAVED_ROUTES, SK_TRIP_HISTORY, SK_LEAVE_REMINDERS, SK_ACCESSIBILITY_ROUTING, SK_MOTION, SK_WALK_PREFERENCE, SK_WALK_PACE, SK_BATTERY_SAVER } from '../../lib/storageKeys';
 
 const PLAN_URL = 'https://routeo-backend.vercel.app/api/plan';
 const PLACES_URL = 'https://routeo-backend.vercel.app/api/places';
@@ -252,13 +252,17 @@ const HOURS_12 = Array.from({ length: 12 }, (_, i) => String(i === 0 ? 12 : i));
 const MINUTES_60 = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
 const AM_PM = ['AM', 'PM'];
 
-// Strip ", Canada" and redundant province from place labels
+// Strip ", Canada" and redundant province from place labels, truncate to street-level
 function shortenLabel(label: string): string {
-  return label
+  let s = label
     .replace(/, Canada$/, '')
     .replace(/, ON,/, ',')
     .replace(/, QC,/, ',')
     .trim();
+  // If still long (full address), keep only first two comma-separated parts (name + street or street + city)
+  const parts = s.split(',').map(p => p.trim());
+  if (parts.length > 2) s = parts.slice(0, 2).join(', ');
+  return s;
 }
 
 function decodePolyline(encoded: string): { latitude: number; longitude: number }[] {
@@ -329,6 +333,8 @@ function PlannerScreenInner() {
   const [arriveBy, setArriveBy] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [travelMode, setTravelMode] = useState<'transit' | 'driving' | 'bicycling' | 'walking'>('transit');
+  const [walkPreference, setWalkPreference] = useState<500 | 1000 | 2000>(1000);
+  const [walkPace, setWalkPace] = useState<'slow' | 'normal' | 'fast'>('normal');
 
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -353,6 +359,7 @@ function PlannerScreenInner() {
   const [sensGameTonight, setSensGameTonight] = useState(false);
   const [autoLoading, setAutoLoading] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
+  const [batterySaverMode, setBatterySaverMode] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [reminderModal, setReminderModal] = useState<{ itin: Itinerary; idx: number } | null>(null);
   const [reminderTime, setReminderTime] = useState<Date>(new Date());
@@ -394,9 +401,20 @@ function PlannerScreenInner() {
     AsyncStorage.getItem(SK_ACCESSIBILITY_ROUTING).then(val => {
       if (val === 'true') setAccessibleRouting(true);
     }).catch(() => {});
+    // Load walk distance preference
+    AsyncStorage.getItem(SK_WALK_PREFERENCE).then(val => {
+      if (val) { const n = parseInt(val, 10); if (n === 500 || n === 1000 || n === 2000) setWalkPreference(n); }
+    }).catch(() => {});
+    // Load walk pace preference
+    AsyncStorage.getItem(SK_WALK_PACE).then(val => {
+      if (val === 'slow' || val === 'fast') setWalkPace(val);
+    }).catch(() => {});
     // Load reduced motion preference
     AsyncStorage.getItem(SK_MOTION).then(val => {
       if (val === 'true') setReducedMotion(true);
+    }).catch(() => {});
+    AsyncStorage.getItem(SK_BATTERY_SAVER).then(val => {
+      if (val === 'true') setBatterySaverMode(true);
     }).catch(() => {});
     // Check for Sens game tonight
     fetchWithTimeout('https://api-web.nhle.com/v1/schedule/now').then(async r => {
@@ -607,7 +625,7 @@ function PlannerScreenInner() {
     const day = String(d.getDate()).padStart(2,'0');
     const dateStr = `${month}-${day}-${d.getFullYear()}`;
 
-    const url = `${PLAN_URL}?fromLat=${resolvedFrom.lat}&fromLng=${resolvedFrom.lng}&fromLabel=${encodeURIComponent(resolvedFrom.label)}&toLat=${resolvedTo.lat}&toLng=${resolvedTo.lng}&toLabel=${encodeURIComponent(resolvedTo.label)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=${arriveBy}&mode=${travelMode}${accessibleRouting ? '&wheelchair=true' : ''}`;
+    const url = `${PLAN_URL}?fromLat=${resolvedFrom.lat}&fromLng=${resolvedFrom.lng}&fromLabel=${encodeURIComponent(resolvedFrom.label)}&toLat=${resolvedTo.lat}&toLng=${resolvedTo.lng}&toLabel=${encodeURIComponent(resolvedTo.label)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=${arriveBy}&mode=${travelMode}${accessibleRouting ? '&wheelchair=true' : ''}${travelMode === 'transit' ? `&maxWalk=${walkPreference}&walkSpeed=${walkPace}` : ''}`;
 
     try {
       const resp = await fetchWithTimeout(url);
@@ -616,23 +634,39 @@ function PlannerScreenInner() {
       if (data.error) { setError(data.error); }
       else if (!data.itineraries?.length) { setError(t('No routes found. Try a different time or destination.', 'Aucun trajet trouve. Essayez une autre heure ou destination.')); }
       else {
-        try {
-          const sorted = [...data.itineraries].sort((a: any, b: any) => {
-            const aWalkOnly = Array.isArray(a.legs) && a.legs.length > 0 && a.legs.every((l: any) => l.mode === 'WALK');
-            const bWalkOnly = Array.isArray(b.legs) && b.legs.length > 0 && b.legs.every((l: any) => l.mode === 'WALK');
-            if (aWalkOnly !== bWalkOnly) return aWalkOnly ? 1 : -1;
-            return (a.endTime ?? 0) - (b.endTime ?? 0);
-          });
-          const transitItins = sorted.filter((i: any) => (i.legs || []).some((l: any) => l.mode !== 'WALK'));
-          const walkOnlyItins = sorted.filter((i: any) => (i.legs || []).every((l: any) => l.mode === 'WALK'));
-          const bestTransitEnd = transitItins[0]?.endTime ?? Infinity;
-          const bestWalkDuration = walkOnlyItins[0]?.duration ?? Infinity;
-          const bestWalkEnd = walkOnlyItins[0]?.endTime ?? Infinity;
-          const keepWalk = transitItins.length === 0
-            || bestWalkDuration <= 1200
-            || bestWalkEnd <= bestTransitEnd + 1200000;
-          setItineraries(keepWalk ? sorted : transitItins);
-        } catch {
+        if (travelMode === 'transit') {
+          try {
+            // Filter out insane routes: any itinerary with a single transfer wait >60 min
+            const sane = data.itineraries.filter((itin: any) => {
+              const legs = itin.legs || [];
+              for (let i = 1; i < legs.length; i++) {
+                if (legs[i - 1].mode === 'WALK' || legs[i].mode === 'WALK') continue;
+                const waitMin = (legs[i].startTime - legs[i - 1].endTime) / 60000;
+                if (waitMin > 60) return false;
+              }
+              return true;
+            });
+            const pool = sane.length > 0 ? sane : data.itineraries;
+            const sorted = [...pool].sort((a: any, b: any) => {
+              const aWalkOnly = Array.isArray(a.legs) && a.legs.length > 0 && a.legs.every((l: any) => l.mode === 'WALK');
+              const bWalkOnly = Array.isArray(b.legs) && b.legs.length > 0 && b.legs.every((l: any) => l.mode === 'WALK');
+              if (aWalkOnly !== bWalkOnly) return aWalkOnly ? 1 : -1;
+              return (a.endTime ?? 0) - (b.endTime ?? 0);
+            });
+            const transitItins = sorted.filter((i: any) => (i.legs || []).some((l: any) => l.mode !== 'WALK'));
+            const walkOnlyItins = sorted.filter((i: any) => (i.legs || []).every((l: any) => l.mode === 'WALK'));
+            const bestTransitEnd = transitItins[0]?.endTime ?? Infinity;
+            const bestWalkDuration = walkOnlyItins[0]?.duration ?? Infinity;
+            const bestWalkEnd = walkOnlyItins[0]?.endTime ?? Infinity;
+            const keepWalk = transitItins.length === 0
+              || bestWalkDuration <= 1200
+              || bestWalkEnd <= bestTransitEnd + 1200000;
+            setItineraries(keepWalk ? sorted : transitItins);
+          } catch {
+            setItineraries(data.itineraries);
+          }
+        } else {
+          // Non-transit modes (driving, bicycling, walking): pass through unfiltered
           setItineraries(data.itineraries);
         }
       }
@@ -648,8 +682,8 @@ function PlannerScreenInner() {
         };
         setTripHistory(prev => {
           // Deduplicate: skip if same from/to was planned in last 5 min
-          const isDupe = prev.length > 0 && prev[0].fromLabel === record.fromLabel && prev[0].toLabel === record.toLabel
-            && (Date.now() - new Date(prev[0].plannedAt).getTime()) < 300000;
+          const isDupe = prev.some(p => p.fromLabel === record.fromLabel && p.toLabel === record.toLabel
+            && (Date.now() - new Date(p.plannedAt).getTime()) < 300000);
           if (isDupe) return prev;
           const updated = [record, ...prev].slice(0, MAX_TRIP_HISTORY);
           AsyncStorage.setItem(SK_TRIP_HISTORY, JSON.stringify(updated)).catch(() => {});
@@ -1011,16 +1045,38 @@ function PlannerScreenInner() {
           </View>
         )}
 
+        {/* Detour / alert warnings on planned routes */}
+        {(() => {
+          const affectedLegs = (itin.legs || []).filter(leg => leg.routeShortName && alerts.some(a => a.routes.includes(leg.routeShortName!)));
+          if (affectedLegs.length === 0) return null;
+          const affectedRoutes = [...new Set(affectedLegs.map(l => l.routeShortName))];
+          const matchingAlert = alerts.find(a => affectedRoutes.some(r => a.routes.includes(r!)));
+          return (
+            <View style={{ backgroundColor: '#cc3b2a12', borderLeftWidth: 3, borderLeftColor: '#cc3b2a', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, marginBottom: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                <Ionicons name="warning" size={12} color="#cc3b2a" />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#cc3b2a' }}>{t('Service alert on this route', 'Alerte de service sur ce trajet')}</Text>
+              </View>
+              <Text style={{ fontSize: 11, color: colours.muted }} numberOfLines={2}>{t(`Route ${affectedRoutes.join(', ')}`, `Ligne ${affectedRoutes.join(', ')}`)} — {matchingAlert?.title || ''}</Text>
+            </View>
+          );
+        })()}
+
         {/* Transfer warnings */}
         {(itin.legs || []).map((leg, i, arr) => {
           if (i === 0) return null;
           const prevLeg = arr[i - 1];
           if (prevLeg.mode === 'WALK' || leg.mode === 'WALK') return null;
           const connectionMin = Math.round((leg.startTime - prevLeg.endTime) / 60000);
-          if (connectionMin > 3) return null;
-          // Check if connecting route has active alert
           const connectingRoute = leg.routeShortName;
           const hasAlert = connectingRoute && alerts.some(a => a.routes.includes(connectingRoute));
+          // Long wait warning (>15 min)
+          if (connectionMin > 15) return (
+            <View key={`transfer-${i}`} style={{ backgroundColor: '#ff950015', borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, marginBottom: 8 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#ff9500' }}>{t(`Long wait \u2014 ${connectionMin} min at ${prevLeg.to?.name || 'transfer'}`, `Longue attente \u2014 ${connectionMin} min \u00e0 ${prevLeg.to?.name || 'correspondance'}`)}</Text>
+            </View>
+          );
+          if (connectionMin > 3) return null;
           return (
             <View key={`transfer-${i}`} style={{ backgroundColor: hasAlert ? '#cc3b2a15' : '#ff950015', borderLeftWidth: 3, borderLeftColor: hasAlert ? '#cc3b2a' : '#ff9500', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, marginBottom: 8 }}>
               {hasAlert ? (
@@ -1495,6 +1551,7 @@ function PlannerScreenInner() {
           fonts={fonts}
           t={t}
           reducedMotion={reducedMotion}
+          batterySaver={batterySaverMode}
         />
       )}
 
@@ -1749,6 +1806,48 @@ function PlannerScreenInner() {
             <Text style={{ fontSize: 11, fontWeight: '600', color: '#007AFF', marginTop: 4 }}>
               {t('Accessible routes only', 'Trajets accessibles uniquement')}
             </Text>
+          )}
+          {/* Walk preferences */}
+          {travelMode === 'transit' && (
+            <View style={{ gap: 6, marginTop: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="walk-outline" size={14} color={colours.muted} />
+                <Text style={{ fontSize: 11, color: colours.muted, fontWeight: '600' }}>{t('Max walk', 'Marche max')}</Text>
+                {([500, 1000, 2000] as const).map(dist => {
+                  const active = walkPreference === dist;
+                  const label = dist < 1000 ? `${dist}m` : `${dist / 1000}km`;
+                  return (
+                    <TouchableOpacity
+                      key={dist}
+                      onPress={() => { setWalkPreference(dist); AsyncStorage.setItem(SK_WALK_PREFERENCE, String(dist)).catch(() => {}); }}
+                      style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: active ? colours.accent : colours.border, backgroundColor: active ? colours.accent + '15' : colours.surface }}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: active ? colours.accent : colours.muted }}>{label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="speedometer-outline" size={14} color={colours.muted} />
+                <Text style={{ fontSize: 11, color: colours.muted, fontWeight: '600' }}>{t('Pace', 'Rythme')}</Text>
+                {([
+                  { key: 'slow' as const, label_en: 'Slow', label_fr: 'Lent' },
+                  { key: 'normal' as const, label_en: 'Normal', label_fr: 'Normal' },
+                  { key: 'fast' as const, label_en: 'Fast', label_fr: 'Rapide' },
+                ]).map(p => {
+                  const active = walkPace === p.key;
+                  return (
+                    <TouchableOpacity
+                      key={p.key}
+                      onPress={() => { setWalkPace(p.key); AsyncStorage.setItem(SK_WALK_PACE, p.key).catch(() => {}); }}
+                      style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: active ? colours.accent : colours.border, backgroundColor: active ? colours.accent + '15' : colours.surface }}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: active ? colours.accent : colours.muted }}>{t(p.label_en, p.label_fr)}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
           )}
         </View>
 
