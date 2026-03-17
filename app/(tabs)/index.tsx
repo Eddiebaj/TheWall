@@ -654,12 +654,12 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
         </View>
         <View style={{ flexDirection: 'row', gap: 2 }}>
           {onMoveLeft && (
-            <Pressable onPress={onMoveLeft} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colours.border + '80', alignItems: 'center', justifyContent: 'center' }}>
+            <Pressable onPress={() => { Haptics?.impactAsync?.(Haptics.ImpactFeedbackStyle.Light); onMoveLeft?.(); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colours.border + '80', alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="chevron-back" size={12} color={colours.muted} />
             </Pressable>
           )}
           {onMoveRight && (
-            <Pressable onPress={onMoveRight} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colours.border + '80', alignItems: 'center', justifyContent: 'center' }}>
+            <Pressable onPress={() => { Haptics?.impactAsync?.(Haptics.ImpactFeedbackStyle.Light); onMoveRight?.(); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colours.border + '80', alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="chevron-forward" size={12} color={colours.muted} />
             </Pressable>
           )}
@@ -1373,6 +1373,8 @@ function LiveScreenInner() {
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [alertsModalVisible, setAlertsModalVisible] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const mainScrollRef = useRef<ScrollView>(null);
   const [sectionOrder, setSectionOrder] = useState<string[]>(DEFAULT_SECTION_ORDER);
   const [quickActionIds, setQuickActionIds] = useState<string[]>(DEFAULT_QUICK_ACTION_IDS);
   const [ottawaLifeIds, setOttawaLifeIds] = useState<string[]>(DEFAULT_OTTAWA_LIFE_IDS);
@@ -1399,6 +1401,24 @@ function LiveScreenInner() {
   // Commute insights
   const [commuteInsight, setCommuteInsight] = useState<{ fromLabel: string; toLabel: string; avgDuration: number; count: number; affectedAlert?: string } | null>(null);
   const [weatherBannerDismissed, setWeatherBannerDismissed] = useState(false);
+  const [tonightDismissed, setTonightDismissed] = useState(false);
+  const [showUndoToast, setShowUndoToast] = useState(false);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleTonightDismiss = useCallback(() => {
+    setTonightDismissed(true);
+    setShowUndoToast(true);
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    undoTimerRef.current = setTimeout(() => {
+      setShowUndoToast(false);
+      AsyncStorage.setItem(SK_TONIGHT_DISMISSED, String(Date.now()));
+    }, 5000);
+  }, []);
+  const undoTonightDismiss = useCallback(() => {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    undoTimerRef.current = null;
+    setTonightDismissed(false);
+    setShowUndoToast(false);
+  }, []);
   // Events modal (Ticketmaster + Eventbrite)
   const [eventsModal, setEventsModal] = useState(false);
   const [eventsSource, setEventsSource] = useState<'ticketmaster' | 'eventbrite'>('ticketmaster');
@@ -4256,7 +4276,7 @@ function LiveScreenInner() {
             <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Saved Places', 'Lieux sauvegardés')}</Text>
             <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Long press to remove', 'Appui long pour retirer')}</Text>
           </View>
-          <FlatList horizontal data={savedPlaces} keyExtractor={p => p.id} showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 20, paddingRight: 20, gap: 10, paddingBottom: 4 }} style={{ marginBottom: 20 }} snapToInterval={170} decelerationRate="fast" renderItem={({ item: place }) => (<SavedPlaceCard place={place} colours={colours} fonts={fonts} language={language} t={t} onPress={() => Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(`${place.name} ${place.vicinity}`)}`)} onLongPress={() => Alert.alert(t('Remove?', 'Retirer?'), place.name, [{ text: t('Cancel', 'Annuler'), style: 'cancel' }, { text: t('Remove', 'Retirer'), style: 'destructive', onPress: () => removeSavedPlace(place.id) }])} cardShadow={cardShadow} />)} />
+          <FlatList horizontal data={savedPlaces} keyExtractor={p => p.id} showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 20, paddingRight: 32, gap: 10, paddingBottom: 4 }} style={{ marginBottom: 20 }} snapToInterval={170} decelerationRate="fast" renderItem={({ item: place }) => (<SavedPlaceCard place={place} colours={colours} fonts={fonts} language={language} t={t} onPress={() => Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(`${place.name} ${place.vicinity}`)}`)} onLongPress={() => Alert.alert(t('Remove?', 'Retirer?'), place.name, [{ text: t('Cancel', 'Annuler'), style: 'cancel' }, { text: t('Remove', 'Retirer'), style: 'destructive', onPress: () => removeSavedPlace(place.id) }])} cardShadow={cardShadow} />)} />
         </>)}</React.Fragment>
       );
 
@@ -4565,7 +4585,7 @@ function LiveScreenInner() {
             <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>{t('Thanks! Helping Ottawa riders', 'Merci! Vous aidez les usagers')}</Text>
           </View>
         )}
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true} contentContainerStyle={{ paddingBottom: 20 }} onScrollBeginDrag={() => { Keyboard.dismiss(); setSearchResults([]); }}>
+        <ScrollView ref={mainScrollRef} style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true} contentContainerStyle={{ paddingBottom: 20 }} onScrollBeginDrag={() => { Keyboard.dismiss(); setSearchResults([]); }} onScroll={(e) => { setShowScrollTop(e.nativeEvent.contentOffset.y > 600); }} scrollEventThrottle={200}>
           {/* Header */}
           <View style={styles.header}>
             <View>
@@ -4819,18 +4839,29 @@ function LiveScreenInner() {
             </>
           )}
 
-          <TonightCard
-            colours={colours}
-            fonts={fonts}
-            cardShadow={cardShadow}
-            sensGame={sensGame}
-            events={events as any}
-            weather={weather}
-            sportsSchedule={sportsSchedule}
-            onPressSports={() => { setSportsInitialTab('teams'); setSportsModal(true); }}
-            onPressEvents={() => { setEventsSource('ticketmaster'); fetchTicketmasterEvents(); setEventsModal(true); }}
-            onPressDeals={() => setSocialModal(true)}
-          />
+          {!tonightDismissed && (
+            <TonightCard
+              colours={colours}
+              fonts={fonts}
+              cardShadow={cardShadow}
+              sensGame={sensGame}
+              events={events as any}
+              weather={weather}
+              sportsSchedule={sportsSchedule}
+              onPressSports={() => { setSportsInitialTab('teams'); setSportsModal(true); }}
+              onPressEvents={() => { setEventsSource('ticketmaster'); fetchTicketmasterEvents(); setEventsModal(true); }}
+              onPressDeals={() => setSocialModal(true)}
+              onDismiss={handleTonightDismiss}
+            />
+          )}
+          {showUndoToast && (
+            <View style={{ marginHorizontal: 20, marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 16, paddingVertical: 10 }}>
+              <Text style={{ fontSize: 13, color: colours.muted }}>{t('Card dismissed', 'Carte masquee')}</Text>
+              <TouchableOpacity onPress={undoTonightDismiss} accessibilityRole="button">
+                <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>{t('Undo', 'Annuler')}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Weather-aware transit banner */}
           {weather && !weatherBannerDismissed && (weather.temp <= -20 || (forecast.length > 0 && forecast.slice(0, 3).some(h => h.precip > 70))) && (
@@ -4889,6 +4920,34 @@ function LiveScreenInner() {
           {sectionOrder.map(renderSection)}
 
         </ScrollView>
+
+        {showScrollTop && (
+          <TouchableOpacity
+            onPress={() => mainScrollRef.current?.scrollTo({ y: 0, animated: true })}
+            style={{
+              position: 'absolute',
+              bottom: Platform.OS === 'ios' ? 100 : 80,
+              right: 20,
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              backgroundColor: colours.surface,
+              borderWidth: 1,
+              borderColor: colours.border,
+              alignItems: 'center',
+              justifyContent: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.15,
+              shadowRadius: 4,
+              elevation: 4,
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={t('Scroll to top', 'Retour en haut')}
+          >
+            <Ionicons name="chevron-up" size={20} color={colours.text} />
+          </TouchableOpacity>
+        )}
 
       </View>
     </KeyboardAvoidingView>

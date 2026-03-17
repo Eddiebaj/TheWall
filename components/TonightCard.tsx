@@ -27,7 +27,18 @@ type Props = {
   onPressSports?: () => void;
   onPressEvents?: () => void;
   onPressDeals?: () => void;
+  onDismiss?: () => void;
 };
+
+function weatherIcon(condition: string): string {
+  const c = condition.toLowerCase();
+  if (c.includes('thunder') || c.includes('storm')) return 'thunderstorm';
+  if (c.includes('rain') || c.includes('drizzle') || c.includes('shower')) return 'rainy';
+  if (c.includes('snow') || c.includes('flurr')) return 'snow';
+  if (c.includes('cloud') || c.includes('overcast')) return 'cloudy';
+  if (c.includes('clear') || c.includes('sunny')) return 'sunny';
+  return 'partly-sunny';
+}
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const toRad = (d: number) => (d * Math.PI) / 180;
@@ -47,7 +58,7 @@ function nearestNeighbourhood(lat: number, lng: number): Neighbourhood {
   return best;
 }
 
-export default function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sportsSchedule, onPressSports, onPressEvents, onPressDeals }: Props) {
+function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sportsSchedule, onPressSports, onPressEvents, onPressDeals, onDismiss }: Props) {
   const { t, language } = useApp();
   const [show, setShow] = useState(false);
   const [summary, setSummary] = useState<TonightSummary | null>(null);
@@ -80,7 +91,11 @@ export default function TonightCard({ colours, fonts, cardShadow, sensGame, even
 
   const dismiss = () => {
     setShow(false);
-    AsyncStorage.setItem(SK_TONIGHT_DISMISSED, String(Date.now()));
+    if (onDismiss) {
+      onDismiss();
+    } else {
+      AsyncStorage.setItem(SK_TONIGHT_DISMISSED, String(Date.now()));
+    }
   };
 
   if (!show || !summary) return null;
@@ -193,7 +208,7 @@ export default function TonightCard({ colours, fonts, cardShadow, sensGame, even
         {summary.weather && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: summary.sports.length > 0 || summary.events.count > 0 || summary.deals.count > 0 ? 8 : 0 }}>
             <View style={{ backgroundColor: '#e8a02018', borderRadius: 8, padding: 6 }}>
-              <Ionicons name="partly-sunny" size={14} color="#e8a020" />
+              <Ionicons name={weatherIcon(summary.weather?.condition || '') as any} size={14} color="#e8a020" />
             </View>
             <Text style={{ fontSize: fonts.sm, color: colours.muted }}>
               {Math.round(summary.weather.temp)}C · {summary.weather.condition}
@@ -204,3 +219,5 @@ export default function TonightCard({ colours, fonts, cardShadow, sensGame, even
     </View>
   );
 }
+
+export default React.memo(TonightCard);

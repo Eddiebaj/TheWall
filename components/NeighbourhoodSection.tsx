@@ -40,7 +40,7 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-export default function NeighbourhoodSection({ colours, fonts, cardShadow, events, dealCount, onPress }: Props) {
+function NeighbourhoodSection({ colours, fonts, cardShadow, events, dealCount, onPress }: Props) {
   const { t, language } = useApp();
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [transitScores, setTransitScores] = useState<Record<string, TransitScore>>({});
@@ -98,7 +98,7 @@ export default function NeighbourhoodSection({ colours, fonts, cardShadow, event
       showsHorizontalScrollIndicator={false}
       scrollEventThrottle={16}
       style={{ flexGrow: 0 }}
-      contentContainerStyle={{ paddingLeft: 20, paddingRight: 20, paddingBottom: 4 }}
+      contentContainerStyle={{ paddingLeft: 20, paddingRight: 32, paddingBottom: 4 }}
     >
       <View style={{ flexDirection: 'row', gap: 12 }}>
         {sorted.map(n => {
@@ -168,3 +168,5 @@ export default function NeighbourhoodSection({ colours, fonts, cardShadow, event
     </ScrollView>
   );
 }
+
+export default React.memo(NeighbourhoodSection);

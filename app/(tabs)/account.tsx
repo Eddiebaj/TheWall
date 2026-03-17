@@ -150,11 +150,13 @@ export default function AccountScreen() {
           if (d.getTime() >= todayStart.getTime()) { tripsToday++; }
         }
         const FARE = 4.10;
+        const DAILY_CAP = 13.50;
+        const MONTHLY_CAP = 139.00;
         setFareStats({
           tripsToday, tripsWeek, tripsMonth,
-          costToday: tripsToday * FARE,
-          costWeek: tripsWeek * FARE,
-          costMonth: tripsMonth * FARE,
+          costToday: Math.min(tripsToday * FARE, DAILY_CAP),
+          costWeek: Math.min(tripsWeek * FARE, 7 * DAILY_CAP),
+          costMonth: Math.min(tripsMonth * FARE, MONTHLY_CAP),
         });
       } catch {}
     });
@@ -555,7 +557,7 @@ export default function AccountScreen() {
               </View>
 
               <Text style={{ fontSize: fonts.xs, color: colours.muted, fontStyle: 'italic' }}>
-                {t('Based on $4.10/trip', 'Bas\u00E9 sur 4,10 $/trajet')}
+                {t('Based on $4.10/tap with daily ($13.50) and monthly ($139) caps', 'Bas\u00E9 sur 4,10 $/tap avec plafonds quotidien (13,50 $) et mensuel (139 $)')}
               </Text>
             </View>
           </Card>

@@ -26,7 +26,7 @@ type Props = {
   sourceFilter?: string | null;
 };
 
-export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoaded, sortMode = 'latest', sourceFilter }: Props) {
+function NewsSection({ colours, fonts, cardShadow, onArticlesLoaded, sortMode = 'latest', sourceFilter }: Props) {
   const { t, language } = useApp();
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -259,3 +259,5 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
     </View>
   );
 }
+
+export default React.memo(NewsSection);

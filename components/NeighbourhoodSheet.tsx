@@ -60,6 +60,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
   const [dealVenueName, setDealVenueName] = useState('');
   const [dealDescription, setDealDescription] = useState('');
   const [dealSubmitting, setDealSubmitting] = useState(false);
+  const [dealError, setDealError] = useState('');
   const [dealSubmitted, setDealSubmitted] = useState(false);
   const [communityDeals, setCommunityDeals] = useState<{ id: string; venue_name: string; deal_description: string; created_at: string }[]>([]);
   const [dealVotes, setDealVotes] = useState<Record<string, { up: number; down: number }>>({});
@@ -161,6 +162,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
   const submitDeal = async () => {
     if (!n || !dealVenueName.trim() || !dealDescription.trim()) return;
     setDealSubmitting(true);
+    setDealError('');
     try {
       await supabase.from('community_deals').insert({
         neighbourhood_id: n.id,
@@ -171,7 +173,10 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
       setDealSubmitted(true);
       setDealVenueName('');
       setDealDescription('');
-    } catch (e) { if (__DEV__) console.warn('submit deal failed:', e); }
+    } catch (e) {
+      if (__DEV__) console.warn('submit deal failed:', e);
+      setDealError(t('Could not submit deal. Check your connection.', 'Impossible de soumettre. Verifiez votre connexion.'));
+    }
     setDealSubmitting(false);
   };
 
@@ -361,6 +366,9 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
                     onChangeText={setDealDescription}
                     multiline
                   />
+                  {dealError !== '' && (
+                    <Text style={{ fontSize: 12, color: '#ff3b30', fontWeight: '600', marginBottom: 8 }}>{dealError}</Text>
+                  )}
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     <TouchableOpacity onPress={() => setShowDealForm(false)} style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
                       <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted }}>{t('Cancel', 'Annuler')}</Text>

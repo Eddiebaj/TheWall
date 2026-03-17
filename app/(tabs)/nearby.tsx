@@ -381,7 +381,7 @@ export default function ExploreScreen() {
               <Text numberOfLines={1} style={{ color: 'white', fontSize: fonts.md, fontWeight: '800', textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 4 }}>
                 {place.name}
               </Text>
-              <Text numberOfLines={1} style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11, marginTop: 1, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3 }}>
+              <Text numberOfLines={1} style={{ color: 'rgba(255,255,255,0.8)', fontSize: fonts.sm, marginTop: 1, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3 }}>
                 {place.vicinity}
               </Text>
             </View>
@@ -436,7 +436,7 @@ export default function ExploreScreen() {
               }}>
                 <Ionicons name="bus" size={10} color={colours.accent} />
               </View>
-              <Text style={{ fontSize: 11, color: colours.muted, flex: 1 }} numberOfLines={1}>
+              <Text style={{ fontSize: fonts.sm, color: colours.muted, flex: 1 }} numberOfLines={1}>
                 {transit.stopName}
               </Text>
               <Text style={{ fontSize: 10, color: colours.muted }}>
@@ -447,7 +447,7 @@ export default function ExploreScreen() {
               <View style={{ backgroundColor: colours.accent + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, minWidth: 24, alignItems: 'center' }}>
                 <Text style={{ fontSize: 10, fontWeight: '800', color: colours.accent }}>{transit.routeId}</Text>
               </View>
-              <Text style={{ fontSize: 11, fontWeight: '800', color: transit.minsAway <= 2 ? '#cc3b2a' : colours.accent }}>
+              <Text style={{ fontSize: fonts.sm, fontWeight: '800', color: transit.minsAway <= 2 ? '#cc3b2a' : colours.accent }}>
                 {transit.minsAway === 0 ? t('Now', 'Maint.') : `${transit.minsAway}m`}
               </Text>
             </View>
@@ -563,7 +563,7 @@ export default function ExploreScreen() {
               onPress={() => { setSelectedCategory(cat); setSearchQuery(''); }}
             >
               <Ionicons name={cat.icon as any} size={12} color={selectedCategory.id === cat.id ? cat.color : colours.muted} />
-              <Text style={{ fontSize: 11, fontWeight: '600', color: selectedCategory.id === cat.id ? cat.color : colours.muted }}>
+              <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: selectedCategory.id === cat.id ? cat.color : colours.muted }}>
                 {catLabel(cat)}
               </Text>
             </TouchableOpacity>
@@ -586,7 +586,7 @@ export default function ExploreScreen() {
               onPress={() => setSortBy(opt.id)}
             >
               <Ionicons name={opt.icon as any} size={11} color={sortBy === opt.id ? colours.accent : colours.muted} />
-              <Text style={{ fontSize: 11, fontWeight: '600', color: sortBy === opt.id ? colours.accent : colours.muted }}>
+              <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: sortBy === opt.id ? colours.accent : colours.muted }}>
                 {language === 'fr' ? opt.label_fr : opt.label_en}
               </Text>
             </TouchableOpacity>
@@ -611,7 +611,7 @@ export default function ExploreScreen() {
                 onPress={() => setMaxDistance(opt.value)}
               >
                 {opt.value === 0 && <Ionicons name="globe-outline" size={11} color={isActive ? colours.accentAlt : colours.muted} />}
-                <Text style={{ fontSize: 11, fontWeight: '600', color: isActive ? colours.accentAlt : colours.muted }}>
+                <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: isActive ? colours.accentAlt : colours.muted }}>
                   {language === 'fr' ? opt.label_fr : opt.label}
                 </Text>
               </TouchableOpacity>

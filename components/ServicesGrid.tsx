@@ -61,7 +61,7 @@ type ServicesGridProps = {
   cardShadow: any;
 };
 
-export default function ServicesGrid({ colours, fonts, t, language, activeTab, onTabChange, onTileTap, cardShadow }: ServicesGridProps) {
+function ServicesGrid({ colours, fonts, t, language, activeTab, onTabChange, onTileTap, cardShadow }: ServicesGridProps) {
   const currentTab = SERVICES_TABS.find(t => t.id === activeTab) || SERVICES_TABS[0];
   return (
     <View>
@@ -86,3 +86,5 @@ export default function ServicesGrid({ colours, fonts, t, language, activeTab, o
     </View>
   );
 }
+
+export default React.memo(ServicesGrid);

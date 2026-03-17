@@ -909,21 +909,20 @@ function PlannerScreenInner() {
           { type: 'park', category: 'Parks', icon: 'leaf-outline' },
           { type: 'transit_station', category: 'Transit', icon: 'train-outline' },
         ];
-        const placeResults: { name: string; category: string; icon: string; time: number }[] = [];
-        for (const cat of PLACE_CATEGORIES) {
+        const placePromises = PLACE_CATEGORIES.map(async (cat) => {
           try {
             const pResp = await fetchWithTimeout(`${PLACES_URL}?action=nearby&lat=${lat}&lng=${lng}&radius=2000&type=${cat.type}`);
-            if (!pResp.ok) continue;
+            if (!pResp.ok) return [];
             const pData = await pResp.json();
-            const places = (pData.results || []).slice(0, 4);
-            for (const p of places) {
+            return (pData.results || []).slice(0, 4).map((p: any) => {
               const dKm = haversineKm(lat, lng, p.lat || p.geometry?.location?.lat || 0, p.lng || p.geometry?.location?.lng || 0);
               const walkMin = Math.round((dKm / 1.4) * 60 / 60); // ~1.4 m/s walk speed
-              placeResults.push({ name: p.name, category: cat.category, icon: cat.icon, time: Math.max(walkMin, 1) });
-            }
-          } catch {}
-        }
-        setIsoPlaces(placeResults);
+              return { name: p.name, category: cat.category, icon: cat.icon, time: Math.max(walkMin, 1) };
+            });
+          } catch { return []; }
+        });
+        const allResults = await Promise.all(placePromises);
+        setIsoPlaces(allResults.flat());
       } catch {}
       setIsoPlacesLoading(false);
     } catch (e) {
@@ -2095,7 +2094,38 @@ function PlannerScreenInner() {
           </View>
         ) : !loading && !searched ? (
           <View style={{ paddingHorizontal: 20 }}>
-            {tripHistory.length === 0 ? (
+            {savedRoutes.length > 0 && (
+              <View style={{ paddingTop: 12, marginBottom: 4 }}>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
+                  {t('Saved Routes', 'Trajets enregistres')}
+                </Text>
+                {savedRoutes.map((route) => (
+                  <TouchableOpacity
+                    key={route.id}
+                    style={[{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderLeftWidth: 3, borderColor: colours.border, borderLeftColor: colours.accent, padding: 12, marginBottom: 8, gap: 10 }, cardShadow]}
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      setFromText(shortenLabel(route.fromLabel));
+                      setFromPlace({ placeId: 'saved', label: route.fromLabel, lat: route.fromLat, lng: route.fromLng });
+                      setToText(shortenLabel(route.toLabel));
+                      setToPlace({ placeId: 'saved', label: route.toLabel, lat: route.toLat, lng: route.toLng });
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${route.fromLabel} to ${route.toLabel}`}
+                  >
+                    <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="bookmark" size={18} color={colours.accent} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }} numberOfLines={1}>
+                        {shortenLabel(route.fromLabel)} → {shortenLabel(route.toLabel)}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            {tripHistory.length === 0 && savedRoutes.length === 0 ? (
               <View style={{ alignItems: 'center', paddingVertical: 40 }}>
                 <View style={{ width: 64, height: 64, borderRadius: 16, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
                   <Ionicons name="navigate" size={28} color={colours.accent} />
@@ -2105,8 +2135,8 @@ function PlannerScreenInner() {
                   {t('Real OC Transpo routing with transfers,\nwalk times, and live schedules.', 'Itineraires OC Transpo reels avec correspondances,\ntemps de marche et horaires en direct.')}
                 </Text>
               </View>
-            ) : (
-              <View style={{ paddingTop: 12 }}>
+            ) : tripHistory.length > 0 ? (
+              <View style={{ paddingTop: savedRoutes.length > 0 ? 0 : 12 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                     {t('Recent Trips', 'Trajets recents')}
@@ -2136,8 +2166,8 @@ function PlannerScreenInner() {
                       accessibilityRole="button"
                       accessibilityLabel={`${trip.fromLabel} to ${trip.toLabel}`}
                     >
-                      <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
-                        <Ionicons name="time-outline" size={18} color={colours.accent} />
+                      <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colours.muted + '15', alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="time-outline" size={18} color={colours.muted} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }} numberOfLines={1}>
@@ -2164,7 +2194,7 @@ function PlannerScreenInner() {
                   );
                 })}
               </View>
-            )}
+            ) : null}
           </View>
         ) : loading ? (
           <View style={{ paddingHorizontal: 20 }}>

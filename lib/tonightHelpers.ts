@@ -38,7 +38,7 @@ export type TonightSummary = {
   sports: SportEntry[];
   events: { count: number; highlights: string[] };
   deals: { count: number; highlights: string[] };
-  weather: { temp: number; condition: string } | null;
+  weather: { temp: number; condition: string; icon?: string } | null;
   nearVenueBars: { name: string; deal: string; venueName: string }[];
 };
 
