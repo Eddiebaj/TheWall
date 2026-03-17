@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import {
-    Alert, Linking, Modal, ScrollView,
+    Alert, Linking, Modal, Platform, ScrollView,
     StatusBar, Switch, Text,
     TouchableOpacity, View
 } from 'react-native';
@@ -300,16 +300,8 @@ export default function AccountScreen() {
       <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
 
-        {/* Header */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 60, paddingBottom: 20 }}>
-          <View>
-            <Text style={{ fontSize: fonts.xxl, fontWeight: '800', color: colours.text, letterSpacing: -1 }}>
-              Route<Text style={{ color: colours.accent }}>O</Text>
-            </Text>
-            <Text style={{ fontSize: fonts.sm, color: colours.muted, letterSpacing: 2, marginTop: -2 }}>
-              {t('ACCOUNT & SETTINGS', 'COMPTE & PARAMÈTRES')}
-            </Text>
-          </View>
+        {/* Top spacer + night badge */}
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 12 }}>
           {isNight && (
             <View style={{ backgroundColor: colours.accentAlt + '22', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: colours.accentAlt + '60' }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -770,6 +762,9 @@ export default function AccountScreen() {
                         <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{fav.name}</Text>
                         <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Stop', 'Arrêt')} #{fav.id}</Text>
                       </View>
+                      <TouchableOpacity onPress={() => { const next = savedFavs.filter((f: any) => f.id !== fav.id); setSavedFavs(next); AsyncStorage.setItem(SK_FAVS, JSON.stringify(next)); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.border, alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="close" size={14} color={colours.muted} />
+                      </TouchableOpacity>
                     </View>
                   ))}
                 </View>
@@ -788,6 +783,9 @@ export default function AccountScreen() {
                         <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }} numberOfLines={1}>{place.name}</Text>
                         {place.vicinity && <Text style={{ fontSize: fonts.sm, color: colours.muted }} numberOfLines={1}>{place.vicinity}</Text>}
                       </View>
+                      <TouchableOpacity onPress={() => { const next = savedPlaces.filter((p: any) => p.id !== place.id); setSavedPlaces(next); AsyncStorage.setItem(SK_SAVED_PLACES, JSON.stringify(next)); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.border, alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="close" size={14} color={colours.muted} />
+                      </TouchableOpacity>
                     </View>
                   ))}
                 </View>
@@ -808,6 +806,9 @@ export default function AccountScreen() {
                         </Text>
                         <Text style={{ fontSize: fonts.sm, color: colours.muted, textTransform: 'capitalize' }}>{item.type.replace(/_/g, ' ')}</Text>
                       </View>
+                      <TouchableOpacity onPress={() => { const next = savedBoard.filter((_: any, i: number) => i !== idx); setSavedBoard(next); AsyncStorage.setItem(SK_SAVED_BOARD, JSON.stringify(next)); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.border, alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="close" size={14} color={colours.muted} />
+                      </TouchableOpacity>
                     </View>
                   ))}
                 </View>

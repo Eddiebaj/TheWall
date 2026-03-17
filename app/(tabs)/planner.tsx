@@ -1391,15 +1391,7 @@ function PlannerScreenInner() {
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colours.bg }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       {renderExpandedItinerary()}
 
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* Header */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 }}>
-          <Text style={{ fontSize: 26, fontWeight: '900', color: colours.text, letterSpacing: -0.5 }}>
-            {t('Trip', 'Planificateur')} <Text style={{ color: colours.accent }}>{t('Planner', 'de trajet')}</Text>
-          </Text>
-          <Text style={{ fontSize: 13, color: colours.muted, marginTop: 2 }}>{t('OC Transpo · Real transit routing', 'OC Transpo · Itineraires en temps reel')}</Text>
-        </View>
-
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 40 }}>
         {/* Input card */}
         <View style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 18, borderWidth: 1, borderColor: colours.border, padding: 4, marginBottom: 12 }, cardShadow]}>
           {/* From */}

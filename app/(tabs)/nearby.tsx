@@ -3,7 +3,7 @@ import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, ImageBackground, Linking,
+  ActivityIndicator, ImageBackground, Linking, Platform,
   ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -529,26 +529,8 @@ export default function ExploreScreen() {
     <View style={{ flex: 1, backgroundColor: colours.bg }}>
       <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
 
-      {/* Header */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 60, paddingBottom: 10 }}>
-        <View>
-          <Text style={{ fontSize: fonts.xxl, fontWeight: '800', color: colours.text, letterSpacing: -1 }}>
-            Route<Text style={{ color: colours.accent }}>O</Text>
-          </Text>
-          <Text style={{ fontSize: fonts.sm, color: colours.muted, letterSpacing: 2, marginTop: -2 }}>
-            {t('EXPLORE NEARBY', 'EXPLORER À PROXIMITÉ')}
-          </Text>
-        </View>
-        {location && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.accent + '18', borderWidth: 1, borderColor: colours.accent + '40', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 }}>
-            <Ionicons name="location" size={13} color={colours.accent} />
-            <Text style={{ color: colours.accent, fontSize: fonts.sm, fontWeight: '700' }}>{t('Located', 'Localisé')}</Text>
-          </View>
-        )}
-      </View>
-
       {/* Search bar */}
-      <View style={{ paddingHorizontal: 20, marginBottom: 8 }}>
+      <View style={{ paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 60 : 40, marginBottom: 8 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 10, height: 38 }}>
           <Ionicons name="search" size={15} color={colours.muted} style={{ marginRight: 7 }} />
           <TextInput

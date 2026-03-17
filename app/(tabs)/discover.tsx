@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import React, { useEffect, useState } from 'react';
 import {
-  ImageBackground, Linking, RefreshControl, ScrollView, StatusBar,
+  ImageBackground, Linking, Platform, RefreshControl, ScrollView, StatusBar,
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
@@ -173,18 +173,8 @@ export default function DiscoverScreen() {
     <View style={{ flex: 1, backgroundColor: colours.bg }}>
       <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
 
-      {/* Header */}
-      <View style={{ paddingHorizontal: 20, paddingTop: 60, paddingBottom: 8 }}>
-        <Text style={{ fontSize: fonts.xxl, fontWeight: '800', color: colours.text, letterSpacing: -1 }}>
-          Route<Text style={{ color: colours.accent }}>O</Text>
-        </Text>
-        <Text style={{ fontSize: fonts.sm, color: colours.muted, letterSpacing: 2, marginTop: -2 }}>
-          {t('DISCOVER', 'DECOUVRIR')}
-        </Text>
-      </View>
-
       {/* Tab toggle */}
-      <View style={{ flexDirection: 'row', marginHorizontal: 20, marginBottom: 10, borderRadius: 12, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
+      <View style={{ flexDirection: 'row', marginHorizontal: 20, marginTop: Platform.OS === 'ios' ? 60 : 40, marginBottom: 10, borderRadius: 12, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
         {(['feed', 'neighbourhoods'] as const).map(tab => {
           const active = activeSection === tab;
           return (

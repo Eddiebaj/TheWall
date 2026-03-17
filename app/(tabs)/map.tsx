@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Animated, AppState, Keyboard, Linking,
+  ActivityIndicator, Animated, AppState, Keyboard, Linking, Platform,
   ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
 let RNMaps: typeof import('react-native-maps') | null = null;
@@ -920,34 +920,13 @@ export default function MapScreen() {
       {/* Header */}
       <View style={{
         position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
-        paddingTop: 60, paddingHorizontal: 20, paddingBottom: 12,
+        paddingTop: Platform.OS === 'ios' ? 54 : 36, paddingHorizontal: 20, paddingBottom: 8,
         backgroundColor: isLight ? 'rgba(240,244,248,0.92)' : 'rgba(15,20,30,0.92)',
       }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <View>
-            <Text style={{ fontSize: fonts.xxl, fontWeight: '800', color: colours.text, letterSpacing: -1 }}>
-              Route<Text style={{ color: colours.accent }}>O</Text>
-            </Text>
-            <Text style={{ fontSize: fonts.sm, color: colours.muted, letterSpacing: 2, marginTop: -2 }}>
-              {t('LIVE MAP', 'CARTE EN DIRECT')}
-            </Text>
-          </View>
-          <View style={{ alignItems: 'flex-end', gap: 4 }}>
-            {busLoading ? <ActivityIndicator color={colours.accent} size="small" /> : (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colours.accent + '18', borderWidth: 1, borderColor: colours.accent + '40', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 }}>
-                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: zoomTooFar ? colours.muted : colours.accent }} />
-                <Text style={{ color: zoomTooFar ? colours.muted : colours.accent, fontSize: fonts.sm, fontWeight: '700' }}>
-                  {zoomTooFar ? t('Zoom in for buses', 'Zoomez pour les bus') : `${visibleBuses.length} ${t('buses nearby', 'bus proches')}`}
-                </Text>
-              </View>
-            )}
-            {lastUpdated ? <Text style={{ fontSize: 10, color: colours.muted }}>{t('Updated', 'Mis à jour')} {lastUpdated}</Text> : null}
-          </View>
-        </View>
-
-        {/* Search bar */}
-        <View style={{ marginTop: 10, zIndex: 10 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 10, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 10, height: 36 }}>
+        {/* Search bar + bus count */}
+        <View style={{ zIndex: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 10, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 10, height: 36 }}>
             <Ionicons name="search-outline" size={16} color={colours.muted} />
             <TextInput
               style={{ flex: 1, marginLeft: 8, fontSize: 13, color: colours.text, padding: 0 }}
@@ -972,7 +951,17 @@ export default function MapScreen() {
                 <Ionicons name="close-circle" size={18} color={colours.muted} />
               </TouchableOpacity>
             )}
+            </View>
+            {busLoading ? <ActivityIndicator color={colours.accent} size="small" /> : (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.accent + '18', borderWidth: 1, borderColor: colours.accent + '40', paddingHorizontal: 8, paddingVertical: 6, borderRadius: 18 }}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: zoomTooFar ? colours.muted : colours.accent }} />
+                <Text style={{ color: zoomTooFar ? colours.muted : colours.accent, fontSize: 10, fontWeight: '700' }}>
+                  {zoomTooFar ? t('Zoom in', 'Zoomer') : `${visibleBuses.length}`}
+                </Text>
+              </View>
+            )}
           </View>
+          {lastUpdated ? <Text style={{ fontSize: 9, color: colours.muted, textAlign: 'right', marginTop: 3 }}>{t('Updated', 'Mis à jour')} {lastUpdated}</Text> : null}
           {placeSuggestions.length > 0 && (
             <View style={{ backgroundColor: colours.surface, borderRadius: 10, borderWidth: 1, borderColor: colours.border, marginTop: 4, overflow: 'hidden' }}>
               {placeSuggestions.map((s, i) => (

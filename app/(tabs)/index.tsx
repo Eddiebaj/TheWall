@@ -3969,10 +3969,20 @@ function LiveScreenInner() {
                 <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text }}>{modalTitle}</Text>
                 <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>{modalSub}</Text>
               </View>
-              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                {isStop && (() => {
+                  const sid = (boardExpandItem as any).id;
+                  const sname = (boardExpandItem as any).name;
+                  const saved = !!favs.find(f => f.id === sid);
+                  return (
+                    <TouchableOpacity onPress={() => { saved ? removeFav(sid) : addFav(sid, sname); }} style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: saved ? colours.accent : colours.border, backgroundColor: saved ? colours.accent + '15' : colours.surface, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={saved ? t('Unsave', 'Retirer') : t('Save', 'Sauvegarder')}>
+                      <Ionicons name={saved ? 'bookmark' : 'bookmark-outline'} size={14} color={saved ? colours.accent : colours.muted} />
+                    </TouchableOpacity>
+                  );
+                })()}
                 {isStop && (
-                  <TouchableOpacity onPress={() => fetchArrivals((boardExpandItem as any).id)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}>
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accent }}>Refresh ↺</Text>
+                  <TouchableOpacity onPress={() => fetchArrivals((boardExpandItem as any).id)} style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Refresh', 'Actualiser')}>
+                    <Ionicons name="refresh" size={14} color={colours.accent} />
                   </TouchableOpacity>
                 )}
                 {isGas && (
@@ -3980,8 +3990,8 @@ function LiveScreenInner() {
                     <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accent }}>GasBuddy ↗</Text>
                   </TouchableOpacity>
                 )}
-                <TouchableOpacity style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, alignItems: 'center', justifyContent: 'center' }} onPress={() => setBoardExpandItem(null)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
-                  <Ionicons name="close" size={18} color={colours.text} />
+                <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, alignItems: 'center', justifyContent: 'center' }} onPress={() => setBoardExpandItem(null)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
+                  <Ionicons name="close" size={16} color={colours.text} />
                 </TouchableOpacity>
               </View>
             </View>
