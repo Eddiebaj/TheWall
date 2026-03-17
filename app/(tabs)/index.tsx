@@ -60,7 +60,7 @@ import {
   SK_CAMPUS, SK_NOTIF_SETTINGS,
 } from '../../lib/storageKeys';
 import { CAMPUSES, CampusConfig, getNextDeparture, isLibraryOpen, fmt12h, getDayLabel } from '../../lib/campusData';
-import { ClassSchedule, nextClass, fmt12h as schedFmt12h } from '../../lib/scheduleData';
+import { ClassSchedule, nextClass, nextClassDate, fmt12h as schedFmt12h } from '../../lib/scheduleData';
 import ClassScheduleModal from '../../components/ClassScheduleModal';
 import { HAPPY_HOUR_VENUES } from '../../lib/happyHourData';
 // neighbourhoodData import removed — discover section moved to dedicated tab
@@ -630,16 +630,23 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
                 ) : (
                   <Text style={{ fontSize: 10, color: colours.muted }}>{next.day}</Text>
                 )}
-                {campus && (
-                  <TouchableOpacity
-                    onPress={() => boardRouter.push({ pathname: '/(tabs)/planner', params: { toLabel: campus.name, toLat: String(campus.lat), toLng: String(campus.lng) } } as any)}
-                    style={{ backgroundColor: colours.accent, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}
-                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={{ fontSize: 10, fontWeight: '800', color: 'white' }}>GO</Text>
-                  </TouchableOpacity>
-                )}
+                {campus && (() => {
+                  // Arrive 15min before class starts
+                  const classDate = scheduleData ? nextClassDate(scheduleData) : null;
+                  const arriveAt = classDate ? new Date(classDate.getTime() - 15 * 60000) : null;
+                  const arriveTime = arriveAt ? `${String(arriveAt.getHours()).padStart(2, '0')}:${String(arriveAt.getMinutes()).padStart(2, '0')}` : undefined;
+                  const arriveDate = arriveAt ? `${String(arriveAt.getMonth() + 1).padStart(2, '0')}-${String(arriveAt.getDate()).padStart(2, '0')}-${arriveAt.getFullYear()}` : undefined;
+                  return (
+                    <TouchableOpacity
+                      onPress={() => boardRouter.push({ pathname: '/(tabs)/planner', params: { toLabel: campus.name, toLat: String(campus.lat), toLng: String(campus.lng), ...(arriveTime ? { arriveBy: 'true', time: arriveTime, date: arriveDate } : {}) } } as any)}
+                      style={{ backgroundColor: colours.accent, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={{ fontSize: 10, fontWeight: '800', color: 'white' }}>GO</Text>
+                    </TouchableOpacity>
+                  );
+                })()}
               </View>
             </View>
           </>

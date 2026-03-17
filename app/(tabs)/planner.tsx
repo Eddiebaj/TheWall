@@ -369,6 +369,8 @@ function PlannerScreenInner() {
   const [reminderTime, setReminderTime] = useState<Date>(new Date());
   const [leaveReminders, setLeaveReminders] = useState<{ id: string; destination: string; departAt: number; notifId: string }[]>([]);
 
+  // Override time/arriveBy for schedule GO button (ref avoids stale closure)
+  const timeOverride = useRef<{ time: Date; arriveBy: boolean } | null>(null);
   // Holds Expo notification IDs so we can cancel them on stopTracking
   const transitNotifIds = useRef<string[]>([]);
   const autoCompleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -482,7 +484,7 @@ function PlannerScreenInner() {
   }, []);
 
   // ── Handle deep-link params from home screen ──────────────────
-  // Auto-plan immediately when arriving from a saved route
+  // Auto-plan immediately when arriving from a saved route or schedule GO
   useEffect(() => {
     if (params.toLabel && params.toLat) {
       const to: PlaceResult = {
@@ -491,6 +493,16 @@ function PlannerScreenInner() {
         lat: parseFloat(params.toLat as string),
         lng: parseFloat(params.toLng as string),
       };
+
+      // Handle arriveBy + time params (from class schedule GO button)
+      if (params.time && params.date) {
+        const [month, day, year] = (params.date as string).split('-').map(Number);
+        const [h, m] = (params.time as string).split(':').map(Number);
+        const d = new Date(year, month - 1, day, h, m, 0);
+        timeOverride.current = { time: d, arriveBy: params.arriveBy === 'true' };
+      } else if (params.arriveBy === 'true') {
+        timeOverride.current = { time: new Date(), arriveBy: true };
+      }
 
       if (params.fromLabel && params.fromLat) {
         // Both from + to provided (saved route with known origin) — plan immediately
@@ -503,7 +515,7 @@ function PlannerScreenInner() {
         setFromPlace(from); setFromText(from.label);
         setToPlace(to); setToText(to.label);
         // Auto-trigger plan after state settles
-        setTimeout(() => planWithPlaces(from, to), 100);
+        setTimeout(() => planWithPlaces(from, to), 200);
       } else {
         // No origin — get current location then auto-plan
         setToPlace(to); setToText(to.label);
@@ -520,8 +532,8 @@ function PlannerScreenInner() {
             const label = geo[0] ? [geo[0].name, geo[0].street, geo[0].city].filter(Boolean).join(', ') : 'My Location';
             const from: PlaceResult = { placeId: 'current', label, lat, lng };
             setFromPlace(from); setFromText(label);
-            // Auto-trigger plan
-            setTimeout(() => planWithPlaces(from, to), 100);
+            // Auto-trigger plan — longer delay for arriveBy state to settle
+            setTimeout(() => planWithPlaces(from, to), 200);
           } catch (e) { if (__DEV__) console.warn('get current location failed:', e); }
         })();
       }
@@ -629,13 +641,22 @@ function PlannerScreenInner() {
     if (!resolvedFrom?.lat || !resolvedTo?.lat) return;
     setLoading(true); setError(''); setSearched(true); setItineraries([]);
 
-    const d = departTime;
+    // Use override from schedule GO button if set, then clear it
+    const override = timeOverride.current;
+    const useArriveBy = override ? override.arriveBy : arriveBy;
+    const d = override ? override.time : departTime;
+    if (override) {
+      setDepartTime(d);
+      setArriveBy(useArriveBy);
+      timeOverride.current = null;
+    }
+
     const timeStr = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
     const month = String(d.getMonth() + 1).padStart(2,'0');
     const day = String(d.getDate()).padStart(2,'0');
     const dateStr = `${month}-${day}-${d.getFullYear()}`;
 
-    const url = `${PLAN_URL}?fromLat=${resolvedFrom.lat}&fromLng=${resolvedFrom.lng}&fromLabel=${encodeURIComponent(resolvedFrom.label)}&toLat=${resolvedTo.lat}&toLng=${resolvedTo.lng}&toLabel=${encodeURIComponent(resolvedTo.label)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=${arriveBy}&mode=${travelMode}${accessibleRouting ? '&wheelchair=true' : ''}${travelMode === 'transit' ? `&maxWalk=${walkPreference}&walkSpeed=${walkPace}` : ''}`;
+    const url = `${PLAN_URL}?fromLat=${resolvedFrom.lat}&fromLng=${resolvedFrom.lng}&fromLabel=${encodeURIComponent(resolvedFrom.label)}&toLat=${resolvedTo.lat}&toLng=${resolvedTo.lng}&toLabel=${encodeURIComponent(resolvedTo.label)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=${useArriveBy}&mode=${travelMode}${accessibleRouting ? '&wheelchair=true' : ''}${travelMode === 'transit' ? `&maxWalk=${walkPreference}&walkSpeed=${walkPace}` : ''}`;
 
     try {
       const resp = await fetchWithTimeout(url);

@@ -125,6 +125,33 @@ export function nextClass(schedule: ClassSchedule): { entry: ClassEntry; day: Cl
   return null;
 }
 
+/** Get the actual Date of the next class start (for planner arriveBy) */
+export function nextClassDate(schedule: ClassSchedule): Date | null {
+  const nc = nextClass(schedule);
+  if (!nc) return null;
+  const now = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const startMins = parseTime(nc.entry.startTime);
+  const today = todayClassDay();
+
+  if (nc.day === today && startMins > nowMins) {
+    // Today — same date, just set time
+    const d = new Date(now);
+    d.setHours(Math.floor(startMins / 60), startMins % 60, 0, 0);
+    return d;
+  }
+
+  // Future day — calculate offset
+  const jsToday = now.getDay();
+  const targetJs = nc.day === 'Sun' ? 0 : ALL_DAYS.indexOf(nc.day) + 1;
+  let offset = targetJs - jsToday;
+  if (offset <= 0) offset += 7;
+  const d = new Date(now);
+  d.setDate(d.getDate() + offset);
+  d.setHours(Math.floor(startMins / 60), startMins % 60, 0, 0);
+  return d;
+}
+
 /** Generate a unique ID */
 export function genClassId(): string {
   return `cls_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
