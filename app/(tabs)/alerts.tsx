@@ -140,7 +140,7 @@ function AlertsScreenInner() {
   // ── Station pill component ─────────────────────────────────────
   const StationPill = ({ station, lineColor }: { station: LrtStation; lineColor: string }) => (
     <View style={{
-      paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6,
+      paddingHorizontal: 6, paddingVertical: 4, borderRadius: 4,
       backgroundColor: station.ok ? lineColor + '20' : '#cc3b2a20',
       borderWidth: 1,
       borderColor: station.ok ? lineColor + '40' : '#cc3b2a60',
@@ -271,7 +271,7 @@ function AlertsScreenInner() {
           marginHorizontal: 20, marginBottom: 16,
         }, cardShadow]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-            <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: statusColor + '20', alignItems: 'center', justifyContent: 'center' }}>
+            <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: statusColor + '20', alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name={hasAlerts ? 'warning' : 'checkmark-circle'} size={20} color={statusColor} />
             </View>
             <View>
@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
     padding: 14, borderRadius: 16, borderWidth: 1, gap: 10,
   },
   lrtCommunityBtn: {
-    width: 44, height: 44, borderRadius: 10,
+    width: 44, height: 44, borderRadius: 8,
     borderWidth: 1, alignItems: 'center', justifyContent: 'center',
   },
   lrtSection: {
@@ -460,11 +460,11 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   alertCard: {
-    padding: 14, borderRadius: 14,
+    padding: 14, borderRadius: 12,
     borderWidth: 1, borderLeftWidth: 4, marginBottom: 10,
   },
   catBadge: {
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4,
   },
   routeBadge: {
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,

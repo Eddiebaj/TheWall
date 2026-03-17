@@ -311,7 +311,7 @@ export default function ExploreScreen() {
       <TouchableOpacity
         key={place.id}
         style={{
-          borderRadius: 14,
+          borderRadius: 12,
           marginBottom: 10,
           overflow: 'hidden',
           backgroundColor: colours.surface,
@@ -395,7 +395,7 @@ export default function ExploreScreen() {
         }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <View style={{
-              width: 20, height: 20, borderRadius: 6,
+              width: 20, height: 20, borderRadius: 4,
               backgroundColor: selectedCategory.color + '18',
               alignItems: 'center', justifyContent: 'center',
             }}>
@@ -430,7 +430,7 @@ export default function ExploreScreen() {
           }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
               <View style={{
-                width: 20, height: 20, borderRadius: 6,
+                width: 20, height: 20, borderRadius: 4,
                 backgroundColor: colours.accent + '18',
                 alignItems: 'center', justifyContent: 'center',
               }}>
@@ -493,7 +493,7 @@ export default function ExploreScreen() {
         </Text>
         {maxDistance > 0 && (
           <TouchableOpacity
-            style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}
+            style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}
             onPress={() => setMaxDistance(0)}
           >
             <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Show all distances', 'Afficher toutes les distances')}</Text>
@@ -503,7 +503,7 @@ export default function ExploreScreen() {
           <TouchableOpacity
             accessibilityRole="button"
             accessibilityLabel={t('Retry search', 'Réessayer la recherche')}
-            style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}
+            style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}
             onPress={fetchPlaces}
           >
             <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Retry', 'Réessayer')}</Text>
@@ -556,7 +556,7 @@ export default function ExploreScreen() {
               key={cat.id}
               style={{
                 flexDirection: 'row', alignItems: 'center', gap: 4,
-                borderWidth: 1, borderRadius: 9, paddingHorizontal: 9, height: 28,
+                borderWidth: 1, borderRadius: 8, paddingHorizontal: 9, height: 28,
                 backgroundColor: selectedCategory.id === cat.id ? cat.color + '18' : colours.surface,
                 borderColor: selectedCategory.id === cat.id ? cat.color : colours.border,
               }}
@@ -579,7 +579,7 @@ export default function ExploreScreen() {
               key={opt.id}
               style={{
                 flexDirection: 'row', alignItems: 'center', gap: 4,
-                borderWidth: 1, borderRadius: 9, paddingHorizontal: 9, height: 28,
+                borderWidth: 1, borderRadius: 8, paddingHorizontal: 9, height: 28,
                 backgroundColor: sortBy === opt.id ? colours.accent + '18' : colours.surface,
                 borderColor: sortBy === opt.id ? colours.accent : colours.border,
               }}
@@ -604,7 +604,7 @@ export default function ExploreScreen() {
                 key={opt.value}
                 style={{
                   flexDirection: 'row', alignItems: 'center', gap: 4,
-                  borderWidth: 1, borderRadius: 9, paddingHorizontal: 9, height: 28,
+                  borderWidth: 1, borderRadius: 8, paddingHorizontal: 9, height: 28,
                   backgroundColor: isActive ? colours.accentAlt + '18' : colours.surface,
                   borderColor: isActive ? colours.accentAlt : colours.border,
                 }}

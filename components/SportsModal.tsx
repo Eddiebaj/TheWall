@@ -259,7 +259,7 @@ export default function SportsModal({ visible, onClose, colours, fonts, t, langu
                 {OTTAWA_TEAMS.map(team => {
                   const isSaved = savedTeams.includes(team.name);
                   return (
-                    <View key={team.name} style={{ width: '30%', alignItems: 'center', backgroundColor: colours.bg, borderRadius: 14, borderWidth: 1, borderColor: colours.border, paddingVertical: 14, paddingHorizontal: 4, position: 'relative' }}>
+                    <View key={team.name} style={{ width: '30%', alignItems: 'center', backgroundColor: colours.bg, borderRadius: 12, borderWidth: 1, borderColor: colours.border, paddingVertical: 14, paddingHorizontal: 4, position: 'relative' }}>
                       <Pressable onPress={() => onToggleTeam(team.name)} hitSlop={8} style={{ position: 'absolute', top: 6, right: 6, zIndex: 2 }}>
                         <Ionicons name={isSaved ? 'bookmark' : 'bookmark-outline'} size={16} color={isSaved ? colours.accent : colours.muted} />
                       </Pressable>
@@ -290,7 +290,7 @@ export default function SportsModal({ visible, onClose, colours, fonts, t, langu
                       </Text>
                     </View>
                   ) : withGames.map((s, i) => (
-                    <View key={i} style={{ backgroundColor: colours.bg, borderRadius: 14, borderWidth: 1, borderColor: colours.border, overflow: 'hidden', padding: 14 }}>
+                    <View key={i} style={{ backgroundColor: colours.bg, borderRadius: 12, borderWidth: 1, borderColor: colours.border, overflow: 'hidden', padding: 14 }}>
                       {/* Header: team name + badge */}
                       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -356,7 +356,7 @@ export default function SportsModal({ visible, onClose, colours, fonts, t, langu
                       </Text>
                     </View>
                   ) : withGames.map((s, i) => (
-                    <View key={i} style={{ backgroundColor: colours.bg, borderRadius: 14, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
+                    <View key={i} style={{ backgroundColor: colours.bg, borderRadius: 12, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 6 }}>
                         <Ionicons name="trophy" size={12} color={colours.accent} />
                         <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent, textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.team}</Text>

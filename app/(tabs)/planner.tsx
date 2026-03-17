@@ -365,7 +365,7 @@ function PlannerScreenInner() {
   const itinListYOffset = useRef(0);
 
   const isLight = colours.bg === '#f0f4f8';
-  const cardShadow = isLight ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 } : {};
+  const cardShadow = isLight ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 } : { shadowColor: '#ffffff', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 };
 
 
   // ── Load saved routes + trip history ──────────────────────────
@@ -976,12 +976,12 @@ function PlannerScreenInner() {
       >
         {/* Badge */}
         {isFirst && (
-          <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: colours.accent, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
+          <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: colours.accent, borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3 }}>
             <Text style={{ color: 'white', fontSize: 9, fontWeight: '800' }}>{t('FASTEST', 'PLUS RAPIDE')}</Text>
           </View>
         )}
         {isWalkOnly && (
-          <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: '#34c759' + '20', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#34c759' + '40' }}>
+          <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: '#34c759' + '20', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#34c759' + '40' }}>
             <Text style={{ color: '#34c759', fontSize: 9, fontWeight: '800' }}>{t('FREE', 'GRATUIT')}</Text>
           </View>
         )}
@@ -1331,7 +1331,7 @@ function PlannerScreenInner() {
                 anchor={{ x: 0.5, y: 1 }}
               >
                 <View style={{ alignItems: 'center' }}>
-                  <View style={{ backgroundColor: colours.accent, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 3 }}>
+                  <View style={{ backgroundColor: colours.accent, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 3 }}>
                     <Ionicons name="location" size={14} color="white" />
                   </View>
                   <View style={{ width: 0, height: 0, borderLeftWidth: 4, borderRightWidth: 4, borderTopWidth: 5, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: colours.accent }} />
@@ -1375,11 +1375,11 @@ function PlannerScreenInner() {
                 <View key={i}>
                   <TouchableOpacity
                     onPress={() => setExpandedLeg(isExpanded ? null : i)}
-                    style={{ backgroundColor: isCurrentLeg ? color + '12' : colours.surface, borderRadius: 14, padding: 14, borderWidth: isCurrentLeg ? 1.5 : 1, borderColor: isCurrentLeg ? color : colours.border, borderLeftWidth: 4, borderLeftColor: color }}
+                    style={{ backgroundColor: isCurrentLeg ? color + '12' : colours.surface, borderRadius: 12, padding: 14, borderWidth: isCurrentLeg ? 1.5 : 1, borderColor: isCurrentLeg ? color : colours.border, borderLeftWidth: 4, borderLeftColor: color }}
                     activeOpacity={0.85}
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                      <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: color + '18', alignItems: 'center', justifyContent: 'center' }}>
+                      <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: color + '18', alignItems: 'center', justifyContent: 'center' }}>
                         <Ionicons name={icon as any} size={16} color={color} />
                       </View>
                       <View style={{ flex: 1 }}>
@@ -1463,7 +1463,7 @@ function PlannerScreenInner() {
                 </View>
               );
             })}
-            <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, backgroundColor: colours.accent + '12', borderRadius: 14, borderWidth: 1, borderColor: colours.accent + '30' }}>
+            <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, backgroundColor: colours.accent + '12', borderRadius: 12, borderWidth: 1, borderColor: colours.accent + '30' }}>
               <Ionicons name="location" size={18} color={colours.accent} />
               <View>
                 <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>{t('Arrive', 'Arrivee')} {fmtTime(expandedItinerary.endTime)}</Text>
@@ -1509,7 +1509,7 @@ function PlannerScreenInner() {
         }
       >
         {/* Input card */}
-        <View style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 18, borderWidth: 1, borderColor: colours.border, padding: 8, marginBottom: 12 }, cardShadow]}>
+        <View style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 16, borderWidth: 1, borderColor: colours.border, padding: 8, marginBottom: 12 }, cardShadow]}>
           {/* From */}
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 4, gap: 10 }}>
             <View style={{ width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: colours.accent, backgroundColor: colours.bg }} />
@@ -1631,12 +1631,12 @@ function PlannerScreenInner() {
 
         {/* Autocomplete results — only show for the active field */}
         {autoLoading && fromResults.length === 0 && activeInput === 'from' && (
-          <View style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }, cardShadow]}>
+          <View style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }, cardShadow]}>
             <ActivityIndicator size="small" color={colours.accent} style={{ padding: 12 }} />
           </View>
         )}
         {fromResults.length > 0 && activeInput === 'from' && (
-          <View style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }, cardShadow]}>
+          <View style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }, cardShadow]}>
             {fromResults.map((r, i) => (
               <TouchableOpacity
                 key={r.placeId}
@@ -1654,12 +1654,12 @@ function PlannerScreenInner() {
           </View>
         )}
         {autoLoading && toResults.length === 0 && activeInput === 'to' && (
-          <View style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }, cardShadow]}>
+          <View style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }, cardShadow]}>
             <ActivityIndicator size="small" color={colours.accent} style={{ padding: 12 }} />
           </View>
         )}
         {toResults.length > 0 && activeInput === 'to' && (
-          <View style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }, cardShadow]}>
+          <View style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }, cardShadow]}>
             {toResults.map((r, i) => (
               <TouchableOpacity
                 key={r.placeId}
@@ -1681,7 +1681,7 @@ function PlannerScreenInner() {
           const results = waypointResults[idx] || [];
           if (results.length === 0 || activeInput !== `waypoint_${idx}`) return null;
           return (
-            <View key={`wpr_${idx}`} style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }, cardShadow]}>
+            <View key={`wpr_${idx}`} style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }, cardShadow]}>
               {results.map((r, i) => (
                 <TouchableOpacity
                   key={r.placeId}
@@ -1773,7 +1773,7 @@ function PlannerScreenInner() {
         {/* Time & Date picker */}
         {showTimePicker && (
           <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
-            <View style={[{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, padding: 12 }, cardShadow]}>
+            <View style={[{ backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, padding: 12 }, cardShadow]}>
               {/* Now button */}
               <TouchableOpacity
                 onPress={() => { const now = new Date(); setDepartTime(now); savePlannerPrefs(now, arriveBy); setShowTimePicker(false); }}
@@ -1846,7 +1846,7 @@ function PlannerScreenInner() {
         <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
           <TouchableOpacity
             onPress={plan}
-            style={{ paddingVertical: 14, borderRadius: 14, backgroundColor: colours.accent, alignItems: 'center', justifyContent: 'center' }}
+            style={{ paddingVertical: 14, borderRadius: 12, backgroundColor: colours.accent, alignItems: 'center', justifyContent: 'center' }}
             activeOpacity={0.85}
             accessibilityRole="button"
             accessibilityLabel={t('Plan Trip', 'Planifier le trajet')}
@@ -1864,7 +1864,7 @@ function PlannerScreenInner() {
             <TouchableOpacity
               onPress={fetchIsochrone}
               disabled={isoLoading}
-              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '12' }}
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '12' }}
               activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel={t('What can I reach in 20 minutes', 'Que puis-je atteindre en 20 minutes')}
@@ -1902,7 +1902,7 @@ function PlannerScreenInner() {
                         {stop.routes.length > 0 && (
                           <View style={{ flexDirection: 'row', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
                             {stop.routes.map(r => (
-                              <View key={r} style={{ backgroundColor: colours.accent + '18', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                              <View key={r} style={{ backgroundColor: colours.accent + '18', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
                                 <Text style={{ fontSize: 10, fontWeight: '800', color: colours.accent }}>{r}</Text>
                               </View>
                             ))}
@@ -1918,7 +1918,7 @@ function PlannerScreenInner() {
               {/* Nearby places within isochrone */}
               {isoPlaces.length > 0 && (
                 <View style={{ marginTop: 12 }}>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
                     {t('Nearby places', 'Lieux a proximite')}
                   </Text>
                   {(['Food', 'Parks', 'Transit'] as const).map(cat => {
@@ -1932,7 +1932,7 @@ function PlannerScreenInner() {
                         </View>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
                           {items.map((place, pi) => (
-                            <View key={pi} style={{ backgroundColor: colours.surface, borderRadius: 10, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 10, paddingVertical: 8, minWidth: 120 }}>
+                            <View key={pi} style={{ backgroundColor: colours.surface, borderRadius: 8, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 10, paddingVertical: 8, minWidth: 120 }}>
                               <Text style={{ fontSize: 12, fontWeight: '700', color: colours.text }} numberOfLines={1}>{place.name}</Text>
                               <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }}>~{place.time} min</Text>
                             </View>
@@ -1973,7 +1973,7 @@ function PlannerScreenInner() {
         ) : !loading && itineraries.length > 0 ? (
           <View style={{ paddingHorizontal: 20 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                 {itineraries.length} {t(itineraries.length !== 1 ? 'routes found' : 'route found', itineraries.length !== 1 ? 'trajets trouves' : 'trajet trouve')}
               </Text>
               <TouchableOpacity
@@ -2102,7 +2102,7 @@ function PlannerScreenInner() {
             ) : (
               <View style={{ paddingTop: 12 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                     {t('Recent Trips', 'Trajets recents')}
                   </Text>
                   {tripHistory.length > 3 && (
@@ -2119,7 +2119,7 @@ function PlannerScreenInner() {
                   return (
                     <TouchableOpacity
                       key={trip.id}
-                      style={[{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, padding: 12, marginBottom: 8, gap: 10 }, cardShadow]}
+                      style={[{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, padding: 12, marginBottom: 8, gap: 10 }, cardShadow]}
                       activeOpacity={0.8}
                       onPress={() => {
                         setFromText(shortenLabel(trip.fromLabel));
@@ -2164,7 +2164,7 @@ function PlannerScreenInner() {
           <View style={{ paddingHorizontal: 20 }}>
             {[0, 1, 2].map(i => (
               <View key={i} style={[{ backgroundColor: colours.surface, borderRadius: 16, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: colours.border, opacity: 1 - i * 0.25 }, cardShadow]}>
-                <View style={{ width: 80 + i * 20, height: 22, backgroundColor: colours.border, borderRadius: 6, marginBottom: 10 }} />
+                <View style={{ width: 80 + i * 20, height: 22, backgroundColor: colours.border, borderRadius: 4, marginBottom: 10 }} />
                 <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
                   {[0,1,2].map(j => <View key={j} style={{ width: 40, height: 20, backgroundColor: colours.border, borderRadius: 8 }} />)}
                 </View>
@@ -2256,7 +2256,7 @@ function PlannerScreenInner() {
                       Alert.alert(t('Error', 'Erreur'), t('Could not set reminder.', 'Impossible de definir le rappel.'));
                     }
                   }}
-                  style={{ backgroundColor: colours.accent, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginBottom: 10 }}
+                  style={{ backgroundColor: colours.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 10 }}
                   accessibilityRole="button"
                 >
                   <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>
@@ -2266,7 +2266,7 @@ function PlannerScreenInner() {
 
                 <TouchableOpacity
                   onPress={() => setReminderModal(null)}
-                  style={{ borderRadius: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: colours.border }}
+                  style={{ borderRadius: 12, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: colours.border }}
                   accessibilityRole="button"
                 >
                   <Text style={{ color: colours.muted, fontSize: 15, fontWeight: '600' }}>

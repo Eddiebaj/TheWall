@@ -176,7 +176,7 @@ export default function TonightCard({ colours, fonts, cardShadow, sensGame, even
             byVenue[b.venueName].push(b);
           }
           return Object.entries(byVenue).map(([venueName, bars]) => (
-            <View key={venueName} style={{ marginTop: 4, marginBottom: 4, backgroundColor: '#cc3b2a08', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#cc3b2a20' }}>
+            <View key={venueName} style={{ marginTop: 4, marginBottom: 4, backgroundColor: '#cc3b2a08', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: '#cc3b2a20' }}>
               <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: '#cc3b2a', marginBottom: 4 }}>
                 {t(`Near ${venueName}`, `Pres du ${venueName}`)}
               </Text>

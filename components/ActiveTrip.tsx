@@ -492,7 +492,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
           {isTransit && (
             <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
               {departed ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#34c759' + '22', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#34c759' + '22', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
                   <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#34c759' }} />
                   <Text style={{ fontSize: 15, fontWeight: '800', color: '#34c759' }}>
                     {t('Departing now', 'Depart maintenant')}
@@ -500,7 +500,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
                 </View>
               ) : (
                 <Animated.View style={{ opacity: pulseAnim }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#0d419d' + '44', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#0d419d' + '44', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
                     <Ionicons name="time-outline" size={16} color="#58a6ff" />
                     <Text style={{ fontSize: 22, fontWeight: '900', color: '#58a6ff', fontVariant: ['tabular-nums'] }}>
                       {countdownMin}:{String(countdownRemSec).padStart(2, '0')}
@@ -516,7 +516,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
 
           {/* Non-transit travel time */}
           {!isTransit && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: legColor + '18', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: legColor + '18', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
               <Ionicons name={legIcon as any} size={16} color={legColor} />
               <Text style={{ fontSize: 14, fontWeight: '700', color: legColor }}>
                 {fmtTime(currentLeg.startTime)} → {fmtTime(currentLeg.endTime)}
@@ -657,7 +657,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
           <TouchableOpacity
             onPress={handleEnd}
             style={{
-              height: 52, borderRadius: 14,
+              height: 52, borderRadius: 12,
               backgroundColor: tripEnded ? '#34c759' : '#ff3b30',
               alignItems: 'center', justifyContent: 'center',
               flexDirection: 'row', gap: 8,

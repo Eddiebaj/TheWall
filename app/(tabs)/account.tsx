@@ -451,7 +451,7 @@ export default function AccountScreen() {
                 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
                   <View style={{
-                    width: 36, height: 36, borderRadius: 10,
+                    width: 36, height: 36, borderRadius: 8,
                     backgroundColor: item.iconColor + '15',
                     alignItems: 'center', justifyContent: 'center',
                   }}>
@@ -487,7 +487,7 @@ export default function AccountScreen() {
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
               <View style={{
-                width: 36, height: 36, borderRadius: 10,
+                width: 36, height: 36, borderRadius: 8,
                 backgroundColor: colours.accent + '15',
                 alignItems: 'center', justifyContent: 'center',
               }}>
@@ -508,7 +508,7 @@ export default function AccountScreen() {
             <View style={{ padding: 16 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 }}>
                 <View style={{
-                  width: 36, height: 36, borderRadius: 10,
+                  width: 36, height: 36, borderRadius: 8,
                   backgroundColor: colours.accent + '15',
                   alignItems: 'center', justifyContent: 'center',
                 }}>
@@ -786,7 +786,7 @@ export default function AccountScreen() {
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <View style={{
-                width: 36, height: 36, borderRadius: 10,
+                width: 36, height: 36, borderRadius: 8,
                 backgroundColor: colours.accent + '15',
                 alignItems: 'center', justifyContent: 'center',
               }}>
@@ -802,7 +802,7 @@ export default function AccountScreen() {
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
               <View style={{
-                width: 36, height: 36, borderRadius: 10,
+                width: 36, height: 36, borderRadius: 8,
                 backgroundColor: colours.accent + '15',
                 alignItems: 'center', justifyContent: 'center',
               }}>
@@ -845,7 +845,7 @@ export default function AccountScreen() {
                   </Text>
                   {savedFavs.map((fav: any) => (
                     <View key={fav.id} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 12 }}>
-                      <View style={{ width: 34, height: 34, borderRadius: 9, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
+                      <View style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
                         <Ionicons name="bus" size={16} color={colours.accent} />
                       </View>
                       <View style={{ flex: 1 }}>
@@ -866,7 +866,7 @@ export default function AccountScreen() {
                   </Text>
                   {savedPlaces.map((place: any) => (
                     <View key={place.id} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 12 }}>
-                      <View style={{ width: 34, height: 34, borderRadius: 9, backgroundColor: (place.categoryColor || colours.accent) + '15', alignItems: 'center', justifyContent: 'center' }}>
+                      <View style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: (place.categoryColor || colours.accent) + '15', alignItems: 'center', justifyContent: 'center' }}>
                         <Ionicons name={(place.categoryIcon || 'location') as any} size={16} color={place.categoryColor || colours.accent} />
                       </View>
                       <View style={{ flex: 1 }}>
@@ -887,7 +887,7 @@ export default function AccountScreen() {
                   </Text>
                   {savedBoard.map((item: any, idx: number) => (
                     <View key={`${item.type}-${item.id || idx}`} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 12 }}>
-                      <View style={{ width: 34, height: 34, borderRadius: 9, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
+                      <View style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
                         <Ionicons name={({ bus_stop: 'bus', lrt_station: 'train', garbage: 'trash', service_alert: 'alert-circle', gas_prices: 'speedometer', otrain: 'train', services: 'grid', discover: 'compass', saved_team: 'american-football', external_link: 'link', campus: 'school', news: 'newspaper', neighbourhood: 'map' }[item.type] || 'cube') as any} size={16} color={colours.accent} />
                       </View>
                       <View style={{ flex: 1 }}>

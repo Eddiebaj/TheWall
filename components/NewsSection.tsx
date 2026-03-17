@@ -125,7 +125,7 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
     return (
       <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
         {[0, 1].map(i => (
-          <View key={i} style={{ height: 160, borderRadius: 14, backgroundColor: colours.border, marginBottom: 10, opacity: 0.4 - i * 0.15 }} />
+          <View key={i} style={{ height: 160, borderRadius: 12, backgroundColor: colours.border, marginBottom: 10, opacity: 0.4 - i * 0.15 }} />
         ))}
       </View>
     );
@@ -198,7 +198,7 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
                   <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)' }} />
                 )}
                 {/* Source badge */}
-                <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: sourceColour, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 }}>
+                <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: sourceColour, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 4 }}>
                   <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.3 }}>{article.source}</Text>
                 </View>
                 {/* Time ago */}

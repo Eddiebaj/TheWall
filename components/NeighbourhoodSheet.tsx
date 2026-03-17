@@ -246,7 +246,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
         if (places.length === 0) return <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 20 }}>{t('No places found', 'Aucun lieu trouve')}</Text>;
         return places.map((p: any, i: number) => (
           <TouchableOpacity key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border }} onPress={() => { if (p.place_id) Linking.openURL(`https://www.google.com/maps/place/?q=place_id:${p.place_id}`); }}>
-            <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: n.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+            <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: n.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="location" size={16} color={n.accent} />
             </View>
             <View style={{ flex: 1 }}>
@@ -333,17 +333,17 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
                   <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, marginTop: 6 }}>{t('Thanks! Your deal will be reviewed.', 'Merci! Votre offre sera examinee.')}</Text>
                 </View>
               ) : showDealForm ? (
-                <View style={{ backgroundColor: colours.bg, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colours.border }}>
+                <View style={{ backgroundColor: colours.bg, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colours.border }}>
                   <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, marginBottom: 8 }}>{t('Submit a Deal', 'Soumettre une offre')}</Text>
                   <TextInput
-                    style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: fonts.md, color: colours.text, marginBottom: 8 }}
+                    style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: fonts.md, color: colours.text, marginBottom: 8 }}
                     placeholder={t('Venue name', 'Nom du lieu')}
                     placeholderTextColor={colours.muted}
                     value={dealVenueName}
                     onChangeText={setDealVenueName}
                   />
                   <TextInput
-                    style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: fonts.md, color: colours.text, minHeight: 60, textAlignVertical: 'top', marginBottom: 10 }}
+                    style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: fonts.md, color: colours.text, minHeight: 60, textAlignVertical: 'top', marginBottom: 10 }}
                     placeholder={t('Deal details (e.g. $5 pints Mon-Fri 3-6pm)', 'Details de l\'offre (ex. $5 pintes lun-ven 15h-18h)')}
                     placeholderTextColor={colours.muted}
                     value={dealDescription}
@@ -351,12 +351,12 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
                     multiline
                   />
                   <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <TouchableOpacity onPress={() => setShowDealForm(false)} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
+                    <TouchableOpacity onPress={() => setShowDealForm(false)} style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
                       <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted }}>{t('Cancel', 'Annuler')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={submitDeal}
-                      style={{ flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: dealVenueName.trim() && dealDescription.trim() ? n.accent : colours.border, alignItems: 'center' }}
+                      style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: dealVenueName.trim() && dealDescription.trim() ? n.accent : colours.border, alignItems: 'center' }}
                     >
                       {dealSubmitting
                         ? <ActivityIndicator color="#fff" size="small" />
@@ -383,7 +383,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
           <>
             {/* Transit score card */}
             {transitScore && (
-              <View style={{ backgroundColor: n.accent + '12', borderRadius: 14, padding: 16, marginTop: 12, marginBottom: 8, borderWidth: 1, borderColor: n.accent + '30', alignItems: 'center' }}>
+              <View style={{ backgroundColor: n.accent + '12', borderRadius: 12, padding: 16, marginTop: 12, marginBottom: 8, borderWidth: 1, borderColor: n.accent + '30', alignItems: 'center' }}>
                 <Text style={{ fontSize: 36, fontWeight: '900', color: n.accent }}>{transitScore.transit_score}</Text>
                 <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, marginTop: 2 }}>{t('Transit Score', 'Score transit')}</Text>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-around', width: '100%', marginTop: 14 }}>
@@ -460,7 +460,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
                     flexDirection: 'row', alignItems: 'center', gap: 5,
                     backgroundColor: isActive ? n.accent + '18' : colours.surface,
                     borderWidth: 1, borderColor: isActive ? n.accent + '40' : colours.border,
-                    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7,
+                    borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7,
                   }}
                 >
                   <Ionicons name={tab.icon as any} size={14} color={isActive ? n.accent : colours.muted} />
@@ -485,7 +485,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
               onClose();
               router.push(`/(tabs)/planner?toLat=${n.lat}&toLng=${n.lng}&toLabel=${encodeURIComponent(name)}` as any);
             }}
-            style={{ backgroundColor: n.accent, borderRadius: 14, paddingVertical: 14, alignItems: 'center' }}
+            style={{ backgroundColor: n.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
           >
             <Text style={{ color: '#fff', fontSize: fonts.md, fontWeight: '700' }}>{t('Plan Route', 'Planifier un trajet')}</Text>
           </TouchableOpacity>

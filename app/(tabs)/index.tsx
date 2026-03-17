@@ -338,7 +338,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
     return () => { cancelled = true; };
   }, [item.type, (item as any).id]);
 
-  const cardBase: any = [{ width: 152, height: 148, borderRadius: 14, padding: 12, backgroundColor: isActive ? colours.accent + '22' : colours.surface, borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, justifyContent: 'space-between' }, cardShadow];
+  const cardBase: any = [{ width: 152, height: 148, borderRadius: 12, padding: 12, backgroundColor: isActive ? colours.accent + '22' : colours.surface, borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, justifyContent: 'space-between' }, cardShadow];
 
   // ── Garbage card ──
   if (item.type === 'garbage') {
@@ -351,7 +351,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
       <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#6b7f9918', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 22, height: 22, borderRadius: 4, backgroundColor: '#6b7f9918', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="trash" size={12} color="#6b7f99" />
           </View>
           <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Garbage Day</Text>
@@ -385,7 +385,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
       <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#e8a02018', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 22, height: 22, borderRadius: 4, backgroundColor: '#e8a02018', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="notifications" size={12} color="#e8a020" />
           </View>
           <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Alerts</Text>
@@ -416,7 +416,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
       <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={() => { fetchGasPrice(); onPress(); }} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#6b7f9918', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 22, height: 22, borderRadius: 4, backgroundColor: '#6b7f9918', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="speedometer" size={12} color="#6b7f99" />
           </View>
           <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Gas Prices</Text>
@@ -443,7 +443,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
       <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: colours.lrt + '18', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 22, height: 22, borderRadius: 4, backgroundColor: colours.lrt + '18', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="train" size={12} color={colours.lrt} />
           </View>
           <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>O-Train</Text>
@@ -464,7 +464,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
       <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 22, height: 22, borderRadius: 4, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="grid" size={12} color={colours.accent} />
           </View>
           <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Services</Text>
@@ -482,7 +482,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
       <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#e8a02018', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 22, height: 22, borderRadius: 4, backgroundColor: '#e8a02018', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="compass" size={12} color="#e8a020" />
           </View>
           <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Discover</Text>
@@ -500,7 +500,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
       <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#cc3b2a18', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 22, height: 22, borderRadius: 4, backgroundColor: '#cc3b2a18', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="newspaper" size={12} color="#cc3b2a" />
           </View>
           <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>News</Text>
@@ -518,7 +518,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
       <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#7b5ea718', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 22, height: 22, borderRadius: 4, backgroundColor: '#7b5ea718', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="map" size={12} color="#7b5ea7" />
           </View>
           <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Area</Text>
@@ -571,7 +571,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
     return (
       <ScaleDecorator>
       <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 16, padding: 14, backgroundColor: isActive ? item.accent + '22' : colours.surface, borderWidth: 1, borderTopWidth: 3, borderColor: isActive ? item.accent : colours.border, borderTopColor: item.accent, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
-        <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: item.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: item.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
           <Ionicons name={item.icon as any} size={18} color={item.accent} />
         </View>
         <View>
@@ -595,7 +595,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
     return (
       <ScaleDecorator>
       <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 16, padding: 14, backgroundColor: isActive ? accent + '22' : colours.surface, borderWidth: 1, borderTopWidth: 3, borderColor: isActive ? accent : colours.border, borderTopColor: accent, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
-        <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: accent + '18', alignItems: 'center', justifyContent: 'center' }}>
           <Ionicons name="school" size={18} color={accent} />
         </View>
         <View>
@@ -631,7 +631,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
     <ScaleDecorator>
     <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
       {alertRouteSet.length > 0 && (
-        <View style={{ backgroundColor: '#e8a020' + '20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, marginBottom: 2 }}>
+        <View style={{ backgroundColor: '#e8a020' + '20', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 3, marginBottom: 2 }}>
           <Text style={{ fontSize: 9, fontWeight: '700', color: '#e8a020' }} numberOfLines={1}>
             {'\u26A0\uFE0F'} Route {alertRouteSet.slice(0, 2).join(', ')} alert today
           </Text>
@@ -639,7 +639,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
       )}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 22, height: 22, borderRadius: 4, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name={isLRT ? 'train' : 'bus'} size={12} color={isLRT ? colours.lrt : isSTO ? '#0072bc' : colours.accent} />
           </View>
           <Text style={{ fontSize: 10, fontWeight: '700', color: isSTO ? '#0072bc' : colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
@@ -720,9 +720,9 @@ function SavedStopCard({ fav, isActive, colours, fonts, t, onPress, onLongPress,
   const isLive = previewSource === 'gtfs-rt' || previewSource === 'sto-gtfs-rt';
   const liveColor = isSTO ? '#0072bc' : '#22c55e';
   return (
-    <TouchableOpacity style={[{ width: 152, height: 148, borderRadius: 14, padding: 12, backgroundColor: isActive ? stopColor : colours.surface, borderWidth: 1, borderColor: isActive ? stopColor : colours.border, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
+    <TouchableOpacity style={[{ width: 152, height: 148, borderRadius: 12, padding: 12, backgroundColor: isActive ? stopColor : colours.surface, borderWidth: 1, borderColor: isActive ? stopColor : colours.border, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : stopColor + '18', alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ width: 22, height: 22, borderRadius: 4, backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : stopColor + '18', alignItems: 'center', justifyContent: 'center' }}>
           <Ionicons name="bus" size={12} color={isActive ? 'white' : stopColor} />
         </View>
         <Text style={{ fontSize: 10, fontWeight: '700', color: isActive ? 'rgba(255,255,255,0.7)' : (isSTO ? '#0072bc' : colours.muted), textTransform: 'uppercase', letterSpacing: 0.5 }}>{isSTO ? 'STO' : t('Stop', 'Arrêt')}</Text>
@@ -773,7 +773,7 @@ function GasPricesExpanded({ colours, fonts }: { colours: any; fonts: any }) {
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24 }}>
       {avgPrice && (
-        <View style={{ padding: 16, borderRadius: 14, backgroundColor: colours.accent + '12', borderWidth: 1, borderColor: colours.accent + '30', marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <View style={{ padding: 16, borderRadius: 12, backgroundColor: colours.accent + '12', borderWidth: 1, borderColor: colours.accent + '30', marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <Ionicons name="speedometer" size={24} color={colours.accent} />
           <View>
             <Text style={{ fontSize: 28, fontWeight: '900', color: colours.accent }}>{avgPrice}¢/L</Text>
@@ -783,7 +783,7 @@ function GasPricesExpanded({ colours, fonts }: { colours: any; fonts: any }) {
       )}
       {stations.length > 0 ? (
         stations.map((s, i) => (
-          <View key={i} style={{ padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View key={i} style={{ padding: 14, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{s.name}</Text>
               {s.address ? <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }} numberOfLines={1}>{s.address}</Text> : null}
@@ -954,7 +954,7 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
             <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#00A78D18', alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="speedometer" size={16} color="#00A78D" />
             </View>
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('GAS PRICES', 'PRIX ESSENCE')}</Text>
+            <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('GAS PRICES', 'PRIX ESSENCE')}</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <TouchableOpacity onPress={toggleBoard} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -1136,7 +1136,7 @@ function SavedPlaceCard({ place, colours, fonts, language, t, onPress, onLongPre
     <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 16, overflow: 'hidden', backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }, cardShadow]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
       <ImageBackground source={photoUrl ? { uri: photoUrl } : undefined} style={{ width: '100%', height: 100, backgroundColor: place.categoryColor + '18', alignItems: photoUrl ? undefined : 'center', justifyContent: photoUrl ? undefined : 'center' }} resizeMode="cover">
         {!photoUrl && <Ionicons name={place.categoryIcon} size={28} color={place.categoryColor} />}
-        <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: place.categoryColor, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+        <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: place.categoryColor, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
           <Text style={{ fontSize: 9, fontWeight: '800', color: 'white', textTransform: 'uppercase' }}>{label}</Text>
         </View>
       </ImageBackground>
@@ -1453,7 +1453,7 @@ function LiveScreenInner() {
   const [report311Location, setReport311Location] = useState('');
 
   const isLight = theme === 'light' || (theme === 'system' && colours.bg === '#f0f4f8');
-  const cardShadow = useMemo(() => isLight ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 } : {}, [isLight]);
+  const cardShadow = useMemo(() => isLight ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 } : { shadowColor: '#ffffff', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 }, [isLight]);
 
   // ── Fetch Senators live game for board card ──
   useEffect(() => {
@@ -2784,7 +2784,7 @@ function LiveScreenInner() {
                 const deals = v.isActive ? (v.activeDeals || []) : (v.upcomingDeals || []);
                 const statusDeal = deals[0];
                 return (
-                  <View key={i} style={{ backgroundColor: colours.bg, borderRadius: 14, borderWidth: 1, borderColor: v.isActive ? '#7b5ea7' + '40' : colours.border, overflow: 'hidden' }}>
+                  <View key={i} style={{ backgroundColor: colours.bg, borderRadius: 12, borderWidth: 1, borderColor: v.isActive ? '#7b5ea7' + '40' : colours.border, overflow: 'hidden' }}>
                     <View style={{ padding: 14, gap: 6 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                         <Text style={{ fontSize: 15, fontWeight: '800', color: colours.text, flex: 1 }} numberOfLines={1}>{v.name}</Text>
@@ -2835,17 +2835,17 @@ function LiveScreenInner() {
                   <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text, marginTop: 4 }}>{t('Deal submitted for review!', 'Offre soumise pour examen!')}</Text>
                 </View>
               ) : socialDealForm ? (
-                <View style={{ backgroundColor: colours.bg, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colours.border }}>
+                <View style={{ backgroundColor: colours.bg, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colours.border }}>
                   <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text, marginBottom: 8 }}>{t('Submit a New Deal', 'Soumettre une offre')}</Text>
                   <TextInput
-                    style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: colours.text, marginBottom: 8 }}
+                    style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: colours.text, marginBottom: 8 }}
                     placeholder={t('Venue name', 'Nom du lieu')}
                     placeholderTextColor={colours.muted}
                     value={socialDealVenue}
                     onChangeText={setSocialDealVenue}
                   />
                   <TextInput
-                    style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: colours.text, minHeight: 50, textAlignVertical: 'top', marginBottom: 10 }}
+                    style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: colours.text, minHeight: 50, textAlignVertical: 'top', marginBottom: 10 }}
                     placeholder={t('Deal details (e.g. $5 pints Mon-Fri 3-6pm)', 'Details (ex. $5 pintes lun-ven 15h-18h)')}
                     placeholderTextColor={colours.muted}
                     value={socialDealDesc}
@@ -2853,7 +2853,7 @@ function LiveScreenInner() {
                     multiline
                   />
                   <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <TouchableOpacity onPress={() => { setSocialDealForm(false); setSocialDealVenue(''); setSocialDealDesc(''); }} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
+                    <TouchableOpacity onPress={() => { setSocialDealForm(false); setSocialDealVenue(''); setSocialDealDesc(''); }} style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
                       <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted }}>{t('Cancel', 'Annuler')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -2867,7 +2867,7 @@ function LiveScreenInner() {
                         } catch (e) { if (__DEV__) console.warn('submit deal failed:', e); }
                         setSocialDealSending(false);
                       }}
-                      style={{ flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: socialDealVenue.trim() && socialDealDesc.trim() ? '#7b5ea7' : colours.border, alignItems: 'center' }}
+                      style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: socialDealVenue.trim() && socialDealDesc.trim() ? '#7b5ea7' : colours.border, alignItems: 'center' }}
                     >
                       {socialDealSending
                         ? <ActivityIndicator color="white" size="small" />
@@ -2989,7 +2989,7 @@ function LiveScreenInner() {
         </View>
 
         {/* Source toggle tabs */}
-        <View style={{ flexDirection: 'row', marginHorizontal: 16, marginTop: 12, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: colours.border }}>
+        <View style={{ flexDirection: 'row', marginHorizontal: 16, marginTop: 12, borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: colours.border }}>
           <TouchableOpacity
             onPress={() => { setEventsSource('ticketmaster'); setEventsCategory(null); fetchTicketmasterEvents(); }}
             style={{ flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: eventsSource === 'ticketmaster' ? colours.accent : colours.surface }}
@@ -3071,7 +3071,7 @@ function LiveScreenInner() {
                 <TouchableOpacity
                   accessibilityRole="button"
                   accessibilityLabel={t('Refresh events', 'Actualiser les événements')}
-                  style={{ marginTop: 14, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}
+                  style={{ marginTop: 14, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}
                   onPress={() => { eventsCacheTime.current.ticketmaster = 0; eventsCacheTime.current.eventbrite = 0; fetchTicketmasterEvents(); fetchEventbriteEvents(); }}
                 >
                   <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Refresh', 'Actualiser')}</Text>
@@ -3110,18 +3110,18 @@ function LiveScreenInner() {
     const catLabel = eventsSource === 'eventbrite' ? (ev.category || 'Community') : null;
     const catColor = catLabel ? (CATEGORY_COLORS[catLabel] || '#555') : null;
     return (
-      <TouchableOpacity key={ev.id} onPress={() => ev.url && Linking.openURL(ev.url)} style={{ marginHorizontal: 16, marginTop: 10, padding: 12, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, ...cardShadow }}>
+      <TouchableOpacity key={ev.id} onPress={() => ev.url && Linking.openURL(ev.url)} style={{ marginHorizontal: 16, marginTop: 10, padding: 12, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, ...cardShadow }}>
         {ev.image && (
-          <View style={{ height: 85, borderRadius: 9, overflow: 'hidden', marginBottom: 9, backgroundColor: colours.border }}>
+          <View style={{ height: 85, borderRadius: 8, overflow: 'hidden', marginBottom: 9, backgroundColor: colours.border }}>
             <ImageBackground source={{ uri: ev.image }} style={{ flex: 1 }} resizeMode="cover">
               <View style={{ position: 'absolute', top: 7, left: 7, flexDirection: 'row', gap: 5 }}>
                 {catLabel && catColor && (
-                  <View style={{ backgroundColor: catColor + 'ee', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }}>
+                  <View style={{ backgroundColor: catColor + 'ee', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2 }}>
                     <Text style={{ color: 'white', fontSize: 10, fontWeight: '700' }}>{catLabel}</Text>
                   </View>
                 )}
                 {ev.free && (
-                  <View style={{ backgroundColor: '#2d7a3aee', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }}>
+                  <View style={{ backgroundColor: '#2d7a3aee', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2 }}>
                     <Text style={{ color: 'white', fontSize: 10, fontWeight: '800' }}>FREE</Text>
                   </View>
                 )}
@@ -3130,7 +3130,7 @@ function LiveScreenInner() {
           </View>
         )}
         {!ev.image && catLabel && catColor && (
-          <View style={{ backgroundColor: catColor + '18', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2, alignSelf: 'flex-start', marginBottom: 6, borderWidth: 1, borderColor: catColor + '40' }}>
+          <View style={{ backgroundColor: catColor + '18', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2, alignSelf: 'flex-start', marginBottom: 6, borderWidth: 1, borderColor: catColor + '40' }}>
             <Text style={{ color: catColor, fontSize: 10, fontWeight: '700' }}>{catLabel}</Text>
           </View>
         )}
@@ -3172,10 +3172,10 @@ function LiveScreenInner() {
               <Text style={{ color: colours.muted, marginTop: 6, textAlign: 'center' }}>{t('No active road closures in Ottawa.', 'Aucune fermeture de route active.')}</Text>
             </View>
           ) : roadEvents.map(ev => (
-            <View key={ev.id} style={{ marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderLeftWidth: 4, borderColor: colours.border, borderLeftColor: '#e8a020', ...cardShadow }}>
+            <View key={ev.id} style={{ marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderLeftWidth: 4, borderColor: colours.border, borderLeftColor: '#e8a020', ...cardShadow }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                  <View style={{ backgroundColor: '#e8a02018', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                  <View style={{ backgroundColor: '#e8a02018', borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3 }}>
                     <Text style={{ fontSize: 10, fontWeight: '800', color: '#e8a020', textTransform: 'uppercase' }}>{ev.type}</Text>
                   </View>
                   {ev.road ? <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.text }} numberOfLines={1}>{ev.road}</Text> : null}
@@ -3212,9 +3212,9 @@ function LiveScreenInner() {
               <Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('No park or rink data available right now.', 'Aucune donnée de parc ou patinoire disponible.')}</Text>
             </View>
           ) : parks.map((p, i) => (
-            <View key={i} style={{ marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, ...cardShadow }}>
+            <View key={i} style={{ marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, ...cardShadow }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: '#004890' + '15', alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#004890' + '15', alignItems: 'center', justifyContent: 'center' }}>
                   <Ionicons name="snow" size={16} color="#004890" />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -3273,10 +3273,10 @@ function LiveScreenInner() {
               <Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('No bike stations found.', 'Aucune station trouv\u00E9e.')}</Text>
             </View>
           ) : bikeStations.map((s, i) => (
-            <View key={i} style={{ marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, ...cardShadow }}>
+            <View key={i} style={{ marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, ...cardShadow }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                  <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: '#00A78D' + '15', alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#00A78D' + '15', alignItems: 'center', justifyContent: 'center' }}>
                     <Ionicons name="bicycle" size={16} color="#00A78D" />
                   </View>
                   <View style={{ flex: 1 }}>
@@ -3286,12 +3286,12 @@ function LiveScreenInner() {
                 </View>
               </View>
               <View style={{ flexDirection: 'row', gap: 10 }}>
-                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: s.bikes > 0 ? '#00A78D' + '12' : '#cc3b2a' + '12', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: s.bikes > 0 ? '#00A78D' + '12' : '#cc3b2a' + '12', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
                   <Ionicons name="bicycle" size={14} color={s.bikes > 0 ? '#00A78D' : '#cc3b2a'} />
                   <Text style={{ fontSize: 16, fontWeight: '900', color: s.bikes > 0 ? '#00A78D' : '#cc3b2a' }}>{s.bikes}</Text>
                   <Text style={{ fontSize: 11, color: colours.muted, fontWeight: '600' }}>{t('bikes', 'v\u00E9los')}</Text>
                 </View>
-                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: s.docks > 0 ? '#004890' + '12' : '#cc3b2a' + '12', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: s.docks > 0 ? '#004890' + '12' : '#cc3b2a' + '12', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
                   <Ionicons name="lock-closed-outline" size={14} color={s.docks > 0 ? '#004890' : '#cc3b2a'} />
                   <Text style={{ fontSize: 16, fontWeight: '900', color: s.docks > 0 ? '#004890' : '#cc3b2a' }}>{s.docks}</Text>
                   <Text style={{ fontSize: 11, color: colours.muted, fontWeight: '600' }}>{t('docks', 'ancrages')}</Text>
@@ -3371,7 +3371,7 @@ function LiveScreenInner() {
             <Text style={{ fontSize: 20, fontWeight: '800', color: colours.text, textAlign: 'center', marginBottom: 4 }}>{t('Choose Your Campus', 'Choisissez votre campus')}</Text>
             <Text style={{ fontSize: 13, color: colours.muted, textAlign: 'center', marginBottom: 20 }}>{t('You can change this later', 'Vous pouvez changer plus tard')}</Text>
             {CAMPUSES.map(c => (
-              <TouchableOpacity key={c.id} onPress={() => selectCampus(c)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 8, backgroundColor: colours.bg }}>
+              <TouchableOpacity key={c.id} onPress={() => selectCampus(c)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginBottom: 8, backgroundColor: colours.bg }}>
                 <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
                   <Ionicons name="school" size={20} color={c.accent} />
                 </View>
@@ -3431,12 +3431,12 @@ function LiveScreenInner() {
                   campus.shuttles.map(route => {
                     const next = getNextDeparture(route.departures);
                     return (
-                      <View key={route.id} style={{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }}>
+                      <View key={route.id} style={{ backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }}>
                         <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: colours.border }}>
                           <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{language === 'fr' ? route.label_fr : route.label_en}</Text>
                           {next ? (
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                              <View style={{ backgroundColor: accent + '18', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                              <View style={{ backgroundColor: accent + '18', borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3 }}>
                                 <Text style={{ fontSize: 12, fontWeight: '800', color: accent }}>{t('Next', 'Prochain')}: {fmt12h(next.time)}</Text>
                               </View>
                               <Text style={{ fontSize: 12, fontWeight: '700', color: next.minsAway <= 10 ? colours.red : accent }}>{next.minsAway} min</Text>
@@ -3480,7 +3480,7 @@ function LiveScreenInner() {
                 campus.libraries.map(lib => {
                   const status = isLibraryOpen(lib);
                   return (
-                    <View key={lib.name} style={{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }}>
+                    <View key={lib.name} style={{ backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: colours.border }}>
                         <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text, flex: 1 }} numberOfLines={1}>{lib.name}</Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: status.open ? '#00A78D18' : colours.red + '18', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
@@ -3510,7 +3510,7 @@ function LiveScreenInner() {
                           );
                         })}
                         <Text style={{ fontSize: 10, color: colours.muted, marginTop: 8, fontStyle: 'italic' }}>{language === 'fr' ? lib.note_fr : lib.note_en}</Text>
-                        <TouchableOpacity activeOpacity={0.7} onPress={() => routeToCampusPlace(lib.name, lib.lat, lib.lng)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, padding: 10, borderRadius: 10, backgroundColor: accent + '15', borderWidth: 1, borderColor: accent + '30' }}>
+                        <TouchableOpacity activeOpacity={0.7} onPress={() => routeToCampusPlace(lib.name, lib.lat, lib.lng)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, padding: 10, borderRadius: 8, backgroundColor: accent + '15', borderWidth: 1, borderColor: accent + '30' }}>
                           <Ionicons name="navigate" size={13} color={accent} />
                           <Text style={{ fontSize: 12, fontWeight: '700', color: accent }}>{t(`Route to ${lib.name.split(' (')[0]}`, `Itinéraire vers ${lib.name.split(' (')[0]}`)}</Text>
                         </TouchableOpacity>
@@ -3523,11 +3523,11 @@ function LiveScreenInner() {
               {/* ── Study Spots Tab ── */}
               {campusTab === 'study' && campus && (
                 campus.studySpots.map(spot => (
-                  <View key={spot.name} style={{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 10, overflow: 'hidden' }}>
+                  <View key={spot.name} style={{ backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginBottom: 10, overflow: 'hidden' }}>
                     <View style={{ padding: 14 }}>
                       <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text }}>{language === 'fr' ? spot.name_fr : spot.name}</Text>
                       <Text style={{ fontSize: 12, color: colours.muted, marginTop: 4 }}>{language === 'fr' ? spot.description_fr : spot.description_en}</Text>
-                      <TouchableOpacity activeOpacity={0.7} onPress={() => routeToCampusPlace(spot.name, spot.lat, spot.lng)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10, padding: 10, borderRadius: 10, backgroundColor: accent + '15', borderWidth: 1, borderColor: accent + '30' }}>
+                      <TouchableOpacity activeOpacity={0.7} onPress={() => routeToCampusPlace(spot.name, spot.lat, spot.lng)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10, padding: 10, borderRadius: 8, backgroundColor: accent + '15', borderWidth: 1, borderColor: accent + '30' }}>
                         <Ionicons name="navigate" size={13} color={accent} />
                         <Text style={{ fontSize: 12, fontWeight: '700', color: accent }}>{t(`Route to ${spot.name}`, `Itinéraire vers ${language === 'fr' ? spot.name_fr : spot.name}`)}</Text>
                       </TouchableOpacity>
@@ -3538,7 +3538,7 @@ function LiveScreenInner() {
 
               {/* ── U-Pass Tab ── */}
               {campusTab === 'upass' && campus && (
-                <View style={{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
+                <View style={{ backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
                   <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: colours.border, alignItems: 'center' }}>
                     <Ionicons name="card" size={32} color={accent} style={{ marginBottom: 8 }} />
                     <Text style={{ fontSize: 24, fontWeight: '800', color: colours.text }}>{t('U-Pass', 'U-Pass')}</Text>
@@ -3576,7 +3576,7 @@ function LiveScreenInner() {
                   <View style={{ alignItems: 'center', paddingVertical: 32 }}>
                     <Ionicons name="restaurant-outline" size={36} color={colours.muted} />
                     <Text style={{ color: colours.muted, marginTop: 8 }}>{t('No food places found', 'Aucun resto trouvé')}</Text>
-                    <TouchableOpacity activeOpacity={0.7} onPress={() => fetchCampusFood(campus)} style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: accent, backgroundColor: accent + '15' }}>
+                    <TouchableOpacity activeOpacity={0.7} onPress={() => fetchCampusFood(campus)} style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: accent, backgroundColor: accent + '15' }}>
                       <Text style={{ fontSize: 13, fontWeight: '700', color: accent }}>{t('Retry', 'Réessayer')}</Text>
                     </TouchableOpacity>
                   </View>
@@ -3584,7 +3584,7 @@ function LiveScreenInner() {
                   campusFood.map(place => (
                     <View key={place.id} style={{ backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginBottom: 8, overflow: 'hidden' }}>
                       <TouchableOpacity onPress={() => Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(place.name + ' ' + place.vicinity)}`).catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 }}>
-                        <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+                        <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: accent + '18', alignItems: 'center', justifyContent: 'center' }}>
                           <Ionicons name="restaurant" size={18} color={accent} />
                         </View>
                         <View style={{ flex: 1 }}>
@@ -3617,7 +3617,7 @@ function LiveScreenInner() {
               )}
             </ScrollView>
 
-            <TouchableOpacity activeOpacity={0.7} onPress={() => setCampusModal(false)} style={{ marginHorizontal: 20, paddingVertical: 14, borderRadius: 14, backgroundColor: accent, alignItems: 'center' }}>
+            <TouchableOpacity activeOpacity={0.7} onPress={() => setCampusModal(false)} style={{ marginHorizontal: 20, paddingVertical: 14, borderRadius: 12, backgroundColor: accent, alignItems: 'center' }}>
               <Text style={{ color: 'white', fontWeight: '700', fontSize: 15 }}>{t('Done', 'Terminé')}</Text>
             </TouchableOpacity>
           </View>
@@ -3815,7 +3815,7 @@ function LiveScreenInner() {
               const pillBg = c ? (c.avg <= 0.8 ? '#34C759' : c.avg <= 1.7 ? '#FFD60A' : c.avg <= 2.4 ? '#FF9500' : '#FF3B30') + '20' : colours.muted + '18';
               const pillColor = c ? (c.avg <= 0.8 ? '#34C759' : c.avg <= 1.7 ? '#b8960a' : c.avg <= 2.4 ? '#FF9500' : '#FF3B30') : colours.muted;
               return (
-                <TouchableOpacity onPress={() => { setCrowdingReportItem(item); setShowCrowdingSheet(true); fetchCrowdingHourly(item.routeId, expandedStopId || stopId); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 10, backgroundColor: pillBg }} accessibilityRole="button" accessibilityLabel={t('Report crowding', 'Signaler l\'achalandage')}>
+                <TouchableOpacity onPress={() => { setCrowdingReportItem(item); setShowCrowdingSheet(true); fetchCrowdingHourly(item.routeId, expandedStopId || stopId); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 8, backgroundColor: pillBg }} accessibilityRole="button" accessibilityLabel={t('Report crowding', 'Signaler l\'achalandage')}>
                   <Ionicons name="people" size={11} color={pillColor} />
                   <Text style={{ fontSize: 9, fontWeight: '700', color: pillColor }}>{pillLabel}</Text>
                 </TouchableOpacity>
@@ -3918,10 +3918,10 @@ function LiveScreenInner() {
                     const label = daysUntil === 0 ? 'TODAY' : daysUntil === 1 ? 'TOMORROW' : null;
                     const isNext = i === 0;
                     return (
-                      <View key={i} style={{ marginBottom: 10, padding: 14, borderRadius: 14, borderWidth: isNext ? 1.5 : 1, borderColor: isNext ? colours.accent : colours.border, backgroundColor: isNext ? colours.accent + '10' : colours.surface }}>
+                      <View key={i} style={{ marginBottom: 10, padding: 14, borderRadius: 12, borderWidth: isNext ? 1.5 : 1, borderColor: isNext ? colours.accent : colours.border, backgroundColor: isNext ? colours.accent + '10' : colours.surface }}>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                           <Text style={{ fontSize: 14, fontWeight: '800', color: colours.text }}>{d.toLocaleDateString('en-CA', { weekday: 'long', month: 'short', day: 'numeric' })}</Text>
-                          {label && <View style={{ backgroundColor: colours.accent, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}><Text style={{ color: 'white', fontSize: 10, fontWeight: '800' }}>{label}</Text></View>}
+                          {label && <View style={{ backgroundColor: colours.accent, borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3 }}><Text style={{ color: 'white', fontSize: 10, fontWeight: '800' }}>{label}</Text></View>}
                         </View>
                         <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
                           {ev.flags.map(flag => { const bin = BIN_LABELS[flag]; if (!bin) return null; return (<View key={flag} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: bin.color + '18', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 }}><View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: bin.color }} /><Text style={{ fontSize: 11, fontWeight: '700', color: colours.text }}>{bin.label}</Text></View>); })}
@@ -4014,7 +4014,7 @@ function LiveScreenInner() {
                 <Text style={{ fontSize: fonts.md, color: colours.muted, textAlign: 'center', marginTop: 12 }}>{t('Enter your Ottawa address to see your collection schedule.', 'Entrez votre adresse \u00E0 Ottawa pour voir votre calendrier de collecte.')}</Text>
               </View>
             )}
-            <TouchableOpacity onPress={() => { setGarbageModalVisible(false); setExpandedBin(null); }} style={{ marginHorizontal: 20, marginTop: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: colours.accent, alignItems: 'center' }} accessibilityRole="button" accessibilityLabel={t('Done', 'Termine')}>
+            <TouchableOpacity onPress={() => { setGarbageModalVisible(false); setExpandedBin(null); }} style={{ marginHorizontal: 20, marginTop: 8, paddingVertical: 14, borderRadius: 12, backgroundColor: colours.accent, alignItems: 'center' }} accessibilityRole="button" accessibilityLabel={t('Done', 'Termine')}>
               <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>Done</Text>
             </TouchableOpacity>
           </View>
@@ -4056,7 +4056,7 @@ function LiveScreenInner() {
             {ALL_OTTAWA_LIFE.map(item => {
               const isActive = swapTileIndex !== null && ottawaLifeIds[swapTileIndex] === item.id;
               const isUsed = ottawaLifeIds.includes(item.id) && !isActive;
-              return (<TouchableOpacity key={item.id} disabled={isUsed} onPress={() => swapTileIndex !== null && swapOttawaLifeTile(swapTileIndex, item.id)} style={{ width: '21%', alignItems: 'center', padding: 10, borderRadius: 14, borderWidth: 2, borderColor: isActive ? item.accent : isUsed ? colours.border : colours.border, backgroundColor: isActive ? item.accent + '18' : isUsed ? colours.bg : colours.surface, opacity: isUsed ? 0.4 : 1 }}><Ionicons name={item.icon as any} size={22} color={isActive ? item.accent : isUsed ? colours.muted : item.accent} /><Text style={{ fontSize: 10, fontWeight: '700', color: isActive ? item.accent : colours.text, marginTop: 4, textAlign: 'center' }} numberOfLines={1}>{language === 'fr' ? item.label_fr : item.label_en}</Text></TouchableOpacity>);
+              return (<TouchableOpacity key={item.id} disabled={isUsed} onPress={() => swapTileIndex !== null && swapOttawaLifeTile(swapTileIndex, item.id)} style={{ width: '21%', alignItems: 'center', padding: 10, borderRadius: 12, borderWidth: 2, borderColor: isActive ? item.accent : isUsed ? colours.border : colours.border, backgroundColor: isActive ? item.accent + '18' : isUsed ? colours.bg : colours.surface, opacity: isUsed ? 0.4 : 1 }}><Ionicons name={item.icon as any} size={22} color={isActive ? item.accent : isUsed ? colours.muted : item.accent} /><Text style={{ fontSize: 10, fontWeight: '700', color: isActive ? item.accent : colours.text, marginTop: 4, textAlign: 'center' }} numberOfLines={1}>{language === 'fr' ? item.label_fr : item.label_en}</Text></TouchableOpacity>);
             })}
           </View>
         </View>
@@ -4114,7 +4114,7 @@ function LiveScreenInner() {
               </Text>
             </TouchableOpacity>
             {!helpBannerDismissed && arrivals.length > 0 && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginTop: 12, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colours.muted + '12' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginTop: 12, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8, backgroundColor: colours.muted + '12' }}>
                 <Ionicons name="people-outline" size={14} color={colours.muted} style={{ marginRight: 8 }} />
                 <Text style={{ flex: 1, fontSize: 10, color: colours.muted, fontWeight: '600' }}>{t('Help Ottawa riders — tap to report crowding or missed buses', 'Aidez les usagers — signalez l\'achalandage ou les bus manqués')}</Text>
                 <TouchableOpacity onPress={() => setHelpBannerDismissed(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginLeft: 8 }}>
@@ -4143,7 +4143,7 @@ function LiveScreenInner() {
           </TouchableOpacity>
         </View>
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-          <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+          <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
             {t('What\'s the issue?', 'Quel est le probleme?')}
           </Text>
           <View style={{ gap: 8, marginBottom: 20 }}>
@@ -4153,10 +4153,10 @@ function LiveScreenInner() {
                 <TouchableOpacity
                   key={cat.id}
                   onPress={() => setReportCategory(cat.id)}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1.5, borderColor: active ? '#cc3b2a' : colours.border, backgroundColor: active ? '#cc3b2a10' : colours.surface }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, borderWidth: 1.5, borderColor: active ? '#cc3b2a' : colours.border, backgroundColor: active ? '#cc3b2a10' : colours.surface }}
                   activeOpacity={0.7}
                 >
-                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: active ? '#cc3b2a18' : colours.bg, alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: active ? '#cc3b2a18' : colours.bg, alignItems: 'center', justifyContent: 'center' }}>
                     <Ionicons name={cat.icon} size={18} color={active ? '#cc3b2a' : colours.muted} />
                   </View>
                   <Text style={{ fontSize: fonts.md, fontWeight: active ? '700' : '500', color: active ? '#cc3b2a' : colours.text }}>
@@ -4167,7 +4167,7 @@ function LiveScreenInner() {
               );
             })}
           </View>
-          <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+          <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
             {t('Details (optional)', 'Details (facultatif)')}
           </Text>
           <TextInput
@@ -4181,7 +4181,7 @@ function LiveScreenInner() {
           <TouchableOpacity
             onPress={submitStopReport}
             disabled={!reportCategory || reportSubmitting}
-            style={{ marginTop: 20, backgroundColor: reportCategory ? '#cc3b2a' : colours.border, borderRadius: 14, paddingVertical: 14, alignItems: 'center', opacity: reportCategory ? 1 : 0.5 }}
+            style={{ marginTop: 20, backgroundColor: reportCategory ? '#cc3b2a' : colours.border, borderRadius: 12, paddingVertical: 14, alignItems: 'center', opacity: reportCategory ? 1 : 0.5 }}
             activeOpacity={0.8}
           >
             {reportSubmitting ? (
@@ -4205,7 +4205,7 @@ function LiveScreenInner() {
       case 'otrain': return (
         <React.Fragment key="otrain">{wrapSection('otrain', <>
           <Text style={[styles.sectionLabel, { color: colours.muted, fontSize: fonts.sm, marginBottom: 6 }]}>{t('O-Train', 'O-Train')}</Text>
-          <TouchableOpacity style={[{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 20, marginBottom: showLine1 ? 0 : 8, borderWidth: 1, borderRadius: 14, borderBottomLeftRadius: showLine1 ? 0 : 14, borderBottomRightRadius: showLine1 ? 0 : 14, padding: 12, backgroundColor: showLine1 ? colours.lrt + '12' : colours.surface, borderColor: showLine1 ? colours.lrt : colours.border }, cardShadow]} onPress={() => { setShowLine1(!showLine1); setShowLine2(false); setShowEast(false); setShowWest(false); setShowNorth(false); setShowSouth(false); }}>
+          <TouchableOpacity style={[{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 20, marginBottom: showLine1 ? 0 : 8, borderWidth: 1, borderRadius: 12, borderBottomLeftRadius: showLine1 ? 0 : 14, borderBottomRightRadius: showLine1 ? 0 : 14, padding: 12, backgroundColor: showLine1 ? colours.lrt + '12' : colours.surface, borderColor: showLine1 ? colours.lrt : colours.border }, cardShadow]} onPress={() => { setShowLine1(!showLine1); setShowLine2(false); setShowEast(false); setShowWest(false); setShowNorth(false); setShowSouth(false); }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colours.lrt + '20', alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 11, fontWeight: '900', color: colours.lrt }}>L1</Text></View>
               <View><Text style={{ fontSize: fonts.md, fontWeight: '700', color: showLine1 ? colours.lrt : colours.text }}>{t('Confederation Line', 'Ligne Confédération')}</Text><Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>{t("Tunney's Pasture ↔ Blair", "Tunney's ↔ Blair")}</Text></View>
@@ -4226,7 +4226,7 @@ function LiveScreenInner() {
               {showWest && LRT_WEST.map((station, index) => (<TouchableOpacity key={station.id} style={[styles.stationRow, { borderBottomColor: colours.border }, stopId === station.id && { backgroundColor: colours.lrt + '12' }]} onPress={() => { loadStop(station.id, station.name); setExpandedStopId(station.id); setShowLine1(false); setShowWest(false); }} activeOpacity={0.7}><View style={styles.stationDotCol}><View style={[styles.stationDot, { borderColor: colours.border }, stopId === station.id && { backgroundColor: colours.lrt, borderColor: colours.lrt }]} />{index < LRT_WEST.length - 1 && <View style={[styles.stationLine, { backgroundColor: colours.border }]} />}</View><Text style={{ flex: 1, fontSize: fonts.md, fontWeight: stopId === station.id ? '700' : '500', color: stopId === station.id ? colours.lrt : colours.text }}>{station.name}</Text><Ionicons name="chevron-forward" size={14} color={colours.muted} /></TouchableOpacity>))}
             </View>
           )}
-          <TouchableOpacity style={[{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 20, marginBottom: showLine2 ? 0 : 12, borderWidth: 1, borderRadius: 14, borderBottomLeftRadius: showLine2 ? 0 : 14, borderBottomRightRadius: showLine2 ? 0 : 14, padding: 12, backgroundColor: showLine2 ? '#7b5ea7' + '12' : colours.surface, borderColor: showLine2 ? '#7b5ea7' : colours.border }, cardShadow]} onPress={() => { setShowLine2(!showLine2); setShowLine1(false); setShowEast(false); setShowWest(false); setShowNorth(false); setShowSouth(false); }}>
+          <TouchableOpacity style={[{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 20, marginBottom: showLine2 ? 0 : 12, borderWidth: 1, borderRadius: 12, borderBottomLeftRadius: showLine2 ? 0 : 14, borderBottomRightRadius: showLine2 ? 0 : 14, padding: 12, backgroundColor: showLine2 ? '#7b5ea7' + '12' : colours.surface, borderColor: showLine2 ? '#7b5ea7' : colours.border }, cardShadow]} onPress={() => { setShowLine2(!showLine2); setShowLine1(false); setShowEast(false); setShowWest(false); setShowNorth(false); setShowSouth(false); }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#7b5ea7' + '20', alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 11, fontWeight: '900', color: '#7b5ea7' }}>L2</Text></View>
               <View><Text style={{ fontSize: fonts.md, fontWeight: '700', color: showLine2 ? '#7b5ea7' : colours.text }}>{t('Trillium Line', 'Ligne Trillium')}</Text><Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>{t('Bayview ↔ Limebank', 'Bayview ↔ Limebank')}</Text></View>
@@ -4253,7 +4253,7 @@ function LiveScreenInner() {
       case 'saved': return savedPlaces.length === 0 ? null : (
         <React.Fragment key="saved">{wrapSection('saved', <>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 10 }}>
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Saved Places', 'Lieux sauvegardés')}</Text>
+            <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Saved Places', 'Lieux sauvegardés')}</Text>
             <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Long press to remove', 'Appui long pour retirer')}</Text>
           </View>
           <FlatList horizontal data={savedPlaces} keyExtractor={p => p.id} showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 20, paddingRight: 20, gap: 10, paddingBottom: 4 }} style={{ marginBottom: 20 }} snapToInterval={170} decelerationRate="fast" renderItem={({ item: place }) => (<SavedPlaceCard place={place} colours={colours} fonts={fonts} language={language} t={t} onPress={() => Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(`${place.name} ${place.vicinity}`)}`)} onLongPress={() => Alert.alert(t('Remove?', 'Retirer?'), place.name, [{ text: t('Cancel', 'Annuler'), style: 'cancel' }, { text: t('Remove', 'Retirer'), style: 'destructive', onPress: () => removeSavedPlace(place.id) }])} cardShadow={cardShadow} />)} />
@@ -4270,7 +4270,7 @@ function LiveScreenInner() {
       case 'alerts': return (
         <React.Fragment key="alerts">{wrapSection('alerts', <>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 6 }}>
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, letterSpacing: 1, textTransform: 'uppercase' }}>{t('Service Alerts', 'Alertes')}</Text>
+            <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, letterSpacing: 0.5, textTransform: 'uppercase' }}>{t('Service Alerts', 'Alertes')}</Text>
             <TouchableOpacity onPress={() => { const item: SavedBoardItem = { type: 'service_alert' }; isBoardSaved(item) ? removeFromBoard(item) : addToBoardIfMissing(item); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Save alerts to board', 'Sauvegarder les alertes au tableau')} accessibilityState={{ selected: isBoardSaved({ type: 'service_alert' }) }}>
               <Ionicons name={isBoardSaved({ type: 'service_alert' }) ? 'bookmark' : 'bookmark-outline'} size={18} color={isBoardSaved({ type: 'service_alert' }) ? colours.accent : colours.muted} />
             </TouchableOpacity>
@@ -4352,7 +4352,7 @@ function LiveScreenInner() {
                       })();
                       return (
                         <View key={i} style={{
-                          paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
+                          paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8,
                           borderWidth: isCurrent ? 2 : 1,
                           borderColor: isCurrent ? colours.accent : colours.border,
                           backgroundColor: isCurrent ? colours.accent + '15' : isPast ? colours.bg : colours.surface,
@@ -4391,7 +4391,7 @@ function LiveScreenInner() {
                   </TouchableOpacity>
                 </View>
                 <ScrollView style={{ maxHeight: 480 }} contentContainerStyle={{ padding: 20, gap: 14 }} keyboardShouldPersistTaps="handled">
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Category', 'Cat\u00E9gorie')}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Category', 'Cat\u00E9gorie')}</Text>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                     {[
                       { key: 'Pothole', label: t('Pothole', 'Nid-de-poule') },
@@ -4401,13 +4401,13 @@ function LiveScreenInner() {
                       { key: 'Other', label: t('Other', 'Autre') },
                     ].map(cat => (
                       <TouchableOpacity key={cat.key} onPress={() => setReport311Category(cat.key)}
-                        style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, backgroundColor: report311Category === cat.key ? '#cc3b2a' + '18' : colours.surface, borderColor: report311Category === cat.key ? '#cc3b2a' : colours.border }}
+                        style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, backgroundColor: report311Category === cat.key ? '#cc3b2a' + '18' : colours.surface, borderColor: report311Category === cat.key ? '#cc3b2a' : colours.border }}
                         accessibilityRole="button" accessibilityLabel={cat.label} accessibilityState={{ selected: report311Category === cat.key }}>
                         <Text style={{ fontSize: 13, fontWeight: '700', color: report311Category === cat.key ? '#cc3b2a' : colours.muted }}>{cat.label}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Location', 'Emplacement')}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Location', 'Emplacement')}</Text>
                   <TextInput
                     value={report311Location}
                     onChangeText={setReport311Location}
@@ -4416,7 +4416,7 @@ function LiveScreenInner() {
                     style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 12, padding: 14, fontSize: fonts.md, color: colours.text, backgroundColor: colours.surface }}
                     accessibilityLabel={t('Report location', 'Emplacement du signalement')}
                   />
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Description', 'Description')}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Description', 'Description')}</Text>
                   <TextInput
                     value={report311Desc}
                     onChangeText={setReport311Desc}
@@ -4426,7 +4426,7 @@ function LiveScreenInner() {
                     style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 12, padding: 14, fontSize: fonts.md, color: colours.text, backgroundColor: colours.surface, minHeight: 80, textAlignVertical: 'top' }}
                     accessibilityLabel={t('Describe the issue', 'Decrivez le probleme')}
                   />
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Photo (optional)', 'Photo (optionnel)')}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Photo (optional)', 'Photo (optionnel)')}</Text>
                   <TouchableOpacity onPress={pick311Photo} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, borderWidth: 1, borderColor: colours.border, borderRadius: 12, backgroundColor: colours.surface, borderStyle: 'dashed' }} accessibilityRole="button" accessibilityLabel={t('Add photo', 'Ajouter une photo')}>
                     <Ionicons name={report311Photo ? 'checkmark-circle' : 'camera-outline'} size={20} color={report311Photo ? '#2d7a3a' : colours.muted} />
                     <Text style={{ fontSize: fonts.md, color: report311Photo ? '#2d7a3a' : colours.muted, fontWeight: '600' }}>
@@ -4526,7 +4526,7 @@ function LiveScreenInner() {
               {/* Hourly crowding chart */}
               {crowdingHourly.length > 0 && (
                 <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
-                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Today by hour', 'Aujourd\'hui par heure')}</Text>
+                  <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Today by hour', 'Aujourd\'hui par heure')}</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 60 }}>
                     {Array.from({ length: 17 }, (_, i) => i + 6).map(hour => {
                       const entry = crowdingHourly.find(e => e.hour === hour);
@@ -4685,7 +4685,7 @@ function LiveScreenInner() {
           {!boardLoaded ? (
             <View style={{ flexDirection: 'row', paddingHorizontal: 20, marginBottom: 16 }}>
               {[0, 1, 2].map(i => (
-                <View key={`skel-${i}`} style={{ width: 140, height: 100, borderRadius: 14, backgroundColor: colours.border, marginRight: 10, opacity: 0.5 }} />
+                <View key={`skel-${i}`} style={{ width: 140, height: 100, borderRadius: 12, backgroundColor: colours.border, marginRight: 10, opacity: 0.5 }} />
               ))}
             </View>
           ) : savedBoard.length === 0 ? (
@@ -4720,7 +4720,7 @@ function LiveScreenInner() {
             {nearbyAlternative && (
               <TouchableOpacity
                 onPress={() => loadStop(nearbyAlternative.stopId, nearbyAlternative.stopName)}
-                style={{ marginHorizontal: 20, marginBottom: 12, backgroundColor: colours.accent + '10', borderRadius: 14, borderWidth: 1, borderColor: colours.accent + '30', paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+                style={{ marginHorizontal: 20, marginBottom: 12, backgroundColor: colours.accent + '10', borderRadius: 12, borderWidth: 1, borderColor: colours.accent + '30', paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}
                 activeOpacity={0.7}
               >
                 <Ionicons name="walk" size={20} color={colours.accent} />
@@ -4742,7 +4742,7 @@ function LiveScreenInner() {
           ) : (
             <>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 8 }}>
-                <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('My Board', 'Mon tableau')}</Text>
+                <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('My Board', 'Mon tableau')}</Text>
                 <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Use arrows to reorder', 'Utilisez les flèches')}</Text>
               </View>
               <FlatList
@@ -4834,7 +4834,7 @@ function LiveScreenInner() {
 
           {/* Weather-aware transit banner */}
           {weather && !weatherBannerDismissed && (weather.temp <= -20 || (forecast.length > 0 && forecast.slice(0, 3).some(h => h.precip > 70))) && (
-            <View style={{ marginHorizontal: 20, marginBottom: 16, backgroundColor: '#004890' + '15', borderWidth: 1, borderColor: '#004890' + '40', borderRadius: 14, padding: 14, flexDirection: 'row', gap: 10, alignItems: 'flex-start', ...cardShadow }}>
+            <View style={{ marginHorizontal: 20, marginBottom: 16, backgroundColor: '#004890' + '15', borderWidth: 1, borderColor: '#004890' + '40', borderRadius: 12, padding: 14, flexDirection: 'row', gap: 10, alignItems: 'flex-start', ...cardShadow }}>
               <Ionicons name={weather.temp <= -20 ? 'snow' : 'rainy'} size={20} color="#004890" style={{ marginTop: 2 }} />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 13, fontWeight: '700', color: '#004890' }}>
@@ -4860,11 +4860,11 @@ function LiveScreenInner() {
             <TouchableOpacity
               onPress={() => router.push({ pathname: '/(tabs)/planner', params: { toLabel: commuteInsight.toLabel } } as any)}
               activeOpacity={0.85}
-              style={{ marginHorizontal: 20, marginBottom: 16, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 14, padding: 14, ...cardShadow }}
+              style={{ marginHorizontal: 20, marginBottom: 16, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, padding: 14, ...cardShadow }}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <Ionicons name="analytics" size={16} color={colours.accent} />
-                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                   {t('Your Commute', 'Votre trajet')}
                 </Text>
               </View>
@@ -4912,9 +4912,9 @@ const styles = StyleSheet.create({
   liveDot: { width: 6, height: 6, borderRadius: 3 },
   searchContainer: { paddingHorizontal: 20, marginBottom: 12 },
   searchRow: { flexDirection: 'row', gap: 10 },
-  searchInput: { flex: 1, borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12, fontWeight: '500' },
-  searchBtn: { paddingHorizontal: 18, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  dropdown: { borderWidth: 1, borderRadius: 14, marginTop: 6, overflow: 'hidden' },
+  searchInput: { flex: 1, borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, fontWeight: '500' },
+  searchBtn: { paddingHorizontal: 18, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  dropdown: { borderWidth: 1, borderRadius: 12, marginTop: 6, overflow: 'hidden' },
   dropdownItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
   arrivalsCard: { marginHorizontal: 20, borderRadius: 16, borderWidth: 1, marginBottom: 16, overflow: 'hidden' },
   boardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
@@ -4928,8 +4928,8 @@ const styles = StyleSheet.create({
   reportBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
   centerState: { alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 },
   retryBtn: { marginTop: 12, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12 },
-  sectionLabel: { fontWeight: '700', paddingHorizontal: 20, marginBottom: 8, letterSpacing: 1, textTransform: 'uppercase' },
-  notifBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 20, marginBottom: 16, padding: 14, borderRadius: 14, borderWidth: 1 },
+  sectionLabel: { fontWeight: '600', paddingHorizontal: 20, marginBottom: 8, letterSpacing: 0.5, textTransform: 'uppercase' },
+  notifBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 20, marginBottom: 16, padding: 14, borderRadius: 12, borderWidth: 1 },
   notifLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   notifDot: { width: 8, height: 8, borderRadius: 4, marginRight: 10 },
   stationRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1 },
@@ -4939,14 +4939,14 @@ const styles = StyleSheet.create({
   cardsRow: { paddingLeft: 20, paddingRight: 20, gap: 12, paddingBottom: 4 },
   discoverCardImage: { width: '100%', height: '100%', justifyContent: 'flex-end' },
   discoverCardFallback: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  categoryBadge: { position: 'absolute', top: 10, left: 10, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  categoryBadge: { position: 'absolute', top: 10, left: 10, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
   discoverCardBottom: { padding: 10 },
   modalContainer: { flex: 1 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 20, borderBottomWidth: 1 },
   modalClose: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   modalCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
-  lrtStatusCard: { flexDirection: 'row', alignItems: 'center', margin: 16, padding: 14, borderRadius: 14, borderWidth: 1 },
-  alertCard: { marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 14, borderWidth: 1, borderLeftWidth: 4 },
-  alertCatBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  lrtStatusCard: { flexDirection: 'row', alignItems: 'center', margin: 16, padding: 14, borderRadius: 12, borderWidth: 1 },
+  alertCard: { marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderLeftWidth: 4 },
+  alertCatBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 },
   routeBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
 });
