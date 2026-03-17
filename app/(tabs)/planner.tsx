@@ -662,13 +662,35 @@ function PlannerScreenInner() {
       const resp = await fetchWithTimeout(url);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
+
+      // For arriveBy schedule trips, also fetch earlier options (30min earlier)
+      let earlierItins: any[] = [];
+      if (useArriveBy && travelMode === 'transit') {
+        try {
+          const earlyD = new Date(d.getTime() - 30 * 60000);
+          const earlyTimeStr = `${String(earlyD.getHours()).padStart(2, '0')}:${String(earlyD.getMinutes()).padStart(2, '0')}`;
+          const earlyMonth = String(earlyD.getMonth() + 1).padStart(2, '0');
+          const earlyDay = String(earlyD.getDate()).padStart(2, '0');
+          const earlyDateStr = `${earlyMonth}-${earlyDay}-${earlyD.getFullYear()}`;
+          const earlyUrl = `${PLAN_URL}?fromLat=${resolvedFrom.lat}&fromLng=${resolvedFrom.lng}&fromLabel=${encodeURIComponent(resolvedFrom.label)}&toLat=${resolvedTo.lat}&toLng=${resolvedTo.lng}&toLabel=${encodeURIComponent(resolvedTo.label)}&time=${encodeURIComponent(earlyTimeStr)}&date=${encodeURIComponent(earlyDateStr)}&arriveBy=true&mode=transit${accessibleRouting ? '&wheelchair=true' : ''}&maxWalk=${walkPreference}&walkSpeed=${walkPace}`;
+          const earlyResp = await fetchWithTimeout(earlyUrl);
+          if (earlyResp.ok) {
+            const earlyData = await earlyResp.json();
+            earlierItins = earlyData.itineraries || [];
+          }
+        } catch { /* ignore earlier fetch failure */ }
+      }
+
       if (data.error) { setError(data.error); }
-      else if (!data.itineraries?.length) { setError(t('No routes found. Try a different time or destination.', 'Aucun trajet trouve. Essayez une autre heure ou destination.')); }
+      else if (!data.itineraries?.length && !earlierItins.length) { setError(t('No routes found. Try a different time or destination.', 'Aucun trajet trouve. Essayez une autre heure ou destination.')); }
       else {
+        // Merge earlier + primary results
+        const allItins = [...(data.itineraries || []), ...earlierItins];
+
         if (travelMode === 'transit') {
           try {
             // Filter out insane routes: any itinerary with a single transfer wait >60 min
-            const sane = data.itineraries.filter((itin: any) => {
+            const sane = allItins.filter((itin: any) => {
               const legs = itin.legs || [];
               for (let i = 1; i < legs.length; i++) {
                 if (legs[i - 1].mode === 'WALK' || legs[i].mode === 'WALK') continue;
@@ -677,13 +699,24 @@ function PlannerScreenInner() {
               }
               return true;
             });
-            const pool = sane.length > 0 ? sane : data.itineraries;
-            const sorted = [...pool].sort((a: any, b: any) => {
+            const pool = sane.length > 0 ? sane : allItins;
+
+            // Deduplicate by start time (within 2 min)
+            const deduped = pool.filter((itin: any, idx: number) => {
+              for (let j = 0; j < idx; j++) {
+                if (Math.abs((itin.startTime ?? 0) - (pool[j].startTime ?? 0)) < 120000) return false;
+              }
+              return true;
+            });
+
+            // Sort: transit first, then by departure time (earliest first)
+            const sorted = [...deduped].sort((a: any, b: any) => {
               const aWalkOnly = Array.isArray(a.legs) && a.legs.length > 0 && a.legs.every((l: any) => l.mode === 'WALK');
               const bWalkOnly = Array.isArray(b.legs) && b.legs.length > 0 && b.legs.every((l: any) => l.mode === 'WALK');
               if (aWalkOnly !== bWalkOnly) return aWalkOnly ? 1 : -1;
-              return (a.endTime ?? 0) - (b.endTime ?? 0);
+              return (a.startTime ?? 0) - (b.startTime ?? 0);
             });
+
             const transitItins = sorted.filter((i: any) => (i.legs || []).some((l: any) => l.mode !== 'WALK'));
             const walkOnlyItins = sorted.filter((i: any) => (i.legs || []).every((l: any) => l.mode === 'WALK'));
             const bestTransitEnd = transitItins[0]?.endTime ?? Infinity;
@@ -692,13 +725,30 @@ function PlannerScreenInner() {
             const keepWalk = transitItins.length === 0
               || bestWalkDuration <= 1200
               || bestWalkEnd <= bestTransitEnd + 1200000;
-            setItineraries(keepWalk ? sorted : transitItins);
+
+            // For arriveBy: tag the best "comfortable" option (arrives with most buffer)
+            if (useArriveBy && transitItins.length > 0) {
+              const targetMs = d.getTime();
+              // Best = earliest arrival among those arriving before target (most buffer)
+              // Already sorted by departure — first one that arrives before target is best
+              let bestIdx = 0;
+              for (let i = 0; i < transitItins.length; i++) {
+                if ((transitItins[i].endTime ?? Infinity) <= targetMs) { bestIdx = i; break; }
+              }
+              // Tag for rendering — move the best option to index 0
+              if (bestIdx > 0) {
+                const [best] = transitItins.splice(bestIdx, 1);
+                transitItins.unshift(best);
+              }
+            }
+
+            setItineraries(keepWalk ? [...transitItins, ...walkOnlyItins] : transitItins);
           } catch {
-            setItineraries(data.itineraries);
+            setItineraries(allItins);
           }
         } else {
           // Non-transit modes (driving, bicycling, walking): pass through unfiltered
-          setItineraries(data.itineraries);
+          setItineraries(data.itineraries || []);
         }
       }
       // Auto-save to trip history
@@ -1044,11 +1094,25 @@ function PlannerScreenInner() {
         activeOpacity={0.85}
       >
         {/* Badge */}
-        {isFirst && (
+        {isFirst && !isWalkOnly && (
           <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: colours.accent, borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3 }}>
-            <Text style={{ color: 'white', fontSize: 9, fontWeight: '800' }}>{t('FASTEST', 'PLUS RAPIDE')}</Text>
+            <Text style={{ color: 'white', fontSize: 9, fontWeight: '800' }}>{arriveBy ? t('RECOMMENDED', 'RECOMMANDE') : t('FASTEST', 'PLUS RAPIDE')}</Text>
           </View>
         )}
+        {!isFirst && !isWalkOnly && arriveBy && (() => {
+          // Show "TIGHT" for options arriving within 5 min of target or after
+          const targetMs = departTime.getTime();
+          const buffer = targetMs - (itin.endTime ?? 0);
+          const bufferMin = Math.round(buffer / 60000);
+          if (bufferMin < 5 && bufferMin > -30) {
+            return (
+              <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: '#e8a020' + '20', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#e8a020' + '40' }}>
+                <Text style={{ color: '#e8a020', fontSize: 9, fontWeight: '800' }}>{t('TIGHT', 'SERRE')}</Text>
+              </View>
+            );
+          }
+          return null;
+        })()}
         {isWalkOnly && (
           <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: '#34c759' + '20', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#34c759' + '40' }}>
             <Text style={{ color: '#34c759', fontSize: 9, fontWeight: '800' }}>{t('FREE', 'GRATUIT')}</Text>
