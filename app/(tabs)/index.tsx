@@ -42,7 +42,8 @@ type SavedBoardItem =
   | { type: 'external_link'; id: string; label_en: string; label_fr: string; icon: string; accent: string; url: string }
   | { type: 'campus' }
   | { type: 'news' }
-  | { type: 'neighbourhood'; id: string; name_en: string; name_fr: string };
+  | { type: 'neighbourhood'; id: string; name_en: string; name_fr: string }
+  | { type: 'class_schedule' };
 
 import {
   OC_TRANSPO_API_KEY,
@@ -59,10 +60,12 @@ import {
   SK_CAMPUS, SK_NOTIF_SETTINGS,
 } from '../../lib/storageKeys';
 import { CAMPUSES, CampusConfig, getNextDeparture, isLibraryOpen, fmt12h, getDayLabel } from '../../lib/campusData';
+import { ClassSchedule, nextClass, fmt12h as schedFmt12h } from '../../lib/scheduleData';
+import ClassScheduleModal from '../../components/ClassScheduleModal';
 import { HAPPY_HOUR_VENUES } from '../../lib/happyHourData';
 // neighbourhoodData import removed — discover section moved to dedicated tab
 // NewsArticle import removed — news lives in dedicated News tab
-import { SK_SAVED_NEIGHBOURHOODS, SK_TONIGHT_DISMISSED, SK_TRIP_HISTORY, SK_LAST_CROWDING_REPORT, SK_CROWDING_CACHE, SK_FREQUENT_CARD_DISMISSED, SK_FREQUENT_ARRIVALS_CACHE, SK_TRIP_SHARING, SK_BATTERY_SAVER } from '../../lib/storageKeys';
+import { SK_SAVED_NEIGHBOURHOODS, SK_TONIGHT_DISMISSED, SK_TRIP_HISTORY, SK_LAST_CROWDING_REPORT, SK_CROWDING_CACHE, SK_FREQUENT_CARD_DISMISSED, SK_FREQUENT_ARRIVALS_CACHE, SK_TRIP_SHARING, SK_BATTERY_SAVER, SK_CLASS_SCHEDULE } from '../../lib/storageKeys';
 import { FrequentRoute, detectFrequentRoutes } from '../../lib/frequentRoutes';
 import { getLocalEvents } from '../../lib/localEvents';
 import { getDelayContext } from '../../lib/delayContext';
@@ -305,7 +308,7 @@ const fmtTime = (date: Date): string => {
 const fmtAbsTime = (minsAway: number): string => fmtTime(new Date(Date.now() + minsAway * 60000));
 
 // ── SavedBoardCard component ─────────────────────────────────────
-function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, cardShadow, garbageEvents, alerts, sensGame, onMoveLeft, onMoveRight, timeFormat, campusData }: {
+function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, cardShadow, garbageEvents, alerts, sensGame, onMoveLeft, onMoveRight, timeFormat, campusData, scheduleData }: {
   item: SavedBoardItem; colours: any; fonts: any; t: any;
   onPress: () => void; drag: () => void; isActive: boolean; cardShadow: any;
   garbageEvents: { date: string; flags: string[] }[];
@@ -315,6 +318,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   onMoveRight?: () => void;
   timeFormat?: 'relative' | 'absolute';
   campusData?: CampusConfig | null;
+  scheduleData?: ClassSchedule | null;
 }) {
   const boardRouter = useRouter();
   const [preview, setPreview] = useState<{ routeId: string; headsign: string; minsAway: number }[]>([]);
@@ -324,7 +328,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   const [gasFailed, setGasFailed] = useState(false);
 
   useEffect(() => {
-    if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'saved_team' || item.type === 'campus' || item.type === 'news' || item.type === 'neighbourhood') { setPreviewLoading(false); return; }
+    if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'saved_team' || item.type === 'campus' || item.type === 'news' || item.type === 'neighbourhood' || item.type === 'class_schedule') { setPreviewLoading(false); return; }
     if (item.type === 'gas_prices') {
       setPreviewLoading(false);
       return;
@@ -594,7 +598,54 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
     );
   }
 
-  // ── Campus card ──
+  // ── Schedule card ──
+  if (item.type === 'class_schedule') {
+    const next = scheduleData ? nextClass(scheduleData) : null;
+    const hasSchedule = scheduleData && scheduleData.classes.length > 0;
+    return (
+      <ScaleDecorator>
+      <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ width: 22, height: 22, borderRadius: 4, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="school" size={12} color={colours.accent} />
+          </View>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Schedule', 'Horaire')}</Text>
+        </View>
+        {hasSchedule && next ? (
+          <>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: colours.text, lineHeight: 18 }} numberOfLines={2}>{next.entry.name}</Text>
+            <View style={{ gap: 2 }}>
+              <Text style={{ fontSize: 11, fontWeight: '600', color: colours.text }}>{schedFmt12h(next.entry.startTime)}{next.entry.room ? ` · ${next.entry.room}` : ''}</Text>
+              {next.minsUntilLeave > 0 && next.minsUntilLeave < 120 ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: '#00A78D' }} />
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: '#00A78D' }}>
+                    {t(`Leave in ${next.minsUntilLeave}m`, `Partir dans ${next.minsUntilLeave}m`)}
+                  </Text>
+                </View>
+              ) : next.minsUntilLeave === 0 ? (
+                <Text style={{ fontSize: 10, fontWeight: '700', color: '#00A78D' }}>{t('In class now', 'En cours')}</Text>
+              ) : (
+                <Text style={{ fontSize: 10, color: colours.muted }}>{next.day}</Text>
+              )}
+            </View>
+          </>
+        ) : hasSchedule ? (
+          <>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: colours.muted }}>{t('Done for today', 'Fini pour aujourd\'hui')}</Text>
+            <Text style={{ fontSize: 10, color: colours.muted }}>{t('No more classes', 'Plus de cours')}</Text>
+          </>
+        ) : (
+          <>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{t('My Schedule', 'Mon horaire')}</Text>
+            <Text style={{ fontSize: 10, color: colours.muted }}>{t('Tap to set up', 'Appuyez pour configurer')}</Text>
+          </>
+        )}
+      </TouchableOpacity>
+      </ScaleDecorator>
+    );
+  }
+
   if (item.type === 'campus') {
     const campus = campusData;
     const accent = campus?.accent || '#004890';
@@ -1468,6 +1519,8 @@ function LiveScreenInner() {
   const [campusTab, setCampusTab] = useState<'shuttle' | 'library' | 'upass' | 'food' | 'study'>('shuttle');
   const [selectedCampus, setSelectedCampus] = useState<CampusConfig | null>(null);
   const [campusPicker, setCampusPicker] = useState(false);
+  const [classSchedule, setClassSchedule] = useState<ClassSchedule | null>(null);
+  const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
   const [campusFood, setCampusFood] = useState<any[]>([]);
   const [campusFoodLoading, setCampusFoodLoading] = useState(false);
 
@@ -1539,6 +1592,7 @@ function LiveScreenInner() {
     AsyncStorage.getItem(SK_TIME_FORMAT).then(val => { if (val === 'absolute') setTimeFormat('absolute'); });
     AsyncStorage.getItem(SK_BATTERY_SAVER).then(val => { if (val === 'true') setBatterySaver(true); });
     AsyncStorage.getItem(SK_CAMPUS).then(val => { if (val) { const c = CAMPUSES.find(x => x.id === val); if (c) setSelectedCampus(c); } }).catch(() => {});
+    AsyncStorage.getItem(SK_CLASS_SCHEDULE).then(val => { try { if (val) setClassSchedule(JSON.parse(val)); } catch {} }).catch(() => {});
     Promise.all([
       AsyncStorage.getItem(SK_SAVED_BOARD),
       AsyncStorage.getItem(SK_FAVS),
@@ -1746,6 +1800,7 @@ function LiveScreenInner() {
     if (item.type === 'services') return savedBoard.some(i => i.type === 'services');
     if (item.type === 'discover') return savedBoard.some(i => i.type === 'discover');
     if (item.type === 'campus') return savedBoard.some(i => i.type === 'campus');
+    if (item.type === 'class_schedule') return savedBoard.some(i => i.type === 'class_schedule');
     if (item.type === 'news') return savedBoard.some(i => i.type === 'news');
     if (item.type === 'neighbourhood') return savedBoard.some(i => i.type === 'neighbourhood' && i.id === item.id);
     if (item.type === 'saved_team') return savedBoard.some(i => i.type === 'saved_team' && i.id === item.id);
@@ -4600,6 +4655,7 @@ function LiveScreenInner() {
         {parksModal && renderParksModal()}
         {bikeShareModal && renderBikeShareModal()}
         {(campusPicker || campusModal) && renderCampusModal()}
+        {scheduleModalVisible && <ClassScheduleModal visible={scheduleModalVisible} onClose={() => setScheduleModalVisible(false)} colours={colours} fonts={fonts} t={t} language={language} schedule={classSchedule} onSave={(s) => { setClassSchedule(s); if (!savedBoard.some(i => i.type === 'class_schedule')) { const next = [{ type: 'class_schedule' as const }, ...savedBoard]; setSavedBoard(next); AsyncStorage.setItem(SK_SAVED_BOARD, JSON.stringify(next)); } }} />}
 
         {/* 311 Report Modal */}
         {show311Modal && <Modal visible={show311Modal} animationType="slide" transparent onRequestClose={() => setShow311Modal(false)}>
@@ -4993,6 +5049,7 @@ function LiveScreenInner() {
                   if (item.type === 'news') return 'news';
                   if (item.type === 'neighbourhood') return `neighbourhood-${item.id}`;
                   if (item.type === 'campus') return 'campus';
+                  if (item.type === 'class_schedule') return 'class_schedule';
                   if (item.type === 'saved_team') return `team-${item.id}`;
                   if (item.type === 'external_link') return `ext-${item.id}`;
                   return `${item.type}-${(item as any).id}-${i}`;
@@ -5032,6 +5089,7 @@ function LiveScreenInner() {
                     sensGame={sensGame}
                     timeFormat={timeFormat}
                     campusData={selectedCampus}
+                    scheduleData={classSchedule}
                     onMoveLeft={idx > 0 ? () => moveBoard(idx, idx - 1) : undefined}
                     onMoveRight={idx < savedBoard.length - 1 ? () => moveBoard(idx, idx + 1) : undefined}
                     onPress={() => {
@@ -5047,6 +5105,7 @@ function LiveScreenInner() {
                         setSportsInitialTab('scores');
                         setSportsModal(true);
                       }
+                      if (item.type === 'class_schedule') { setScheduleModalVisible(true); return; }
                       if (item.type === 'campus') { if (!selectedCampus) setCampusPicker(true); else setCampusModal(true); return; }
                       if (item.type === 'news') { /* scroll handled by section visibility */ }
                       if (item.type === 'neighbourhood') {
@@ -5084,6 +5143,28 @@ function LiveScreenInner() {
                 <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>{t('Undo', 'Annuler')}</Text>
               </TouchableOpacity>
             </View>
+          )}
+
+          {/* Schedule setup prompt */}
+          {selectedCampus && (!classSchedule || classSchedule.classes.length === 0) && (
+            <TouchableOpacity
+              onPress={() => setScheduleModalVisible(true)}
+              style={{ marginHorizontal: 20, marginBottom: 16, backgroundColor: selectedCampus.accent + '12', borderWidth: 1, borderColor: selectedCampus.accent + '30', borderRadius: 12, padding: 14, flexDirection: 'row', gap: 10, alignItems: 'center', ...cardShadow }}
+              activeOpacity={0.7}
+            >
+              <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: selectedCampus.accent + '20', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="school-outline" size={18} color={selectedCampus.accent} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: selectedCampus.accent }}>
+                  {t('Add your class schedule', 'Ajoutez votre horaire de cours')}
+                </Text>
+                <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>
+                  {t('Get leave-time reminders and quick trip planning', 'Recevez des rappels de depart et planifiez vos trajets rapidement')}
+                </Text>
+              </View>
+              <Ionicons name="arrow-forward" size={16} color={selectedCampus.accent} />
+            </TouchableOpacity>
           )}
 
           {/* Weather-aware transit banner */}

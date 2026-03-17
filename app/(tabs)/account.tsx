@@ -11,7 +11,10 @@ import {
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
 import { registerPushToken, syncSubscriptions } from '../../lib/pushNotifications';
-import { SK_FAVS, SK_SAVED_PLACES, SK_SAVED_BOARD, SK_NOTIF_SETTINGS, SK_TRIP_SHARING, SK_TRIP_HISTORY, SK_PRESTO_BALANCE, SK_PRESTO_RESET_DATE, SK_BATTERY_SAVER } from '../../lib/storageKeys';
+import { SK_FAVS, SK_SAVED_PLACES, SK_SAVED_BOARD, SK_NOTIF_SETTINGS, SK_TRIP_SHARING, SK_TRIP_HISTORY, SK_PRESTO_BALANCE, SK_PRESTO_RESET_DATE, SK_BATTERY_SAVER, SK_CLASS_SCHEDULE, SK_CAMPUS } from '../../lib/storageKeys';
+import { CAMPUSES, CampusConfig } from '../../lib/campusData';
+import { ClassSchedule } from '../../lib/scheduleData';
+import ClassScheduleModal from '../../components/ClassScheduleModal';
 
 const isNightTime = () => { const h = new Date().getHours(); return h >= 21 || h < 4; };
 
@@ -108,6 +111,14 @@ export default function AccountScreen() {
   const [prestoSaved, setPrestoSaved] = useState(false);
   const [showPrestoEdit, setShowPrestoEdit] = useState(false);
   const [batterySaver, setBatterySaver] = useState(false);
+  const [acctSchedule, setAcctSchedule] = useState<ClassSchedule | null>(null);
+  const [acctCampus, setAcctCampus] = useState<CampusConfig | null>(null);
+  const [acctScheduleModal, setAcctScheduleModal] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(SK_CAMPUS).then(val => { if (val) { const c = CAMPUSES.find(x => x.id === val); if (c) setAcctCampus(c); } }).catch(() => {});
+    AsyncStorage.getItem(SK_CLASS_SCHEDULE).then(val => { try { if (val) setAcctSchedule(JSON.parse(val)); } catch {} }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     AsyncStorage.getItem(SK_TRIP_HISTORY).then(val => {
@@ -706,6 +717,34 @@ export default function AccountScreen() {
           </Card>
         )}
 
+        {/* MY SCHEDULE */}
+        {acctCampus && (
+          <Card>
+            <TouchableOpacity
+              onPress={() => setAcctScheduleModal(true)}
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 }}
+              activeOpacity={0.7}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: acctCampus.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="school-outline" size={16} color={acctCampus.accent} />
+                </View>
+                <View>
+                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.text }}>
+                    {t('My Schedule', 'Mon horaire')}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: colours.muted }}>
+                    {acctSchedule && acctSchedule.classes.length > 0
+                      ? t(`${acctSchedule.classes.length} classes · ${acctSchedule.commuteMins}min commute`, `${acctSchedule.classes.length} cours · ${acctSchedule.commuteMins}min trajet`)
+                      : t('Tap to set up your schedule', 'Appuyez pour configurer votre horaire')}
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colours.muted} />
+            </TouchableOpacity>
+          </Card>
+        )}
+
         {/* NOTIFICATIONS (collapsible) */}
         <Card>
           <TouchableOpacity
@@ -1070,7 +1109,7 @@ export default function AccountScreen() {
                   {savedBoard.map((item: any, idx: number) => (
                     <View key={`${item.type}-${item.id || idx}`} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 12 }}>
                       <View style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
-                        <Ionicons name={({ bus_stop: 'bus', lrt_station: 'train', garbage: 'trash', service_alert: 'alert-circle', gas_prices: 'speedometer', otrain: 'train', services: 'grid', discover: 'compass', saved_team: 'american-football', external_link: 'link', campus: 'school', news: 'newspaper', neighbourhood: 'map' }[item.type] || 'cube') as any} size={16} color={colours.accent} />
+                        <Ionicons name={({ bus_stop: 'bus', lrt_station: 'train', garbage: 'trash', service_alert: 'alert-circle', gas_prices: 'speedometer', otrain: 'train', services: 'grid', discover: 'compass', saved_team: 'american-football', external_link: 'link', campus: 'school', news: 'newspaper', neighbourhood: 'map', class_schedule: 'school-outline' }[item.type] || 'cube') as any} size={16} color={colours.accent} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }} numberOfLines={1}>
@@ -1089,6 +1128,7 @@ export default function AccountScreen() {
           </View>
         </View>
       </Modal>}
+      {acctScheduleModal && <ClassScheduleModal visible={acctScheduleModal} onClose={() => setAcctScheduleModal(false)} colours={colours} fonts={fonts} t={t} language={language} schedule={acctSchedule} onSave={(s) => setAcctSchedule(s)} />}
     </View>
   );
 }

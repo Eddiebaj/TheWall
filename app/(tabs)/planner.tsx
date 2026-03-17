@@ -56,7 +56,9 @@ class PlannerErrorBoundary extends React.Component<
     return this.props.children;
   }
 }
-import { SK_PLANNER_PREFS, SK_SAVED_ROUTES, SK_TRIP_HISTORY, SK_LEAVE_REMINDERS, SK_ACCESSIBILITY_ROUTING, SK_MOTION, SK_WALK_PREFERENCE, SK_WALK_PACE, SK_BATTERY_SAVER } from '../../lib/storageKeys';
+import { SK_PLANNER_PREFS, SK_SAVED_ROUTES, SK_TRIP_HISTORY, SK_LEAVE_REMINDERS, SK_ACCESSIBILITY_ROUTING, SK_MOTION, SK_WALK_PREFERENCE, SK_WALK_PACE, SK_BATTERY_SAVER, SK_CAMPUS, SK_CLASS_SCHEDULE } from '../../lib/storageKeys';
+import { CAMPUSES, CampusConfig } from '../../lib/campusData';
+import { ClassSchedule, nextClass, fmt12h as schedFmt12h } from '../../lib/scheduleData';
 
 const PLAN_URL = 'https://routeo-backend.vercel.app/api/plan';
 const PLACES_URL = 'https://routeo-backend.vercel.app/api/places';
@@ -360,6 +362,8 @@ function PlannerScreenInner() {
   const [autoLoading, setAutoLoading] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [batterySaverMode, setBatterySaverMode] = useState(false);
+  const [plannerCampus, setPlannerCampus] = useState<CampusConfig | null>(null);
+  const [plannerSchedule, setPlannerSchedule] = useState<ClassSchedule | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [reminderModal, setReminderModal] = useState<{ itin: Itinerary; idx: number } | null>(null);
   const [reminderTime, setReminderTime] = useState<Date>(new Date());
@@ -415,6 +419,12 @@ function PlannerScreenInner() {
     }).catch(() => {});
     AsyncStorage.getItem(SK_BATTERY_SAVER).then(val => {
       if (val === 'true') setBatterySaverMode(true);
+    }).catch(() => {});
+    AsyncStorage.getItem(SK_CAMPUS).then(val => {
+      if (val) { const c = CAMPUSES.find(x => x.id === val); if (c) setPlannerCampus(c); }
+    }).catch(() => {});
+    AsyncStorage.getItem(SK_CLASS_SCHEDULE).then(val => {
+      try { if (val) setPlannerSchedule(JSON.parse(val)); } catch {}
     }).catch(() => {});
     // Check for Sens game tonight
     fetchWithTimeout('https://api-web.nhle.com/v1/schedule/now').then(async r => {
@@ -2224,6 +2234,33 @@ function PlannerScreenInner() {
                 ))}
               </View>
             )}
+            {plannerCampus && plannerSchedule && plannerSchedule.classes.length > 0 && (() => {
+              const nc = nextClass(plannerSchedule);
+              if (!nc || nc.minsUntilLeave <= 0) return null;
+              return (
+                <TouchableOpacity
+                  onPress={() => {
+                    setToText(t(plannerCampus.name, plannerCampus.name_fr));
+                    setToPlace({ placeId: 'campus', label: plannerCampus.name, lat: plannerCampus.lat, lng: plannerCampus.lng });
+                  }}
+                  style={[{ flexDirection: 'row', alignItems: 'center', backgroundColor: plannerCampus.accent + '12', borderRadius: 12, borderWidth: 1, borderColor: plannerCampus.accent + '30', padding: 12, marginBottom: 12, gap: 10 }, cardShadow]}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: plannerCampus.accent + '20', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="school" size={18} color={plannerCampus.accent} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: plannerCampus.accent }}>
+                      {t(`Plan to ${plannerCampus.name}`, `Planifier vers ${plannerCampus.name_fr}`)}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: colours.muted, marginTop: 1 }}>
+                      {nc.entry.name} · {schedFmt12h(nc.entry.startTime)}
+                    </Text>
+                  </View>
+                  <Ionicons name="arrow-forward" size={16} color={plannerCampus.accent} />
+                </TouchableOpacity>
+              );
+            })()}
             {tripHistory.length === 0 && savedRoutes.length === 0 ? (
               <View style={{ alignItems: 'center', paddingVertical: 40 }}>
                 <View style={{ width: 64, height: 64, borderRadius: 16, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>

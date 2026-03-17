@@ -124,3 +124,7 @@ export const SK_PRESTO_RESET_DATE = 'routeo_presto_reset_date';
 
 // Crash diagnostics
 export const SK_CRASH_LOG = 'routeo_crash_log';
+
+// Class schedule
+export const SK_CLASS_SCHEDULE = 'routeo_class_schedule';
+export const SK_COMMUTE_DURATION = 'routeo_commute_duration';
