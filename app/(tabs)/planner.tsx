@@ -9,7 +9,7 @@ import { useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, Dimensions, FlatList, Keyboard, KeyboardAvoidingView,
-  Linking, Modal, NativeScrollEvent, NativeSyntheticEvent, Platform, ScrollView, Share,
+  Linking, Modal, NativeScrollEvent, NativeSyntheticEvent, Platform, RefreshControl, ScrollView, Share,
   Text,
   TextInput, TouchableOpacity, View
 } from 'react-native';
@@ -351,6 +351,8 @@ function PlannerScreenInner() {
   const [showHistory, setShowHistory] = useState(false);
   const [accessibleRouting, setAccessibleRouting] = useState(false);
   const [sensGameTonight, setSensGameTonight] = useState(false);
+  const [autoLoading, setAutoLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [reminderModal, setReminderModal] = useState<{ itin: Itinerary; idx: number } | null>(null);
   const [reminderTime, setReminderTime] = useState<Date>(new Date());
   const [leaveReminders, setLeaveReminders] = useState<{ id: string; destination: string; departAt: number; notifId: string }[]>([]);
@@ -540,8 +542,10 @@ function PlannerScreenInner() {
       if (field === 'from') setFromResults([]);
       else if (field === 'to') setToResults([]);
       else setWaypointResults(prev => { const next = { ...prev }; delete next[parseInt(field.split('_')[1])]; return next; });
+      setAutoLoading(false);
       return;
     }
+    setAutoLoading(true);
     try {
       const resp = await fetchWithTimeout(`${PLACES_URL}?action=autocomplete-geocode&input=${encodeURIComponent(text)}`);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -551,6 +555,7 @@ function PlannerScreenInner() {
       else if (field === 'to') setToResults(results);
       else setWaypointResults(prev => ({ ...prev, [parseInt(field.split('_')[1])]: results }));
     } catch (e) { if (__DEV__) console.warn('autocomplete fetch failed:', e); }
+    setAutoLoading(false);
   }, []);
 
   const resolvePlace = async (place: PlaceResult): Promise<PlaceResult> => {
@@ -1488,7 +1493,21 @@ function PlannerScreenInner() {
         />
       )}
 
-      <ScrollView ref={mainScrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 40 }}>
+      <ScrollView ref={mainScrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 40 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => {
+              if (!fromPlace?.lat || !toPlace?.lat) return;
+              setRefreshing(true);
+              await plan();
+              setRefreshing(false);
+            }}
+            tintColor={colours.accent}
+            colors={[colours.accent]}
+          />
+        }
+      >
         {/* Input card */}
         <View style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 18, borderWidth: 1, borderColor: colours.border, padding: 8, marginBottom: 12 }, cardShadow]}>
           {/* From */}
@@ -1611,6 +1630,11 @@ function PlannerScreenInner() {
         </View>
 
         {/* Autocomplete results — only show for the active field */}
+        {autoLoading && fromResults.length === 0 && activeInput === 'from' && (
+          <View style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }, cardShadow]}>
+            <ActivityIndicator size="small" color={colours.accent} style={{ padding: 12 }} />
+          </View>
+        )}
         {fromResults.length > 0 && activeInput === 'from' && (
           <View style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }, cardShadow]}>
             {fromResults.map((r, i) => (
@@ -1627,6 +1651,11 @@ function PlannerScreenInner() {
                 <Text style={{ flex: 1, fontSize: 13, color: colours.text }} numberOfLines={1}>{shortenLabel(r.label)}</Text>
               </TouchableOpacity>
             ))}
+          </View>
+        )}
+        {autoLoading && toResults.length === 0 && activeInput === 'to' && (
+          <View style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }, cardShadow]}>
+            <ActivityIndicator size="small" color={colours.accent} style={{ padding: 12 }} />
           </View>
         )}
         {toResults.length > 0 && activeInput === 'to' && (
@@ -1932,6 +1961,14 @@ function PlannerScreenInner() {
             <Ionicons name="map-outline" size={40} color={colours.muted} />
             <Text style={{ color: colours.text, fontSize: 16, fontWeight: '700', marginTop: 12, textAlign: 'center' }}>{t('No routes found', 'Aucun trajet trouve')}</Text>
             <Text style={{ color: colours.muted, fontSize: 13, marginTop: 6, textAlign: 'center' }}>{error}</Text>
+            <TouchableOpacity
+              onPress={plan}
+              style={{ marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, backgroundColor: colours.accent }}
+              accessibilityRole="button"
+            >
+              <Ionicons name="refresh" size={16} color="#fff" />
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{t('Try again', 'Reessayer')}</Text>
+            </TouchableOpacity>
           </View>
         ) : !loading && itineraries.length > 0 ? (
           <View style={{ paddingHorizontal: 20 }}>

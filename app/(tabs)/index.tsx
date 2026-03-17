@@ -1359,6 +1359,7 @@ function LiveScreenInner() {
   const [favs, setFavs] = useState<Fav[]>([]);
   const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
   const [savedBoard, setSavedBoard] = useState<SavedBoardItem[]>([]);
+  const [boardLoaded, setBoardLoaded] = useState(false);
   const [boardExpandItem, setBoardExpandItem] = useState<SavedBoardItem | null>(null);
   const [savedRoutes, setSavedRoutes] = useState<{ id: string; fromLabel: string; toLabel: string; fromLat: number; fromLng: number; toLat: number; toLng: number }[]>([]);
   const [showLine1, setShowLine1] = useState(false);
@@ -1524,10 +1525,12 @@ function LiveScreenInner() {
         }
         if (changed) AsyncStorage.setItem(SK_SAVED_BOARD, JSON.stringify(board));
         setSavedBoard(board);
+        setBoardLoaded(true);
       } catch {
         setSavedBoard([]);
+        setBoardLoaded(true);
       }
-    }).catch(() => {});
+    }).catch(() => { setBoardLoaded(true); });
     AsyncStorage.getItem(SK_GHOST_REPORTS).then(val => {
       try {
         if (val) {
@@ -4679,7 +4682,13 @@ function LiveScreenInner() {
           )}
 
           {/* Universal Saved Board */}
-          {savedBoard.length === 0 ? (
+          {!boardLoaded ? (
+            <View style={{ flexDirection: 'row', paddingHorizontal: 20, marginBottom: 16 }}>
+              {[0, 1, 2].map(i => (
+                <View key={`skel-${i}`} style={{ width: 140, height: 100, borderRadius: 14, backgroundColor: colours.border, marginRight: 10, opacity: 0.5 }} />
+              ))}
+            </View>
+          ) : savedBoard.length === 0 ? (
             <>
             <View style={[styles.arrivalsCard, { borderColor: colours.border, backgroundColor: colours.surface, ...cardShadow }]}>
               <View style={[styles.boardHeader, { borderBottomColor: colours.border, borderBottomWidth: 1 }]}>

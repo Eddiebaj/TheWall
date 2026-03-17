@@ -122,7 +122,13 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
   }, []);
 
   if (loading && articles.length === 0) {
-    return null;
+    return (
+      <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
+        {[0, 1].map(i => (
+          <View key={i} style={{ height: 160, borderRadius: 14, backgroundColor: colours.border, marginBottom: 10, opacity: 0.4 - i * 0.15 }} />
+        ))}
+      </View>
+    );
   }
 
   if (articles.length === 0) {

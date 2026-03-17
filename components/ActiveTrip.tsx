@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Modal, Platform, Text, TouchableOpacity, View,
+  Animated, Modal, Platform, Text, TouchableOpacity, View,
 } from 'react-native';
 import { fetchWithTimeout } from '../lib/fetchWithTimeout';
 
@@ -325,6 +325,28 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
     } catch {}
   };
 
+  // ── Pulse animation for countdown <5 min ────────────────────
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (!currentLeg) return;
+    const isTransitLeg = currentLeg.mode !== 'WALK' && currentLeg.mode !== 'CAR' && currentLeg.mode !== 'BICYCLE';
+    const depMs = liveArrival || currentLeg.startTime;
+    const hasDeparted = depMs <= now;
+    const minLeft = Math.floor(Math.max(0, (depMs - now) / 1000) / 60);
+    if (!isTransitLeg || hasDeparted || minLeft >= 5) {
+      pulseAnim.setValue(1);
+      return;
+    }
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 0.6, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, [currentLeg, liveArrival, now]);
+
   // ── Derived values ───────────────────────────────────────────
   if (!currentLeg) return null;
 
@@ -477,15 +499,17 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
                   </Text>
                 </View>
               ) : (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#0d419d' + '44', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
-                  <Ionicons name="time-outline" size={16} color="#58a6ff" />
-                  <Text style={{ fontSize: 22, fontWeight: '900', color: '#58a6ff', fontVariant: ['tabular-nums'] }}>
-                    {countdownMin}:{String(countdownRemSec).padStart(2, '0')}
-                  </Text>
-                  <Text style={{ fontSize: 13, color: '#8b949e', marginLeft: 4 }}>
-                    {t('until departure', 'avant le depart')}
-                  </Text>
-                </View>
+                <Animated.View style={{ opacity: pulseAnim }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#0d419d' + '44', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
+                    <Ionicons name="time-outline" size={16} color="#58a6ff" />
+                    <Text style={{ fontSize: 22, fontWeight: '900', color: '#58a6ff', fontVariant: ['tabular-nums'] }}>
+                      {countdownMin}:{String(countdownRemSec).padStart(2, '0')}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: '#8b949e', marginLeft: 4 }}>
+                      {t('until departure', 'avant le depart')}
+                    </Text>
+                  </View>
+                </Animated.View>
               )}
             </View>
           )}
