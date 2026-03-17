@@ -18,7 +18,7 @@ type WeatherModalProps = {
   t: (en: string, fr: string) => string;
   weather: { temp: number; condition: string; icon: string } | null;
   forecast: { time: string; temp: number; icon: string; precip: number }[];
-  dailyForecast: { day: string; high: number; low: number; icon: string; precip: number }[];
+  dailyForecast: { day: string; date: string; high: number; low: number; icon: string; precip: number }[];
   locationName: string;
 };
 
@@ -30,7 +30,7 @@ export default function WeatherModal({ visible, onClose, colours, fonts, t, weat
           <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 8 }} />
           <View style={{ alignItems: 'center', paddingVertical: 20 }}>
             <Ionicons name={(weather?.icon ?? 'cloudy') as any} size={56} color={iconColor(weather?.icon ?? 'cloudy')} />
-            <Text style={{ fontSize: 64, fontWeight: '200', color: colours.text, marginTop: 8 }}>{weather?.temp}\u00B0</Text>
+            <Text style={{ fontSize: 64, fontWeight: '200', color: colours.text, marginTop: 8 }}>{weather?.temp}°</Text>
             <Text style={{ fontSize: fonts.md, color: colours.muted, marginTop: 2 }}>{locationName}</Text>
             {weather && (() => {
               const cond = (weather.condition || '').toLowerCase();
@@ -46,10 +46,10 @@ export default function WeatherModal({ visible, onClose, colours, fonts, t, weat
             })()}
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12, paddingBottom: 4 }} style={{ marginBottom: 20 }}>
-            {forecast.map((h, i) => { const hour = new Date(h.time).getHours(); const label = hour === 0 ? '12am' : hour < 12 ? `${hour}am` : hour === 12 ? '12pm' : `${hour - 12}pm`; return (<View key={i} style={{ alignItems: 'center', gap: 4, backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 12, paddingVertical: 10, minWidth: 56 }}><Text style={{ fontSize: fonts.sm - 2, color: colours.muted, fontWeight: '600' }}>{label}</Text><Ionicons name={h.icon as any} size={20} color={iconColor(h.icon)} /><Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.text }}>{h.temp}\u00B0</Text>{h.precip > 0 && <Text style={{ fontSize: fonts.sm - 2, color: '#1a6fbf', fontWeight: '600' }}>{h.precip}%</Text>}</View>); })}
+            {forecast.map((h, i) => { const hour = new Date(h.time).getHours(); const label = hour === 0 ? '12am' : hour < 12 ? `${hour}am` : hour === 12 ? '12pm' : `${hour - 12}pm`; return (<View key={i} style={{ alignItems: 'center', gap: 4, backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 12, paddingVertical: 10, minWidth: 56 }}><Text style={{ fontSize: fonts.sm - 2, color: colours.muted, fontWeight: '600' }}>{label}</Text><Ionicons name={h.icon as any} size={20} color={iconColor(h.icon)} /><Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.text }}>{h.temp}°</Text>{h.precip > 0 && <Text style={{ fontSize: fonts.sm - 2, color: '#1a6fbf', fontWeight: '600' }}>{h.precip}%</Text>}</View>); })}
           </ScrollView>
           <View style={{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 16, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
-            {dailyForecast.map((d, i) => (<View key={i} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: i < dailyForecast.length - 1 ? 1 : 0, borderBottomColor: colours.border }}><Text style={{ flex: 1, fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{d.day}</Text><Ionicons name={d.icon as any} size={20} color={iconColor(d.icon)} style={{ marginRight: 8 }} />{d.precip > 0 && <Text style={{ fontSize: fonts.sm, color: '#1a6fbf', fontWeight: '600', minWidth: 36, textAlign: 'right', marginRight: 8 }}>{d.precip}%</Text>}<Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, minWidth: 32, textAlign: 'right' }}>{d.high}\u00B0</Text><Text style={{ fontSize: fonts.md, color: colours.muted, minWidth: 32, textAlign: 'right' }}>{d.low}\u00B0</Text></View>))}
+            {dailyForecast.map((d, i) => (<View key={i} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: i < dailyForecast.length - 1 ? 1 : 0, borderBottomColor: colours.border }}><View style={{ flex: 1 }}><Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{d.day}</Text><Text style={{ fontSize: fonts.sm - 1, color: colours.muted, marginTop: 1 }}>{d.date}</Text></View><Ionicons name={d.icon as any} size={20} color={iconColor(d.icon)} style={{ marginRight: 8 }} />{d.precip > 0 && <Text style={{ fontSize: fonts.sm, color: '#1a6fbf', fontWeight: '600', minWidth: 36, textAlign: 'right', marginRight: 8 }}>{d.precip}%</Text>}<Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, minWidth: 32, textAlign: 'right' }}>{d.high}°</Text><Text style={{ fontSize: fonts.md, color: colours.muted, minWidth: 32, textAlign: 'right' }}>{d.low}°</Text></View>))}
           </View>
           <TouchableOpacity onPress={onClose} style={{ marginHorizontal: 20, marginTop: 16, paddingVertical: 14, borderRadius: 14, backgroundColor: colours.accent, alignItems: 'center' }} accessibilityRole="button" accessibilityLabel={t('Close weather', 'Fermer la meteo')}>
             <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>Done</Text>

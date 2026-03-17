@@ -1379,7 +1379,7 @@ function LiveScreenInner() {
   const [weather, setWeather] = useState<{ temp: number; condition: string; icon: string } | null>(null);
   const [weatherModalVisible, setWeatherModalVisible] = useState(false);
   const [forecast, setForecast] = useState<{ time: string; temp: number; icon: string; precip: number }[]>([]);
-  const [dailyForecast, setDailyForecast] = useState<{ day: string; high: number; low: number; icon: string; precip: number }[]>([]);
+  const [dailyForecast, setDailyForecast] = useState<{ day: string; date: string; high: number; low: number; icon: string; precip: number }[]>([]);
   const [locationName, setLocationName] = useState('Ottawa, Ontario');
   // Ottawa road closures
   const [roadEvents, setRoadEvents] = useState<{ id: string; description: string; type: string; road: string; distance: number }[]>([]);
@@ -1387,7 +1387,7 @@ function LiveScreenInner() {
   const [roadEventsLoading, setRoadEventsLoading] = useState(false);
   // Ottawa Open Data parks/rinks
   const [parksModal, setParksModal] = useState(false);
-  const [parks, setParks] = useState<{ name: string; crossStreets: string; facility: string; accessible: string; boards: string; toilet: string }[]>([]);
+  const [parks, setParks] = useState<{ name: string; crossStreets: string; facility: string; accessible: string; boards: string; toilet: string; lat: number; lng: number; distance: number }[]>([]);
   const [parksLoading, setParksLoading] = useState(false);
   // VeloGo bike share
   const [bikeShareModal, setBikeShareModal] = useState(false);
@@ -1755,7 +1755,8 @@ function LiveScreenInner() {
       const dailyLow: number[] = data.daily?.temperature_2m_min ?? [];
       const dailyCodes: number[] = data.daily?.weathercode ?? [];
       const dailyPrecip: number[] = data.daily?.precipitation_probability_max ?? [];
-      setDailyForecast(dailyTimes.map((dt, i) => ({ day: i === 0 ? todayLabel : days[new Date(dt + 'T12:00:00').getDay()], high: Math.round(dailyHigh[i]), low: Math.round(dailyLow[i]), icon: wmoIcon(dailyCodes[i]), precip: dailyPrecip[i] ?? 0 })));
+      const months = language === 'fr' ? ['jan', 'fév', 'mar', 'avr', 'mai', 'jun', 'jul', 'aoû', 'sep', 'oct', 'nov', 'déc'] : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      setDailyForecast(dailyTimes.map((dt, i) => { const d = new Date(dt + 'T12:00:00'); return { day: i === 0 ? todayLabel : days[d.getDay()], date: `${months[d.getMonth()]} ${d.getDate()}`, high: Math.round(dailyHigh[i]), low: Math.round(dailyLow[i]), icon: wmoIcon(dailyCodes[i]), precip: dailyPrecip[i] ?? 0 }; }));
       weatherCacheTime.current = Date.now();
       setWeatherFetchFailed(false);
       // Cache for offline use
@@ -1920,12 +1921,17 @@ function LiveScreenInner() {
   const fetchParks = async () => {
     setParksLoading(true);
     try {
-      const resp = await fetchWithTimeout('https://maps.ottawa.ca/arcgis/rest/services/Parks_Inventory/MapServer/13/query?where=1%3D1&outFields=RINK_PARK_NAME,MAJOR_CROSSSTREETS,FACILITY,ACCESSIBLE,BOARDS,TOILET&f=json');
+      const coords = await getUserCoords();
+      const resp = await fetchWithTimeout('https://maps.ottawa.ca/arcgis/rest/services/Parks_Inventory/MapServer/13/query?where=1%3D1&outFields=RINK_PARK_NAME,MAJOR_CROSSSTREETS,FACILITY,ACCESSIBLE,BOARDS,TOILET&returnGeometry=true&f=json');
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       const features = data.features || [];
-      setParks(features.map((f: any) => {
+      const mapped = features.map((f: any) => {
         const a = f.attributes || {};
+        const geom = f.geometry || {};
+        const lat = geom.y || 0;
+        const lng = geom.x || 0;
+        const dist = (lat && lng) ? haversineDist(coords.lat, coords.lng, lat, lng) : 999;
         return {
           name: a.RINK_PARK_NAME || 'Unknown Rink',
           crossStreets: a.MAJOR_CROSSSTREETS || '',
@@ -1933,8 +1939,11 @@ function LiveScreenInner() {
           accessible: a.ACCESSIBLE || '',
           boards: a.BOARDS || '',
           toilet: a.TOILET || '',
+          lat, lng, distance: dist,
         };
-      }));
+      });
+      mapped.sort((a: any, b: any) => a.distance - b.distance);
+      setParks(mapped.slice(0, 10));
     } catch { setParks([]); }
     setParksLoading(false);
   };
@@ -3183,7 +3192,7 @@ function LiveScreenInner() {
         <View style={[styles.modalHeader, { borderBottomColor: colours.border }]}>
           <View>
             <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>{t('Parks & Rinks', 'Parcs et patinoires')}</Text>
-            <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Ottawa Open Data', 'Donn\u00E9es ouvertes d\u2019Ottawa')}</Text>
+            <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('10 nearest · Sorted by distance', '10 plus proches · Triés par distance')}</Text>
           </View>
           <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setParksModal(false)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
             <Ionicons name="close" size={18} color={colours.text} />
@@ -3195,7 +3204,7 @@ function LiveScreenInner() {
           ) : parks.length === 0 ? (
             <View style={styles.modalCenter}>
               <Ionicons name="snow-outline" size={40} color={colours.muted} />
-              <Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('No rink data available right now.', 'Aucune donn\u00E9e de patinoire disponible.')}</Text>
+              <Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('No park or rink data available right now.', 'Aucune donnée de parc ou patinoire disponible.')}</Text>
             </View>
           ) : parks.map((p, i) => (
             <View key={i} style={{ marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, ...cardShadow }}>
@@ -3207,6 +3216,7 @@ function LiveScreenInner() {
                   <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text }} numberOfLines={1}>{p.name}</Text>
                   {p.crossStreets ? <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }} numberOfLines={1}>{p.crossStreets}</Text> : null}
                 </View>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#00A78D' }}>{p.distance < 1 ? `${Math.round(p.distance * 1000)}m` : `${p.distance.toFixed(1)} km`}</Text>
               </View>
               {p.facility ? <Text style={{ fontSize: fonts.sm, color: colours.muted, marginBottom: 6 }}>{p.facility}</Text> : null}
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>

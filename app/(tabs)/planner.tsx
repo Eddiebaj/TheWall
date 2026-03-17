@@ -21,6 +21,7 @@ const Polyline = (RNMaps as any)?.Polyline ?? null;
 const PROVIDER_DEFAULT = (RNMaps as any)?.PROVIDER_DEFAULT ?? null;
 import { useApp } from '../../context/AppContext';
 import { ItinerarySkeleton } from '../../components/Shimmer';
+import ActiveTrip from '../../components/ActiveTrip';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 
 // ── Error Boundary ───────────────────────────────────────────────
@@ -55,7 +56,7 @@ class PlannerErrorBoundary extends React.Component<
     return this.props.children;
   }
 }
-import { SK_PLANNER_PREFS, SK_SAVED_ROUTES, SK_TRIP_HISTORY } from '../../lib/storageKeys';
+import { SK_PLANNER_PREFS, SK_SAVED_ROUTES, SK_TRIP_HISTORY, SK_LEAVE_REMINDERS } from '../../lib/storageKeys';
 
 const PLAN_URL = 'https://routeo-backend.vercel.app/api/plan';
 const PLACES_URL = 'https://routeo-backend.vercel.app/api/places';
@@ -126,6 +127,8 @@ const LEG_COLOURS: Record<string, string> = {
   RAIL: '#0057B8',
   SUBWAY: '#0057B8',
   FERRY: '#7b5ea7',
+  CAR: '#e8a020',
+  BICYCLE: '#34c759',
 };
 
 const LEG_ICONS: Record<string, string> = {
@@ -135,6 +138,8 @@ const LEG_ICONS: Record<string, string> = {
   RAIL: 'train',
   SUBWAY: 'train',
   FERRY: 'boat',
+  CAR: 'car',
+  BICYCLE: 'bicycle',
 };
 
 function fmtTime(ms: number) {
@@ -318,6 +323,7 @@ function PlannerScreenInner() {
   const [waypoints, setWaypoints] = useState<{ text: string; place: PlaceResult | null }[]>([]);
   const [waypointResults, setWaypointResults] = useState<{ [idx: number]: PlaceResult[] }>({});
   const [activeInput, setActiveInput] = useState<'from' | 'to' | `waypoint_${number}` | null>(null);
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [departTime, setDepartTime] = useState<Date>(new Date());
   const [arriveBy, setArriveBy] = useState(false);
@@ -335,6 +341,7 @@ function PlannerScreenInner() {
   const [activeLeg, setActiveLeg] = useState<number>(0);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [tracking, setTracking] = useState(false);
+  const [activeTripItinerary, setActiveTripItinerary] = useState<Itinerary | null>(null);
   const mapRef = useRef<any>(null);
   const locationSubRef = useRef<any>(null);
   const stepsScrollRef = useRef<ScrollView>(null);
@@ -343,6 +350,9 @@ function PlannerScreenInner() {
   const [tripHistory, setTripHistory] = useState<TripRecord[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [sensGameTonight, setSensGameTonight] = useState(false);
+  const [reminderModal, setReminderModal] = useState<{ itin: Itinerary; idx: number } | null>(null);
+  const [reminderTime, setReminderTime] = useState<Date>(new Date());
+  const [leaveReminders, setLeaveReminders] = useState<{ id: string; destination: string; departAt: number; notifId: string }[]>([]);
 
   // Holds Expo notification IDs so we can cancel them on stopTracking
   const transitNotifIds = useRef<string[]>([]);
@@ -359,6 +369,19 @@ function PlannerScreenInner() {
     }).catch(() => {});
     AsyncStorage.getItem(SK_TRIP_HISTORY).then(val => {
       try { if (val) setTripHistory(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse trip history failed:', e); }
+    }).catch(() => {});
+    // Load leave reminders and clean up past ones
+    AsyncStorage.getItem(SK_LEAVE_REMINDERS).then(val => {
+      try {
+        if (!val) return;
+        const all: { id: string; destination: string; departAt: number; notifId: string }[] = JSON.parse(val);
+        const now = Date.now();
+        const active = all.filter(r => r.departAt > now);
+        if (active.length !== all.length) {
+          AsyncStorage.setItem(SK_LEAVE_REMINDERS, JSON.stringify(active)).catch(() => {});
+        }
+        setLeaveReminders(active);
+      } catch (e) { if (__DEV__) console.warn('JSON parse leave reminders failed:', e); }
     }).catch(() => {});
     // Check for Sens game tonight
     fetchWithTimeout('https://api-web.nhle.com/v1/schedule/now').then(async r => {
@@ -566,7 +589,7 @@ function PlannerScreenInner() {
     const day = String(d.getDate()).padStart(2,'0');
     const dateStr = `${month}-${day}-${d.getFullYear()}`;
 
-    const url = `${PLAN_URL}?fromLat=${resolvedFrom.lat}&fromLng=${resolvedFrom.lng}&fromLabel=${encodeURIComponent(resolvedFrom.label)}&toLat=${resolvedTo.lat}&toLng=${resolvedTo.lng}&toLabel=${encodeURIComponent(resolvedTo.label)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=${arriveBy}`;
+    const url = `${PLAN_URL}?fromLat=${resolvedFrom.lat}&fromLng=${resolvedFrom.lng}&fromLabel=${encodeURIComponent(resolvedFrom.label)}&toLat=${resolvedTo.lat}&toLng=${resolvedTo.lng}&toLabel=${encodeURIComponent(resolvedTo.label)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=${arriveBy}&mode=${travelMode}`;
 
     try {
       const resp = await fetchWithTimeout(url);
@@ -672,14 +695,7 @@ function PlannerScreenInner() {
       if (resolved?.lat) resolvedWaypoints.push(resolved);
     }
 
-    if (travelMode !== 'transit') {
-      const origin = `${resolvedFrom.lat},${resolvedFrom.lng}`;
-      const destination = `${resolvedTo.lat},${resolvedTo.lng}`;
-      const waypointStr = resolvedWaypoints.length > 0 ? `&waypoints=${resolvedWaypoints.map(w => `${w.lat},${w.lng}`).join('|')}` : '';
-      const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypointStr}&travelmode=${travelMode}`;
-      Linking.openURL(url);
-      return;
-    }
+    // All modes now use the OTP planner in-app
 
     // Multi-stop: chain OTP requests through waypoints
     if (resolvedWaypoints.length > 0) {
@@ -700,7 +716,7 @@ function PlannerScreenInner() {
           const month = String(arrivalTime.getMonth() + 1).padStart(2,'0');
           const day = String(arrivalTime.getDate()).padStart(2,'0');
           const dateStr = `${month}-${day}-${arrivalTime.getFullYear()}`;
-          const url = `${PLAN_URL}?fromLat=${from.lat}&fromLng=${from.lng}&fromLabel=${encodeURIComponent(from.label)}&toLat=${to.lat}&toLng=${to.lng}&toLabel=${encodeURIComponent(to.label)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=false`;
+          const url = `${PLAN_URL}?fromLat=${from.lat}&fromLng=${from.lng}&fromLabel=${encodeURIComponent(from.label)}&toLat=${to.lat}&toLng=${to.lng}&toLabel=${encodeURIComponent(to.label)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=false&mode=${travelMode}`;
           const resp = await fetchWithTimeout(url);
           if (!resp.ok) throw new Error(`Leg ${i + 1}: HTTP ${resp.status}`);
           const data = await resp.json();
@@ -878,10 +894,10 @@ function PlannerScreenInner() {
         {i > 0 && <View style={{ width: 6, height: 1, backgroundColor: colours.border }} />}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: color + '18', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 3 }}>
           <Ionicons name={icon as any} size={10} color={color} />
-          {leg.mode !== 'WALK' && leg.routeShortName && (
+          {leg.mode !== 'WALK' && leg.mode !== 'CAR' && leg.mode !== 'BICYCLE' && leg.routeShortName && (
             <Text style={{ fontSize: 10, fontWeight: '800', color }}>{leg.routeShortName}</Text>
           )}
-          {leg.mode === 'WALK' && (
+          {(leg.mode === 'WALK' || leg.mode === 'CAR' || leg.mode === 'BICYCLE') && (
             <Text style={{ fontSize: 10, fontWeight: '600', color }}>{fmtDistance(leg.distance)}</Text>
           )}
         </View>
@@ -897,8 +913,9 @@ function PlannerScreenInner() {
 
   const renderItinerary = (itin: Itinerary, idx: number) => {
     const isWalkOnly = (itin.legs || []).every(l => l.mode === 'WALK');
-    // BEST = first non-walk itinerary (already sorted by earliest arrival)
-    const isFirst = idx === 0 && !isWalkOnly;
+    const hasTransit = (itin.legs || []).some(l => l.mode === 'BUS' || l.mode === 'TRAM' || l.mode === 'RAIL' || l.mode === 'SUBWAY' || l.mode === 'FERRY');
+    // BEST = first itinerary for non-walk transit, or first for drive/bike
+    const isFirst = idx === 0 && (travelMode !== 'transit' || !isWalkOnly);
     const transferCount = itin.transfers;
 
     return (
@@ -976,19 +993,44 @@ function PlannerScreenInner() {
         })}
 
         {/* Footer row */}
-        <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
-          {!isWalkOnly && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+            {hasTransit && (
+              <Text style={{ fontSize: 11, color: colours.muted }}>
+                <Text style={{ fontWeight: '700' }}>{transferCount}</Text> {t(transferCount !== 1 ? 'transfers' : 'transfer', transferCount !== 1 ? 'correspondances' : 'correspondance')}
+              </Text>
+            )}
             <Text style={{ fontSize: 11, color: colours.muted }}>
-              <Text style={{ fontWeight: '700' }}>{transferCount}</Text> {t(transferCount !== 1 ? 'transfers' : 'transfer', transferCount !== 1 ? 'correspondances' : 'correspondance')}
+              {travelMode === 'driving' ? fmtDistance(itin.walkDistance || (itin.legs || []).reduce((s, l) => s + l.distance, 0))
+                : travelMode === 'bicycling' ? fmtDistance((itin.legs || []).reduce((s, l) => s + l.distance, 0))
+                : fmtWalk(itin.walkDistance)}
             </Text>
-          )}
-          <Text style={{ fontSize: 11, color: colours.muted }}>{fmtWalk(itin.walkDistance)}</Text>
-          {!isWalkOnly && (
-            <View style={{ marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.accent + '15', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3 }}>
-              <Text style={{ fontSize: 10, color: colours.accent }}>🎫</Text>
-              <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent }}>$4.10 Presto</Text>
-            </View>
-          )}
+            {hasTransit && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.accent + '15', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3 }}>
+                <Text style={{ fontSize: 10, color: colours.accent }}>🎫</Text>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent }}>$4.10 Presto</Text>
+              </View>
+            )}
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <TouchableOpacity
+              onPress={(e) => { e.stopPropagation(); setReminderModal({ itin, idx }); setReminderTime(new Date(itin.startTime - 5 * 60 * 1000)); }}
+              style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colours.accent + '15', borderWidth: 1, borderColor: colours.accent + '30', alignItems: 'center', justifyContent: 'center' }}
+              accessibilityRole="button"
+              accessibilityLabel={t('Set reminder', 'Definir un rappel')}
+            >
+              <Ionicons name="notifications-outline" size={16} color={colours.accent} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={(e) => { e.stopPropagation(); Haptics?.impactAsync?.(Haptics.ImpactFeedbackStyle.Medium); setActiveTripItinerary(itin); }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#34c759', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('Start trip', 'Demarrer le trajet')}
+            >
+              <Ionicons name="navigate" size={12} color="#fff" />
+              <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff' }}>GO</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -1187,15 +1229,16 @@ function PlannerScreenInner() {
                 </View>
               )}
               <TouchableOpacity
-                onPress={() => tracking ? stopTracking() : startTracking(expandedItinerary)}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: tracking ? '#ff3b30' + '18' : colours.accent + '18', borderWidth: 1, borderColor: tracking ? '#ff3b30' : colours.accent }}
+                onPress={() => {
+                  Haptics?.impactAsync?.(Haptics.ImpactFeedbackStyle.Medium);
+                  setActiveTripItinerary(expandedItinerary);
+                }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: '#34c759' }}
                 accessibilityRole="button"
-                accessibilityLabel={tracking ? t('Stop tracking trip', 'Arreter le suivi du trajet') : t('Start tracking trip', 'Commencer le suivi du trajet')}
+                accessibilityLabel={t('Start active trip', 'Demarrer le trajet actif')}
               >
-                <Ionicons name={tracking ? 'stop-circle' : 'navigate'} size={14} color={tracking ? '#ff3b30' : colours.accent} />
-                <Text style={{ fontSize: 12, fontWeight: '700', color: tracking ? '#ff3b30' : colours.accent }}>
-                  {tracking ? t('Stop', 'Arreter') : t('Go', 'Aller')}
-                </Text>
+                <Ionicons name="navigate" size={14} color="#fff" />
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#fff' }}>GO</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={closeExpandedModal} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Close trip details', 'Fermer les details du trajet')}>
                 <Ionicons name="close" size={18} color={colours.text} />
@@ -1300,6 +1343,10 @@ function PlannerScreenInner() {
                       <View style={{ flex: 1 }}>
                         {isWalk ? (
                           <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{t('Walk', 'Marche')} {fmtDistance(leg.distance)}</Text>
+                        ) : leg.mode === 'CAR' ? (
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{t('Drive', 'Conduire')} {fmtDistance(leg.distance)}</Text>
+                        ) : leg.mode === 'BICYCLE' ? (
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{t('Cycle', 'Pedaler')} {fmtDistance(leg.distance)}</Text>
                         ) : (
                           <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>
                             {leg.routeShortName ? `Route ${leg.routeShortName}` : leg.mode}
@@ -1328,13 +1375,16 @@ function PlannerScreenInner() {
                         ))}
                       </View>
                     )}
-                    {isWalk && (leg.steps || []).length > 0 && (
+                    {(isWalk || leg.mode === 'CAR' || leg.mode === 'BICYCLE') && (leg.steps || []).length > 0 && (
                       <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                         <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={12} color={colours.muted} />
-                        <Text style={{ fontSize: 11, color: colours.muted }}>{isExpanded ? t('Hide walking directions', 'Masquer les directions a pied') : t('Show walking directions', 'Afficher les directions a pied')}</Text>
+                        <Text style={{ fontSize: 11, color: colours.muted }}>{isExpanded
+                          ? t(leg.mode === 'CAR' ? 'Hide driving directions' : leg.mode === 'BICYCLE' ? 'Hide cycling directions' : 'Hide walking directions', leg.mode === 'CAR' ? 'Masquer les directions' : leg.mode === 'BICYCLE' ? 'Masquer les directions velo' : 'Masquer les directions a pied')
+                          : t(leg.mode === 'CAR' ? 'Show driving directions' : leg.mode === 'BICYCLE' ? 'Show cycling directions' : 'Show walking directions', leg.mode === 'CAR' ? 'Afficher les directions' : leg.mode === 'BICYCLE' ? 'Afficher les directions velo' : 'Afficher les directions a pied')
+                        }</Text>
                       </View>
                     )}
-                    {isWalk && isExpanded && (leg.steps || []).length > 0 && (
+                    {(isWalk || leg.mode === 'CAR' || leg.mode === 'BICYCLE') && isExpanded && (leg.steps || []).length > 0 && (
                       <View style={{ marginTop: 10, gap: 6 }}>
                         {(leg.steps || []).map((step, si) => {
                           const isGeneric = !step.streetName || ['path', 'sidewalk', 'footway', 'steps', 'pedestrian'].includes(step.streetName?.toLowerCase());
@@ -1390,6 +1440,16 @@ function PlannerScreenInner() {
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colours.bg }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       {renderExpandedItinerary()}
+      {activeTripItinerary && (
+        <ActiveTrip
+          visible={!!activeTripItinerary}
+          itinerary={activeTripItinerary}
+          onEnd={() => { setActiveTripItinerary(null); stopTracking(); }}
+          colours={colours}
+          fonts={fonts}
+          t={t}
+        />
+      )}
 
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 40 }}>
         {/* Input card */}
@@ -1407,16 +1467,19 @@ function PlannerScreenInner() {
               onChangeText={text => {
                 setFromText(text);
                 setFromPlace(null);
-                setFromResults([]);
-                setToResults([]);
                 if (autoCompleteTimer.current) clearTimeout(autoCompleteTimer.current);
+                if (text.length < 2) { setFromResults([]); return; }
                 autoCompleteTimer.current = setTimeout(() => { autocomplete(text, 'from'); }, 300);
               }}
               onFocus={() => {
+                if (blurTimer.current) { clearTimeout(blurTimer.current); blurTimer.current = null; }
                 setActiveInput('from');
-                setToResults([]);   // hide to-results when from is focused
+                setToResults([]);
               }}
-              onBlur={() => setActiveInput(null)}
+              onBlur={() => {
+                if (blurTimer.current) clearTimeout(blurTimer.current);
+                blurTimer.current = setTimeout(() => setActiveInput(prev => prev === 'from' ? null : prev), 200);
+              }}
             />
             <TouchableOpacity onPress={() => useMyLocation('from')} style={{ padding: 6 }} accessibilityRole="button" accessibilityLabel={t('Use my location as start', 'Utiliser ma position comme depart')}>
               <Ionicons name="locate" size={18} color={colours.accent} />
@@ -1447,8 +1510,15 @@ function PlannerScreenInner() {
                     if (autoCompleteTimer.current) clearTimeout(autoCompleteTimer.current);
                     autoCompleteTimer.current = setTimeout(() => { autocomplete(text, `waypoint_${idx}` as any); }, 300);
                   }}
-                  onFocus={() => { setActiveInput(`waypoint_${idx}` as any); setFromResults([]); setToResults([]); }}
-                  onBlur={() => setActiveInput(null)}
+                  onFocus={() => {
+                    if (blurTimer.current) { clearTimeout(blurTimer.current); blurTimer.current = null; }
+                    setActiveInput(`waypoint_${idx}` as any); setFromResults([]); setToResults([]);
+                  }}
+                  onBlur={() => {
+                    if (blurTimer.current) clearTimeout(blurTimer.current);
+                    const field = `waypoint_${idx}`;
+                    blurTimer.current = setTimeout(() => setActiveInput(prev => prev === field ? null : prev), 200);
+                  }}
                 />
                 <TouchableOpacity onPress={() => { setWaypoints(prev => prev.filter((_, i) => i !== idx)); setWaypointResults(prev => { const next = { ...prev }; delete next[idx]; return next; }); }} style={{ padding: 6 }} accessibilityRole="button" accessibilityLabel={t('Remove stop', 'Retirer l\'arret')}>
                   <Ionicons name="close-circle" size={18} color={colours.muted} />
@@ -1483,15 +1553,19 @@ function PlannerScreenInner() {
               onChangeText={text => {
                 setToText(text);
                 setToPlace(null);
-                setFromResults([]);
                 if (autoCompleteTimer.current) clearTimeout(autoCompleteTimer.current);
+                if (text.length < 2) { setToResults([]); return; }
                 autoCompleteTimer.current = setTimeout(() => { autocomplete(text, 'to'); }, 300);
               }}
               onFocus={() => {
+                if (blurTimer.current) { clearTimeout(blurTimer.current); blurTimer.current = null; }
                 setActiveInput('to');
-                setFromResults([]);   // hide from-results when to is focused
+                setFromResults([]);
               }}
-              onBlur={() => setActiveInput(null)}
+              onBlur={() => {
+                if (blurTimer.current) clearTimeout(blurTimer.current);
+                blurTimer.current = setTimeout(() => setActiveInput(prev => prev === 'to' ? null : prev), 200);
+              }}
             />
             <TouchableOpacity onPress={() => useMyLocation('to')} style={{ padding: 6 }} accessibilityRole="button" accessibilityLabel={t('Use my location as destination', 'Utiliser ma position comme destination')}>
               <Ionicons name="locate" size={18} color={colours.accent} />
@@ -1589,7 +1663,7 @@ function PlannerScreenInner() {
         </View>
 
         {/* Depart at / Arrive by toggle */}
-        {travelMode === 'transit' && <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
+        {<View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {([false, true] as const).map(ab => {
               const active = arriveBy === ab;
@@ -1612,7 +1686,7 @@ function PlannerScreenInner() {
         </View>}
 
         {/* Time & Date picker */}
-        {travelMode === 'transit' && showTimePicker && (
+        {showTimePicker && (
           <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
             <View style={[{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, padding: 12 }, cardShadow]}>
               {/* Now button */}
@@ -1690,11 +1764,11 @@ function PlannerScreenInner() {
             style={{ paddingVertical: 14, borderRadius: 14, backgroundColor: colours.accent, alignItems: 'center', justifyContent: 'center' }}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel={travelMode === 'transit' ? t('Plan Trip', 'Planifier le trajet') : t('Open in Google Maps', 'Ouvrir dans Google Maps')}
+            accessibilityLabel={t('Plan Trip', 'Planifier le trajet')}
           >
             {loading
               ? <ActivityIndicator color="white" size="small" />
-              : <Text style={{ color: 'white', fontWeight: '800', fontSize: 16 }}>{travelMode === 'transit' ? t('Plan Trip', 'Planifier le trajet') : t('Open in Google Maps', 'Ouvrir dans Google Maps')}</Text>
+              : <Text style={{ color: 'white', fontWeight: '800', fontSize: 16 }}>{t('Plan Trip', 'Planifier le trajet')}</Text>
             }
           </TouchableOpacity>
         </View>
@@ -1894,6 +1968,111 @@ function PlannerScreenInner() {
           </View>
         ) : null}
       </ScrollView>
+
+      {/* ── Leave Reminder Modal ──────────────────────────────────── */}
+      {reminderModal && (() => {
+        const itin = reminderModal.itin;
+        const routeNames = (itin.legs || []).filter(l => l.mode !== 'WALK').map(l => l.routeShortName).filter(Boolean).join(', ');
+        const dest = toText || t('your destination', 'votre destination');
+        return (
+          <Modal visible transparent animationType="slide" onRequestClose={() => setReminderModal(null)}>
+            <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+              <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
+                {/* Handle bar */}
+                <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, alignSelf: 'center', marginBottom: 16 }} />
+
+                <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text, marginBottom: 4 }}>
+                  {t('Leave Now Reminder', 'Rappel de depart')}
+                </Text>
+                <Text style={{ fontSize: 13, color: colours.muted, marginBottom: 16 }}>
+                  {t("We'll notify you when it's time to leave", 'Nous vous avertirons quand il sera temps de partir')}
+                </Text>
+
+                {/* Trip summary */}
+                <View style={{ backgroundColor: colours.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 16 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text, marginBottom: 4 }} numberOfLines={1}>
+                    {dest}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: colours.muted }}>
+                    {fmtDuration(itin.duration)} {routeNames ? `· ${t('Route', 'Route')} ${routeNames}` : `· ${t('Walk only', 'Marche seulement')}`}
+                  </Text>
+                </View>
+
+                {/* Notification time */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+                  <Ionicons name="notifications" size={18} color={colours.accent} />
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: colours.text }}>
+                    {t('Notification at', 'Notification a')} {fmtTime(reminderTime.getTime())}
+                  </Text>
+                </View>
+
+                {/* Buttons */}
+                <TouchableOpacity
+                  onPress={async () => {
+                    if (!Notifications) {
+                      Alert.alert(t('Notifications unavailable', 'Notifications non disponibles'));
+                      return;
+                    }
+                    const permitted = await requestNotifPermission();
+                    if (!permitted) {
+                      Alert.alert(t('Permission required', 'Permission requise'), t('Enable notifications in Settings.', 'Activez les notifications dans Reglages.'));
+                      return;
+                    }
+                    const now = Date.now();
+                    const triggerMs = reminderTime.getTime() - now;
+                    if (triggerMs <= 0) {
+                      Alert.alert(t('Time has passed', 'L\'heure est passee'), t('This departure time is in the past.', 'Cette heure de depart est passee.'));
+                      return;
+                    }
+                    try {
+                      const notifId = await Notifications.scheduleNotificationAsync({
+                        content: {
+                          title: t('Time to leave!', 'C\'est l\'heure de partir!'),
+                          body: t(
+                            `Leave now for ${dest}${routeNames ? ` \u2014 Route ${routeNames} departs in 5 min` : ''}`,
+                            `Partez maintenant pour ${dest}${routeNames ? ` \u2014 Route ${routeNames} part dans 5 min` : ''}`
+                          ),
+                          data: { type: 'leave_reminder' },
+                        },
+                        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: reminderTime },
+                      });
+                      const reminder = { id: String(Date.now()), destination: dest, departAt: itin.startTime, notifId };
+                      const updated = [...leaveReminders, reminder];
+                      setLeaveReminders(updated);
+                      AsyncStorage.setItem(SK_LEAVE_REMINDERS, JSON.stringify(updated)).catch(() => {});
+                      setReminderModal(null);
+                      Alert.alert(
+                        t('Reminder set', 'Rappel defini'),
+                        t(`We'll notify you at ${fmtTime(reminderTime.getTime())}`, `Nous vous avertirons a ${fmtTime(reminderTime.getTime())}`)
+                      );
+                    } catch (e) {
+                      if (__DEV__) console.warn('Failed to schedule leave reminder:', e);
+                      Alert.alert(t('Error', 'Erreur'), t('Could not set reminder.', 'Impossible de definir le rappel.'));
+                    }
+                  }}
+                  style={{ backgroundColor: colours.accent, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginBottom: 10 }}
+                  accessibilityRole="button"
+                >
+                  <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>
+                    {t('Set Reminder', 'Definir le rappel')}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setReminderModal(null)}
+                  style={{ borderRadius: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: colours.border }}
+                  accessibilityRole="button"
+                >
+                  <Text style={{ color: colours.muted, fontSize: 15, fontWeight: '600' }}>
+                    {t('Cancel', 'Annuler')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+        );
+      })()}
+
     </KeyboardAvoidingView>
   );
 }

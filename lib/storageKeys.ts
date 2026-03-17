@@ -102,5 +102,8 @@ export const SK_FREQUENT_ARRIVALS_CACHE = 'routeo_frequent_arrivals_cache';
 // Trip sharing
 export const SK_TRIP_SHARING = 'routeo_trip_sharing';
 
+// Leave reminders
+export const SK_LEAVE_REMINDERS = 'routeo_leave_reminders';
+
 // Crash diagnostics
 export const SK_CRASH_LOG = 'routeo_crash_log';

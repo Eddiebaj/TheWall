@@ -122,6 +122,37 @@ const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) =>
   );
 });
 
+// Styled category marker — colored rounded square with white Ionicon inside
+const PlaceMarker = React.memo(({ coordinate, icon, color, title, description, onPress }: {
+  coordinate: { latitude: number; longitude: number };
+  icon: keyof typeof Ionicons.glyphMap;
+  color: string;
+  title?: string;
+  description?: string;
+  onPress?: () => void;
+}) => {
+  const [tracked, setTracked] = React.useState(true);
+  React.useEffect(() => {
+    const id = setTimeout(() => setTracked(false), 500);
+    return () => clearTimeout(id);
+  }, []);
+  if (!coordinate || !validCoord(coordinate.latitude, coordinate.longitude)) return null;
+  return (
+    <Marker
+      coordinate={coordinate}
+      tracksViewChanges={tracked}
+      anchor={{ x: 0.5, y: 1.0 }}
+      title={title}
+      description={description}
+      onPress={onPress}
+    >
+      <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: color, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' }}>
+        <Ionicons name={icon} size={18} color="#fff" />
+      </View>
+    </Marker>
+  );
+});
+
 const CATEGORY_COLORS: { [key: string]: string } = {
   'Music': '#6c3fc7', 'Food & Drink': '#1a7a4a', 'Arts & Culture': '#b5450b',
   'Health': '#0077b6', 'Sports': '#004890', 'Business': '#444',
@@ -847,13 +878,13 @@ export default function MapScreen() {
               ? (single.venue || '')
               : (cluster.events || []).map(e => e?.name || '').slice(0, 3).join(', ');
             return (
-              <Marker
+              <PlaceMarker
                 key={cluster.id}
                 coordinate={{ latitude: cluster.lat, longitude: cluster.lng }}
-                pinColor="#026CDF"
+                icon="calendar"
+                color="#026CDF"
                 title={title}
                 description={desc}
-                tracksViewChanges={false}
                 onPress={() => single ? openSheet(undefined, single) : openSheet(undefined, undefined, cluster.events)}
               />
             );
@@ -862,16 +893,17 @@ export default function MapScreen() {
           {/* Saved pin markers */}
           {hasSaved && savedPins.map((pin) => {
             if (!validCoord(pin.lat, pin.lng)) return null;
-            const color = pin.kind === 'stop' ? '#e74c3c' : pin.kind === 'place' ? '#e8a020' : pin.kind === 'neighbourhood' ? '#7b5ea7' : pin.kind === 'route_from' ? '#2ecc71' : '#3498db';
+            const pinIcon: keyof typeof Ionicons.glyphMap = pin.kind === 'stop' ? 'bus' : pin.kind === 'place' ? 'location' : pin.kind === 'neighbourhood' ? 'home' : pin.kind === 'route_from' ? 'navigate' : 'flag';
+            const pinColor = pin.kind === 'stop' ? '#e74c3c' : pin.kind === 'place' ? '#e8a020' : pin.kind === 'neighbourhood' ? '#7b5ea7' : pin.kind === 'route_from' ? '#2ecc71' : '#3498db';
             const kindLabel = pin.kind === 'stop' ? 'Stop' : pin.kind === 'place' ? 'Place' : pin.kind === 'neighbourhood' ? 'Neighbourhood' : pin.kind === 'route_from' ? 'Origin' : 'Destination';
             return (
-              <Marker
+              <PlaceMarker
                 key={pin.id}
                 coordinate={{ latitude: pin.lat, longitude: pin.lng }}
-                pinColor={color}
+                icon={pinIcon}
+                color={pinColor}
                 title={pin.name}
                 description={pin.routeLabel ? `${kindLabel} — ${pin.routeLabel}` : kindLabel}
-                tracksViewChanges={false}
                 onPress={() => {
                   setSelectedSavedPin(pin);
                   openSheet();
@@ -883,18 +915,19 @@ export default function MapScreen() {
           {/* Venue markers */}
           {filteredVenues.map((v, i) => {
             if (!validCoord(v.lat, v.lng)) return null;
-            const color = getVenuePinColor(v);
+            const venueIcon: keyof typeof Ionicons.glyphMap = v.type.includes('restaurant') ? 'restaurant' : v.type.includes('club') ? 'musical-notes' : v.type.includes('fitness') ? 'barbell' : 'beer';
+            const venueColor = getVenuePinColor(v);
             const { active, upcoming } = getVenueTodayDeals(v);
             const hasDeals = active.length > 0 || upcoming.length > 0;
             const dealDesc = active.length > 0 ? active[0] : upcoming.length > 0 ? upcoming[0] : undefined;
             return (
-              <Marker
+              <PlaceMarker
                 key={`venue_${i}`}
                 coordinate={{ latitude: v.lat, longitude: v.lng }}
-                pinColor={color}
+                icon={venueIcon}
+                color={venueColor}
                 title={hasDeals ? v.name : undefined}
                 description={dealDesc}
-                tracksViewChanges={false}
                 onPress={() => openSheet(undefined, undefined, undefined, v)}
               />
             );
@@ -903,12 +936,12 @@ export default function MapScreen() {
 
         {/* Searched place marker */}
         {searchedPlace && validCoord(searchedPlace.lat, searchedPlace.lng) && (
-          <Marker
+          <PlaceMarker
             coordinate={{ latitude: searchedPlace.lat, longitude: searchedPlace.lng }}
-            pinColor="#3498db"
+            icon="search"
+            color="#3498db"
             title={searchedPlace.name}
             description={searchedPlace.address}
-            tracksViewChanges={false}
             onPress={() => {
               setSelectedBus(null); setSelectedEvent(null); setSelectedCluster(null); setSelectedVenue(null); setSelectedSavedPin(null);
               Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();

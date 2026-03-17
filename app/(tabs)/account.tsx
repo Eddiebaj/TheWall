@@ -102,6 +102,7 @@ export default function AccountScreen() {
   const [savedPlaces, setSavedPlaces] = useState<any[]>([]);
   const [savedBoard, setSavedBoard] = useState<any[]>([]);
   const [commuteStats, setCommuteStats] = useState<{ tripsThisWeek: number; totalMinutes: number; avgDuration: number; topRoute: string | null } | null>(null);
+  const [fareStats, setFareStats] = useState<{ tripsToday: number; tripsWeek: number; tripsMonth: number; costToday: number; costWeek: number; costMonth: number } | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem(SK_TRIP_HISTORY).then(val => {
@@ -124,6 +125,36 @@ export default function AccountScreen() {
           totalMinutes: totalMins,
           avgDuration: weekTrips.length > 0 ? Math.round(totalMins / weekTrips.length) : 0,
           topRoute,
+        });
+      } catch {}
+    });
+  }, []);
+
+  useEffect(() => {
+    AsyncStorage.getItem(SK_TRIP_HISTORY).then(val => {
+      try {
+        if (!val) return;
+        const trips = JSON.parse(val);
+        if (!Array.isArray(trips) || trips.length === 0) return;
+        const now = new Date();
+        const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+        const day = now.getDay(); // 0=Sun
+        const mondayOffset = day === 0 ? 6 : day - 1;
+        const weekStart = new Date(now); weekStart.setDate(now.getDate() - mondayOffset); weekStart.setHours(0, 0, 0, 0);
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+        let tripsToday = 0, tripsWeek = 0, tripsMonth = 0;
+        for (const tr of trips) {
+          const d = new Date(tr.plannedAt);
+          if (d.getTime() >= monthStart.getTime()) { tripsMonth++; }
+          if (d.getTime() >= weekStart.getTime()) { tripsWeek++; }
+          if (d.getTime() >= todayStart.getTime()) { tripsToday++; }
+        }
+        const FARE = 4.10;
+        setFareStats({
+          tripsToday, tripsWeek, tripsMonth,
+          costToday: tripsToday * FARE,
+          costWeek: tripsWeek * FARE,
+          costMonth: tripsMonth * FARE,
         });
       } catch {}
     });
@@ -470,6 +501,65 @@ export default function AccountScreen() {
             <Ionicons name="chevron-forward" size={16} color={colours.muted} />
           </TouchableOpacity>
         </Card>
+
+        {/* FARE TRACKER */}
+        {fareStats && (
+          <Card>
+            <View style={{ padding: 16 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                <View style={{
+                  width: 36, height: 36, borderRadius: 10,
+                  backgroundColor: colours.accent + '15',
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Ionicons name="ticket-outline" size={18} color={colours.accent} />
+                </View>
+                <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
+                  {t('Fare Tracker', 'Suivi des tarifs')}
+                </Text>
+              </View>
+
+              <Text style={{ fontSize: fonts.sm, color: colours.text, marginBottom: 6 }}>
+                {t(
+                  `${fareStats.tripsWeek} trip${fareStats.tripsWeek !== 1 ? 's' : ''} this week \u00B7 $${fareStats.costWeek.toFixed(2)}`,
+                  `${fareStats.tripsWeek} trajet${fareStats.tripsWeek !== 1 ? 's' : ''} cette semaine \u00B7 ${fareStats.costWeek.toFixed(2)} $`
+                )}
+              </Text>
+              <Text style={{ fontSize: fonts.sm, color: colours.text, marginBottom: 14 }}>
+                {t(
+                  `${fareStats.tripsMonth} trip${fareStats.tripsMonth !== 1 ? 's' : ''} this month \u00B7 $${fareStats.costMonth.toFixed(2)}`,
+                  `${fareStats.tripsMonth} trajet${fareStats.tripsMonth !== 1 ? 's' : ''} ce mois \u00B7 ${fareStats.costMonth.toFixed(2)} $`
+                )}
+              </Text>
+
+              {/* Daily cap */}
+              <Text style={{ fontSize: fonts.xs, color: colours.muted, marginBottom: 4 }}>
+                {t(
+                  `$${fareStats.costToday.toFixed(2)} / $13.50 daily cap`,
+                  `${fareStats.costToday.toFixed(2)} $ / 13,50 $ plafond quotidien`
+                )}
+              </Text>
+              <View style={{ height: 6, borderRadius: 3, backgroundColor: colours.border, marginBottom: 12 }}>
+                <View style={{ height: 6, borderRadius: 3, backgroundColor: colours.accent, width: `${Math.min(100, (fareStats.costToday / 13.50) * 100)}%` }} />
+              </View>
+
+              {/* Monthly cap */}
+              <Text style={{ fontSize: fonts.xs, color: colours.muted, marginBottom: 4 }}>
+                {t(
+                  `$${fareStats.costMonth.toFixed(2)} / $139.00 monthly cap`,
+                  `${fareStats.costMonth.toFixed(2)} $ / 139,00 $ plafond mensuel`
+                )}
+              </Text>
+              <View style={{ height: 6, borderRadius: 3, backgroundColor: colours.border, marginBottom: 12 }}>
+                <View style={{ height: 6, borderRadius: 3, backgroundColor: colours.accent, width: `${Math.min(100, (fareStats.costMonth / 139) * 100)}%` }} />
+              </View>
+
+              <Text style={{ fontSize: fonts.xs, color: colours.muted, fontStyle: 'italic' }}>
+                {t('Based on $4.10/trip', 'Bas\u00E9 sur 4,10 $/trajet')}
+              </Text>
+            </View>
+          </Card>
+        )}
 
         {/* NOTIFICATIONS (collapsible) */}
         <Card>
