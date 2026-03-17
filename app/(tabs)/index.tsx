@@ -602,6 +602,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   if (item.type === 'class_schedule') {
     const next = scheduleData ? nextClass(scheduleData) : null;
     const hasSchedule = scheduleData && scheduleData.classes.length > 0;
+    const campus = campusData;
     return (
       <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
@@ -613,31 +614,43 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
         </View>
         {hasSchedule && next ? (
           <>
-            <Text style={{ fontSize: 14, fontWeight: '800', color: colours.text, lineHeight: 18 }} numberOfLines={2}>{next.entry.name}</Text>
+            <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text, lineHeight: 16 }} numberOfLines={1}>{next.entry.name}</Text>
             <View style={{ gap: 2 }}>
-              <Text style={{ fontSize: 11, fontWeight: '600', color: colours.text }}>{schedFmt12h(next.entry.startTime)}{next.entry.room ? ` · ${next.entry.room}` : ''}</Text>
-              {next.minsUntilLeave > 0 && next.minsUntilLeave < 120 ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: '#00A78D' }} />
-                  <Text style={{ fontSize: 10, fontWeight: '700', color: '#00A78D' }}>
-                    {t(`Leave in ${next.minsUntilLeave}m`, `Partir dans ${next.minsUntilLeave}m`)}
-                  </Text>
-                </View>
-              ) : next.minsUntilLeave === 0 ? (
-                <Text style={{ fontSize: 10, fontWeight: '700', color: '#00A78D' }}>{t('In class now', 'En cours')}</Text>
-              ) : (
-                <Text style={{ fontSize: 10, color: colours.muted }}>{next.day}</Text>
-              )}
+              <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{schedFmt12h(next.entry.startTime)}{next.entry.room ? ` · ${next.entry.room}` : ''}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                {next.minsUntilLeave > 0 && next.minsUntilLeave < 120 ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                    <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: '#00A78D' }} />
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: '#00A78D' }}>
+                      {t(`Leave ${next.minsUntilLeave}m`, `Partir ${next.minsUntilLeave}m`)}
+                    </Text>
+                  </View>
+                ) : next.minsUntilLeave === 0 ? (
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: '#00A78D' }}>{t('In class', 'En cours')}</Text>
+                ) : (
+                  <Text style={{ fontSize: 10, color: colours.muted }}>{next.day}</Text>
+                )}
+                {campus && (
+                  <TouchableOpacity
+                    onPress={() => boardRouter.push({ pathname: '/(tabs)/planner', params: { toLabel: campus.name, toLat: String(campus.lat), toLng: String(campus.lng) } } as any)}
+                    style={{ backgroundColor: colours.accent, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: 'white' }}>GO</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
           </>
         ) : hasSchedule ? (
           <>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: colours.muted }}>{t('Done for today', 'Fini pour aujourd\'hui')}</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted }}>{t('Done for today', 'Fini pour aujourd\'hui')}</Text>
             <Text style={{ fontSize: 10, color: colours.muted }}>{t('No more classes', 'Plus de cours')}</Text>
           </>
         ) : (
           <>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{t('My Schedule', 'Mon horaire')}</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>{t('My Schedule', 'Mon horaire')}</Text>
             <Text style={{ fontSize: 10, color: colours.muted }}>{t('Tap to set up', 'Appuyez pour configurer')}</Text>
           </>
         )}

@@ -1817,26 +1817,9 @@ function PlannerScreenInner() {
               {t('Accessible routes only', 'Trajets accessibles uniquement')}
             </Text>
           )}
-          {/* Walk preferences */}
-          {travelMode === 'transit' && (
+          {/* Walk preferences — shown under Walk mode */}
+          {travelMode === 'walking' && (
             <View style={{ gap: 6, marginTop: 8 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Ionicons name="walk-outline" size={14} color={colours.muted} />
-                <Text style={{ fontSize: 11, color: colours.muted, fontWeight: '600' }}>{t('Max walk', 'Marche max')}</Text>
-                {([500, 1000, 2000] as const).map(dist => {
-                  const active = walkPreference === dist;
-                  const label = dist < 1000 ? `${dist}m` : `${dist / 1000}km`;
-                  return (
-                    <TouchableOpacity
-                      key={dist}
-                      onPress={() => { setWalkPreference(dist); AsyncStorage.setItem(SK_WALK_PREFERENCE, String(dist)).catch(() => {}); }}
-                      style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: active ? colours.accent : colours.border, backgroundColor: active ? colours.accent + '15' : colours.surface }}
-                    >
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: active ? colours.accent : colours.muted }}>{label}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Ionicons name="speedometer-outline" size={14} color={colours.muted} />
                 <Text style={{ fontSize: 11, color: colours.muted, fontWeight: '600' }}>{t('Pace', 'Rythme')}</Text>
