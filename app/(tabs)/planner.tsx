@@ -964,7 +964,7 @@ function PlannerScreenInner() {
           borderRadius: 16,
           padding: 16,
           marginBottom: 10,
-          borderWidth: isFirst ? 1.5 : 1,
+          borderWidth: isFirst ? 2 : 1,
           borderColor: isFirst ? colours.accent : isWalkOnly ? colours.border : colours.border,
         }, cardShadow]}
         activeOpacity={0.85}
@@ -1030,8 +1030,8 @@ function PlannerScreenInner() {
         })}
 
         {/* Footer row */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
             {hasTransit && (
               <Text style={{ fontSize: 11, color: colours.muted }}>
                 <Text style={{ fontWeight: '700' }}>{transferCount}</Text> {t(transferCount !== 1 ? 'transfers' : 'transfer', transferCount !== 1 ? 'correspondances' : 'correspondance')}
@@ -1052,7 +1052,7 @@ function PlannerScreenInner() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <TouchableOpacity
               onPress={(e) => { e.stopPropagation(); setReminderModal({ itin, idx }); setReminderTime(new Date(itin.startTime - 5 * 60 * 1000)); }}
-              style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colours.accent + '15', borderWidth: 1, borderColor: colours.accent + '30', alignItems: 'center', justifyContent: 'center' }}
+              style={{ width: 36, height: 36, borderRadius: 20, backgroundColor: colours.accent + '15', borderWidth: 1, borderColor: colours.accent + '30', alignItems: 'center', justifyContent: 'center' }}
               accessibilityRole="button"
               accessibilityLabel={t('Set reminder', 'Definir un rappel')}
             >
@@ -1240,7 +1240,7 @@ function PlannerScreenInner() {
               <Text style={{ fontSize: 20, fontWeight: '900', color: colours.text }}>{fmtDuration(expandedItinerary.duration)}</Text>
               <Text style={{ fontSize: 13, color: colours.muted, marginTop: 2 }}>{fmtTime(expandedItinerary.startTime)} → {fmtTime(expandedItinerary.endTime)}</Text>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               {/* Share button */}
               <TouchableOpacity
                 onPress={() => {
@@ -1252,7 +1252,7 @@ function PlannerScreenInner() {
                   const message = `RouteO Trip 🚌\n${fromText} → ${toText}\n${fmtDuration(itin.duration)} · Departs ${fmtTime(itin.startTime)} · Arrives ${fmtTime(itin.endTime)}\n${itin.transfers} transfer${itin.transfers !== 1 ? 's' : ''} · ${fmtWalk(itin.walkDistance)}\nRoute${routes ? `s: ${routes}` : ': Walk'}\nPlanned with RouteO for OC Transpo Ottawa`;
                   Share.share({ message });
                 }}
-                style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }}
+                style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }}
                 accessibilityRole="button"
                 accessibilityLabel={t('Share trip', 'Partager le trajet')}
               >
@@ -1277,7 +1277,7 @@ function PlannerScreenInner() {
                 <Ionicons name="navigate" size={14} color="#fff" />
                 <Text style={{ fontSize: 13, fontWeight: '800', color: '#fff' }}>GO</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={closeExpandedModal} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Close trip details', 'Fermer les details du trajet')}>
+              <TouchableOpacity onPress={closeExpandedModal} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Close trip details', 'Fermer les details du trajet')}>
                 <Ionicons name="close" size={18} color={colours.text} />
               </TouchableOpacity>
             </View>
@@ -1490,7 +1490,7 @@ function PlannerScreenInner() {
 
       <ScrollView ref={mainScrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 40 }}>
         {/* Input card */}
-        <View style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 18, borderWidth: 1, borderColor: colours.border, padding: 4, marginBottom: 12 }, cardShadow]}>
+        <View style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 18, borderWidth: 1, borderColor: colours.border, padding: 8, marginBottom: 12 }, cardShadow]}>
           {/* From */}
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 4, gap: 10 }}>
             <View style={{ width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: colours.accent, backgroundColor: colours.bg }} />
@@ -1686,7 +1686,7 @@ function PlannerScreenInner() {
                 <TouchableOpacity
                   key={m.key}
                   onPress={() => setTravelMode(m.key)}
-                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 9, borderRadius: 12, borderWidth: 1, borderColor: active ? colours.accent : colours.border, backgroundColor: active ? colours.accent + '15' : colours.surface }}
+                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: active ? colours.accent : colours.border, backgroundColor: active ? colours.accent + '15' : colours.surface }}
                   accessibilityRole="button"
                   accessibilityLabel={t(m.label_en, m.label_fr)}
                   accessibilityState={{ selected: active }}
@@ -1703,7 +1703,7 @@ function PlannerScreenInner() {
                 setAccessibleRouting(next);
                 AsyncStorage.setItem(SK_ACCESSIBILITY_ROUTING, String(next)).catch(() => {});
               }}
-              style={{ width: 42, alignItems: 'center', justifyContent: 'center', paddingVertical: 9, borderRadius: 12, borderWidth: 1, borderColor: accessibleRouting ? '#007AFF' : colours.border, backgroundColor: accessibleRouting ? '#007AFF' + '15' : colours.surface }}
+              style={{ width: 42, alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: accessibleRouting ? '#007AFF' : colours.border, backgroundColor: accessibleRouting ? '#007AFF' + '15' : colours.surface }}
               accessibilityRole="button"
               accessibilityLabel={t('Accessible routes', 'Trajets accessibles')}
               accessibilityState={{ selected: accessibleRouting }}
@@ -2054,7 +2054,7 @@ function PlannerScreenInner() {
           <View style={{ paddingHorizontal: 20 }}>
             {tripHistory.length === 0 ? (
               <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-                <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                <View style={{ width: 64, height: 64, borderRadius: 16, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
                   <Ionicons name="navigate" size={28} color={colours.accent} />
                 </View>
                 <Text style={{ fontSize: 17, fontWeight: '800', color: colours.text, textAlign: 'center' }}>{t('Plan your trip', 'Planifiez votre trajet')}</Text>
@@ -2093,7 +2093,7 @@ function PlannerScreenInner() {
                       accessibilityRole="button"
                       accessibilityLabel={`${trip.fromLabel} to ${trip.toLabel}`}
                     >
-                      <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
+                      <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
                         <Ionicons name="time-outline" size={18} color={colours.accent} />
                       </View>
                       <View style={{ flex: 1 }}>

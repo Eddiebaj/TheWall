@@ -264,8 +264,8 @@ export default function SportsModal({ visible, onClose, colours, fonts, t, langu
                         <Ionicons name={isSaved ? 'bookmark' : 'bookmark-outline'} size={16} color={isSaved ? colours.accent : colours.muted} />
                       </Pressable>
                       <Pressable onPress={() => { if (team.nhl || team.espn) { setSportsTab('scores'); fetchSportsScores(); } else { Linking.openURL(team.url).catch(() => {}); } }} style={{ alignItems: 'center' }}>
-                        <View style={{ width: 80, height: 80, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-                          <Image source={team.png} style={{ width: 80, height: 80 }} resizeMode="contain" />
+                        <View style={{ width: 72, height: 72, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+                          <Image source={team.png} style={{ width: 72, height: 72 }} resizeMode="contain" />
                         </View>
                         <Text style={{ fontSize: 11, fontWeight: '700', color: colours.text, textAlign: 'center' }} numberOfLines={1}>{team.name}</Text>
                       </Pressable>

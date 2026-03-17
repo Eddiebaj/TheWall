@@ -52,7 +52,7 @@ export default function WeatherModal({ visible, onClose, colours, fonts, t, weat
             {dailyForecast.map((d, i) => (<View key={i} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: i < dailyForecast.length - 1 ? 1 : 0, borderBottomColor: colours.border }}><View style={{ flex: 1 }}><Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{d.day}</Text><Text style={{ fontSize: fonts.sm - 1, color: colours.muted, marginTop: 1 }}>{d.date}</Text></View><Ionicons name={d.icon as any} size={20} color={iconColor(d.icon)} style={{ marginRight: 8 }} />{d.precip > 0 && <Text style={{ fontSize: fonts.sm, color: '#1a6fbf', fontWeight: '600', minWidth: 36, textAlign: 'right', marginRight: 8 }}>{d.precip}%</Text>}<Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, minWidth: 32, textAlign: 'right' }}>{d.high}°</Text><Text style={{ fontSize: fonts.md, color: colours.muted, minWidth: 32, textAlign: 'right' }}>{d.low}°</Text></View>))}
           </View>
           <TouchableOpacity onPress={onClose} style={{ marginHorizontal: 20, marginTop: 16, paddingVertical: 14, borderRadius: 14, backgroundColor: colours.accent, alignItems: 'center' }} accessibilityRole="button" accessibilityLabel={t('Close weather', 'Fermer la meteo')}>
-            <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>Done</Text>
+            <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>{t('Done', 'Fermer')}</Text>
           </TouchableOpacity>
         </View>
       </View>

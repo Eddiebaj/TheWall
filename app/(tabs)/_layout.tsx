@@ -5,7 +5,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useApp } from '../../context/AppContext';
 
 function TabLayout() {
-  const { colours } = useApp();
+  const { colours, language } = useApp();
+  const fr = language === 'fr';
   return (
     <Tabs
       screenOptions={{
@@ -13,9 +14,9 @@ function TabLayout() {
         tabBarStyle: {
           backgroundColor: colours.surface,
           borderTopColor: colours.border,
-          borderTopWidth: 1,
+          borderTopWidth: 0.5,
           height: Platform.OS === 'ios' ? 84 : 64,
-          paddingTop: 8,
+          paddingTop: 6,
           paddingBottom: Platform.OS === 'ios' ? 28 : 10,
         },
         tabBarActiveTintColor: colours.accent,
@@ -23,7 +24,7 @@ function TabLayout() {
         tabBarLabelStyle: {
           fontSize: 10,
           fontWeight: '600',
-          marginTop: 2,
+          marginTop: 1,
         },
         tabBarHideOnKeyboard: true,
       }}
@@ -31,7 +32,7 @@ function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          tabBarLabel: 'Home',
+          tabBarLabel: fr ? 'Accueil' : 'Home',
           tabBarIcon: ({ focused, color }) => (
             <Ionicons name={focused ? 'bus' : 'bus-outline'} size={22} color={color} />
           ),
@@ -40,7 +41,7 @@ function TabLayout() {
       <Tabs.Screen
         name="nearby"
         options={{
-          tabBarLabel: 'Explore',
+          tabBarLabel: fr ? 'Explorer' : 'Explore',
           tabBarIcon: ({ focused, color }) => (
             <Ionicons name={focused ? 'location' : 'location-outline'} size={22} color={color} />
           ),
@@ -49,7 +50,7 @@ function TabLayout() {
       <Tabs.Screen
         name="map"
         options={{
-          tabBarLabel: 'Live Map',
+          tabBarLabel: fr ? 'Carte' : 'Live Map',
           tabBarIcon: ({ focused, color }) => (
             <Ionicons name={focused ? 'map' : 'map-outline'} size={22} color={color} />
           ),
@@ -58,7 +59,7 @@ function TabLayout() {
       <Tabs.Screen
         name="planner"
         options={{
-          tabBarLabel: 'Planner',
+          tabBarLabel: fr ? 'Trajet' : 'Planner',
           tabBarIcon: ({ focused, color }) => (
             <Ionicons name={focused ? 'navigate' : 'navigate-outline'} size={22} color={color} />
           ),
@@ -67,7 +68,7 @@ function TabLayout() {
       <Tabs.Screen
         name="saved"
         options={{
-          tabBarLabel: 'News',
+          tabBarLabel: fr ? 'Nouvelles' : 'News',
           tabBarIcon: ({ focused, color }) => (
             <Ionicons name={focused ? 'newspaper' : 'newspaper-outline'} size={22} color={color} />
           ),
@@ -76,7 +77,7 @@ function TabLayout() {
       <Tabs.Screen
         name="account"
         options={{
-          tabBarLabel: 'Account',
+          tabBarLabel: fr ? 'Compte' : 'Account',
           tabBarIcon: ({ focused, color }) => (
             <Ionicons name={focused ? 'person-circle' : 'person-circle-outline'} size={22} color={color} />
           ),

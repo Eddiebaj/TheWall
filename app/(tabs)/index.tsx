@@ -654,12 +654,12 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
         </View>
         <View style={{ flexDirection: 'row', gap: 2 }}>
           {onMoveLeft && (
-            <Pressable onPress={onMoveLeft} hitSlop={6} style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: colours.border + '80', alignItems: 'center', justifyContent: 'center' }}>
+            <Pressable onPress={onMoveLeft} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colours.border + '80', alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="chevron-back" size={12} color={colours.muted} />
             </Pressable>
           )}
           {onMoveRight && (
-            <Pressable onPress={onMoveRight} hitSlop={6} style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: colours.border + '80', alignItems: 'center', justifyContent: 'center' }}>
+            <Pressable onPress={onMoveRight} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colours.border + '80', alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="chevron-forward" size={12} color={colours.muted} />
             </Pressable>
           )}
@@ -1024,7 +1024,8 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
                   <TouchableOpacity
                     onPress={() => handleVote(r.id, 'confirm')}
                     disabled={voted}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, opacity: voted ? 0.5 : 1 }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, padding: 6, opacity: voted ? 0.5 : 1 }}
                   >
                     <Ionicons name="thumbs-up-outline" size={14} color="#34c759" />
                     <Text style={{ fontSize: 12, color: '#34c759', fontWeight: '600' }}>{r.confirmed_count}</Text>
@@ -1032,7 +1033,8 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
                   <TouchableOpacity
                     onPress={() => handleVote(r.id, 'dispute')}
                     disabled={voted}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, opacity: voted ? 0.5 : 1 }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, padding: 6, opacity: voted ? 0.5 : 1 }}
                   >
                     <Ionicons name="thumbs-down-outline" size={14} color="#cc3b2a" />
                     <Text style={{ fontSize: 12, color: '#cc3b2a', fontWeight: '600' }}>{r.disputed_count}</Text>
@@ -3058,7 +3060,7 @@ function LiveScreenInner() {
             <View style={styles.modalCenter}><ActivityIndicator color={colours.accent} size="large" /></View>
           ) : displayEvents.length === 0 ? (
             <View style={styles.modalCenter}>
-              <Ionicons name="calendar-outline" size={40} color={colours.muted} />
+              <Ionicons name="calendar-outline" size={36} color={colours.muted} />
               <Text style={{ color: colours.muted, marginTop: 12, textAlign: 'center' }}>
                 {eventsSearch || eventsCategory ? t('No events match your filters.', 'Aucun événement ne correspond.') : t('No upcoming events found in Ottawa.', 'Aucun événement à venir à Ottawa.')}
               </Text>
@@ -3162,7 +3164,7 @@ function LiveScreenInner() {
             <View style={styles.modalCenter}><ActivityIndicator color={colours.accent} size="large" /><Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('Loading road closures...', 'Chargement...')}</Text></View>
           ) : roadEvents.length === 0 ? (
             <View style={styles.modalCenter}>
-              <Ionicons name="checkmark-circle" size={40} color={colours.accent} />
+              <Ionicons name="checkmark-circle" size={36} color={colours.accent} />
               <Text style={{ color: colours.text, fontWeight: '700', fontSize: fonts.lg, marginTop: 12 }}>{t('All Clear', 'Tout est d\u00E9gag\u00E9')}</Text>
               <Text style={{ color: colours.muted, marginTop: 6, textAlign: 'center' }}>{t('No active road closures in Ottawa.', 'Aucune fermeture de route active.')}</Text>
             </View>
@@ -3203,7 +3205,7 @@ function LiveScreenInner() {
             <View style={styles.modalCenter}><ActivityIndicator color={colours.accent} size="large" /><Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('Loading rinks...', 'Chargement...')}</Text></View>
           ) : parks.length === 0 ? (
             <View style={styles.modalCenter}>
-              <Ionicons name="snow-outline" size={40} color={colours.muted} />
+              <Ionicons name="snow-outline" size={36} color={colours.muted} />
               <Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('No park or rink data available right now.', 'Aucune donnée de parc ou patinoire disponible.')}</Text>
             </View>
           ) : parks.map((p, i) => (
@@ -3264,7 +3266,7 @@ function LiveScreenInner() {
             <View style={styles.modalCenter}><ActivityIndicator color={colours.accent} size="large" /><Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('Finding nearby stations...', 'Recherche de stations...')}</Text></View>
           ) : bikeStations.length === 0 ? (
             <View style={styles.modalCenter}>
-              <Ionicons name="bicycle-outline" size={40} color={colours.muted} />
+              <Ionicons name="bicycle-outline" size={36} color={colours.muted} />
               <Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('No bike stations found.', 'Aucune station trouv\u00E9e.')}</Text>
             </View>
           ) : bikeStations.map((s, i) => (
@@ -3899,7 +3901,7 @@ function LiveScreenInner() {
                 {garbageAddress && <Text style={{ fontSize: 12, color: colours.muted, marginBottom: 16 }}>{garbageAddress}</Text>}
                 {garbageEvents.length === 0 ? (
                   <View style={{ alignItems: 'center', paddingVertical: 32 }}>
-                    <Ionicons name="home-outline" size={40} color={colours.muted} />
+                    <Ionicons name="home-outline" size={36} color={colours.muted} />
                     <Text style={{ color: colours.muted, textAlign: 'center', marginTop: 12 }}>Open the full Garbage Day widget to set your address.</Text>
                     <TouchableOpacity onPress={() => { setBoardExpandItem(null); setGarbageModalVisible(true); }} style={{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, backgroundColor: colours.accent }}>
                       <Text style={{ color: 'white', fontWeight: '700' }}>Open Garbage Day</Text>
@@ -4005,7 +4007,7 @@ function LiveScreenInner() {
               </ScrollView>
             ) : !garbageLoading && (
               <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 }}>
-                <Ionicons name="home-outline" size={40} color={colours.muted} />
+                <Ionicons name="home-outline" size={36} color={colours.muted} />
                 <Text style={{ fontSize: fonts.md, color: colours.muted, textAlign: 'center', marginTop: 12 }}>{t('Enter your Ottawa address to see your collection schedule.', 'Entrez votre adresse \u00E0 Ottawa pour voir votre calendrier de collecte.')}</Text>
               </View>
             )}

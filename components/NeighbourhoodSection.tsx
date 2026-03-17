@@ -112,8 +112,8 @@ export default function NeighbourhoodSection({ colours, fonts, cardShadow, event
               activeOpacity={0.92}
               onPress={() => onPress(n)}
               style={[{
-                width: 170,
-                height: 200,
+                width: 160,
+                height: 180,
                 borderRadius: 16,
                 overflow: 'hidden',
                 backgroundColor: colours.surface,

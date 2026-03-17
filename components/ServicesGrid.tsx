@@ -75,7 +75,7 @@ export default function ServicesGrid({ colours, fonts, t, language, activeTab, o
         {Array.from({ length: Math.ceil(currentTab.tiles.length / 4) }, (_, row) => (
           <View key={row} style={{ flexDirection: 'row', gap: 8, marginBottom: row < Math.ceil(currentTab.tiles.length / 4) - 1 ? 8 : 0 }}>
             {currentTab.tiles.slice(row * 4, row * 4 + 4).map(tile => (
-                <TouchableOpacity key={tile.id} onPress={() => onTileTap(tile)} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5, backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, borderTopWidth: 3, borderTopColor: tile.accent, paddingVertical: 10, paddingHorizontal: 4, ...cardShadow }} activeOpacity={0.75} accessibilityRole="button" accessibilityLabel={language === 'fr' ? tile.label_fr : tile.label_en}>
+                <TouchableOpacity key={tile.id} onPress={() => onTileTap(tile)} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5, backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, borderTopWidth: 2, borderTopColor: tile.accent, paddingVertical: 12, paddingHorizontal: 4, ...cardShadow }} activeOpacity={0.75} accessibilityRole="button" accessibilityLabel={language === 'fr' ? tile.label_fr : tile.label_en}>
                   <Ionicons name={tile.icon as any} size={20} color={tile.accent} />
                   <Text style={{ fontSize: 10, fontWeight: '600', color: colours.text, textAlign: 'center', lineHeight: 13 }} numberOfLines={2}>{language === 'fr' ? tile.label_fr : tile.label_en}</Text>
                 </TouchableOpacity>

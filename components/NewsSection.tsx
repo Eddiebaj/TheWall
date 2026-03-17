@@ -165,10 +165,10 @@ export default function NewsSection({ colours, fonts, cardShadow, onArticlesLoad
           return (
             <TouchableOpacity
               key={article.id}
-              activeOpacity={0.92}
+              activeOpacity={0.85}
               onPress={() => Linking.openURL(article.link)}
               style={[{
-                height: 180,
+                height: 160,
                 borderRadius: 16,
                 overflow: 'hidden',
                 backgroundColor: colours.surface,

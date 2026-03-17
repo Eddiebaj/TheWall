@@ -342,7 +342,7 @@ export default function ExploreScreen() {
           <View style={{ position: 'absolute', top: 8, right: 8, flexDirection: 'row', gap: 6 }}>
             <TouchableOpacity
               onPress={() => toggleSavePlace(place)}
-              style={{ backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 20, width: 30, height: 30, alignItems: 'center', justifyContent: 'center' }}
+              style={{ backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 17, width: 34, height: 34, alignItems: 'center', justifyContent: 'center' }}
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel={savedPlaceIds.has(place.id) ? t('Unsave place', 'Retirer le lieu') : t('Save place', 'Sauvegarder le lieu')}
@@ -579,7 +579,7 @@ export default function ExploreScreen() {
               key={opt.id}
               style={{
                 flexDirection: 'row', alignItems: 'center', gap: 4,
-                borderWidth: 1, borderRadius: 9, paddingHorizontal: 9, height: 26,
+                borderWidth: 1, borderRadius: 9, paddingHorizontal: 9, height: 28,
                 backgroundColor: sortBy === opt.id ? colours.accent + '18' : colours.surface,
                 borderColor: sortBy === opt.id ? colours.accent : colours.border,
               }}
@@ -604,7 +604,7 @@ export default function ExploreScreen() {
                 key={opt.value}
                 style={{
                   flexDirection: 'row', alignItems: 'center', gap: 4,
-                  borderWidth: 1, borderRadius: 9, paddingHorizontal: 9, height: 26,
+                  borderWidth: 1, borderRadius: 9, paddingHorizontal: 9, height: 28,
                   backgroundColor: isActive ? colours.accentAlt + '18' : colours.surface,
                   borderColor: isActive ? colours.accentAlt : colours.border,
                 }}

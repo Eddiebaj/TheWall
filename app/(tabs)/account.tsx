@@ -540,7 +540,7 @@ export default function AccountScreen() {
                 )}
               </Text>
               <View style={{ height: 6, borderRadius: 3, backgroundColor: colours.border, marginBottom: 12 }}>
-                <View style={{ height: 6, borderRadius: 3, backgroundColor: colours.accent, width: `${Math.min(100, (fareStats.costToday / 13.50) * 100)}%` }} />
+                <View style={{ height: 6, borderRadius: 3, backgroundColor: colours.accent, width: `${Math.max(2, Math.min(100, (fareStats.costToday / 13.50) * 100))}%` }} />
               </View>
 
               {/* Monthly cap */}
@@ -551,7 +551,7 @@ export default function AccountScreen() {
                 )}
               </Text>
               <View style={{ height: 6, borderRadius: 3, backgroundColor: colours.border, marginBottom: 12 }}>
-                <View style={{ height: 6, borderRadius: 3, backgroundColor: colours.accent, width: `${Math.min(100, (fareStats.costMonth / 139) * 100)}%` }} />
+                <View style={{ height: 6, borderRadius: 3, backgroundColor: colours.accent, width: `${Math.max(2, Math.min(100, (fareStats.costMonth / 139) * 100))}%` }} />
               </View>
 
               <Text style={{ fontSize: fonts.xs, color: colours.muted, fontStyle: 'italic' }}>

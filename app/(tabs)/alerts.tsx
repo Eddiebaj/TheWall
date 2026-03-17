@@ -455,7 +455,7 @@ const styles = StyleSheet.create({
     padding: 16, borderRadius: 16, borderWidth: 1,
   },
   filterPill: {
-    paddingHorizontal: 14, height: 32,
+    paddingHorizontal: 14, height: 28,
     borderRadius: 16, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
   },
