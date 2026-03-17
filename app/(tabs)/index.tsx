@@ -1418,6 +1418,7 @@ function LiveScreenInner() {
   const [tonightDismissed, setTonightDismissed] = useState(false);
   const [showUndoToast, setShowUndoToast] = useState(false);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const arrivalsAbortRef = useRef<AbortController | null>(null);
   const handleTonightDismiss = useCallback(() => {
     setTonightDismissed(true);
     setShowUndoToast(true);
@@ -1560,6 +1561,12 @@ function LiveScreenInner() {
         }
         if (changed) AsyncStorage.setItem(SK_SAVED_BOARD, JSON.stringify(board));
         setSavedBoard(board);
+        // Default to first saved board stop instead of hardcoded CD995
+        const firstBoardStop = board.find(i => i.type === 'bus_stop' || i.type === 'lrt_station') as { type: string; id: string; name: string } | undefined;
+        if (firstBoardStop) {
+          setStopId(firstBoardStop.id);
+          setStopName(firstBoardStop.name || firstBoardStop.id);
+        }
         setBoardLoaded(true);
       } catch {
         setSavedBoard([]);
@@ -1651,10 +1658,12 @@ function LiveScreenInner() {
   // Fade out "Hold to reorder" hint after 3 seconds
   useEffect(() => {
     if (boardLoaded && savedBoard.length > 0 && !boardHintShown) {
+      let mounted = true;
       const timer = setTimeout(() => {
-        Animated.timing(boardHintOpacity, { toValue: 0, duration: 600, useNativeDriver: true }).start(() => setBoardHintShown(true));
+        if (!mounted) return;
+        Animated.timing(boardHintOpacity, { toValue: 0, duration: 600, useNativeDriver: true }).start(() => { if (mounted) setBoardHintShown(true); });
       }, 3000);
-      return () => clearTimeout(timer);
+      return () => { mounted = false; clearTimeout(timer); };
     }
   }, [boardLoaded, savedBoard.length]);
 
@@ -2135,11 +2144,7 @@ function LiveScreenInner() {
     setEventsLoading(false);
   };
 
-  const haversineKm = (lat1: number, lng1: number, lat2: number, lng2: number) => {
-    const R = 6371, dLat = (lat2 - lat1) * Math.PI / 180, dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  };
+  // haversineDist removed — consolidated into haversineDist above
 
   const toggleNearMe = async () => {
     if (eventsNearMe) { setEventsNearMe(false); return; }
@@ -2151,13 +2156,15 @@ function LiveScreenInner() {
       // Geocode any addresses not yet in cache
       const toGeocode = events.filter(e => e.address && !eventsGeoCache[e.address]);
       const newCache = { ...eventsGeoCache };
-      await Promise.all(toGeocode.map(async e => {
-        try {
-          const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=geocode&input=${encodeURIComponent(e.address || '')}`);
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          const d = await r.json();
-          if (d.results?.[0]?.lat) newCache[e.address!] = { lat: d.results[0].lat, lng: d.results[0].lng };
-        } catch (e2) { if (__DEV__) console.warn('geocode event address failed:', e2); }
+      const GEO_TIMEOUT = 5000;
+      await Promise.allSettled(toGeocode.map(async e => {
+        const r = await Promise.race([
+          fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=geocode&input=${encodeURIComponent(e.address || '')}`),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('geocode timeout')), GEO_TIMEOUT)),
+        ]);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const d = await r.json();
+        if (d.results?.[0]?.lat) newCache[e.address!] = { lat: d.results[0].lat, lng: d.results[0].lng };
       }));
       setEventsGeoCache(newCache);
       setEventsNearMe(true);
@@ -2188,13 +2195,16 @@ function LiveScreenInner() {
   };
 
   const fetchArrivals = useCallback(async (id: string) => {
+    arrivalsAbortRef.current?.abort();
+    const controller = new AbortController();
+    arrivalsAbortRef.current = controller;
     try {
       setError('');
       const isNumericOnly = /^\d+$/.test(id);
       const internalId = isNumericOnly ? resolveStopId(id) : id;
       // STO stops — route through backend which handles STO GTFS-RT
       if (isStoStop(id)) {
-        const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${id}`);
+        const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${id}`, { signal: controller.signal });
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
         const stoIsStatic = data.source === 'gtfs-static';
@@ -2211,7 +2221,7 @@ function LiveScreenInner() {
         const rawId = LRT_STOP_IDS.has(id) ? id : internalId;
         const platforms = MULTI_PLATFORM_STOPS[rawId];
         const lrtId = platforms ? (platforms.find(p => /^[A-Z]/.test(p)) || rawId) : rawId;
-        const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${lrtId}`);
+        const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${lrtId}`, { signal: controller.signal });
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
         const lrtParsed = (data.arrivals || []).map((a: any) => ({ id: `${a.stopId}-${a.scheduledTime}`, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway, delay: 0, secsAway: a.minsAway * 60, isScheduled: true }));
@@ -2223,7 +2233,7 @@ function LiveScreenInner() {
         setLoading(false);
         return;
       }
-      const resp = await fetchWithTimeout(TRIP_UPDATES, { headers: { 'Ocp-Apim-Subscription-Key': OC_TRANSPO_API_KEY } });
+      const resp = await fetchWithTimeout(TRIP_UPDATES, { headers: { 'Ocp-Apim-Subscription-Key': OC_TRANSPO_API_KEY }, signal: controller.signal });
       if (!resp.ok) throw new Error(`API error ${resp.status}`);
       const data = await resp.json();
       const gtfsParsed = parseGTFS(data, internalId);
@@ -2234,6 +2244,7 @@ function LiveScreenInner() {
       setLastUpdated(fmtTime(now));
       setArrivalsFetchFailed(false);
     } catch (e: unknown) {
+      if (e instanceof Error && e.name === 'AbortError') return;
       try {
         const cached = await AsyncStorage.getItem(`routeo_arrivals_${id}`);
         if (cached) {
@@ -2470,29 +2481,35 @@ function LiveScreenInner() {
   }, [frequentRoutes]);
 
   // Watch mode: poll faster (15s) when a bus is ≤10 min away, else 30s
-  const prevArrivalsRef = useRef<{ id: string; routeId: string; minsAway: number }[]>([]);
+  const prevArrivalsRef = useRef<{ id: string; routeId: string; headsign: string; minsAway: number }[]>([]);
+  const disappearedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     const hasSoonBus = arrivals.some(a => a.minsAway <= 10);
     const pollInterval = batterySaver ? 60000 : hasSoonBus ? 15000 : 30000;
     const interval = setInterval(() => {
       if (AppState.currentState === 'active') {
-        // Check for disappeared trips (possible cancellation)
-        const prevIds = new Set(prevArrivalsRef.current.filter(p => p.minsAway <= 10).map(p => p.id));
-        if (prevIds.size > 0) {
-          const currentIds = new Set(arrivals.map(a => a.id));
-          const disappeared = prevArrivalsRef.current.filter(p => prevIds.has(p.id) && !currentIds.has(p.id) && p.minsAway > 1);
+        // Check for disappeared trips (possible cancellation) — match by routeId+headsign composite key
+        const prevTracked = prevArrivalsRef.current.filter(p => p.minsAway <= 10);
+        const prevKeys = new Set(prevTracked.map(p => `${p.routeId}-${p.headsign}`));
+        if (prevKeys.size > 0) {
+          const currentKeys = new Set(arrivals.map(a => `${a.routeId}-${a.headsign}`));
+          const disappeared = prevTracked.filter(p => prevKeys.has(`${p.routeId}-${p.headsign}`) && !currentKeys.has(`${p.routeId}-${p.headsign}`) && p.minsAway > 1);
           if (disappeared.length > 0) {
-            setDisappearedTrips(disappeared.map(d => ({ routeId: d.routeId, headsign: '' })));
-            setTimeout(() => setDisappearedTrips([]), 60000);
+            setDisappearedTrips(disappeared.map(d => ({ routeId: d.routeId, headsign: d.headsign })));
+            if (disappearedTimerRef.current) clearTimeout(disappearedTimerRef.current);
+            disappearedTimerRef.current = setTimeout(() => setDisappearedTrips([]), 60000);
             if (__DEV__) console.log('Watch mode: trips disappeared', disappeared.map(d => d.routeId));
           }
         }
-        prevArrivalsRef.current = arrivals.map(a => ({ id: a.id, routeId: a.routeId, minsAway: a.minsAway }));
+        prevArrivalsRef.current = arrivals.map(a => ({ id: a.id, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway }));
         fetchArrivals(stopId);
         if (frequentRoutes.length > 0 && !frequentCardDismissed) fetchFrequentArrivals(frequentRoutes, true);
       }
     }, pollInterval);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (disappearedTimerRef.current) clearTimeout(disappearedTimerRef.current);
+    };
   }, [stopId, fetchArrivals, frequentRoutes, frequentCardDismissed, arrivals, batterySaver]);
 
   useEffect(() => {
@@ -2626,7 +2643,7 @@ function LiveScreenInner() {
     return results.sort((a, b) => a.secsAway - b.secsAway).slice(0, 8);
   };
 
-  const loadStop = (id: string, name?: string) => { setStopId(id); setStopName(name || getStopName(id) || id); setLoading(true); fetchArrivals(id); fetchStopReports(id); fetchStopAmenities(id); };
+  const loadStop = (id: string, name?: string) => { setShowAllArrivals(false); setStopId(id); setStopName(name || getStopName(id) || id); setLoading(true); fetchArrivals(id); fetchStopReports(id); fetchStopAmenities(id); };
 
   const geocodeSeq = useRef(0);
 
@@ -3087,8 +3104,8 @@ function LiveScreenInner() {
       displayEvents = [...filteredEvents].sort((a, b) => {
         const coordA = a.address ? eventsGeoCache[a.address] : null;
         const coordB = b.address ? eventsGeoCache[b.address] : null;
-        const distA = coordA ? haversineKm(eventsUserCoords.lat, eventsUserCoords.lng, coordA.lat, coordA.lng) : 999;
-        const distB = coordB ? haversineKm(eventsUserCoords.lat, eventsUserCoords.lng, coordB.lat, coordB.lng) : 999;
+        const distA = coordA ? haversineDist(eventsUserCoords.lat, eventsUserCoords.lng, coordA.lat, coordA.lng) : 999;
+        const distB = coordB ? haversineDist(eventsUserCoords.lat, eventsUserCoords.lng, coordB.lat, coordB.lng) : 999;
         return distA - distB;
       });
     }
@@ -3195,16 +3212,14 @@ function LiveScreenInner() {
               <Text style={{ color: colours.muted, marginTop: 12, textAlign: 'center' }}>
                 {eventsSearch || eventsCategory ? t('No events match your filters.', 'Aucun événement ne correspond.') : t('No upcoming events found in Ottawa.', 'Aucun événement à venir à Ottawa.')}
               </Text>
-              {!eventsSearch && !eventsCategory && (
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  accessibilityLabel={t('Refresh events', 'Actualiser les événements')}
-                  style={{ marginTop: 14, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}
-                  onPress={() => { eventsCacheTime.current.ticketmaster = 0; eventsCacheTime.current.eventbrite = 0; fetchTicketmasterEvents(); fetchEventbriteEvents(); }}
-                >
-                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Refresh', 'Actualiser')}</Text>
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={t('Try again', 'Réessayer')}
+                style={{ marginTop: 14, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}
+                onPress={() => { eventsCacheTime.current.ticketmaster = 0; eventsCacheTime.current.eventbrite = 0; fetchTicketmasterEvents(); fetchEventbriteEvents(); }}
+              >
+                <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Try again', 'Réessayer')}</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             displayEvents.map(ev => renderEventCard(ev))
@@ -3887,7 +3902,7 @@ function LiveScreenInner() {
           {item.isScheduled && !isLRT && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
               <Ionicons name="warning" size={11} color={colours.orange} />
-              <Text style={{ fontSize: 10, color: colours.orange, fontWeight: '600' }}>{t('Scheduled only', 'Horaire seulement')}</Text>
+              <Text style={{ fontSize: 10, color: colours.orange, fontWeight: '600' }}>{t('Scheduled — no real-time data', 'Horaire — pas de données en temps réel')}</Text>
             </View>
           )}
           {ghostBus && (
@@ -4307,7 +4322,7 @@ function LiveScreenInner() {
             </View>
           </View>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }}>
-            {loading ? (<View style={{ marginTop: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>) : error ? (<View style={styles.modalCenter}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.md, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text></View>) : arrivals.length === 0 ? (<View style={styles.modalCenter}><Ionicons name="time-outline" size={48} color={colours.muted} /><Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 12 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<View style={{ marginTop: 8 }}>{cachedAt && (<View style={{ backgroundColor: '#ff9500' + '15', borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8 }}><Text style={{ fontSize: fonts.sm, color: '#ff9500', fontWeight: '600' }}>{t(`Offline — last updated ${Math.round((Date.now() - cachedAt) / 60000)} min ago`, `Hors ligne — dernière mise à jour il y a ${Math.round((Date.now() - cachedAt) / 60000)} min`)}</Text></View>)}{arrivals.map(renderArrival)}</View>)}
+            {loading ? (<View style={{ marginTop: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>) : error ? (<View style={styles.modalCenter}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.md, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text></View>) : arrivals.length === 0 ? (<View style={styles.modalCenter}><Ionicons name="time-outline" size={48} color={colours.muted} /><Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 12 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<View style={{ marginTop: 8 }}>{cachedAt && !(weatherFetchFailed && arrivalsFetchFailed) && (<View style={{ backgroundColor: '#ff9500' + '15', borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8 }}><Text style={{ fontSize: fonts.sm, color: '#ff9500', fontWeight: '600' }}>{t(`Offline — last updated ${Math.round((Date.now() - cachedAt) / 60000)} min ago`, `Hors ligne — dernière mise à jour il y a ${Math.round((Date.now() - cachedAt) / 60000)} min`)}</Text></View>)}{arrivals.map(renderArrival)}</View>)}
             {/* Report an issue button */}
             <TouchableOpacity
               onPress={() => { setReportCategory(null); setReportDescription(''); if (!expandedStopId && stopId) setExpandedStopId(stopId); setShowReportModal(true); }}
@@ -4508,7 +4523,7 @@ function LiveScreenInner() {
       <View style={[styles.container, { backgroundColor: colours.bg }]}>
         <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
         {alertsModalVisible && renderAlertsModal()}
-        {weatherModalVisible && <WeatherModal visible={weatherModalVisible} onClose={() => setWeatherModalVisible(false)} colours={colours} fonts={fonts} t={t} weather={weather} forecast={forecast} dailyForecast={dailyForecast} locationName={locationName} />}
+        {weatherModalVisible && <WeatherModal visible={weatherModalVisible} onClose={() => setWeatherModalVisible(false)} colours={colours} fonts={fonts} t={t} weather={weather} forecast={forecast} dailyForecast={dailyForecast} locationName={locationName} onRetry={fetchWeather} />}
         {garbageModalVisible && renderGarbageModal()}
         {swapSheetVisible && renderSwapSheet()}
         {!!expandedStopId && renderExpandedArrivals()}
@@ -4725,6 +4740,8 @@ function LiveScreenInner() {
                     onPress={() => submitCrowdingReport(opt.level)}
                     style={{ width: '47%', backgroundColor: opt.color + '15', borderWidth: 1.5, borderColor: opt.color + '40', borderRadius: 16, paddingVertical: 20, alignItems: 'center', gap: 8 }}
                     activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={opt.label}
                   >
                     <Ionicons name={opt.icon as any} size={28} color={opt.color} />
                     <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>{opt.label}</Text>
@@ -4732,7 +4749,7 @@ function LiveScreenInner() {
                 ))}
               </View>
               {/* Hourly crowding chart */}
-              {crowdingHourly.length > 0 && (
+              {crowdingHourly.length > 0 && !crowdingHourly.every(e => e.count === 0) ? (
                 <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
                   <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Today by hour', 'Aujourd\'hui par heure')}</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 60 }}>
@@ -4759,7 +4776,12 @@ function LiveScreenInner() {
                     ))}
                   </View>
                 </View>
-              )}
+              ) : crowdingHourly.length > 0 ? (
+                <View style={{ paddingHorizontal: 20, marginBottom: 12, alignItems: 'center' }}>
+                  <Ionicons name="bar-chart-outline" size={24} color={colours.muted} />
+                  <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 6, textAlign: 'center' }}>{t('Not enough data yet', 'Pas encore assez de donnees')}</Text>
+                </View>
+              ) : null}
               {crowdingHourlyLoading && <ActivityIndicator color={colours.accent} size="small" style={{ marginBottom: 12 }} />}
               <Text style={{ textAlign: 'center', fontSize: fonts.sm, color: colours.muted, paddingHorizontal: 20 }}>{t('Your report helps other riders plan their trip', 'Votre signalement aide les autres usagers')}</Text>
             </View>
@@ -4919,7 +4941,7 @@ function LiveScreenInner() {
                   </TouchableOpacity>
                 </View>
               </View>
-              {loading ? (<View style={{ paddingVertical: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>) : error ? (<View style={styles.centerState}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text><TouchableOpacity style={[styles.retryBtn, { backgroundColor: colours.accent }]} onPress={() => fetchArrivals(stopId)}><Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.sm }}>{t('Retry', 'Réessayer')}</Text></TouchableOpacity></View>) : arrivals.length === 0 ? (<View style={styles.centerState}><Ionicons name="time-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 8 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<>{cachedAt && (<View style={{ backgroundColor: '#ff9500' + '15', borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 8, marginHorizontal: 0 }}><Text style={{ fontSize: fonts.sm, color: '#ff9500', fontWeight: '600' }}>{t(`Offline — last updated ${Math.round((Date.now() - cachedAt) / 60000)} min ago`, `Hors ligne — dernière mise à jour il y a ${Math.round((Date.now() - cachedAt) / 60000)} min`)}</Text></View>)}{arrivals.slice(0, 4).map(renderArrival)}{arrivals.length > 4 && (<TouchableOpacity onPress={() => setShowAllArrivals(v => !v)} style={{ paddingVertical: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: colours.border }}><Text style={{ color: colours.accent, fontWeight: '700', fontSize: fonts.sm }}>{showAllArrivals ? t('Show less ▲', 'Voir moins ▲') : t(`Show ${arrivals.length - 4} more ▼`, `Voir ${arrivals.length - 4} de plus ▼`)}</Text></TouchableOpacity>)}</>)}
+              {loading ? (<View style={{ paddingVertical: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>) : error ? (<View style={styles.centerState}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text><TouchableOpacity style={[styles.retryBtn, { backgroundColor: colours.accent }]} onPress={() => fetchArrivals(stopId)}><Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.sm }}>{t('Retry', 'Réessayer')}</Text></TouchableOpacity></View>) : arrivals.length === 0 ? (<View style={styles.centerState}><Ionicons name="time-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 8 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<>{cachedAt && !(weatherFetchFailed && arrivalsFetchFailed) && (<View style={{ backgroundColor: '#ff9500' + '15', borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 8, marginHorizontal: 0 }}><Text style={{ fontSize: fonts.sm, color: '#ff9500', fontWeight: '600' }}>{t(`Offline — last updated ${Math.round((Date.now() - cachedAt) / 60000)} min ago`, `Hors ligne — dernière mise à jour il y a ${Math.round((Date.now() - cachedAt) / 60000)} min`)}</Text></View>)}{arrivals.slice(0, 4).map(renderArrival)}{arrivals.length > 4 && (<TouchableOpacity onPress={() => setShowAllArrivals(v => !v)} style={{ paddingVertical: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: colours.border }}><Text style={{ color: colours.accent, fontWeight: '700', fontSize: fonts.sm }}>{showAllArrivals ? t('Show less ▲', 'Voir moins ▲') : t(`Show ${arrivals.length - 4} more ▼`, `Voir ${arrivals.length - 4} de plus ▼`)}</Text></TouchableOpacity>)}</>)}
             </View>
             {nearbyAlternative && (
               <TouchableOpacity

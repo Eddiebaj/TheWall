@@ -99,21 +99,25 @@ export default function SportsModal({ visible, onClose, colours, fonts, t, langu
             (ev.competitions?.[0]?.competitors || []).some((c: any) => c.team?.abbreviation === team.espn!.abbr)
           );
           if (game) {
-            const comp = game.competitions[0];
-            const home = comp.competitors.find((c: any) => c.homeAway === 'home');
-            const away = comp.competitors.find((c: any) => c.homeAway === 'away');
-            const state = comp.status?.type?.state;
-            results.push({
-              team: team.name,
-              homeName: home?.team?.displayName || '?',
-              homeAbbr: home?.team?.abbreviation || '?',
-              homeScore: home?.score || '0',
-              awayName: away?.team?.displayName || '?',
-              awayAbbr: away?.team?.abbreviation || '?',
-              awayScore: away?.score || '0',
-              status: comp.status?.type?.shortDetail || comp.status?.type?.description || '',
-              state,
-            });
+            const comp = game.competitions?.[0];
+            if (!comp?.competitors || comp.competitors.length < 2) {
+              results.push({ team: team.name, noGame: true });
+            } else {
+              const home = comp.competitors.find((c: any) => c.homeAway === 'home');
+              const away = comp.competitors.find((c: any) => c.homeAway === 'away');
+              const state = comp.status?.type?.state;
+              results.push({
+                team: team.name,
+                homeName: home?.team?.displayName || '?',
+                homeAbbr: home?.team?.abbreviation || '?',
+                homeScore: home?.score || '0',
+                awayName: away?.team?.displayName || '?',
+                awayAbbr: away?.team?.abbreviation || '?',
+                awayScore: away?.score || '0',
+                status: comp.status?.type?.shortDetail || comp.status?.type?.description || '',
+                state,
+              });
+            }
           } else {
             results.push({ team: team.name, noGame: true });
           }
@@ -161,17 +165,20 @@ export default function SportsModal({ visible, onClose, colours, fonts, t, langu
             .filter((ev: any) => new Date(ev.date) > now)
             .slice(0, 5)
             .map((ev: any) => {
-              const comp = ev.competitions?.[0];
-              const us = (comp?.competitors || []).find((c: any) => c.team?.abbreviation === team.espn!.abbr);
-              const them = (comp?.competitors || []).find((c: any) => c.team?.abbreviation !== team.espn!.abbr);
-              return {
-                date: ev.date,
-                opponent: them?.team?.displayName || '?',
-                opponentAbbr: them?.team?.abbreviation || '?',
-                homeAway: us?.homeAway === 'home' ? 'vs' : '@',
-                status: comp?.status?.type?.description || '',
-              };
-            });
+              try {
+                const comp = ev.competitions?.[0];
+                if (!comp?.competitors || comp.competitors.length < 2) return null;
+                const us = comp.competitors.find((c: any) => c.team?.abbreviation === team.espn!.abbr);
+                const them = comp.competitors.find((c: any) => c.team?.abbreviation !== team.espn!.abbr);
+                return {
+                  date: ev.date,
+                  opponent: them?.team?.displayName || '?',
+                  opponentAbbr: them?.team?.abbreviation || '?',
+                  homeAway: us?.homeAway === 'home' ? 'vs' : '@',
+                  status: comp?.status?.type?.description || '',
+                };
+              } catch { return null; }
+            }).filter(Boolean);
           results.push({ team: team.name, games: upcoming });
         }
       } catch {

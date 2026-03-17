@@ -180,8 +180,13 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
     setDealSubmitting(false);
   };
 
+  const [dealVoteError, setDealVoteError] = useState('');
+
   const voteDeal = async (dealId: string, voteType: 'up' | 'down') => {
     const deviceId = await getDeviceId();
+    // Save previous state for rollback
+    const prevDealVotes = { ...dealVotes };
+    const prevMyVotes = { ...myVotes };
     // Optimistic update
     setDealVotes(prev => {
       const current = prev[dealId] || { up: 0, down: 0 };
@@ -209,7 +214,15 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ deal_id: dealId, device_id: deviceId, vote_type: newVote }),
         });
-      } catch (e) { if (__DEV__) console.warn('vote deal failed:', e); }
+      } catch (e) {
+        if (__DEV__) console.warn('vote deal failed:', e);
+        // Rollback on failure
+        setDealVotes(prevDealVotes);
+        setMyVotes(prevMyVotes);
+        await AsyncStorage.setItem('routeo_my_deal_votes', JSON.stringify(prevMyVotes));
+        setDealVoteError(t('Vote failed. Try again.', 'Le vote a echoue. Reessayez.'));
+        setTimeout(() => setDealVoteError(''), 3000);
+      }
     }
   };
 
@@ -328,6 +341,10 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
                   );
                 })}
               </View>
+            )}
+
+            {dealVoteError !== '' && (
+              <Text style={{ fontSize: 12, color: '#ff3b30', fontWeight: '600', marginTop: 8, textAlign: 'center' }}>{dealVoteError}</Text>
             )}
 
             {/* Submit deal button / form */}

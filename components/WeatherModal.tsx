@@ -20,9 +20,39 @@ type WeatherModalProps = {
   forecast: { time: string; temp: number; icon: string; precip: number }[];
   dailyForecast: { day: string; date: string; high: number; low: number; icon: string; precip: number }[];
   locationName: string;
+  onRetry?: () => void;
 };
 
-export default function WeatherModal({ visible, onClose, colours, fonts, t, weather, forecast, dailyForecast, locationName }: WeatherModalProps) {
+export default function WeatherModal({ visible, onClose, colours, fonts, t, weather, forecast, dailyForecast, locationName, onRetry }: WeatherModalProps) {
+  if (!weather && forecast.length === 0 && dailyForecast.length === 0) {
+    return (
+      <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+          <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40, alignItems: 'center', paddingTop: 20 }}>
+            <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 8 }} />
+            <Ionicons name="cloud-offline-outline" size={40} color={colours.muted} style={{ marginTop: 20 }} />
+            <Text style={{ fontSize: fonts.md, color: colours.muted, marginTop: 12, textAlign: 'center', paddingHorizontal: 20 }}>
+              {t('Weather data unavailable', 'Donnees meteo indisponibles')}
+            </Text>
+            {onRetry && (
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={t('Try again', 'Reessayer')}
+                style={{ marginTop: 14, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}
+                onPress={onRetry}
+              >
+                <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Try again', 'Reessayer')}</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={onClose} style={{ marginTop: 20, marginHorizontal: 20, paddingVertical: 14, paddingHorizontal: 40, borderRadius: 12, backgroundColor: colours.accent, alignItems: 'center' }} accessibilityRole="button" accessibilityLabel={t('Close weather', 'Fermer la meteo')}>
+              <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>{t('Done', 'Fermer')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>

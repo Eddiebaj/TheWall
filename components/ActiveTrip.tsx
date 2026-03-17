@@ -118,6 +118,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
   const [busDisappeared, setBusDisappeared] = useState(false);
   const [busDisappearedAt, setBusDisappearedAt] = useState<number | null>(null);
   const [switchedRoute, setSwitchedRoute] = useState<string | null>(null);
+  const [pollFailCount, setPollFailCount] = useState(0);
 
   const locationSubRef = useRef<any>(null);
   const arrivalPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -206,14 +207,25 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
       const resp = await fetchWithTimeout(
         `https://routeo-backend.vercel.app/api/arrivals?stop=${encodeURIComponent(stopName)}`
       );
-      if (!resp.ok) return;
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       const arrivals = data.arrivals || [];
+      setPollFailCount(0);
 
-      // Find our tracked route's arrival
-      const match = arrivals.find((a: any) =>
-        String(a.routeId || a.route || '').replace(/-.*/,'') === String(routeId).replace(/-.*/,'')
+      // Find our tracked route's arrival — try exact match first, then fuzzy
+      const normalizeRoute = (s: string) => String(s || '').replace(/-.*/,'');
+      const normalizeStop = (s: string) => String(s || '').replace(/ Station$/i, '').toLowerCase().trim();
+      let match = arrivals.find((a: any) =>
+        normalizeRoute(a.routeId || a.route || '') === normalizeRoute(routeId)
       );
+      if (!match) {
+        // Fuzzy fallback: check if one contains the other
+        match = arrivals.find((a: any) => {
+          const aRoute = normalizeRoute(a.routeId || a.route || '');
+          const targetRoute = normalizeRoute(routeId);
+          return aRoute.includes(targetRoute) || targetRoute.includes(aRoute);
+        });
+      }
       if (match) {
         // Bus found — clear disappearance state
         setBusDisappeared(false);
@@ -264,7 +276,9 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
         }
       }
       setAltRoutes(alts);
-    } catch {}
+    } catch {
+      setPollFailCount(prev => prev + 1);
+    }
   }, [currentLeg, nextLeg, activeLeg, switchedRoute, busDisappearedAt]);
 
   useEffect(() => {
@@ -491,6 +505,16 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
                 {t('May be cancelled or GPS lost — check alternatives below', 'Possiblement annulé ou GPS perdu — voir les alternatives')}
               </Text>
             </View>
+          </View>
+        )}
+
+        {/* Poll failure warning */}
+        {pollFailCount >= 3 && (
+          <View style={{ marginHorizontal: 20, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FF9500' + '22', borderWidth: 1, borderColor: '#FF9500', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 }}>
+            <Ionicons name="wifi-outline" size={18} color="#FF9500" />
+            <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: '#FF9500' }}>
+              {t('Live tracking unavailable — check your connection', 'Suivi en direct indisponible — verifiez votre connexion')}
+            </Text>
           </View>
         )}
 

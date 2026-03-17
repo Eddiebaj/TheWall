@@ -658,7 +658,7 @@ export default function AccountScreen() {
                             <Text style={{ fontSize: fonts.xs, color: colours.muted, marginBottom: 4 }}>{t('Balance ($)', 'Solde ($)')}</Text>
                             <TextInput
                               value={prestoBalance}
-                              onChangeText={setPrestoBalance}
+                              onChangeText={(v) => { if (/^\d*\.?\d*$/.test(v)) setPrestoBalance(v); }}
                               keyboardType="decimal-pad"
                               placeholder="139.00"
                               placeholderTextColor={colours.muted}

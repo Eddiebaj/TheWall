@@ -631,20 +631,23 @@ export default function MapScreen() {
             }
           } catch { /* invalid JSON */ }
         }
-        // Fetch coordinates and route IDs for all saved stops
-        for (const stop of stopIds) {
-          try {
-            const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${stop.id}`, { timeout: 10000 });
-            if (!resp.ok) continue;
-            const data = await resp.json();
-            if (data && validCoord(data.lat, data.lng)) {
-              pins.push({ id: `stop_${stop.id}`, name: stop.name, lat: data.lat, lng: data.lng, kind: 'stop' });
-            }
-            for (const a of (data?.arrivals || [])) {
-              const base = String(a?.routeId || '').split('-')[0];
-              if (base) routeIdSet.add(base);
-            }
-          } catch (e) { if (__DEV__) console.warn('fetch stop coords failed:', e); }
+        // Fetch coordinates and route IDs for all saved stops (parallel)
+        const stopResults = await Promise.allSettled(stopIds.map(async (stop) => {
+          const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${stop.id}`, { timeout: 10000 });
+          if (!resp.ok) return null;
+          const data = await resp.json();
+          return { stop, data };
+        }));
+        for (const result of stopResults) {
+          if (result.status !== 'fulfilled' || !result.value) continue;
+          const { stop, data } = result.value;
+          if (data && validCoord(data.lat, data.lng)) {
+            pins.push({ id: `stop_${stop.id}`, name: stop.name, lat: data.lat, lng: data.lng, kind: 'stop' });
+          }
+          for (const a of (data?.arrivals || [])) {
+            const base = String(a?.routeId || '').split('-')[0];
+            if (base) routeIdSet.add(base);
+          }
         }
         // Saved places (from Explore tab)
         const placesRaw = await AsyncStorage.getItem(SK_SAVED_PLACES);
