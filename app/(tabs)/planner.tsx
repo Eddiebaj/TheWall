@@ -26,7 +26,7 @@ import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 
 // ── Error Boundary ───────────────────────────────────────────────
 class PlannerErrorBoundary extends React.Component<
-  { children: React.ReactNode },
+  { children: React.ReactNode; colours: any; fonts: any; t: (en: string, fr: string) => string },
   { hasError: boolean }
 > {
   state = { hasError: false };
@@ -34,21 +34,23 @@ class PlannerErrorBoundary extends React.Component<
   componentDidCatch(error: Error) { if (__DEV__) console.warn('PlannerErrorBoundary caught:', error); }
   render() {
     if (this.state.hasError) {
+      const { colours, fonts, t } = this.props;
       return (
-        <View style={{ flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-          <Ionicons name="navigate-outline" size={48} color="#888" />
-          <Text style={{ fontSize: 18, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
-            Something went wrong
+        <View style={{ flex: 1, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+          <Ionicons name="navigate-outline" size={48} color={colours.muted} />
+          <Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
+            {t('Something went wrong', 'Une erreur s\'est produite')}
           </Text>
-          <Text style={{ color: '#888', fontSize: 14, marginTop: 8, textAlign: 'center' }}>
-            The planner ran into an issue
+          <Text style={{ color: colours.muted, fontSize: fonts.sm, marginTop: 8, textAlign: 'center' }}>
+            {t('The planner ran into an issue', 'Le planificateur a rencontr\u00e9 un probl\u00e8me')}
           </Text>
           <TouchableOpacity
             onPress={() => this.setState({ hasError: false })}
-            style={{ marginTop: 20, backgroundColor: '#004890', borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }}
+            style={{ marginTop: 20, backgroundColor: colours.accent, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }}
             accessibilityRole="button"
+            accessibilityLabel={t('Tap to retry', 'Appuyez pour r\u00e9essayer')}
           >
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Tap to retry</Text>
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: fonts.md }}>{t('Tap to retry', 'Appuyez pour r\u00e9essayer')}</Text>
           </TouchableOpacity>
         </View>
       );
@@ -682,7 +684,7 @@ function PlannerScreenInner() {
       }
 
       if (data.error) { setError(data.error); }
-      else if (!data.itineraries?.length && !earlierItins.length) { setError(t('No routes found. Try a different time or destination.', 'Aucun trajet trouve. Essayez une autre heure ou destination.')); }
+      else if (!data.itineraries?.length && !earlierItins.length) { setError(t('No routes found. Try a different time or destination.', 'Aucun trajet trouv\u00e9. Essayez une autre heure ou destination.')); }
       else {
         // Merge earlier + primary results
         const allItins = [...(data.itineraries || []), ...earlierItins];
@@ -772,7 +774,7 @@ function PlannerScreenInner() {
         });
       }
     } catch (e) {
-      setError(t('Could not connect to trip planner. Check your connection.', 'Connexion au planificateur impossible. Verifiez votre connexion.'));
+      setError(t('Could not connect to trip planner. Check your connection.', 'Connexion au planificateur impossible. V\u00e9rifiez votre connexion.'));
     }
     setLoading(false);
   };
@@ -807,7 +809,7 @@ function PlannerScreenInner() {
     }
 
     if (!resolvedFrom?.lat || !resolvedTo?.lat) {
-      Alert.alert(t('Missing locations', 'Adresses manquantes'), t('Could not find one or both addresses. Try selecting from the dropdown.', 'Impossible de trouver une ou les deux adresses. Essayez de selectionner dans la liste.'));
+      Alert.alert(t('Missing locations', 'Adresses manquantes'), t('Could not find one or both addresses. Try selecting from the dropdown.', 'Impossible de trouver une ou les deux adresses. Essayez de s\u00e9lectionner dans la liste.'));
       return;
     }
 
@@ -1041,7 +1043,7 @@ function PlannerScreenInner() {
       } catch {}
       setIsoPlacesLoading(false);
     } catch (e) {
-      Alert.alert(t('Error', 'Erreur'), t('Could not fetch reachable stops.', 'Impossible de trouver les arrets accessibles.'));
+      Alert.alert(t('Error', 'Erreur'), t('Could not fetch reachable stops.', 'Impossible de trouver les arr\u00eats accessibles.'));
     }
     setIsoLoading(false);
   };
@@ -1204,6 +1206,7 @@ function PlannerScreenInner() {
             </Text>
             {hasTransit && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.accent + '15', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3 }}>
+                {accessibleRouting && <Ionicons name="accessibility-outline" size={10} color={colours.accent} />}
                 <Text style={{ fontSize: 10, color: colours.accent }}>🎫</Text>
                 <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent }}>$4.10 Presto</Text>
               </View>
@@ -1280,8 +1283,8 @@ function PlannerScreenInner() {
       try {
         const id = await Notifications.scheduleNotificationAsync({
           content: {
-            title: `🚌 ${routeName} in 2 min`,
-            body: `Board at ${fromStop}${headsign}`,
+            title: t(`🚌 ${routeName} in 2 min`, `🚌 ${routeName} dans 2 min`),
+            body: t(`Board at ${fromStop}${headsign}`, `Montez \u00e0 ${fromStop}${headsign}`),
             data: { type: 'transit_leg' },
             sound: true,
           },
@@ -1297,7 +1300,7 @@ function PlannerScreenInner() {
       try {
         const id2 = await Notifications.scheduleNotificationAsync({
           content: {
-            title: `🟢 Board now — ${routeName}`,
+            title: t(`🟢 Board now — ${routeName}`, `🟢 Montez maintenant — ${routeName}`),
             body: `${fromStop}${headsign} · ${fmtTime(boardingMs)}`,
             data: { type: 'transit_board' },
             sound: true,
@@ -1317,8 +1320,8 @@ function PlannerScreenInner() {
       try {
         const id3 = await Notifications.scheduleNotificationAsync({
           content: {
-            title: '📍 Arriving soon',
-            body: `You reach your destination at ${fmtTime(itin.endTime)}`,
+            title: t('📍 Arriving soon', '📍 Arriv\u00e9e imminente'),
+            body: t(`You reach your destination at ${fmtTime(itin.endTime)}`, `Vous arrivez \u00e0 destination \u00e0 ${fmtTime(itin.endTime)}`),
             data: { type: 'transit_arrive' },
             sound: false,
           },
@@ -1409,7 +1412,10 @@ function PlannerScreenInner() {
                     .filter(l => l.mode !== 'WALK')
                     .map(l => l.routeShortName || l.mode)
                     .join(', ');
-                  const message = `RouteO Trip 🚌\n${fromText} → ${toText}\n${fmtDuration(itin.duration)} · Departs ${fmtTime(itin.startTime)} · Arrives ${fmtTime(itin.endTime)}\n${itin.transfers} transfer${itin.transfers !== 1 ? 's' : ''} · ${fmtWalk(itin.walkDistance)}\nRoute${routes ? `s: ${routes}` : ': Walk'}\nPlanned with RouteO for OC Transpo Ottawa`;
+                  const message = t(
+                    `RouteO Trip 🚌\n${fromText} → ${toText}\n${fmtDuration(itin.duration)} · Departs ${fmtTime(itin.startTime)} · Arrives ${fmtTime(itin.endTime)}\n${itin.transfers} transfer${itin.transfers !== 1 ? 's' : ''} · ${fmtWalk(itin.walkDistance)}\nRoute${routes ? `s: ${routes}` : ': Walk'}\nPlanned with RouteO for OC Transpo Ottawa`,
+                    `Trajet RouteO 🚌\n${fromText} → ${toText}\n${fmtDuration(itin.duration)} · D\u00e9part ${fmtTime(itin.startTime)} · Arriv\u00e9e ${fmtTime(itin.endTime)}\n${itin.transfers} correspondance${itin.transfers !== 1 ? 's' : ''} · ${fmtWalk(itin.walkDistance)}\nLigne${routes ? `s: ${routes}` : ': Marche'}\nPlanifi\u00e9 avec RouteO pour OC Transpo Ottawa`
+                  );
                   Share.share({ message });
                 }}
                 style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }}
@@ -1545,10 +1551,13 @@ function PlannerScreenInner() {
                         ) : leg.mode === 'BICYCLE' ? (
                           <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{t('Cycle', 'Pedaler')} {fmtDistance(leg.distance)}</Text>
                         ) : (
-                          <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>
-                            {leg.routeShortName ? `Route ${leg.routeShortName}` : leg.mode}
-                            {leg.headsign ? <Text style={{ fontWeight: '500', color: colours.muted }}> → {leg.headsign}</Text> : null}
-                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>
+                              {leg.routeShortName ? `Route ${leg.routeShortName}` : leg.mode}
+                              {leg.headsign ? <Text style={{ fontWeight: '500', color: colours.muted }}> → {leg.headsign}</Text> : null}
+                            </Text>
+                            {accessibleRouting && <Ionicons name="accessibility-outline" size={12} color="#007AFF" />}
+                          </View>
                         )}
                         <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>
                           {(leg.from?.name || '').replace(/ O-TRAIN (EAST|WEST|NORTH|SOUTH).*$/i, '').replace(/ \/ EST$| \/ OUEST$/i, '')} → {(leg.to?.name || '').replace(/ O-TRAIN (EAST|WEST|NORTH|SOUTH).*$/i, '').replace(/ \/ EST$| \/ OUEST$/i, '')}
@@ -1609,6 +1618,12 @@ function PlannerScreenInner() {
                         })}
                       </View>
                     )}
+                    {leg.mode === 'WALK' && accessibleRouting && (leg.steps || []).some(s => s.relativeDirection === 'ELEVATOR' || /stair|step|escal/i.test(s.streetName || '')) && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FF9500' + '15', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginTop: 4 }}>
+                        <Ionicons name="warning-outline" size={14} color="#FF9500" />
+                        <Text style={{ fontSize: 11, fontWeight: '600', color: '#FF9500' }}>{t('This route may include stairs', 'Ce trajet peut inclure des escaliers')}</Text>
+                      </View>
+                    )}
                   </TouchableOpacity>
                   {i < (expandedItinerary.legs || []).length - 1 && (
                     <View style={{ alignItems: 'center', paddingVertical: 4 }}>
@@ -1643,10 +1658,10 @@ function PlannerScreenInner() {
           itinerary={activeTripItinerary}
           onEnd={() => { setActiveTripItinerary(null); stopTracking(); }}
           colours={colours}
-          fonts={fonts}
           t={t}
           reducedMotion={reducedMotion}
           batterySaver={batterySaverMode}
+          alerts={alerts}
         />
       )}
 
@@ -2141,7 +2156,7 @@ function PlannerScreenInner() {
         ) : !loading && searched && error ? (
           <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 }}>
             <Ionicons name="map-outline" size={40} color={colours.muted} />
-            <Text style={{ color: colours.text, fontSize: 16, fontWeight: '700', marginTop: 12, textAlign: 'center' }}>{t('No routes found', 'Aucun trajet trouve')}</Text>
+            <Text style={{ color: colours.text, fontSize: 16, fontWeight: '700', marginTop: 12, textAlign: 'center' }}>{t('No routes found', 'Aucun trajet trouv\u00e9')}</Text>
             <Text style={{ color: colours.muted, fontSize: 13, marginTop: 6, textAlign: 'center' }}>{error}</Text>
             <TouchableOpacity
               onPress={plan}
@@ -2149,14 +2164,14 @@ function PlannerScreenInner() {
               accessibilityRole="button"
             >
               <Ionicons name="refresh" size={16} color="#fff" />
-              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{t('Try again', 'Reessayer')}</Text>
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{t('Try again', 'R\u00e9essayer')}</Text>
             </TouchableOpacity>
           </View>
         ) : !loading && itineraries.length > 0 ? (
           <View style={{ paddingHorizontal: 20 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                {itineraries.length} {t(itineraries.length !== 1 ? 'routes found' : 'route found', itineraries.length !== 1 ? 'trajets trouves' : 'trajet trouve')}
+                {itineraries.length} {t(itineraries.length !== 1 ? 'routes found' : 'route found', itineraries.length !== 1 ? 'trajets trouv\u00e9s' : 'trajet trouv\u00e9')}
               </Text>
               <TouchableOpacity
                 onPress={toggleSaveRoute}
@@ -2524,8 +2539,9 @@ function PlannerScreenInner() {
 }
 
 export default function PlannerScreen() {
+  const { colours, fonts, t } = useApp();
   return (
-    <PlannerErrorBoundary>
+    <PlannerErrorBoundary colours={colours} fonts={fonts} t={t}>
       <PlannerScreenInner />
     </PlannerErrorBoundary>
   );

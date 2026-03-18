@@ -11,7 +11,7 @@ import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 
 // ── Error Boundary ───────────────────────────────────────────────
 class AlertsErrorBoundary extends React.Component<
-  { children: React.ReactNode },
+  { children: React.ReactNode; colours: any; fonts: any; t: (en: string, fr: string) => string },
   { hasError: boolean }
 > {
   state = { hasError: false };
@@ -19,21 +19,23 @@ class AlertsErrorBoundary extends React.Component<
   componentDidCatch(error: Error) { if (__DEV__) console.warn('AlertsErrorBoundary caught:', error); }
   render() {
     if (this.state.hasError) {
+      const { colours, fonts, t } = this.props;
       return (
-        <View style={{ flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-          <Ionicons name="alert-circle-outline" size={48} color="#888" />
-          <Text style={{ fontSize: 18, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
-            Something went wrong / Une erreur s'est produite
+        <View style={{ flex: 1, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+          <Ionicons name="alert-circle-outline" size={48} color={colours.muted} />
+          <Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
+            {t('Something went wrong', 'Une erreur s\'est produite')}
           </Text>
-          <Text style={{ color: '#888', fontSize: 14, marginTop: 8, textAlign: 'center' }}>
-            Tap below to try again. / Appuyez ci-dessous pour r&#233;essayer.
+          <Text style={{ color: colours.muted, fontSize: fonts.sm, marginTop: 8, textAlign: 'center' }}>
+            {t('Tap below to try again', 'Appuyez ci-dessous pour r\u00e9essayer')}
           </Text>
           <TouchableOpacity
             onPress={() => this.setState({ hasError: false })}
-            style={{ marginTop: 20, backgroundColor: '#004890', borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }}
+            style={{ marginTop: 20, backgroundColor: colours.accent, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }}
             accessibilityRole="button"
+            accessibilityLabel={t('Tap to retry', 'Appuyez pour r\u00e9essayer')}
           >
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Retry / R&#233;essayer</Text>
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: fonts.md }}>{t('Tap to retry', 'Appuyez pour r\u00e9essayer')}</Text>
           </TouchableOpacity>
         </View>
       );
@@ -48,7 +50,7 @@ const LRT_URL = 'https://routeo-backend.vercel.app/api/alerts?action=lrt';
 
 const CATEGORY_COLOUR: { [key: string]: string } = {
   lrt: '#00A78D', detour: '#e8a020', cancellation: '#cc3b2a',
-  delay: '#e8a020', accessibility: '#7b5ea7', general: '#004890', sto: '#00A78D',
+  delay: '#e8a020', accessibility: '#7b5ea7', general: '#004890', sto: '#00A78D', elevators: '#007AFF',
 };
 
 const LINE_COLOURS = { line1: '#004890', line2: '#00A78D', line4: '#8E44AD' };
@@ -70,7 +72,7 @@ type LrtData = {
 
 // ── Main Screen ───────────────────────────────────────────────────
 function AlertsScreenInner() {
-  const { colours, fonts, t, theme } = useApp();
+  const { colours, fonts, t, theme, resolvedTheme } = useApp();
 
   const [alerts, setAlerts] = useState<ServiceAlert[]>([]);
   const [lrt, setLrt] = useState<LrtData | null>(null);
@@ -82,7 +84,7 @@ function AlertsScreenInner() {
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const lrtInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const isLight = theme === 'light' || (theme === 'system' && colours.bg === '#f0f4f8');
+  const isLight = resolvedTheme === 'light';
   const cardShadow = isLight
     ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 }
     : {};
@@ -129,9 +131,13 @@ function AlertsScreenInner() {
   const activeAlerts = alerts.filter(a => a.category !== 'accessibility');
   const accessibilityAlerts = alerts.filter(a => a.category === 'accessibility');
   const hasStoAlerts = alerts.some(a => a.agency === 'STO');
+  const elevatorKeywords = /elevator|escalator|ascenseur|escalier roulant|hors service|out of service/i;
+  const elevatorAlerts = alerts.filter(a => elevatorKeywords.test(a.title) || elevatorKeywords.test(a.description || ''));
   const categories = [...new Set(alerts.map(a => a.category))].filter(Boolean);
   if (hasStoAlerts && !categories.includes('sto')) categories.push('sto');
+  if (elevatorAlerts.length > 0 && !categories.includes('elevators')) categories.push('elevators');
   const filtered = activeFilter === 'sto' ? alerts.filter(a => a.agency === 'STO')
+    : activeFilter === 'elevators' ? elevatorAlerts
     : activeFilter ? alerts.filter(a => a.category === activeFilter) : alerts;
   const criticalCount = alerts.filter(a => a.category === 'cancellation' || a.category === 'lrt').length;
   const hasAlerts = activeAlerts.length > 0;
@@ -194,7 +200,12 @@ function AlertsScreenInner() {
           )}
           <View style={[styles.catBadge, { backgroundColor: catColour + '20' }]}>
             <Text style={{ fontSize: 9, fontWeight: '800', color: catColour, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              {alert.category}
+              {alert.category === 'detour' ? t('detour', 'd\u00e9tour')
+                : alert.category === 'cancellation' ? t('cancellation', 'annulation')
+                : alert.category === 'delay' ? t('delay', 'retard')
+                : alert.category === 'general' ? t('general', 'g\u00e9n\u00e9ral')
+                : alert.category === 'schedule' ? t('schedule', 'horaire')
+                : alert.category}
             </Text>
           </View>
           {alert.routes.slice(0, 5).map(r => (
@@ -395,8 +406,8 @@ function AlertsScreenInner() {
                   accessibilityState={{ selected: active }}
                 >
                   <Text style={{ fontSize: 12, fontWeight: '700', color: active ? 'white' : colours.text, textTransform: 'capitalize' }}>
-                    {cat === 'all' ? t('All', 'Tous') : cat}
-                    {cat !== 'all' && ` (${alerts.filter(a => a.category === cat).length})`}
+                    {cat === 'all' ? t('All', 'Tous') : cat === 'elevators' ? t('Elevators', 'Ascenseurs') : cat === 'detour' ? t('detour', 'd\u00e9tour') : cat === 'cancellation' ? t('cancellation', 'annulation') : cat === 'delay' ? t('delay', 'retard') : cat === 'general' ? t('general', 'g\u00e9n\u00e9ral') : cat === 'schedule' ? t('schedule', 'horaire') : cat}
+                    {cat !== 'all' && ` (${cat === 'elevators' ? elevatorAlerts.length : cat === 'sto' ? alerts.filter(a => a.agency === 'STO').length : alerts.filter(a => a.category === cat).length})`}
                   </Text>
                 </TouchableOpacity>
               );
@@ -419,7 +430,7 @@ function AlertsScreenInner() {
               </Text>
               <Text style={{ fontSize: fonts.sm, color: colours.muted, textAlign: 'center', marginTop: 6, lineHeight: 20 }}>
                 {activeFilter
-                  ? t(`No ${activeFilter} alerts right now.`, `Aucune alerte ${activeFilter} en ce moment.`)
+                  ? t(`No ${activeFilter === 'elevators' ? 'elevator' : activeFilter} alerts right now.`, `Aucune alerte ${activeFilter === 'elevators' ? 'ascenseur' : activeFilter} en ce moment.`)
                   : t('No active service alerts on OC Transpo.', 'Aucune alerte de service active sur OC Transpo.')
                 }
               </Text>
@@ -475,8 +486,9 @@ const styles = StyleSheet.create({
 });
 
 export default function AlertsScreen() {
+  const { colours, fonts, t } = useApp();
   return (
-    <AlertsErrorBoundary>
+    <AlertsErrorBoundary colours={colours} fonts={fonts} t={t}>
       <AlertsScreenInner />
     </AlertsErrorBoundary>
   );

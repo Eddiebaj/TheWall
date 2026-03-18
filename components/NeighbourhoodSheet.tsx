@@ -37,7 +37,7 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 
 const TABS: { id: Tab; icon: string; label_en: string; label_fr: string }[] = [
   { id: 'places', icon: 'location', label_en: 'Places', label_fr: 'Lieux' },
-  { id: 'events', icon: 'calendar', label_en: 'Events', label_fr: 'Evenements' },
+  { id: 'events', icon: 'calendar', label_en: 'Events', label_fr: '\u00C9v\u00E9nements' },
   { id: 'deals', icon: 'pricetag', label_en: 'Deals', label_fr: 'Aubaines' },
   { id: 'transit', icon: 'bus', label_en: 'Transit', label_fr: 'Transport' },
   { id: 'news', icon: 'newspaper', label_en: 'News', label_fr: 'Nouvelles' },
@@ -175,7 +175,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
       setDealDescription('');
     } catch (e) {
       if (__DEV__) console.warn('submit deal failed:', e);
-      setDealError(t('Could not submit deal. Check your connection.', 'Impossible de soumettre. Verifiez votre connexion.'));
+      setDealError(t('Could not submit deal. Check your connection.', 'Impossible de soumettre. V\u00e9rifiez votre connexion.'));
     }
     setDealSubmitting(false);
   };
@@ -220,7 +220,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
         setDealVotes(prevDealVotes);
         setMyVotes(prevMyVotes);
         await AsyncStorage.setItem('routeo_my_deal_votes', JSON.stringify(prevMyVotes));
-        setDealVoteError(t('Vote failed. Try again.', 'Le vote a echoue. Reessayez.'));
+        setDealVoteError(t('Vote failed. Try again.', 'Le vote a \u00e9chou\u00e9. R\u00e9essayez.'));
         setTimeout(() => setDealVoteError(''), 3000);
       }
     }
@@ -261,7 +261,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
     switch (activeTab) {
       case 'places':
         if (placesLoading) return <ContentSkeleton colours={colours} />;
-        if (places.length === 0) return <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 20 }}>{t('No places found', 'Aucun lieu trouve')}</Text>;
+        if (places.length === 0) return <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 20 }}>{t('No places found', 'Aucun lieu trouv\u00e9')}</Text>;
         return places.map((p: any, i: number) => (
           <TouchableOpacity key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border }} onPress={() => { if (p.place_id) Linking.openURL(`https://www.google.com/maps/place/?q=place_id:${p.place_id}`); }}>
             <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: n.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
@@ -276,7 +276,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
         ));
 
       case 'events':
-        if (nearbyEvents.length === 0) return <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 20 }}>{t('No upcoming events nearby', 'Aucun evenement a proximite')}</Text>;
+        if (nearbyEvents.length === 0) return <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 20 }}>{t('No upcoming events nearby', 'Aucun \u00e9v\u00e9nement \u00e0 proximit\u00e9')}</Text>;
         return nearbyEvents.slice(0, 10).map((e, i) => (
           <TouchableOpacity key={i} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border }} onPress={() => Linking.openURL(e.url)}>
             <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }} numberOfLines={2}>{e.name}</Text>
@@ -292,7 +292,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
               <View key={i} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>{v.name}</Text>
-                  {v.isActive && <View style={{ backgroundColor: '#00A78D', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}><Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>NOW</Text></View>}
+                  {v.isActive && <View style={{ backgroundColor: '#00A78D', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}><Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>{t('NOW', 'ACTIF')}</Text></View>}
                 </View>
                 <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{v.address}</Text>
                 {(v.isActive ? v.activeDeals : v.upcomingDeals).map((d: any, j: number) => (
@@ -322,7 +322,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
                         {confirmed && (
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#00A78D' + '18', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
                             <Ionicons name="checkmark-circle" size={12} color="#00A78D" />
-                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#00A78D' }}>{votes.up} {t('confirmed', 'confirme')}</Text>
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#00A78D' }}>{votes.up} {t('confirmed', 'confirm\u00e9')}</Text>
                           </View>
                         )}
                       </View>
@@ -352,7 +352,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
               {dealSubmitted ? (
                 <View style={{ alignItems: 'center', paddingVertical: 12 }}>
                   <Ionicons name="checkmark-circle" size={28} color="#00A78D" />
-                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, marginTop: 6 }}>{t('Thanks! Your deal will be reviewed.', 'Merci! Votre offre sera examinee.')}</Text>
+                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, marginTop: 6 }}>{t('Thanks! Your deal will be reviewed.', 'Merci! Votre offre sera examin\u00e9e.')}</Text>
                   <TouchableOpacity
                     onPress={() => {
                       setDealSubmitted(false);
@@ -425,7 +425,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
                 <View style={{ flexDirection: 'row', justifyContent: 'space-around', width: '100%', marginTop: 14 }}>
                   <View style={{ alignItems: 'center' }}>
                     <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>{transitScore.stop_count}</Text>
-                    <Text style={{ fontSize: fonts.xs || 10, color: colours.muted, fontWeight: '600', marginTop: 2 }}>{t('stops', 'arrets')}</Text>
+                    <Text style={{ fontSize: fonts.xs || 10, color: colours.muted, fontWeight: '600', marginTop: 2 }}>{t('stops', 'arr\u00eats')}</Text>
                   </View>
                   <View style={{ alignItems: 'center' }}>
                     <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>{transitScore.route_count}</Text>
@@ -441,7 +441,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
             {/* Stops list */}
             {stopsLoading && <ContentSkeleton colours={colours} />}
             {!stopsLoading && stops.length === 0 && (
-              <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 20 }}>{t('No nearby stops', 'Aucun arret a proximite')}</Text>
+              <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 20 }}>{t('No nearby stops', 'Aucun arr\u00eat \u00e0 proximit\u00e9')}</Text>
             )}
             {!stopsLoading && stops.map((s: any, i: number) => (
               <View key={i} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border }}>

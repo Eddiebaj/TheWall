@@ -76,7 +76,7 @@ export default function SportsModal({ visible, onClose, colours, fonts, t, langu
           if (game) {
             const gs = game.gameState;
             const state = (gs === 'LIVE' || gs === 'CRIT') ? 'in' : gs === 'FINAL' ? 'post' : 'pre';
-            const startTime = new Date(game.startTimeUTC).toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' });
+            const startTime = new Date(game.startTimeUTC).toLocaleTimeString(language === 'fr' ? 'fr-CA' : 'en-CA', { hour: 'numeric', minute: '2-digit' });
             results.push({
               team: team.name,
               homeName: game.homeTeam?.placeName?.default || game.homeTeam?.abbrev || '?',
@@ -320,17 +320,17 @@ export default function SportsModal({ visible, onClose, colours, fonts, t, langu
                         </View>
                         {s.state === 'pre' && (
                           <View style={{ backgroundColor: colours.accent + '18', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
-                            <Text style={{ fontSize: 10, fontWeight: '700', color: colours.accent }}>Tonight</Text>
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: colours.accent }}>{t('Tonight', 'Ce soir')}</Text>
                           </View>
                         )}
                         {s.state === 'in' && (
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#cc3b2a18', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
                             <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#cc3b2a' }} />
-                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#cc3b2a' }}>LIVE</Text>
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#cc3b2a' }}>{t('LIVE', 'EN DIRECT')}</Text>
                           </View>
                         )}
                         {s.state === 'post' && (
-                          <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>Final</Text>
+                          <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{t('Final', 'Final')}</Text>
                         )}
                       </View>
                       {/* Scoreboard: AWAY vs HOME */}
@@ -341,7 +341,7 @@ export default function SportsModal({ visible, onClose, colours, fonts, t, langu
                             <Text style={{ fontSize: 24, fontWeight: '900', color: s.state === 'in' ? '#cc3b2a' : colours.text, marginTop: 2 }}>{s.awayScore}</Text>
                           )}
                         </View>
-                        <Text style={{ fontSize: 13, fontWeight: '600', color: colours.muted, marginHorizontal: 8 }}>vs</Text>
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: colours.muted, marginHorizontal: 8 }}>{t('vs', 'c.')}</Text>
                         <View style={{ flex: 1, alignItems: 'center' }}>
                           <Text style={{ fontSize: 18, fontWeight: '900', color: colours.text }}>{s.homeAbbr}</Text>
                           {s.state !== 'pre' && (
@@ -387,12 +387,12 @@ export default function SportsModal({ visible, onClose, colours, fonts, t, langu
                         return (
                           <View key={j} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: j > 0 ? 1 : 0, borderTopColor: colours.border, gap: 10 }}>
                             <View style={{ width: 44 }}>
-                              <Text style={{ fontSize: 11, fontWeight: '800', color: colours.accent }}>{d.toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })}</Text>
-                              <Text style={{ fontSize: 10, color: colours.muted }}>{d.toLocaleDateString('en-CA', { weekday: 'short' })}</Text>
+                              <Text style={{ fontSize: 11, fontWeight: '800', color: colours.accent }}>{d.toLocaleDateString(language === 'fr' ? 'fr-CA' : 'en-CA', { month: 'short', day: 'numeric' })}</Text>
+                              <Text style={{ fontSize: 10, color: colours.muted }}>{d.toLocaleDateString(language === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'short' })}</Text>
                             </View>
                             <Text style={{ fontSize: 13, fontWeight: '700', color: g.homeAway === 'vs' ? colours.accent : colours.muted, width: 20, textAlign: 'center' }}>{g.homeAway}</Text>
                             <Text style={{ flex: 1, fontSize: fonts.md, fontWeight: '600', color: colours.text }} numberOfLines={1}>{g.opponent}</Text>
-                            <Text style={{ fontSize: 11, color: colours.muted }}>{d.toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' })}</Text>
+                            <Text style={{ fontSize: 11, color: colours.muted }}>{d.toLocaleTimeString(language === 'fr' ? 'fr-CA' : 'en-CA', { hour: 'numeric', minute: '2-digit' })}</Text>
                           </View>
                         );
                       })}

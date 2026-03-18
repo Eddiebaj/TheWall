@@ -40,8 +40,9 @@ export async function detectFrequentRoutes(): Promise<FrequentRoute[]> {
           if (existing) {
             existing.count++;
           } else {
-            // Find a saved board stop that might serve this route
-            const matchStop = boardStops.length > 0 ? boardStops[0] : null;
+            // Distribute stops across routes instead of always using index 0
+            const usedStopIds = new Set([...routeCounts.values()].map(v => v.stopId));
+            const matchStop = boardStops.find(s => !usedStopIds.has(s.id)) || boardStops[0] || null;
             routeCounts.set(r, {
               count: 1,
               stopId: matchStop?.id || '',

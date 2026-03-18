@@ -100,13 +100,13 @@ type ActiveTripProps = {
   itinerary: Itinerary;
   onEnd: () => void;
   colours: any;
-  fonts: any;
   t: (en: string, fr: string) => string;
   reducedMotion?: boolean;
   batterySaver?: boolean;
+  alerts?: { routes: string[]; title: string; description?: string }[];
 };
 
-export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, t, reducedMotion, batterySaver }: ActiveTripProps) {
+export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, reducedMotion, batterySaver, alerts }: ActiveTripProps) {
   const [activeLeg, setActiveLeg] = useState(0);
   const [now, setNow] = useState(Date.now());
   const [userCoords, setUserCoords] = useState<{ lat: number; lon: number } | null>(null);
@@ -119,6 +119,9 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
   const [busDisappearedAt, setBusDisappearedAt] = useState<number | null>(null);
   const [switchedRoute, setSwitchedRoute] = useState<string | null>(null);
   const [pollFailCount, setPollFailCount] = useState(0);
+  const [busPosition, setBusPosition] = useState<{ lat: number; lng: number; routeId: string; agency: string } | null>(null);
+  const [stopsExpanded, setStopsExpanded] = useState(false);
+  const [liveEta, setLiveEta] = useState<number | null>(null);
 
   const locationSubRef = useRef<any>(null);
   const arrivalPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -233,6 +236,10 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
         const arrMs = match.expectedMs || match.scheduledMs || match.expected_ms || match.scheduled_ms;
         if (arrMs) {
           setLiveArrival(arrMs);
+          // Calculate adjusted ETA: shift remaining trip duration by delay/early
+          const scheduledDep = currentLeg.startTime;
+          const delay = arrMs - scheduledDep;
+          setLiveEta(itinerary.endTime + delay);
           if (nextLeg && nextLeg.mode !== 'WALK') {
             const buffer = arrMs + currentLeg.duration - nextLeg.startTime;
             const bufferMin = Math.round(buffer / 60000);
@@ -276,10 +283,37 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
         }
       }
       setAltRoutes(alts);
+
+      // Fetch live bus position
+      const trackedRouteId = switchedRoute || currentLeg.routeShortName;
+      if (trackedRouteId && currentLeg.mode !== 'WALK') {
+        try {
+          const vResp = await fetchWithTimeout('https://routeo-backend.vercel.app/api/vehicles');
+          if (vResp.ok) {
+            const vData = await vResp.json();
+            const vehicles = vData.vehicles || [];
+            const normalizeR = (s: string) => String(s || '').replace(/-.*/,'');
+            const matchingVehicles = vehicles.filter((v: any) => normalizeR(v.routeId) === normalizeR(trackedRouteId) && v.lat && v.lng);
+            // Pick the closest vehicle to user position or boarding stop
+            let bus: any = matchingVehicles[0] || null;
+            if (matchingVehicles.length > 1) {
+              const refLat = userCoords?.lat ?? currentLeg.from.lat;
+              const refLon = userCoords?.lon ?? currentLeg.from.lon;
+              matchingVehicles.sort((a: any, b: any) => distMetres(refLat, refLon, a.lat, a.lng) - distMetres(refLat, refLon, b.lat, b.lng));
+              bus = matchingVehicles[0];
+            }
+            if (bus) {
+              setBusPosition({ lat: bus.lat, lng: bus.lng, routeId: bus.routeId, agency: bus.agency || 'OC_TRANSPO' });
+            } else {
+              setBusPosition(null);
+            }
+          }
+        } catch {}
+      }
     } catch {
       setPollFailCount(prev => prev + 1);
     }
-  }, [currentLeg, nextLeg, activeLeg, switchedRoute, busDisappearedAt]);
+  }, [currentLeg, nextLeg, activeLeg, switchedRoute, busDisappearedAt, itinerary.endTime]);
 
   useEffect(() => {
     if (!visible) return;
@@ -313,7 +347,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
         if (warnAt > nowMs) {
           try {
             const id = await Notifications.scheduleNotificationAsync({
-              content: { title: `${route} in 2 min`, body: `Board at ${stop}${headsign}`, sound: true },
+              content: { title: t(`${route} in 2 min`, `${route} dans 2 min`), body: t(`Board at ${stop}${headsign}`, `Montez \u00e0 ${stop}${headsign}`), sound: true },
               trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(warnAt) },
             });
             ids.push(id);
@@ -390,6 +424,36 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
     return () => pulse.stop();
   }, [currentLeg, liveArrival, now]);
 
+  // ── Elevator/escalator alert for LRT legs ──────────────────
+  const elevatorAlert = (() => {
+    if (!alerts || !currentLeg || (currentLeg.mode !== 'TRAM' && currentLeg.mode !== 'RAIL')) return null;
+    const keywords = /elevator|escalator|ascenseur|escalier roulant|hors service|out of service/i;
+    return alerts.find(a => keywords.test(a.title) || keywords.test(a.description || ''));
+  })();
+
+  // ── Re-fit map when busPosition changes ─────────────────────
+  useEffect(() => {
+    if (!mapRef.current || !busPosition || !currentLeg) return;
+    const poly = currentLeg.legGeometry?.points ? decodePolyline(currentLeg.legGeometry.points) : null;
+    const fitCoords: { latitude: number; longitude: number }[] = [];
+    if (poly) fitCoords.push(...poly);
+    if (userCoords) fitCoords.push({ latitude: userCoords.lat, longitude: userCoords.lon });
+    fitCoords.push({ latitude: busPosition.lat, longitude: busPosition.lng });
+    if (fitCoords.length > 1) {
+      mapRef.current.fitToCoordinates(fitCoords, {
+        edgePadding: { top: 28, right: 28, bottom: 28, left: 28 },
+        animated: true,
+      });
+    }
+  }, [busPosition]);
+
+  // ── Estimate passed stops based on time progress ───────────
+  const getPassedStopCount = (): number => {
+    if (!userCoords || !currentLeg || currentLeg.mode === 'WALK' || currentLeg.intermediateStops.length === 0) return 0;
+    const legProgress = Math.max(0, Math.min(1, (now - currentLeg.startTime) / (currentLeg.endTime - currentLeg.startTime)));
+    return Math.floor(legProgress * currentLeg.intermediateStops.length);
+  };
+
   // ── Derived values ───────────────────────────────────────────
   if (!currentLeg) return null;
 
@@ -425,7 +489,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
     : `${t('Board', 'Montez')} ${routeLabel} → ${currentLeg.headsign || cleanStopName(currentLeg.to.name)}`;
 
   const stepSubtitle = isWalk || isCar || isBike
-    ? `${fmtDistance(currentLeg.distance)} · ${fmtDuration(currentLeg.duration)}`
+    ? `${fmtDistance(currentLeg.distance)} · ${fmtDuration(currentLeg.duration * 1000)}`
     : `${t('From', 'De')} ${cleanStopName(currentLeg.from.name)}`;
 
   const nextStepTitle = nextLeg
@@ -456,53 +520,70 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
     ? { latitude: userCoords.lat, longitude: userCoords.lon, latitudeDelta: 0.01, longitudeDelta: 0.01 }
     : { latitude: currentLeg.from.lat, longitude: currentLeg.from.lon, latitudeDelta: 0.02, longitudeDelta: 0.02 };
 
+  const isLight = colours.bg === '#f0f4f8';
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={handleEnd}>
-      <View style={{ flex: 1, backgroundColor: '#0d1117' }}>
+      <View style={{ flex: 1, backgroundColor: colours.bg }}>
         {/* Safe area spacer */}
         <View style={{ height: Platform.OS === 'ios' ? 56 : 36 }} />
 
         {/* Header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#34c759', alignItems: 'center', justifyContent: 'center' }}>
+            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colours.green, alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="navigate" size={18} color="#fff" />
             </View>
             <View>
-              <Text style={{ fontSize: 18, fontWeight: '900', color: '#fff' }}>{t('Active Trip', 'Trajet actif')}</Text>
-              <Text style={{ fontSize: 12, color: '#8b949e' }}>
-                {t('Arrives', 'Arrivee')} {fmtTime(itinerary.endTime)} · {fmtDuration(itinerary.endTime - now)}
+              <Text style={{ fontSize: 18, fontWeight: '900', color: colours.text }}>{t('Active Trip', 'Trajet actif')}</Text>
+              <Text style={{ fontSize: 12, color: colours.muted }}>
+                {t('Arrives', 'Arrivee')} {fmtTime(liveEta || itinerary.endTime)} · {fmtDuration((liveEta || itinerary.endTime) - now)}
               </Text>
             </View>
           </View>
-          <Text style={{ fontSize: 12, fontWeight: '700', color: '#8b949e' }}>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted }}>
             {t('Leg', 'Etape')} {activeLeg + 1}/{legs.length}
           </Text>
         </View>
 
         {/* Progress bar */}
-        <View style={{ marginHorizontal: 20, height: 4, borderRadius: 2, backgroundColor: '#21262d', marginBottom: 16 }}>
-          <View style={{ height: 4, borderRadius: 2, backgroundColor: '#34c759', width: `${Math.round(progressFraction * 100)}%` as any }} />
+        <View style={{ marginHorizontal: 20, height: 4, borderRadius: 2, backgroundColor: colours.border, marginBottom: 16 }}>
+          <View style={{ height: 4, borderRadius: 2, backgroundColor: colours.green, width: `${Math.round(progressFraction * 100)}%` as any }} />
         </View>
 
         {/* Transfer warning */}
         {transferWarning && (
-          <View style={{ marginHorizontal: 20, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#e8a020' + '22', borderWidth: 1, borderColor: '#e8a020', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 }}>
-            <Ionicons name="warning" size={18} color="#e8a020" />
-            <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: '#e8a020' }}>{transferWarning}</Text>
+          <View style={{ marginHorizontal: 20, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.orange + '22', borderWidth: 1, borderColor: colours.orange, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 }}>
+            <Ionicons name="warning" size={18} color={colours.orange} />
+            <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: colours.orange }}>{transferWarning}</Text>
+          </View>
+        )}
+
+        {/* Elevator/escalator issue on LRT */}
+        {elevatorAlert && (
+          <View style={{ marginHorizontal: 20, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.accentAlt + '22', borderWidth: 1, borderColor: colours.accentAlt, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 }}>
+            <Ionicons name="accessibility-outline" size={18} color={colours.accentAlt} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accentAlt }}>
+                {t('Elevator/escalator issue', 'Probleme ascenseur/escalier roulant')}
+              </Text>
+              <Text style={{ fontSize: 11, color: colours.accentAlt, marginTop: 2 }} numberOfLines={2}>
+                {elevatorAlert.title}
+              </Text>
+            </View>
           </View>
         )}
 
         {/* Bus disappeared from feed */}
         {busDisappeared && isTransit && !departed && (
-          <View style={{ marginHorizontal: 20, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FF9500' + '22', borderWidth: 1, borderColor: '#FF9500', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 }}>
-            <Ionicons name="alert-circle" size={18} color="#FF9500" />
+          <View style={{ marginHorizontal: 20, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.orange + '22', borderWidth: 1, borderColor: colours.orange, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 }}>
+            <Ionicons name="alert-circle" size={18} color={colours.orange} />
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#FF9500' }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: colours.orange }}>
                 {t('Bus disappeared from feed', 'Bus disparu du flux')}
               </Text>
-              <Text style={{ fontSize: 11, color: '#FF9500', marginTop: 2 }}>
-                {t('May be cancelled or GPS lost — check alternatives below', 'Possiblement annulé ou GPS perdu — voir les alternatives')}
+              <Text style={{ fontSize: 11, color: colours.orange, marginTop: 2 }}>
+                {t('May be cancelled or GPS lost — check alternatives below', 'Possiblement annule ou GPS perdu — voir les alternatives')}
               </Text>
             </View>
           </View>
@@ -510,9 +591,9 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
 
         {/* Poll failure warning */}
         {pollFailCount >= 3 && (
-          <View style={{ marginHorizontal: 20, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FF9500' + '22', borderWidth: 1, borderColor: '#FF9500', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 }}>
-            <Ionicons name="wifi-outline" size={18} color="#FF9500" />
-            <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: '#FF9500' }}>
+          <View style={{ marginHorizontal: 20, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.orange + '22', borderWidth: 1, borderColor: colours.orange, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 }}>
+            <Ionicons name="wifi-outline" size={18} color={colours.orange} />
+            <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: colours.orange }}>
               {t('Live tracking unavailable — check your connection', 'Suivi en direct indisponible — verifiez votre connexion')}
             </Text>
           </View>
@@ -520,9 +601,9 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
 
         {/* Get off alert */}
         {getOffAlert && (
-          <View style={{ marginHorizontal: 20, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#ff3b30' + '22', borderWidth: 1, borderColor: '#ff3b30', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 }}>
-            <Ionicons name="notifications" size={18} color="#ff3b30" />
-            <Text style={{ flex: 1, fontSize: 14, fontWeight: '800', color: '#ff3b30' }}>
+          <View style={{ marginHorizontal: 20, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.red + '22', borderWidth: 1, borderColor: colours.red, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 }}>
+            <Ionicons name="notifications" size={18} color={colours.red} />
+            <Text style={{ flex: 1, fontSize: 14, fontWeight: '800', color: colours.red }}>
               {t('Get off soon!', 'Descendez bientot!')}
             </Text>
           </View>
@@ -530,31 +611,31 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
 
         {/* Trip completed */}
         {tripEnded && (
-          <View style={{ marginHorizontal: 20, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#34c759' + '22', borderWidth: 1, borderColor: '#34c759', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 }}>
-            <Ionicons name="checkmark-circle" size={18} color="#34c759" />
-            <Text style={{ flex: 1, fontSize: 14, fontWeight: '800', color: '#34c759' }}>
+          <View style={{ marginHorizontal: 20, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.green + '22', borderWidth: 1, borderColor: colours.green, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 }}>
+            <Ionicons name="checkmark-circle" size={18} color={colours.green} />
+            <Text style={{ flex: 1, fontSize: 14, fontWeight: '800', color: colours.green }}>
               {t('You have arrived!', 'Vous etes arrive!')}
             </Text>
           </View>
         )}
 
         {/* Current step — large card */}
-        <View style={{ marginHorizontal: 20, borderRadius: 16, backgroundColor: '#161b22', borderWidth: 1, borderColor: '#30363d', padding: 20, marginBottom: 8 }}>
+        <View style={{ marginHorizontal: 20, borderRadius: 16, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, padding: 20, marginBottom: 8 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 }}>
             <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: legColor + '22', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: legColor + '55' }}>
               <Ionicons name={legIcon as any} size={22} color={legColor} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 11, fontWeight: '700', color: '#8b949e', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>
                 {t('Now', 'Maintenant')}
               </Text>
-              <Text style={{ fontSize: 18, fontWeight: '800', color: '#fff', lineHeight: 22 }} numberOfLines={2}>{stepTitle}</Text>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text, lineHeight: 22 }} numberOfLines={2}>{stepTitle}</Text>
             </View>
           </View>
-          <Text style={{ fontSize: 13, color: '#8b949e', marginBottom: altRoutes.length > 0 ? 4 : 14 }}>{stepSubtitle}</Text>
+          <Text style={{ fontSize: 13, color: colours.muted, marginBottom: altRoutes.length > 0 ? 4 : 14 }}>{stepSubtitle}</Text>
           {altRoutes.length > 0 && (
             <View style={{ marginBottom: 14 }}>
-              <Text style={{ fontSize: 12, fontWeight: '600', color: '#58a6ff', marginBottom: 8 }}>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: colours.accentAlt, marginBottom: 8 }}>
                 {t('Any of these routes work for this trip', 'Toutes ces lignes fonctionnent pour ce trajet')}
               </Text>
               <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
@@ -568,10 +649,10 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
                       setLiveArrival(null);
                       Haptics?.impactAsync?.(Haptics.ImpactFeedbackStyle.Light);
                     }}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: switchedRoute === alt ? '#58a6ff' + '33' : '#21262d', borderWidth: 1, borderColor: switchedRoute === alt ? '#58a6ff' : '#30363d' }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: switchedRoute === alt ? colours.accentAlt + '33' : colours.border, borderWidth: 1, borderColor: switchedRoute === alt ? colours.accentAlt : colours.border }}
                   >
-                    <Ionicons name="swap-horizontal" size={12} color="#58a6ff" />
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#58a6ff' }}>{t('Switch to', 'Passer au')} {alt}</Text>
+                    <Ionicons name="swap-horizontal" size={12} color={colours.accentAlt} />
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accentAlt }}>{t('Switch to', 'Passer au')} {alt}</Text>
                   </TouchableOpacity>
                 ))}
                 {switchedRoute && (
@@ -581,9 +662,9 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
                       setLiveArrival(null);
                       Haptics?.impactAsync?.(Haptics.ImpactFeedbackStyle.Light);
                     }}
-                    style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#21262d', borderWidth: 1, borderColor: '#30363d' }}
+                    style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: colours.border, borderWidth: 1, borderColor: colours.border }}
                   >
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#8b949e' }}>{t('Reset', 'Réinitialiser')}</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted }}>{t('Reset', 'Reinitialiser')}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -594,20 +675,20 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
           {isTransit && (
             <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
               {departed ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#34c759' + '22', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
-                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#34c759' }} />
-                  <Text style={{ fontSize: 15, fontWeight: '800', color: '#34c759' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colours.green + '22', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colours.green }} />
+                  <Text style={{ fontSize: 15, fontWeight: '800', color: colours.green }}>
                     {t('Departing now', 'Depart maintenant')}
                   </Text>
                 </View>
               ) : (
                 <Animated.View style={{ opacity: pulseAnim }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#0d419d' + '44', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
-                    <Ionicons name="time-outline" size={16} color="#58a6ff" />
-                    <Text style={{ fontSize: 22, fontWeight: '900', color: '#58a6ff', fontVariant: ['tabular-nums'] }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colours.accentAlt + '22', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
+                    <Ionicons name="time-outline" size={16} color={colours.accentAlt} />
+                    <Text style={{ fontSize: 22, fontWeight: '900', color: colours.accentAlt, fontVariant: ['tabular-nums'] }}>
                       {countdownMin}:{String(countdownRemSec).padStart(2, '0')}
                     </Text>
-                    <Text style={{ fontSize: 13, color: '#8b949e', marginLeft: 4 }}>
+                    <Text style={{ fontSize: 13, color: colours.muted, marginLeft: 4 }}>
                       {t('until departure', 'avant le depart')}
                     </Text>
                   </View>
@@ -626,11 +707,44 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
             </View>
           )}
 
-          {/* Intermediate stops count */}
+          {/* Intermediate stops — expandable list */}
           {isTransit && currentLeg.intermediateStops.length > 0 && (
-            <Text style={{ fontSize: 12, color: '#8b949e', marginTop: 10 }}>
-              {currentLeg.intermediateStops.length} {t('stops', 'arrets')} → {cleanStopName(currentLeg.to.name)}
-            </Text>
+            <TouchableOpacity onPress={() => setStopsExpanded(!stopsExpanded)} style={{ marginTop: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ fontSize: 12, color: colours.muted, flex: 1 }}>
+                  {(() => {
+                    const passed = getPassedStopCount();
+                    const total = currentLeg.intermediateStops.length;
+                    const remaining = total - passed;
+                    return `${remaining} ${t('stops remaining', 'arrets restants')} → ${cleanStopName(currentLeg.to.name)}`;
+                  })()}
+                </Text>
+                <Ionicons name={stopsExpanded ? 'chevron-up' : 'chevron-down'} size={14} color={colours.muted} />
+              </View>
+              {stopsExpanded && (
+                <View style={{ marginTop: 8, gap: 2 }}>
+                  {currentLeg.intermediateStops.map((stop, i) => {
+                    const passed = i < getPassedStopCount();
+                    return (
+                      <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 }}>
+                        <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: passed ? colours.green + '22' : colours.border, borderWidth: 1, borderColor: passed ? colours.green : colours.border, alignItems: 'center', justifyContent: 'center' }}>
+                          {passed && <Ionicons name="checkmark" size={10} color={colours.green} />}
+                        </View>
+                        <Text style={{ fontSize: 12, color: passed ? colours.muted : colours.text, textDecorationLine: passed ? 'line-through' : 'none' }}>
+                          {cleanStopName(stop)}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 }}>
+                    <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: colours.green + '22', borderWidth: 1, borderColor: colours.green, alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="flag" size={9} color={colours.green} />
+                    </View>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: colours.green }}>{cleanStopName(currentLeg.to.name)}</Text>
+                  </View>
+                </View>
+              )}
+            </TouchableOpacity>
           )}
         </View>
 
@@ -649,32 +763,32 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
         )}
 
         {/* Next step — smaller card */}
-        <View style={{ marginHorizontal: 20, borderRadius: 12, backgroundColor: '#161b22', borderWidth: 1, borderColor: '#21262d', padding: 14, marginBottom: 8 }}>
+        <View style={{ marginHorizontal: 20, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, padding: 14, marginBottom: 8 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             {nextLeg ? (
               <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: (LEG_COLOURS[nextLeg.mode] || '#555') + '22', alignItems: 'center', justifyContent: 'center' }}>
                 <Ionicons name={(LEG_ICONS[nextLeg.mode] || 'flag') as any} size={16} color={LEG_COLOURS[nextLeg.mode] || '#555'} />
               </View>
             ) : (
-              <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#34c759' + '22', alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="flag" size={16} color="#34c759" />
+              <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: colours.green + '22', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="flag" size={16} color={colours.green} />
               </View>
             )}
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 10, fontWeight: '700', color: '#484f58', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                 {t('Next', 'Suivant')}
               </Text>
-              <Text style={{ fontSize: 14, fontWeight: '700', color: '#c9d1d9' }} numberOfLines={1}>{nextStepTitle}</Text>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }} numberOfLines={1}>{nextStepTitle}</Text>
             </View>
             {nextLeg && (
-              <Text style={{ fontSize: 12, fontWeight: '600', color: '#8b949e' }}>{fmtTime(nextLeg.startTime)}</Text>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted }}>{fmtTime(nextLeg.startTime)}</Text>
             )}
           </View>
         </View>
 
         {/* Map showing current leg */}
         {MapView && (
-          <View style={{ marginHorizontal: 20, height: 200, borderRadius: 12, overflow: 'hidden', marginBottom: 8, borderWidth: 1, borderColor: '#21262d' }}>
+          <View style={{ marginHorizontal: 20, height: 200, borderRadius: 12, overflow: 'hidden', marginBottom: 8, borderWidth: 1, borderColor: colours.border }}>
             <MapView
               ref={mapRef}
               style={{ flex: 1 }}
@@ -682,10 +796,13 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
               showsUserLocation={false}
               showsCompass={false}
               showsScale={false}
-              userInterfaceStyle="dark"
+              userInterfaceStyle={isLight ? 'light' : 'dark'}
               onLayout={() => {
-                if (legPolyline && legPolyline.length > 1) {
-                  mapRef.current?.fitToCoordinates(legPolyline, {
+                const fitCoords = [...(legPolyline || [])];
+                if (userCoords) fitCoords.push({ latitude: userCoords.lat, longitude: userCoords.lon });
+                if (busPosition) fitCoords.push({ latitude: busPosition.lat, longitude: busPosition.lng });
+                if (fitCoords.length > 1) {
+                  mapRef.current?.fitToCoordinates(fitCoords, {
                     edgePadding: { top: 28, right: 28, bottom: 28, left: 28 },
                     animated: false,
                   });
@@ -720,6 +837,18 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
                   <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: '#007AFF', borderWidth: 3, borderColor: 'white' }} />
                 </Marker>
               )}
+
+              {/* Live bus marker */}
+              {Marker && busPosition && (
+                <Marker coordinate={{ latitude: busPosition.lat, longitude: busPosition.lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false}>
+                  <View style={{ alignItems: 'center' }}>
+                    <View style={{ backgroundColor: busPosition.agency === 'STO' ? '#00A78D' : '#CE1126', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1.5, borderColor: 'white', flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                      <Ionicons name="bus" size={10} color="white" />
+                      <Text style={{ fontSize: 9, fontWeight: '900', color: 'white' }}>{busPosition.routeId}</Text>
+                    </View>
+                  </View>
+                </Marker>
+              )}
             </MapView>
           </View>
         )}
@@ -731,10 +860,10 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
             const done = i < activeLeg;
             const active = i === activeLeg;
             return (
-              <View key={i} style={{ flex: 1, height: 28, borderRadius: 8, backgroundColor: done ? color : active ? color + '44' : '#21262d', borderWidth: active ? 1 : 0, borderColor: color, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
-                <Ionicons name={(LEG_ICONS[leg.mode] || 'bus') as any} size={12} color={done || active ? '#fff' : '#484f58'} />
+              <View key={i} style={{ flex: 1, height: 28, borderRadius: 8, backgroundColor: done ? color : active ? color + '44' : colours.border, borderWidth: active ? 1 : 0, borderColor: color, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
+                <Ionicons name={(LEG_ICONS[leg.mode] || 'bus') as any} size={12} color={done || active ? '#fff' : colours.muted} />
                 {leg.routeShortName && (
-                  <Text style={{ fontSize: 10, fontWeight: '800', color: done || active ? '#fff' : '#484f58' }}>{leg.routeShortName}</Text>
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: done || active ? '#fff' : colours.muted }}>{leg.routeShortName}</Text>
                 )}
               </View>
             );
@@ -747,8 +876,8 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
         {/* Live indicator */}
         {liveArrival && isTransit && (
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 12 }}>
-            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#34c759' }} />
-            <Text style={{ fontSize: 11, color: '#8b949e', fontWeight: '600' }}>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colours.green }} />
+            <Text style={{ fontSize: 11, color: colours.muted, fontWeight: '600' }}>
               {t('Live arrival data', 'Donnees en temps reel')}
             </Text>
           </View>
@@ -760,7 +889,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, fonts, 
             onPress={handleEnd}
             style={{
               height: 52, borderRadius: 12,
-              backgroundColor: tripEnded ? '#34c759' : '#ff3b30',
+              backgroundColor: tripEnded ? colours.green : colours.red,
               alignItems: 'center', justifyContent: 'center',
               flexDirection: 'row', gap: 8,
             }}

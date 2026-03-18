@@ -43,8 +43,8 @@ const haversineKm = (lat1: number, lng1: number, lat2: number, lng2: number): nu
 };
 
 export default function DiscoverScreen() {
-  const { colours, theme, t, fonts, language } = useApp();
-  const isLight = theme === 'light';
+  const { colours, theme, resolvedTheme, t, fonts, language } = useApp();
+  const isLight = resolvedTheme === 'light';
 
   const cardShadow = isLight ? {
     shadowColor: '#004890',
@@ -94,7 +94,7 @@ export default function DiscoverScreen() {
     try {
       const now = new Date();
       const dayOfWeek = now.getDay();
-      const daysToFri = dayOfWeek <= 5 ? 5 - dayOfWeek : 6;
+      const daysToFri = dayOfWeek === 6 ? 0 : dayOfWeek === 0 ? -2 : 5 - dayOfWeek;
       const friday = new Date(now);
       friday.setDate(now.getDate() + daysToFri);
       const sunday = new Date(friday);
@@ -200,7 +200,7 @@ export default function DiscoverScreen() {
           {/* Trending near you */}
           <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
             <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-              {t('Trending Near You', 'Tendances pres de vous')}
+              {t('Trending Near You', 'Tendances pr\u00e8s de vous')}
             </Text>
             {trendingNeighbourhoods.length === 0 ? (
               <View style={{ alignItems: 'center', paddingVertical: 20 }}>
@@ -254,7 +254,7 @@ export default function DiscoverScreen() {
               </View>
             ) : (
               communityDeals.slice(0, 5).map(deal => {
-                const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                const dayNames = language === 'fr' ? ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
                 const isToday = deal.day_of_week === todayDow;
                 return (
                   <View
@@ -282,7 +282,7 @@ export default function DiscoverScreen() {
           {/* Events this weekend */}
           <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
             <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-              {t('Events This Weekend', 'Evenements ce week-end')}
+              {t('Events This Weekend', '\u00c9v\u00e9nements ce week-end')}
             </Text>
             {eventsLoading ? (
               <View style={{ marginHorizontal: -20 }}>
@@ -292,7 +292,7 @@ export default function DiscoverScreen() {
               <View style={{ alignItems: 'center', paddingVertical: 20 }}>
                 <Ionicons name="calendar-outline" size={24} color={colours.muted} />
                 <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 6 }}>
-                  {t('No events this weekend', 'Aucun evenement ce weekend')}
+                  {t('No events this weekend', 'Aucun \u00e9v\u00e9nement ce weekend')}
                 </Text>
               </View>
             ) : (
@@ -319,7 +319,7 @@ export default function DiscoverScreen() {
                         {ev.venue}{ev.time ? ` · ${ev.time}` : ''}
                       </Text>
                       <Text style={{ fontSize: 11, fontWeight: '600', color: '#026CDF', marginTop: 2 }}>
-                        {new Date(ev.date + 'T12:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })}
+                        {new Date(ev.date + 'T12:00:00').toLocaleDateString(language === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'short', month: 'short', day: 'numeric' })}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -331,7 +331,7 @@ export default function DiscoverScreen() {
           {/* Latest news */}
           <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
             <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-              {t('Latest News', 'Dernieres nouvelles')}
+              {t('Latest News', 'Derni\u00e8res nouvelles')}
             </Text>
             {newsArticles.length === 0 ? (
               <View style={{ alignItems: 'center', paddingVertical: 20 }}>
@@ -446,7 +446,7 @@ export default function DiscoverScreen() {
         onClose={() => setSheetVisible(false)}
         colours={colours}
         fonts={fonts}
-        events={[]}
+        events={weekendEvents}
         newsArticles={newsArticles}
       />
     </View>

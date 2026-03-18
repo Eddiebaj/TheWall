@@ -71,14 +71,14 @@ const NOTIF_SETTINGS_KEY = SK_NOTIF_SETTINGS;
 
 export default function AccountScreen() {
   const {
-    theme, setTheme, colours, fonts,
+    theme, setTheme, resolvedTheme, colours, fonts,
     largeText, setLargeText,
     highContrast, setHighContrast,
     reducedMotion, setReducedMotion,
     language, setLanguage, t,
   } = useApp();
 
-  const isLight = theme === 'light';
+  const isLight = resolvedTheme === 'light';
 
   const cardShadow = isLight ? {
     shadowColor: '#004890',
@@ -253,9 +253,9 @@ export default function AccountScreen() {
     registerPushToken(language).then(() => syncSubscriptions(subs)).catch(() => {});
   };
 
-  const handleNotifToggle = async (key: keyof NotifSettings, value: boolean) => {
+  const handleNotifToggle = async (key: keyof NotifSettings, value: boolean): Promise<boolean> => {
     if (value && notifPermission !== 'granted') {
-      if (!Notifications) { Alert.alert(t('Not available', 'Non disponible'), t('Notifications are not available in this environment.', 'Les notifications ne sont pas disponibles dans cet environnement.')); return; }
+      if (!Notifications) { Alert.alert(t('Not available', 'Non disponible'), t('Notifications are not available in this environment.', 'Les notifications ne sont pas disponibles dans cet environnement.')); return false; }
       const { status: existing } = await Notifications.getPermissionsAsync();
       if (existing === 'granted') { setNotifPermission('granted'); }
       else {
@@ -270,11 +270,12 @@ export default function AccountScreen() {
               { text: t('Cancel', 'Annuler'), style: 'cancel' },
             ]
           );
-          return;
+          return false;
         }
       }
     }
     saveNotifSettings({ ...notifSettings, [key]: value });
+    return true;
   };
 
   const startTripSharing = async () => {
@@ -598,7 +599,7 @@ export default function AccountScreen() {
               </Text>
 
               {/* Daily cap */}
-              <Text style={{ fontSize: fonts.xs, color: colours.muted, marginBottom: 4 }}>
+              <Text style={{ fontSize: fonts.sm - 1, color: colours.muted, marginBottom: 4 }}>
                 {t(
                   `${fareStats.tripsToday} ${fareStats.tripsToday === 1 ? 'tap' : 'taps'} · $${fareStats.costToday.toFixed(2)} / $13.50 daily cap`,
                   `${fareStats.tripsToday} ${fareStats.tripsToday === 1 ? 'tap' : 'taps'} · ${fareStats.costToday.toFixed(2)} $ / 13,50 $ plafond quotidien`
@@ -609,7 +610,7 @@ export default function AccountScreen() {
               </View>
 
               {/* Monthly cap */}
-              <Text style={{ fontSize: fonts.xs, color: colours.muted, marginBottom: 4 }}>
+              <Text style={{ fontSize: fonts.sm - 1, color: colours.muted, marginBottom: 4 }}>
                 {t(
                   `$${fareStats.costMonth.toFixed(2)} / $139.00 monthly cap`,
                   `${fareStats.costMonth.toFixed(2)} $ / 139,00 $ plafond mensuel`
@@ -633,7 +634,7 @@ export default function AccountScreen() {
                       </TouchableOpacity>
                     </View>
                     <Text style={{ fontSize: 28, fontWeight: '200', color: colours.text, marginBottom: 4 }}>${prestoRemaining.toFixed(2)}</Text>
-                    <Text style={{ fontSize: fonts.xs, color: colours.muted }}>
+                    <Text style={{ fontSize: fonts.sm - 1, color: colours.muted }}>
                       {t(
                         `$${parseFloat(prestoBalance).toFixed(2)} loaded − $${fareStats.costMonth.toFixed(2)} spent${prestoResetDay ? ` · resets on the ${prestoResetDay}${prestoResetDay === '1' ? 'st' : prestoResetDay === '2' ? 'nd' : prestoResetDay === '3' ? 'rd' : 'th'}` : ''}`,
                         `${parseFloat(prestoBalance).toFixed(2)} $ charge − ${fareStats.costMonth.toFixed(2)} $ depense${prestoResetDay ? ` · reinitialise le ${prestoResetDay}` : ''}`
@@ -642,7 +643,7 @@ export default function AccountScreen() {
                     {prestoRemaining < 10 && (
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, backgroundColor: '#FF9500' + '15', borderRadius: 8, padding: 8 }}>
                         <Ionicons name="warning" size={14} color="#FF9500" />
-                        <Text style={{ fontSize: fonts.xs, color: '#FF9500', fontWeight: '600' }}>
+                        <Text style={{ fontSize: fonts.sm - 1, color: '#FF9500', fontWeight: '600' }}>
                           {t('Low balance — consider reloading', 'Solde bas — pensez a recharger')}
                         </Text>
                       </View>
@@ -661,12 +662,12 @@ export default function AccountScreen() {
                     </TouchableOpacity>
                     {showPrestoEdit && (
                       <View>
-                        <Text style={{ fontSize: fonts.xs, color: colours.muted, marginBottom: 8 }}>
+                        <Text style={{ fontSize: fonts.sm - 1, color: colours.muted, marginBottom: 8 }}>
                           {t('Enter your loaded balance to track remaining funds', 'Entrez votre solde charge pour suivre les fonds restants')}
                         </Text>
                         <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
                           <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: fonts.xs, color: colours.muted, marginBottom: 4 }}>{t('Balance ($)', 'Solde ($)')}</Text>
+                            <Text style={{ fontSize: fonts.sm - 1, color: colours.muted, marginBottom: 4 }}>{t('Balance ($)', 'Solde ($)')}</Text>
                             <TextInput
                               value={prestoBalance}
                               onChangeText={(v) => { if (/^\d*\.?\d*$/.test(v)) setPrestoBalance(v); }}
@@ -677,7 +678,7 @@ export default function AccountScreen() {
                             />
                           </View>
                           <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: fonts.xs, color: colours.muted, marginBottom: 4 }}>{t('Resets on day (1-28)', 'Reinitialise le jour (1-28)')}</Text>
+                            <Text style={{ fontSize: fonts.sm - 1, color: colours.muted, marginBottom: 4 }}>{t('Resets on day (1-28)', 'Reinitialise le jour (1-28)')}</Text>
                             <TextInput
                               value={prestoResetDay}
                               onChangeText={setPrestoResetDay}
@@ -710,7 +711,7 @@ export default function AccountScreen() {
                 )}
               </View>
 
-              <Text style={{ fontSize: fonts.xs, color: colours.muted, fontStyle: 'italic', marginTop: 12 }}>
+              <Text style={{ fontSize: fonts.sm - 1, color: colours.muted, fontStyle: 'italic', marginTop: 12 }}>
                 {t('Based on $4.10/tap with daily ($13.50) and monthly ($139) caps', 'Bas\u00E9 sur 4,10 $/tap avec plafonds quotidien (13,50 $) et mensuel (139 $)')}
               </Text>
             </View>
@@ -801,7 +802,8 @@ export default function AccountScreen() {
                           const updated = { ...notifSettings };
                           for (const item of group.items) updated[item.key] = v;
                           if (v && notifPermission !== 'granted') {
-                            handleNotifToggle(group.items[0].key, true).then(() => {
+                            handleNotifToggle(group.items[0].key, true).then((granted) => {
+                              if (!granted) return;
                               const rest = { ...notifSettings };
                               for (const item of group.items) rest[item.key] = true;
                               saveNotifSettings(rest);

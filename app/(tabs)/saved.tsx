@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   Platform, ScrollView, StatusBar, Text, TouchableOpacity, View
 } from 'react-native';
@@ -8,8 +8,8 @@ import NewsSection, { SortMode } from '../../components/NewsSection';
 import { NewsArticle, SOURCE_COLOURS } from '../../lib/newsData';
 
 export default function SavedScreen() {
-  const { colours, theme, t, fonts } = useApp();
-  const isLight = theme === 'light';
+  const { colours, theme, resolvedTheme, t, fonts } = useApp();
+  const isLight = resolvedTheme === 'light';
 
   const [sortMode, setSortMode] = useState<SortMode>('latest');
   const [sourceFilter, setSourceFilter] = useState<string | null>(null);

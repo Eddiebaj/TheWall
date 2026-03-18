@@ -105,7 +105,7 @@ export function getDelayContext(
       labelFr: 'Circulation match des Sens au centre-ville',
       detail: 'Ottawa Senators home game at Canadian Tire Centre. Routes through downtown and the CTC area experience heavier traffic before and after games.',
       detailFr: 'Match local des Sénateurs d\'Ottawa au Centre Canadian Tire. Les lignes passant par le centre-ville et la zone du CTC subissent un trafic plus dense avant et après les matchs.',
-      icon: 'american-football-outline',
+      icon: 'snow-outline',
       colour: '#CE1126',
     };
   }

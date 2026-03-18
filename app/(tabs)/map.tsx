@@ -464,8 +464,8 @@ const fetchAllEvents = async (): Promise<MapEvent[]> => {
 
 
 export default function MapScreen() {
-  const { colours, theme, t, fonts } = useApp();
-  const isLight = theme === 'light';
+  const { colours, theme, resolvedTheme, t, fonts } = useApp();
+  const isLight = resolvedTheme === 'light';
   const mapRef = useRef<any>(null);
   const deepLinkParams = useLocalSearchParams();
 
@@ -572,11 +572,8 @@ export default function MapScreen() {
 
   useEffect(() => {
     if (!showEvents) return;
-    const t = setTimeout(() => {
-      setEventsLoading(true);
-      fetchAllEvents().then(evs => { setEvents(evs); setEventsLoading(false); });
-    }, 5000); // wait for buses to render first
-    return () => clearTimeout(t);
+    setEventsLoading(true);
+    fetchAllEvents().then(evs => { setEvents(evs); setEventsLoading(false); });
   }, [showEvents]);
 
   // Load saved stops, routes, places when "saved" filter first activated
@@ -898,7 +895,7 @@ export default function MapScreen() {
             if (!validCoord(pin.lat, pin.lng)) return null;
             const pinIcon: keyof typeof Ionicons.glyphMap = pin.kind === 'stop' ? 'bus' : pin.kind === 'place' ? 'location' : pin.kind === 'neighbourhood' ? 'home' : pin.kind === 'route_from' ? 'navigate' : 'flag';
             const pinColor = pin.kind === 'stop' ? '#e74c3c' : pin.kind === 'place' ? '#e8a020' : pin.kind === 'neighbourhood' ? '#7b5ea7' : pin.kind === 'route_from' ? '#2ecc71' : '#3498db';
-            const kindLabel = pin.kind === 'stop' ? 'Stop' : pin.kind === 'place' ? 'Place' : pin.kind === 'neighbourhood' ? 'Neighbourhood' : pin.kind === 'route_from' ? 'Origin' : 'Destination';
+            const kindLabel = pin.kind === 'stop' ? t('Stop', 'Arr\u00eat') : pin.kind === 'place' ? t('Place', 'Lieu') : pin.kind === 'neighbourhood' ? t('Neighbourhood', 'Quartier') : pin.kind === 'route_from' ? t('Origin', 'Origine') : t('Destination', 'Destination');
             return (
               <PlaceMarker
                 key={pin.id}
@@ -1067,7 +1064,7 @@ export default function MapScreen() {
       {/* Re-center button */}
       <TouchableOpacity
         style={{
-          position: 'absolute', bottom: hasSheet ? 300 : 110, right: 20,
+          position: 'absolute', bottom: hasSheet ? 300 : Platform.OS === 'ios' ? 24 : 16, right: 16,
           width: 44, height: 44, borderRadius: 22,
           backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border,
           alignItems: 'center', justifyContent: 'center',
@@ -1137,7 +1134,7 @@ export default function MapScreen() {
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colours.accent }} />
                     <Text style={{ fontSize: fonts.sm, color: colours.accent, fontWeight: '700' }}>
-                      {t('Live · Updates every 15s', 'En direct · Mise à jour toutes les 15s')}
+                      {t('Live · Updates every 30s', 'En direct · Mise à jour toutes les 30s')}
                     </Text>
                   </View>
                   <View style={{ backgroundColor: busIsSTO ? '#00A78D' + '18' : '#CE1126' + '18', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1, borderColor: busIsSTO ? '#00A78D' + '40' : '#CE1126' + '40' }}>

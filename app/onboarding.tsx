@@ -69,7 +69,7 @@ const SLIDES = [
     title_en: 'Your Neighbourhood',
     title_fr: 'Votre quartier',
     body_en: "Select your home neighbourhood to personalize events and deals near you.",
-    body_fr: "Choisissez votre quartier pour personnaliser les evenements et offres pres de chez vous.",
+    body_fr: "Choisissez votre quartier pour personnaliser les \u00e9v\u00e9nements et offres pr\u00e8s de chez vous.",
     accent: '#c0852a',
     isWelcome: false,
     isNeighbourhood: true,

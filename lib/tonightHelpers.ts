@@ -16,7 +16,7 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 
 export async function shouldShowTonightCard(): Promise<boolean> {
   const hour = new Date().getHours();
-  if (hour < 14 || hour >= 24) return false;
+  if (hour < 14) return false;
   try {
     const dismissed = await AsyncStorage.getItem(SK_TONIGHT_DISMISSED);
     if (dismissed) {

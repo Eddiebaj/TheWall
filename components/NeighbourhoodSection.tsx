@@ -28,7 +28,6 @@ type Props = {
   fonts: any;
   cardShadow: any;
   events: { name: string; date: string; venue: string; lat?: number; lng?: number }[];
-  dealCount: number;
   onPress: (n: Neighbourhood) => void;
 };
 
@@ -40,7 +39,7 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function NeighbourhoodSection({ colours, fonts, cardShadow, events, dealCount, onPress }: Props) {
+function NeighbourhoodSection({ colours, fonts, cardShadow, events, onPress }: Props) {
   const { t, language } = useApp();
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [transitScores, setTransitScores] = useState<Record<string, TransitScore>>({});
@@ -143,7 +142,7 @@ function NeighbourhoodSection({ colours, fonts, cardShadow, events, dealCount, o
               {evtCount > 0 && (
                 <View style={{ position: 'absolute', top: 8, left: 8 }} pointerEvents="none">
                   <View style={{ backgroundColor: n.accent, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
-                    <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>{evtCount} {evtCount === 1 ? 'event' : 'events'}</Text>
+                    <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>{evtCount} {evtCount === 1 ? t('event', '\u00e9v\u00e9nement') : t('events', '\u00e9v\u00e9nements')}</Text>
                   </View>
                 </View>
               )}

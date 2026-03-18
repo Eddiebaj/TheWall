@@ -211,7 +211,7 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sp
               <Ionicons name={weatherIcon(summary.weather?.condition || '') as any} size={14} color="#e8a020" />
             </View>
             <Text style={{ fontSize: fonts.sm, color: colours.muted }}>
-              {Math.round(summary.weather.temp)}C · {summary.weather.condition}
+              {Math.round(summary.weather.temp)}{'\u00B0'}C · {summary.weather.condition}
             </Text>
           </View>
         )}

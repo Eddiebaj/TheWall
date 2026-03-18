@@ -4,12 +4,12 @@ let Haptics: typeof import('expo-haptics') | null = null;
 try { Haptics = require('expo-haptics'); } catch {}
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, AppState, ImageBackground, Linking, RefreshControl, ScrollView,
+  ActivityIndicator, AppState, Image, ImageBackground, Linking, RefreshControl, ScrollView,
   Share, Text, TouchableOpacity, View,
 } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { fetchWithTimeout } from '../lib/fetchWithTimeout';
-import { NewsArticle, SOURCE_COLOURS, SOURCE_FALLBACK_ICONS, timeAgo } from '../lib/newsData';
+import { NewsArticle, SOURCE_COLOURS, SOURCE_FALLBACK_ICONS, SOURCE_LOGOS, timeAgo } from '../lib/newsData';
 import { SK_NEWS_CACHE, SK_SAVED_ARTICLES } from '../lib/storageKeys';
 
 const NEWS_URL = 'https://routeo-backend.vercel.app/api/news';
@@ -199,9 +199,12 @@ function NewsSection({ colours, fonts, cardShadow, onArticlesLoaded, sortMode = 
                 resizeMode="cover"
               >
                 {!hasImage && (
-                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: sourceColour + '15' }}>
-                    <Ionicons name={fallbackIcon as any} size={28} color={sourceColour} />
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: sourceColour, marginTop: 4, textTransform: 'uppercase' }}>{article.source}</Text>
+                  <View style={{ flex: 1, backgroundColor: sourceColour + '10', alignItems: 'center', justifyContent: 'center' }}>
+                    {SOURCE_LOGOS[article.source] ? (
+                      <Image source={SOURCE_LOGOS[article.source].image} style={{ width: SOURCE_LOGOS[article.source].size, height: SOURCE_LOGOS[article.source].size }} resizeMode="contain" />
+                    ) : (
+                      <Ionicons name={fallbackIcon as any} size={36} color={sourceColour} />
+                    )}
                   </View>
                 )}
                 {hasImage && (

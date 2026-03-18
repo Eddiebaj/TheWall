@@ -11,7 +11,7 @@ try { Notifications = require('expo-notifications'); } catch {}
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useWindowDimensions } from 'react-native';
 import {
-  ActivityIndicator, Alert, Animated, AppState, FlatList, Image, ImageBackground, Keyboard,
+  ActivityIndicator, Alert, AppState, FlatList, Image, ImageBackground, Keyboard,
   KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, Share, StatusBar,
   StyleSheet, Text, TextInput, TouchableOpacity,
   TouchableWithoutFeedback, View
@@ -42,8 +42,7 @@ type SavedBoardItem =
   | { type: 'external_link'; id: string; label_en: string; label_fr: string; icon: string; accent: string; url: string }
   | { type: 'campus' }
   | { type: 'news' }
-  | { type: 'neighbourhood'; id: string; name_en: string; name_fr: string }
-  | { type: 'class_schedule' };
+  | { type: 'neighbourhood'; id: string; name_en: string; name_fr: string };
 
 import {
   OC_TRANSPO_API_KEY,
@@ -54,20 +53,17 @@ import { getDeviceId, registerPushToken, configureNotificationHandler } from '..
 import {
   SK_FAVS, SK_SAVED_BOARD, SK_SAVED_TEAMS, SK_SAVED_ROUTES, SK_SAVED_PLACES,
   SK_GARBAGE_ADDRESS, SK_GARBAGE_LAT, SK_GARBAGE_LNG, SK_GARBAGE_PLACE_ID,
-  SK_GARBAGE_NOTIF_ID, SK_SEEN_ALERT_IDS, SK_ALERT_HISTORY, SK_TIME_FORMAT, SK_GHOST_REPORTS,
+  SK_GARBAGE_NOTIF_ID, SK_SEEN_ALERT_IDS, SK_TIME_FORMAT, SK_GHOST_REPORTS,
   SK_SECTION_ORDER, SK_QUICK_ACTIONS, SK_OTTAWA_LIFE, SK_TODAY_EVENTS,
   SK_GAS_VOTED_IDS, SK_CACHE_WEATHER, SK_CACHE_ALERTS, SK_CACHE_ARRIVALS,
   SK_CAMPUS, SK_NOTIF_SETTINGS,
 } from '../../lib/storageKeys';
 import { CAMPUSES, CampusConfig, getNextDeparture, isLibraryOpen, fmt12h, getDayLabel } from '../../lib/campusData';
-import { ClassSchedule, ClassEntry, nextClass, nextClassDate, todayRemainingClasses, todayClassDay, classesForDay, DAY_LABELS_FR, fmt12h as schedFmt12h } from '../../lib/scheduleData';
-import ClassScheduleModal from '../../components/ClassScheduleModal';
 import { HAPPY_HOUR_VENUES } from '../../lib/happyHourData';
 // neighbourhoodData import removed — discover section moved to dedicated tab
 // NewsArticle import removed — news lives in dedicated News tab
-import { SK_SAVED_NEIGHBOURHOODS, SK_TONIGHT_DISMISSED, SK_TRIP_HISTORY, SK_LAST_CROWDING_REPORT, SK_CROWDING_CACHE, SK_FREQUENT_CARD_DISMISSED, SK_FREQUENT_ARRIVALS_CACHE, SK_TRIP_SHARING, SK_BATTERY_SAVER, SK_CLASS_SCHEDULE } from '../../lib/storageKeys';
+import { SK_SAVED_NEIGHBOURHOODS, SK_TONIGHT_DISMISSED, SK_TRIP_HISTORY, SK_LAST_CROWDING_REPORT, SK_CROWDING_CACHE, SK_FREQUENT_CARD_DISMISSED, SK_FREQUENT_ARRIVALS_CACHE, SK_TRIP_SHARING } from '../../lib/storageKeys';
 import { FrequentRoute, detectFrequentRoutes } from '../../lib/frequentRoutes';
-import { getLocalEvents } from '../../lib/localEvents';
 import { getDelayContext } from '../../lib/delayContext';
 // NewsSection removed from home — news lives in Account tab modal
 // NeighbourhoodSection removed — inlined for scroll reliability
@@ -76,13 +72,6 @@ import TonightCard from '../../components/TonightCard';
 import SportsModal, { OTTAWA_TEAMS } from '../../components/SportsModal';
 import WeatherModal from '../../components/WeatherModal';
 import ServicesGrid, { SERVICES_TABS, ServiceTile } from '../../components/ServicesGrid';
-
-function shortenLabel(label: string): string {
-  let s = label.replace(/, Canada$/, '').replace(/, ON,/, ',').replace(/, QC,/, ',').trim();
-  const parts = s.split(',').map(p => p.trim());
-  if (parts.length > 2) s = parts.slice(0, 2).join(', ');
-  return s;
-}
 
 const TRIP_UPDATES = 'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt-tp/beta/v1/TripUpdates?format=json';
 const BACKEND_URL = 'https://routeo-backend.vercel.app/api/arrivals';
@@ -308,7 +297,7 @@ const fmtTime = (date: Date): string => {
 const fmtAbsTime = (minsAway: number): string => fmtTime(new Date(Date.now() + minsAway * 60000));
 
 // ── SavedBoardCard component ─────────────────────────────────────
-function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, cardShadow, garbageEvents, alerts, sensGame, onMoveLeft, onMoveRight, timeFormat, campusData, scheduleData }: {
+function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, cardShadow, garbageEvents, alerts, sensGame, onMoveLeft, onMoveRight, timeFormat, campusData }: {
   item: SavedBoardItem; colours: any; fonts: any; t: any;
   onPress: () => void; drag: () => void; isActive: boolean; cardShadow: any;
   garbageEvents: { date: string; flags: string[] }[];
@@ -318,7 +307,6 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   onMoveRight?: () => void;
   timeFormat?: 'relative' | 'absolute';
   campusData?: CampusConfig | null;
-  scheduleData?: ClassSchedule | null;
 }) {
   const boardRouter = useRouter();
   const [preview, setPreview] = useState<{ routeId: string; headsign: string; minsAway: number }[]>([]);
@@ -328,7 +316,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   const [gasFailed, setGasFailed] = useState(false);
 
   useEffect(() => {
-    if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'saved_team' || item.type === 'campus' || item.type === 'news' || item.type === 'neighbourhood' || item.type === 'class_schedule') { setPreviewLoading(false); return; }
+    if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'saved_team' || item.type === 'campus' || item.type === 'news' || item.type === 'neighbourhood') { setPreviewLoading(false); return; }
     if (item.type === 'gas_prices') {
       setPreviewLoading(false);
       return;
@@ -350,7 +338,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
     return () => { cancelled = true; };
   }, [item.type, (item as any).id]);
 
-  const cardBase: any = [{ width: 152, height: 148, borderRadius: 12, padding: 12, backgroundColor: isActive ? colours.accent + '22' : colours.surface, borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, justifyContent: 'space-between' }, cardShadow];
+  const cardBase: any = [{ width: 152, height: 148, borderRadius: 14, padding: 12, backgroundColor: isActive ? colours.accent + '22' : colours.surface, borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, justifyContent: 'space-between' }, cardShadow];
 
   // ── Garbage card ──
   if (item.type === 'garbage') {
@@ -363,7 +351,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
       <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 4, backgroundColor: '#6b7f9918', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#6b7f9918', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="trash" size={12} color="#6b7f99" />
           </View>
           <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Garbage Day</Text>
@@ -397,7 +385,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
       <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 4, backgroundColor: '#e8a02018', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#e8a02018', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="notifications" size={12} color="#e8a020" />
           </View>
           <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Alerts</Text>
@@ -428,7 +416,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
       <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={() => { fetchGasPrice(); onPress(); }} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 4, backgroundColor: '#6b7f9918', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#6b7f9918', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="speedometer" size={12} color="#6b7f99" />
           </View>
           <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Gas Prices</Text>
@@ -455,7 +443,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
       <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 4, backgroundColor: colours.lrt + '18', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: colours.lrt + '18', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="train" size={12} color={colours.lrt} />
           </View>
           <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>O-Train</Text>
@@ -476,7 +464,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
       <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 4, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="grid" size={12} color={colours.accent} />
           </View>
           <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Services</Text>
@@ -494,7 +482,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
       <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 4, backgroundColor: '#e8a02018', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#e8a02018', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="compass" size={12} color="#e8a020" />
           </View>
           <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Discover</Text>
@@ -512,7 +500,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
       <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 4, backgroundColor: '#cc3b2a18', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#cc3b2a18', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="newspaper" size={12} color="#cc3b2a" />
           </View>
           <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>News</Text>
@@ -530,7 +518,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
       <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 4, backgroundColor: '#7b5ea718', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#7b5ea718', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="map" size={12} color="#7b5ea7" />
           </View>
           <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Area</Text>
@@ -583,7 +571,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
     return (
       <ScaleDecorator>
       <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 16, padding: 14, backgroundColor: isActive ? item.accent + '22' : colours.surface, borderWidth: 1, borderTopWidth: 3, borderColor: isActive ? item.accent : colours.border, borderTopColor: item.accent, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
-        <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: item.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: item.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
           <Ionicons name={item.icon as any} size={18} color={item.accent} />
         </View>
         <View>
@@ -598,97 +586,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
     );
   }
 
-  // ── Schedule card ──
-  if (item.type === 'class_schedule') {
-    const hasSchedule = scheduleData && scheduleData.classes.length > 0;
-    const campus = campusData;
-    const today = todayClassDay();
-    const todayClasses = hasSchedule && today ? todayRemainingClasses(scheduleData!) : [];
-    const next = hasSchedule ? nextClass(scheduleData!) : null;
-    const isToday = next && next.day === today;
-    // For GO button
-    const classDate = hasSchedule ? nextClassDate(scheduleData!) : null;
-    const arriveAt = classDate ? new Date(classDate.getTime() - 15 * 60000) : null;
-    const arriveTime = arriveAt ? `${String(arriveAt.getHours()).padStart(2, '0')}:${String(arriveAt.getMinutes()).padStart(2, '0')}` : undefined;
-    const arriveDate = arriveAt ? `${String(arriveAt.getMonth() + 1).padStart(2, '0')}-${String(arriveAt.getDate()).padStart(2, '0')}-${arriveAt.getFullYear()}` : undefined;
-    const lang = t('en', 'fr') === 'fr' ? 'fr' : 'en';
-
-    return (
-      <ScaleDecorator>
-      <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
-        {/* Header row */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-            <Ionicons name="school" size={11} color={colours.accent} />
-            <Text style={{ fontSize: 9, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              {hasSchedule && isToday ? t('Today', "Aujourd'hui") : hasSchedule && next ? (lang === 'fr' ? DAY_LABELS_FR[next.day] : next.day) : t('Schedule', 'Horaire')}
-            </Text>
-          </View>
-          {campus && next && (
-            <TouchableOpacity
-              onPress={() => boardRouter.push({ pathname: '/(tabs)/planner', params: { toLabel: campus.name, toLat: String(campus.lat), toLng: String(campus.lng), ...(arriveTime ? { arriveBy: 'true', time: arriveTime, date: arriveDate } : {}) } } as any)}
-              style={{ backgroundColor: colours.accent, borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }}
-              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-              activeOpacity={0.7}
-            >
-              <Text style={{ fontSize: 9, fontWeight: '800', color: 'white' }}>GO</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Body */}
-        {hasSchedule && isToday && todayClasses.length > 0 ? (
-          // Today's classes list
-          <View style={{ flex: 1, justifyContent: 'center', gap: 3 }}>
-            {todayClasses.slice(0, 3).map((c, i) => {
-              const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
-              const startMins = parseInt(c.startTime.split(':')[0]) * 60 + parseInt(c.startTime.split(':')[1]);
-              const endMins = parseInt(c.endTime.split(':')[0]) * 60 + parseInt(c.endTime.split(':')[1]);
-              const inProgress = nowMins >= startMins && nowMins < endMins;
-              const isNext = !inProgress && i === 0;
-              return (
-                <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <View style={{ width: 3, height: 20, borderRadius: 2, backgroundColor: inProgress ? '#00A78D' : isNext ? colours.accent : c.colour + '60' }} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 11, fontWeight: inProgress || isNext ? '800' : '600', color: inProgress ? '#00A78D' : colours.text }} numberOfLines={1}>{c.name}</Text>
-                    <Text style={{ fontSize: 9, color: colours.muted }}>{schedFmt12h(c.startTime)}{c.room ? ` · ${c.room}` : ''}</Text>
-                  </View>
-                </View>
-              );
-            })}
-            {todayClasses.length > 3 && (
-              <Text style={{ fontSize: 9, color: colours.muted, marginLeft: 9 }}>+{todayClasses.length - 3} {t('more', 'de plus')}</Text>
-            )}
-          </View>
-        ) : hasSchedule && next ? (
-          // Future class (not today)
-          <View style={{ flex: 1, justifyContent: 'center' }}>
-            <Text style={{ fontSize: 15, fontWeight: '800', color: colours.text, lineHeight: 18, marginBottom: 2 }} numberOfLines={2}>{next.entry.name}</Text>
-            <Text style={{ fontSize: 10, color: colours.muted }}>{schedFmt12h(next.entry.startTime)}{next.entry.room ? ` · ${next.entry.room}` : ''}</Text>
-            {next.minsUntilLeave > 0 && next.minsUntilLeave < 120 && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3 }}>
-                <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: '#00A78D' }} />
-                <Text style={{ fontSize: 10, fontWeight: '700', color: '#00A78D' }}>
-                  {t(`Leave in ${next.minsUntilLeave}m`, `Partir dans ${next.minsUntilLeave}m`)}
-                </Text>
-              </View>
-            )}
-          </View>
-        ) : hasSchedule ? (
-          <View style={{ flex: 1, justifyContent: 'center' }}>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: colours.muted }}>{t('No classes left', 'Fini pour aujourd\'hui')}</Text>
-          </View>
-        ) : (
-          <View style={{ flex: 1, justifyContent: 'center' }}>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{t('My Schedule', 'Mon horaire')}</Text>
-            <Text style={{ fontSize: 10, color: colours.muted, marginTop: 2 }}>{t('Tap to set up', 'Appuyez pour configurer')}</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-      </ScaleDecorator>
-    );
-  }
-
+  // ── Campus card ──
   if (item.type === 'campus') {
     const campus = campusData;
     const accent = campus?.accent || '#004890';
@@ -697,7 +595,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
     return (
       <ScaleDecorator>
       <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 16, padding: 14, backgroundColor: isActive ? accent + '22' : colours.surface, borderWidth: 1, borderTopWidth: 3, borderColor: isActive ? accent : colours.border, borderTopColor: accent, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
-        <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: accent + '18', alignItems: 'center', justifyContent: 'center' }}>
           <Ionicons name="school" size={18} color={accent} />
         </View>
         <View>
@@ -733,7 +631,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
     <ScaleDecorator>
     <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
       {alertRouteSet.length > 0 && (
-        <View style={{ backgroundColor: '#e8a020' + '20', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 3, marginBottom: 2 }}>
+        <View style={{ backgroundColor: '#e8a020' + '20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, marginBottom: 2 }}>
           <Text style={{ fontSize: 9, fontWeight: '700', color: '#e8a020' }} numberOfLines={1}>
             {'\u26A0\uFE0F'} Route {alertRouteSet.slice(0, 2).join(', ')} alert today
           </Text>
@@ -741,7 +639,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
       )}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 4, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name={isLRT ? 'train' : 'bus'} size={12} color={isLRT ? colours.lrt : isSTO ? '#0072bc' : colours.accent} />
           </View>
           <Text style={{ fontSize: 10, fontWeight: '700', color: isSTO ? '#0072bc' : colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
@@ -756,12 +654,12 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
         </View>
         <View style={{ flexDirection: 'row', gap: 2 }}>
           {onMoveLeft && (
-            <Pressable onPress={() => { Haptics?.impactAsync?.(Haptics.ImpactFeedbackStyle.Light); onMoveLeft?.(); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colours.border + '80', alignItems: 'center', justifyContent: 'center' }}>
+            <Pressable onPress={onMoveLeft} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colours.border + '80', alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="chevron-back" size={12} color={colours.muted} />
             </Pressable>
           )}
           {onMoveRight && (
-            <Pressable onPress={() => { Haptics?.impactAsync?.(Haptics.ImpactFeedbackStyle.Light); onMoveRight?.(); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colours.border + '80', alignItems: 'center', justifyContent: 'center' }}>
+            <Pressable onPress={onMoveRight} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colours.border + '80', alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="chevron-forward" size={12} color={colours.muted} />
             </Pressable>
           )}
@@ -822,9 +720,9 @@ function SavedStopCard({ fav, isActive, colours, fonts, t, onPress, onLongPress,
   const isLive = previewSource === 'gtfs-rt' || previewSource === 'sto-gtfs-rt';
   const liveColor = isSTO ? '#0072bc' : '#22c55e';
   return (
-    <TouchableOpacity style={[{ width: 152, height: 148, borderRadius: 12, padding: 12, backgroundColor: isActive ? stopColor : colours.surface, borderWidth: 1, borderColor: isActive ? stopColor : colours.border, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
+    <TouchableOpacity style={[{ width: 152, height: 148, borderRadius: 14, padding: 12, backgroundColor: isActive ? stopColor : colours.surface, borderWidth: 1, borderColor: isActive ? stopColor : colours.border, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <View style={{ width: 22, height: 22, borderRadius: 4, backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : stopColor + '18', alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : stopColor + '18', alignItems: 'center', justifyContent: 'center' }}>
           <Ionicons name="bus" size={12} color={isActive ? 'white' : stopColor} />
         </View>
         <Text style={{ fontSize: 10, fontWeight: '700', color: isActive ? 'rgba(255,255,255,0.7)' : (isSTO ? '#0072bc' : colours.muted), textTransform: 'uppercase', letterSpacing: 0.5 }}>{isSTO ? 'STO' : t('Stop', 'Arrêt')}</Text>
@@ -875,7 +773,7 @@ function GasPricesExpanded({ colours, fonts }: { colours: any; fonts: any }) {
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24 }}>
       {avgPrice && (
-        <View style={{ padding: 16, borderRadius: 12, backgroundColor: colours.accent + '12', borderWidth: 1, borderColor: colours.accent + '30', marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <View style={{ padding: 16, borderRadius: 14, backgroundColor: colours.accent + '12', borderWidth: 1, borderColor: colours.accent + '30', marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <Ionicons name="speedometer" size={24} color={colours.accent} />
           <View>
             <Text style={{ fontSize: 28, fontWeight: '900', color: colours.accent }}>{avgPrice}¢/L</Text>
@@ -885,7 +783,7 @@ function GasPricesExpanded({ colours, fonts }: { colours: any; fonts: any }) {
       )}
       {stations.length > 0 ? (
         stations.map((s, i) => (
-          <View key={i} style={{ padding: 14, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View key={i} style={{ padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{s.name}</Text>
               {s.address ? <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }} numberOfLines={1}>{s.address}</Text> : null}
@@ -1056,7 +954,7 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
             <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#00A78D18', alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="speedometer" size={16} color="#00A78D" />
             </View>
-            <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('GAS PRICES', 'PRIX ESSENCE')}</Text>
+            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('GAS PRICES', 'PRIX ESSENCE')}</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <TouchableOpacity onPress={toggleBoard} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -1238,7 +1136,7 @@ function SavedPlaceCard({ place, colours, fonts, language, t, onPress, onLongPre
     <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 16, overflow: 'hidden', backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }, cardShadow]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
       <ImageBackground source={photoUrl ? { uri: photoUrl } : undefined} style={{ width: '100%', height: 100, backgroundColor: place.categoryColor + '18', alignItems: photoUrl ? undefined : 'center', justifyContent: photoUrl ? undefined : 'center' }} resizeMode="cover">
         {!photoUrl && <Ionicons name={place.categoryIcon} size={28} color={place.categoryColor} />}
-        <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: place.categoryColor, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+        <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: place.categoryColor, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
           <Text style={{ fontSize: 9, fontWeight: '800', color: 'white', textTransform: 'uppercase' }}>{label}</Text>
         </View>
       </ImageBackground>
@@ -1448,9 +1346,6 @@ function LiveScreenInner() {
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [showAllArrivals, setShowAllArrivals] = useState(false);
   const [expandedStopId, setExpandedStopId] = useState<string | null>(null);
-  const [expandedDelayId, setExpandedDelayId] = useState<string | null>(null);
-  const [disappearedTrips, setDisappearedTrips] = useState<{ routeId: string; headsign: string }[]>([]);
-  const [batterySaver, setBatterySaver] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportCategory, setReportCategory] = useState<string | null>(null);
   const [reportDescription, setReportDescription] = useState('');
@@ -1477,12 +1372,7 @@ function LiveScreenInner() {
   const [alerts, setAlerts] = useState<ServiceAlert[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [alertsModalVisible, setAlertsModalVisible] = useState(false);
-  const [alertHistory, setAlertHistory] = useState<{ title: string; category: string; routes: string[]; firstSeen: string; lastSeen: string }[]>([]);
   const [editMode, setEditMode] = useState(false);
-  const [boardHintShown, setBoardHintShown] = useState(false);
-  const boardHintOpacity = useRef(new Animated.Value(1)).current;
-  const [showScrollTop, setShowScrollTop] = useState(false);
-  const mainScrollRef = useRef<ScrollView>(null);
   const [sectionOrder, setSectionOrder] = useState<string[]>(DEFAULT_SECTION_ORDER);
   const [quickActionIds, setQuickActionIds] = useState<string[]>(DEFAULT_QUICK_ACTION_IDS);
   const [ottawaLifeIds, setOttawaLifeIds] = useState<string[]>(DEFAULT_OTTAWA_LIFE_IDS);
@@ -1509,29 +1399,10 @@ function LiveScreenInner() {
   // Commute insights
   const [commuteInsight, setCommuteInsight] = useState<{ fromLabel: string; toLabel: string; avgDuration: number; count: number; affectedAlert?: string } | null>(null);
   const [weatherBannerDismissed, setWeatherBannerDismissed] = useState(false);
-  const [tonightDismissed, setTonightDismissed] = useState(false);
-  const [showUndoToast, setShowUndoToast] = useState(false);
-  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const arrivalsAbortRef = useRef<AbortController | null>(null);
-  const handleTonightDismiss = useCallback(() => {
-    setTonightDismissed(true);
-    setShowUndoToast(true);
-    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-    undoTimerRef.current = setTimeout(() => {
-      setShowUndoToast(false);
-      AsyncStorage.setItem(SK_TONIGHT_DISMISSED, String(Date.now()));
-    }, 5000);
-  }, []);
-  const undoTonightDismiss = useCallback(() => {
-    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-    undoTimerRef.current = null;
-    setTonightDismissed(false);
-    setShowUndoToast(false);
-  }, []);
   // Events modal (Ticketmaster + Eventbrite)
   const [eventsModal, setEventsModal] = useState(false);
-  const [eventsSource, setEventsSource] = useState<'ticketmaster' | 'eventbrite' | 'local'>('ticketmaster');
-  const [events, setEvents] = useState<{ id: string; name: string; date: string; time?: string; venue: string; address?: string; url: string; image?: string; category?: string; free?: boolean; source?: string; description?: string }[]>([]);
+  const [eventsSource, setEventsSource] = useState<'ticketmaster' | 'eventbrite'>('ticketmaster');
+  const [events, setEvents] = useState<{ id: string; name: string; date: string; time?: string; venue: string; address?: string; url: string; image?: string; category?: string; free?: boolean; source?: string }[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const eventsCacheTime = useRef<{ ticketmaster: number; eventbrite: number }>({ ticketmaster: 0, eventbrite: 0 });
   const weatherCacheTime = useRef<number>(0);
@@ -1562,8 +1433,6 @@ function LiveScreenInner() {
   const [campusTab, setCampusTab] = useState<'shuttle' | 'library' | 'upass' | 'food' | 'study'>('shuttle');
   const [selectedCampus, setSelectedCampus] = useState<CampusConfig | null>(null);
   const [campusPicker, setCampusPicker] = useState(false);
-  const [classSchedule, setClassSchedule] = useState<ClassSchedule | null>(null);
-  const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
   const [campusFood, setCampusFood] = useState<any[]>([]);
   const [campusFoodLoading, setCampusFoodLoading] = useState(false);
 
@@ -1584,7 +1453,7 @@ function LiveScreenInner() {
   const [report311Location, setReport311Location] = useState('');
 
   const isLight = theme === 'light' || (theme === 'system' && colours.bg === '#f0f4f8');
-  const cardShadow = useMemo(() => isLight ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 } : { shadowColor: '#ffffff', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 }, [isLight]);
+  const cardShadow = useMemo(() => isLight ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 } : {}, [isLight]);
 
   // ── Fetch Senators live game for board card ──
   useEffect(() => {
@@ -1633,9 +1502,7 @@ function LiveScreenInner() {
     AsyncStorage.getItem(SK_SAVED_TEAMS).then(val => { try { if (val) setSavedTeams(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved teams failed:', e); } });
     AsyncStorage.getItem(SK_SAVED_ROUTES).then(val => { try { if (val) setSavedRoutes(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved routes failed:', e); } });
     AsyncStorage.getItem(SK_TIME_FORMAT).then(val => { if (val === 'absolute') setTimeFormat('absolute'); });
-    AsyncStorage.getItem(SK_BATTERY_SAVER).then(val => { if (val === 'true') setBatterySaver(true); });
     AsyncStorage.getItem(SK_CAMPUS).then(val => { if (val) { const c = CAMPUSES.find(x => x.id === val); if (c) setSelectedCampus(c); } }).catch(() => {});
-    AsyncStorage.getItem(SK_CLASS_SCHEDULE).then(val => { try { if (val) setClassSchedule(JSON.parse(val)); } catch {} }).catch(() => {});
     Promise.all([
       AsyncStorage.getItem(SK_SAVED_BOARD),
       AsyncStorage.getItem(SK_FAVS),
@@ -1658,12 +1525,6 @@ function LiveScreenInner() {
         }
         if (changed) AsyncStorage.setItem(SK_SAVED_BOARD, JSON.stringify(board));
         setSavedBoard(board);
-        // Default to first saved board stop instead of hardcoded CD995
-        const firstBoardStop = board.find(i => i.type === 'bus_stop' || i.type === 'lrt_station') as { type: string; id: string; name: string } | undefined;
-        if (firstBoardStop) {
-          setStopId(firstBoardStop.id);
-          setStopName(firstBoardStop.name || firstBoardStop.id);
-        }
         setBoardLoaded(true);
       } catch {
         setSavedBoard([]);
@@ -1752,18 +1613,6 @@ function LiveScreenInner() {
     }).catch(() => {});
   }, []);
 
-  // Fade out "Hold to reorder" hint after 3 seconds
-  useEffect(() => {
-    if (boardLoaded && savedBoard.length > 0 && !boardHintShown) {
-      let mounted = true;
-      const timer = setTimeout(() => {
-        if (!mounted) return;
-        Animated.timing(boardHintOpacity, { toValue: 0, duration: 600, useNativeDriver: true }).start(() => { if (mounted) setBoardHintShown(true); });
-      }, 3000);
-      return () => { mounted = false; clearTimeout(timer); };
-    }
-  }, [boardLoaded, savedBoard.length]);
-
   const saveCustomization = async (order: string[], qaIds: string[], olIds: string[]) => {
     await AsyncStorage.setItem(SK_SECTION_ORDER, JSON.stringify(order));
     await AsyncStorage.setItem(SK_QUICK_ACTIONS, JSON.stringify(qaIds));
@@ -1843,7 +1692,6 @@ function LiveScreenInner() {
     if (item.type === 'services') return savedBoard.some(i => i.type === 'services');
     if (item.type === 'discover') return savedBoard.some(i => i.type === 'discover');
     if (item.type === 'campus') return savedBoard.some(i => i.type === 'campus');
-    if (item.type === 'class_schedule') return savedBoard.some(i => i.type === 'class_schedule');
     if (item.type === 'news') return savedBoard.some(i => i.type === 'news');
     if (item.type === 'neighbourhood') return savedBoard.some(i => i.type === 'neighbourhood' && i.id === item.id);
     if (item.type === 'saved_team') return savedBoard.some(i => i.type === 'saved_team' && i.id === item.id);
@@ -2012,46 +1860,6 @@ function LiveScreenInner() {
     try { setAlertsLoading(true); const resp = await fetchWithTimeout(ALERTS_URL); if (!resp.ok) throw new Error('HTTP ' + resp.status); const data = await resp.json(); setAlerts(data.alerts || []); }
     catch { setAlerts([]); } finally { setAlertsLoading(false); }
   };
-
-  // Track alert history — record active alerts, prune entries older than 7 days
-  useEffect(() => {
-    if (alerts.length === 0) return;
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(SK_ALERT_HISTORY);
-        let history: { title: string; category: string; routes: string[]; firstSeen: string; lastSeen: string }[] = [];
-        try { if (raw) history = JSON.parse(raw); } catch {}
-        const nowISO = new Date().toISOString();
-        const weekAgo = Date.now() - 7 * 86400000;
-        // Prune old entries
-        history = history.filter(h => new Date(h.lastSeen).getTime() > weekAgo);
-        // Upsert current alerts
-        for (const alert of alerts) {
-          const existing = history.find(h => h.title === alert.title);
-          if (existing) {
-            existing.lastSeen = nowISO;
-            existing.routes = alert.routes;
-          } else {
-            history.push({ title: alert.title, category: alert.category, routes: alert.routes, firstSeen: nowISO, lastSeen: nowISO });
-          }
-        }
-        await AsyncStorage.setItem(SK_ALERT_HISTORY, JSON.stringify(history));
-        setAlertHistory(history);
-      } catch {}
-    })();
-  }, [alerts]);
-
-  // Load alert history on mount
-  useEffect(() => {
-    AsyncStorage.getItem(SK_ALERT_HISTORY).then(raw => {
-      try {
-        if (!raw) return;
-        const history = JSON.parse(raw);
-        const weekAgo = Date.now() - 7 * 86400000;
-        setAlertHistory(history.filter((h: any) => new Date(h.lastSeen).getTime() > weekAgo));
-      } catch {}
-    });
-  }, []);
 
   // Cross-reference commute with active alerts
   useEffect(() => {
@@ -2223,26 +2031,11 @@ function LiveScreenInner() {
     setEventsLoading(false);
   };
 
-  const loadLocalEvents = () => {
-    setEventsLoading(true);
-    const local = getLocalEvents().map(e => ({
-      id: e.id,
-      name: e.name,
-      date: e.date,
-      time: e.time,
-      venue: e.venue,
-      address: e.address,
-      url: e.url,
-      category: e.category,
-      free: e.free,
-      source: '613flea / TD Place',
-      description: e.description,
-    }));
-    setEvents(local);
-    setEventsLoading(false);
+  const haversineKm = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+    const R = 6371, dLat = (lat2 - lat1) * Math.PI / 180, dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   };
-
-  // haversineDist removed — consolidated into haversineDist above
 
   const toggleNearMe = async () => {
     if (eventsNearMe) { setEventsNearMe(false); return; }
@@ -2254,15 +2047,13 @@ function LiveScreenInner() {
       // Geocode any addresses not yet in cache
       const toGeocode = events.filter(e => e.address && !eventsGeoCache[e.address]);
       const newCache = { ...eventsGeoCache };
-      const GEO_TIMEOUT = 5000;
-      await Promise.allSettled(toGeocode.map(async e => {
-        const r = await Promise.race([
-          fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=geocode&input=${encodeURIComponent(e.address || '')}`),
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('geocode timeout')), GEO_TIMEOUT)),
-        ]);
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        const d = await r.json();
-        if (d.results?.[0]?.lat) newCache[e.address!] = { lat: d.results[0].lat, lng: d.results[0].lng };
+      await Promise.all(toGeocode.map(async e => {
+        try {
+          const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=geocode&input=${encodeURIComponent(e.address || '')}`);
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          const d = await r.json();
+          if (d.results?.[0]?.lat) newCache[e.address!] = { lat: d.results[0].lat, lng: d.results[0].lng };
+        } catch (e2) { if (__DEV__) console.warn('geocode event address failed:', e2); }
       }));
       setEventsGeoCache(newCache);
       setEventsNearMe(true);
@@ -2293,16 +2084,13 @@ function LiveScreenInner() {
   };
 
   const fetchArrivals = useCallback(async (id: string) => {
-    arrivalsAbortRef.current?.abort();
-    const controller = new AbortController();
-    arrivalsAbortRef.current = controller;
     try {
       setError('');
       const isNumericOnly = /^\d+$/.test(id);
       const internalId = isNumericOnly ? resolveStopId(id) : id;
       // STO stops — route through backend which handles STO GTFS-RT
       if (isStoStop(id)) {
-        const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${id}`, { signal: controller.signal });
+        const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${id}`);
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
         const stoIsStatic = data.source === 'gtfs-static';
@@ -2319,7 +2107,7 @@ function LiveScreenInner() {
         const rawId = LRT_STOP_IDS.has(id) ? id : internalId;
         const platforms = MULTI_PLATFORM_STOPS[rawId];
         const lrtId = platforms ? (platforms.find(p => /^[A-Z]/.test(p)) || rawId) : rawId;
-        const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${lrtId}`, { signal: controller.signal });
+        const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${lrtId}`);
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
         const lrtParsed = (data.arrivals || []).map((a: any) => ({ id: `${a.stopId}-${a.scheduledTime}`, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway, delay: 0, secsAway: a.minsAway * 60, isScheduled: true }));
@@ -2331,7 +2119,7 @@ function LiveScreenInner() {
         setLoading(false);
         return;
       }
-      const resp = await fetchWithTimeout(TRIP_UPDATES, { headers: { 'Ocp-Apim-Subscription-Key': OC_TRANSPO_API_KEY }, signal: controller.signal });
+      const resp = await fetchWithTimeout(TRIP_UPDATES, { headers: { 'Ocp-Apim-Subscription-Key': OC_TRANSPO_API_KEY } });
       if (!resp.ok) throw new Error(`API error ${resp.status}`);
       const data = await resp.json();
       const gtfsParsed = parseGTFS(data, internalId);
@@ -2342,7 +2130,6 @@ function LiveScreenInner() {
       setLastUpdated(fmtTime(now));
       setArrivalsFetchFailed(false);
     } catch (e: unknown) {
-      if (e instanceof Error && e.name === 'AbortError') return;
       try {
         const cached = await AsyncStorage.getItem(`routeo_arrivals_${id}`);
         if (cached) {
@@ -2578,37 +2365,15 @@ function LiveScreenInner() {
     if (frequentRoutes.length > 0) fetchFrequentArrivals(frequentRoutes);
   }, [frequentRoutes]);
 
-  // Watch mode: poll faster (15s) when a bus is ≤10 min away, else 30s
-  const prevArrivalsRef = useRef<{ id: string; routeId: string; headsign: string; minsAway: number }[]>([]);
-  const disappearedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    const hasSoonBus = arrivals.some(a => a.minsAway <= 10);
-    const pollInterval = batterySaver ? 60000 : hasSoonBus ? 15000 : 30000;
     const interval = setInterval(() => {
       if (AppState.currentState === 'active') {
-        // Check for disappeared trips (possible cancellation) — match by routeId+headsign composite key
-        const prevTracked = prevArrivalsRef.current.filter(p => p.minsAway <= 10);
-        const prevKeys = new Set(prevTracked.map(p => `${p.routeId}-${p.headsign}`));
-        if (prevKeys.size > 0) {
-          const currentKeys = new Set(arrivals.map(a => `${a.routeId}-${a.headsign}`));
-          const disappeared = prevTracked.filter(p => prevKeys.has(`${p.routeId}-${p.headsign}`) && !currentKeys.has(`${p.routeId}-${p.headsign}`) && p.minsAway > 1);
-          if (disappeared.length > 0) {
-            setDisappearedTrips(disappeared.map(d => ({ routeId: d.routeId, headsign: d.headsign })));
-            if (disappearedTimerRef.current) clearTimeout(disappearedTimerRef.current);
-            disappearedTimerRef.current = setTimeout(() => setDisappearedTrips([]), 60000);
-            if (__DEV__) console.log('Watch mode: trips disappeared', disappeared.map(d => d.routeId));
-          }
-        }
-        prevArrivalsRef.current = arrivals.map(a => ({ id: a.id, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway }));
         fetchArrivals(stopId);
         if (frequentRoutes.length > 0 && !frequentCardDismissed) fetchFrequentArrivals(frequentRoutes, true);
       }
-    }, pollInterval);
-    return () => {
-      clearInterval(interval);
-      if (disappearedTimerRef.current) clearTimeout(disappearedTimerRef.current);
-    };
-  }, [stopId, fetchArrivals, frequentRoutes, frequentCardDismissed, arrivals, batterySaver]);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [stopId, fetchArrivals, frequentRoutes, frequentCardDismissed]);
 
   useEffect(() => {
     if (arrivals.length > 0 && arrivals[0].minsAway > 15) {
@@ -2741,7 +2506,7 @@ function LiveScreenInner() {
     return results.sort((a, b) => a.secsAway - b.secsAway).slice(0, 8);
   };
 
-  const loadStop = (id: string, name?: string) => { setShowAllArrivals(false); setStopId(id); setStopName(name || getStopName(id) || id); setLoading(true); fetchArrivals(id); fetchStopReports(id); fetchStopAmenities(id); };
+  const loadStop = (id: string, name?: string) => { setStopId(id); setStopName(name || getStopName(id) || id); setLoading(true); fetchArrivals(id); fetchStopReports(id); fetchStopAmenities(id); };
 
   const geocodeSeq = useRef(0);
 
@@ -2906,12 +2671,11 @@ function LiveScreenInner() {
     if (tile.action === 'alert' && tile.target === 'gas_prices') { setBoardExpandItem({ type: 'gas_prices' }); return; }
     if (tile.action === 'alert') { setAlertsModalVisible(true); return; }
     if (tile.action === 'navigate' && tile.target?.includes('events?source=')) {
-      const source = tile.target.includes('local') ? 'local' : tile.target.includes('eventbrite') ? 'eventbrite' : 'ticketmaster';
-      setEventsSource(source as any);
+      const source = tile.target.includes('eventbrite') ? 'eventbrite' : 'ticketmaster';
+      setEventsSource(source);
       setEventsModal(true);
       if (source === 'ticketmaster') fetchTicketmasterEvents();
-      else if (source === 'eventbrite') fetchEventbriteEvents();
-      else loadLocalEvents();
+      else fetchEventbriteEvents();
       return;
     }
     if (tile.action === 'navigate' && tile.target) {
@@ -3020,7 +2784,7 @@ function LiveScreenInner() {
                 const deals = v.isActive ? (v.activeDeals || []) : (v.upcomingDeals || []);
                 const statusDeal = deals[0];
                 return (
-                  <View key={i} style={{ backgroundColor: colours.bg, borderRadius: 12, borderWidth: 1, borderColor: v.isActive ? '#7b5ea7' + '40' : colours.border, overflow: 'hidden' }}>
+                  <View key={i} style={{ backgroundColor: colours.bg, borderRadius: 14, borderWidth: 1, borderColor: v.isActive ? '#7b5ea7' + '40' : colours.border, overflow: 'hidden' }}>
                     <View style={{ padding: 14, gap: 6 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                         <Text style={{ fontSize: 15, fontWeight: '800', color: colours.text, flex: 1 }} numberOfLines={1}>{v.name}</Text>
@@ -3071,17 +2835,17 @@ function LiveScreenInner() {
                   <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text, marginTop: 4 }}>{t('Deal submitted for review!', 'Offre soumise pour examen!')}</Text>
                 </View>
               ) : socialDealForm ? (
-                <View style={{ backgroundColor: colours.bg, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colours.border }}>
+                <View style={{ backgroundColor: colours.bg, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colours.border }}>
                   <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text, marginBottom: 8 }}>{t('Submit a New Deal', 'Soumettre une offre')}</Text>
                   <TextInput
-                    style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: colours.text, marginBottom: 8 }}
+                    style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: colours.text, marginBottom: 8 }}
                     placeholder={t('Venue name', 'Nom du lieu')}
                     placeholderTextColor={colours.muted}
                     value={socialDealVenue}
                     onChangeText={setSocialDealVenue}
                   />
                   <TextInput
-                    style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: colours.text, minHeight: 50, textAlignVertical: 'top', marginBottom: 10 }}
+                    style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: colours.text, minHeight: 50, textAlignVertical: 'top', marginBottom: 10 }}
                     placeholder={t('Deal details (e.g. $5 pints Mon-Fri 3-6pm)', 'Details (ex. $5 pintes lun-ven 15h-18h)')}
                     placeholderTextColor={colours.muted}
                     value={socialDealDesc}
@@ -3089,7 +2853,7 @@ function LiveScreenInner() {
                     multiline
                   />
                   <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <TouchableOpacity onPress={() => { setSocialDealForm(false); setSocialDealVenue(''); setSocialDealDesc(''); }} style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
+                    <TouchableOpacity onPress={() => { setSocialDealForm(false); setSocialDealVenue(''); setSocialDealDesc(''); }} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
                       <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted }}>{t('Cancel', 'Annuler')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -3103,7 +2867,7 @@ function LiveScreenInner() {
                         } catch (e) { if (__DEV__) console.warn('submit deal failed:', e); }
                         setSocialDealSending(false);
                       }}
-                      style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: socialDealVenue.trim() && socialDealDesc.trim() ? '#7b5ea7' : colours.border, alignItems: 'center' }}
+                      style={{ flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: socialDealVenue.trim() && socialDealDesc.trim() ? '#7b5ea7' : colours.border, alignItems: 'center' }}
                     >
                       {socialDealSending
                         ? <ActivityIndicator color="white" size="small" />
@@ -3177,7 +2941,6 @@ function LiveScreenInner() {
   // ── Events Modal (Ticketmaster / Eventbrite) ─────────────────
   const renderEventsModal = () => {
     const EB_CATS = ['Music', 'Food & Drink', 'Arts & Culture', 'Health', 'Sports', 'Business', 'Community', 'Family', 'Science & Tech', 'Hobbies'];
-    const LOCAL_CATS = ['Market', 'Sports'];
     const TM_CATS = eventsSource === 'ticketmaster' ? [...new Set(events.map(e => e.category || 'Other'))].sort() : [];
 
     const filteredEvents = events.filter(ev => {
@@ -3194,7 +2957,7 @@ function LiveScreenInner() {
       return true;
     });
 
-    const catPills = eventsSource === 'ticketmaster' ? TM_CATS : eventsSource === 'local' ? LOCAL_CATS : EB_CATS;
+    const catPills = eventsSource === 'ticketmaster' ? TM_CATS : EB_CATS;
 
     // Sort by distance if Near Me active
     let displayEvents = filteredEvents;
@@ -3202,8 +2965,8 @@ function LiveScreenInner() {
       displayEvents = [...filteredEvents].sort((a, b) => {
         const coordA = a.address ? eventsGeoCache[a.address] : null;
         const coordB = b.address ? eventsGeoCache[b.address] : null;
-        const distA = coordA ? haversineDist(eventsUserCoords.lat, eventsUserCoords.lng, coordA.lat, coordA.lng) : 999;
-        const distB = coordB ? haversineDist(eventsUserCoords.lat, eventsUserCoords.lng, coordB.lat, coordB.lng) : 999;
+        const distA = coordA ? haversineKm(eventsUserCoords.lat, eventsUserCoords.lng, coordA.lat, coordA.lng) : 999;
+        const distB = coordB ? haversineKm(eventsUserCoords.lat, eventsUserCoords.lng, coordB.lat, coordB.lng) : 999;
         return distA - distB;
       });
     }
@@ -3214,10 +2977,10 @@ function LiveScreenInner() {
         <View style={[styles.modalHeader, { borderBottomColor: colours.border }]}>
           <View>
             <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>
-              {eventsSource === 'ticketmaster' ? 'Live Events' : eventsSource === 'local' ? 'Local Events' : 'Community Events'}
+              {eventsSource === 'ticketmaster' ? 'Live Events' : 'Community Events'}
             </Text>
             <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
-              {eventsSource === 'ticketmaster' ? 'Ticketmaster · Ottawa' : eventsSource === 'local' ? '613flea · TD Place · Ottawa' : 'Arts & Community · Ottawa'}
+              {eventsSource === 'ticketmaster' ? 'Ticketmaster · Ottawa' : 'Arts & Community · Ottawa'}
             </Text>
           </View>
           <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => { setEventsModal(false); setEventsSearch(''); setEventsCategory(null); setEventsNearMe(false); }} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
@@ -3226,24 +2989,18 @@ function LiveScreenInner() {
         </View>
 
         {/* Source toggle tabs */}
-        <View style={{ flexDirection: 'row', marginHorizontal: 16, marginTop: 12, borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: colours.border }}>
+        <View style={{ flexDirection: 'row', marginHorizontal: 16, marginTop: 12, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: colours.border }}>
           <TouchableOpacity
             onPress={() => { setEventsSource('ticketmaster'); setEventsCategory(null); fetchTicketmasterEvents(); }}
             style={{ flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: eventsSource === 'ticketmaster' ? colours.accent : colours.surface }}
           >
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: eventsSource === 'ticketmaster' ? '#fff' : colours.text }}>{t('Live', 'En direct')}</Text>
+            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: eventsSource === 'ticketmaster' ? '#fff' : colours.text }}>{t('Live Events', 'Événements')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => { setEventsSource('eventbrite'); setEventsCategory(null); fetchEventbriteEvents(); }}
             style={{ flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: eventsSource === 'eventbrite' ? colours.accent : colours.surface }}
           >
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: eventsSource === 'eventbrite' ? '#fff' : colours.text }}>{t('Community', 'Communaut\u00E9')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => { setEventsSource('local'); setEventsCategory(null); loadLocalEvents(); }}
-            style={{ flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: eventsSource === 'local' ? colours.accent : colours.surface }}
-          >
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: eventsSource === 'local' ? '#fff' : colours.text }}>{t('Local', 'Locaux')}</Text>
+            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: eventsSource === 'eventbrite' ? '#fff' : colours.text }}>{t('Community', 'Communauté')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -3310,14 +3067,16 @@ function LiveScreenInner() {
               <Text style={{ color: colours.muted, marginTop: 12, textAlign: 'center' }}>
                 {eventsSearch || eventsCategory ? t('No events match your filters.', 'Aucun événement ne correspond.') : t('No upcoming events found in Ottawa.', 'Aucun événement à venir à Ottawa.')}
               </Text>
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityLabel={t('Try again', 'Réessayer')}
-                style={{ marginTop: 14, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}
-                onPress={() => { eventsCacheTime.current.ticketmaster = 0; eventsCacheTime.current.eventbrite = 0; fetchTicketmasterEvents(); fetchEventbriteEvents(); }}
-              >
-                <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Try again', 'Réessayer')}</Text>
-              </TouchableOpacity>
+              {!eventsSearch && !eventsCategory && (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={t('Refresh events', 'Actualiser les événements')}
+                  style={{ marginTop: 14, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}
+                  onPress={() => { eventsCacheTime.current.ticketmaster = 0; eventsCacheTime.current.eventbrite = 0; fetchTicketmasterEvents(); fetchEventbriteEvents(); }}
+                >
+                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Refresh', 'Actualiser')}</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             displayEvents.map(ev => renderEventCard(ev))
@@ -3345,25 +3104,24 @@ function LiveScreenInner() {
     'Music': '#6c3fc7', 'Food & Drink': '#1a7a4a', 'Arts & Culture': '#b5450b',
     'Health': '#0077b6', 'Sports': '#006400', 'Business': '#444',
     'Community': '#0077a0', 'Family': '#e67e22', 'Science & Tech': '#2c3e7a', 'Hobbies': '#7b5ea7',
-    'Market': '#c0852a',
   };
 
   const renderEventCard = (ev: typeof events[0]) => {
-    const catLabel = (eventsSource === 'eventbrite' || eventsSource === 'local') ? (ev.category || 'Community') : null;
-    const catColor = catLabel ? (CATEGORY_COLORS[catLabel] || CATEGORY_COLORS['Community'] || '#555') : null;
+    const catLabel = eventsSource === 'eventbrite' ? (ev.category || 'Community') : null;
+    const catColor = catLabel ? (CATEGORY_COLORS[catLabel] || '#555') : null;
     return (
-      <TouchableOpacity key={ev.id} onPress={() => ev.url && Linking.openURL(ev.url)} style={{ marginHorizontal: 16, marginTop: 10, padding: 12, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, ...cardShadow }}>
+      <TouchableOpacity key={ev.id} onPress={() => ev.url && Linking.openURL(ev.url)} style={{ marginHorizontal: 16, marginTop: 10, padding: 12, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, ...cardShadow }}>
         {ev.image && (
-          <View style={{ height: 85, borderRadius: 8, overflow: 'hidden', marginBottom: 9, backgroundColor: colours.border }}>
+          <View style={{ height: 85, borderRadius: 9, overflow: 'hidden', marginBottom: 9, backgroundColor: colours.border }}>
             <ImageBackground source={{ uri: ev.image }} style={{ flex: 1 }} resizeMode="cover">
               <View style={{ position: 'absolute', top: 7, left: 7, flexDirection: 'row', gap: 5 }}>
                 {catLabel && catColor && (
-                  <View style={{ backgroundColor: catColor + 'ee', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2 }}>
+                  <View style={{ backgroundColor: catColor + 'ee', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }}>
                     <Text style={{ color: 'white', fontSize: 10, fontWeight: '700' }}>{catLabel}</Text>
                   </View>
                 )}
                 {ev.free && (
-                  <View style={{ backgroundColor: '#2d7a3aee', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2 }}>
+                  <View style={{ backgroundColor: '#2d7a3aee', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }}>
                     <Text style={{ color: 'white', fontSize: 10, fontWeight: '800' }}>FREE</Text>
                   </View>
                 )}
@@ -3371,18 +3129,9 @@ function LiveScreenInner() {
             </ImageBackground>
           </View>
         )}
-        {!ev.image && (catLabel || ev.free) && (
-          <View style={{ flexDirection: 'row', gap: 5, marginBottom: 6 }}>
-            {catLabel && catColor && (
-              <View style={{ backgroundColor: catColor + '18', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: catColor + '40' }}>
-                <Text style={{ color: catColor, fontSize: 10, fontWeight: '700' }}>{catLabel}</Text>
-              </View>
-            )}
-            {ev.free && (
-              <View style={{ backgroundColor: '#2d7a3a18', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: '#2d7a3a40' }}>
-                <Text style={{ color: '#2d7a3a', fontSize: 10, fontWeight: '800' }}>FREE</Text>
-              </View>
-            )}
+        {!ev.image && catLabel && catColor && (
+          <View style={{ backgroundColor: catColor + '18', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2, alignSelf: 'flex-start', marginBottom: 6, borderWidth: 1, borderColor: catColor + '40' }}>
+            <Text style={{ color: catColor, fontSize: 10, fontWeight: '700' }}>{catLabel}</Text>
           </View>
         )}
         <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text, marginBottom: 3 }} numberOfLines={2}>{ev.name}</Text>
@@ -3393,9 +3142,8 @@ function LiveScreenInner() {
           </Text>
         )}
         {ev.venue ? <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{ev.venue}</Text> : null}
-        {ev.description && <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 4 }} numberOfLines={2}>{ev.description}</Text>}
         {ev.url && <Text style={{ fontSize: fonts.sm, color: colours.accent, fontWeight: '600', marginTop: 7 }}>
-          {eventsSource === 'local' ? (ev.free ? t('Learn more →', 'En savoir plus →') : t('Get tickets →', 'Billets →')) : eventsSource === 'ticketmaster' ? 'Get tickets →' : ev.source === 'City of Ottawa' ? 'View on ottawa.ca →' : 'Get tickets →'}
+          {eventsSource === 'ticketmaster' ? 'Get tickets →' : ev.source === 'City of Ottawa' ? 'View on ottawa.ca →' : 'Get tickets →'}
         </Text>}
       </TouchableOpacity>
     );
@@ -3413,7 +3161,7 @@ function LiveScreenInner() {
           <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setRoadEventsModal(false)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
             <Ionicons name="close" size={18} color={colours.text} />
           </TouchableOpacity>
-        </View>
+        </View>2
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
           {roadEventsLoading ? (
             <View style={styles.modalCenter}><ActivityIndicator color={colours.accent} size="large" /><Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('Loading road closures...', 'Chargement...')}</Text></View>
@@ -3424,10 +3172,10 @@ function LiveScreenInner() {
               <Text style={{ color: colours.muted, marginTop: 6, textAlign: 'center' }}>{t('No active road closures in Ottawa.', 'Aucune fermeture de route active.')}</Text>
             </View>
           ) : roadEvents.map(ev => (
-            <View key={ev.id} style={{ marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderLeftWidth: 4, borderColor: colours.border, borderLeftColor: '#e8a020', ...cardShadow }}>
+            <View key={ev.id} style={{ marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderLeftWidth: 4, borderColor: colours.border, borderLeftColor: '#e8a020', ...cardShadow }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                  <View style={{ backgroundColor: '#e8a02018', borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3 }}>
+                  <View style={{ backgroundColor: '#e8a02018', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
                     <Text style={{ fontSize: 10, fontWeight: '800', color: '#e8a020', textTransform: 'uppercase' }}>{ev.type}</Text>
                   </View>
                   {ev.road ? <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.text }} numberOfLines={1}>{ev.road}</Text> : null}
@@ -3464,9 +3212,9 @@ function LiveScreenInner() {
               <Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('No park or rink data available right now.', 'Aucune donnée de parc ou patinoire disponible.')}</Text>
             </View>
           ) : parks.map((p, i) => (
-            <View key={i} style={{ marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, ...cardShadow }}>
+            <View key={i} style={{ marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, ...cardShadow }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#004890' + '15', alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: '#004890' + '15', alignItems: 'center', justifyContent: 'center' }}>
                   <Ionicons name="snow" size={16} color="#004890" />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -3525,10 +3273,10 @@ function LiveScreenInner() {
               <Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('No bike stations found.', 'Aucune station trouv\u00E9e.')}</Text>
             </View>
           ) : bikeStations.map((s, i) => (
-            <View key={i} style={{ marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, ...cardShadow }}>
+            <View key={i} style={{ marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, ...cardShadow }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                  <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#00A78D' + '15', alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: '#00A78D' + '15', alignItems: 'center', justifyContent: 'center' }}>
                     <Ionicons name="bicycle" size={16} color="#00A78D" />
                   </View>
                   <View style={{ flex: 1 }}>
@@ -3538,12 +3286,12 @@ function LiveScreenInner() {
                 </View>
               </View>
               <View style={{ flexDirection: 'row', gap: 10 }}>
-                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: s.bikes > 0 ? '#00A78D' + '12' : '#cc3b2a' + '12', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: s.bikes > 0 ? '#00A78D' + '12' : '#cc3b2a' + '12', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
                   <Ionicons name="bicycle" size={14} color={s.bikes > 0 ? '#00A78D' : '#cc3b2a'} />
                   <Text style={{ fontSize: 16, fontWeight: '900', color: s.bikes > 0 ? '#00A78D' : '#cc3b2a' }}>{s.bikes}</Text>
                   <Text style={{ fontSize: 11, color: colours.muted, fontWeight: '600' }}>{t('bikes', 'v\u00E9los')}</Text>
                 </View>
-                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: s.docks > 0 ? '#004890' + '12' : '#cc3b2a' + '12', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: s.docks > 0 ? '#004890' + '12' : '#cc3b2a' + '12', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
                   <Ionicons name="lock-closed-outline" size={14} color={s.docks > 0 ? '#004890' : '#cc3b2a'} />
                   <Text style={{ fontSize: 16, fontWeight: '900', color: s.docks > 0 ? '#004890' : '#cc3b2a' }}>{s.docks}</Text>
                   <Text style={{ fontSize: 11, color: colours.muted, fontWeight: '600' }}>{t('docks', 'ancrages')}</Text>
@@ -3623,7 +3371,7 @@ function LiveScreenInner() {
             <Text style={{ fontSize: 20, fontWeight: '800', color: colours.text, textAlign: 'center', marginBottom: 4 }}>{t('Choose Your Campus', 'Choisissez votre campus')}</Text>
             <Text style={{ fontSize: 13, color: colours.muted, textAlign: 'center', marginBottom: 20 }}>{t('You can change this later', 'Vous pouvez changer plus tard')}</Text>
             {CAMPUSES.map(c => (
-              <TouchableOpacity key={c.id} onPress={() => selectCampus(c)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginBottom: 8, backgroundColor: colours.bg }}>
+              <TouchableOpacity key={c.id} onPress={() => selectCampus(c)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 8, backgroundColor: colours.bg }}>
                 <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
                   <Ionicons name="school" size={20} color={c.accent} />
                 </View>
@@ -3683,12 +3431,12 @@ function LiveScreenInner() {
                   campus.shuttles.map(route => {
                     const next = getNextDeparture(route.departures);
                     return (
-                      <View key={route.id} style={{ backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }}>
+                      <View key={route.id} style={{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }}>
                         <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: colours.border }}>
                           <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{language === 'fr' ? route.label_fr : route.label_en}</Text>
                           {next ? (
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                              <View style={{ backgroundColor: accent + '18', borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3 }}>
+                              <View style={{ backgroundColor: accent + '18', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
                                 <Text style={{ fontSize: 12, fontWeight: '800', color: accent }}>{t('Next', 'Prochain')}: {fmt12h(next.time)}</Text>
                               </View>
                               <Text style={{ fontSize: 12, fontWeight: '700', color: next.minsAway <= 10 ? colours.red : accent }}>{next.minsAway} min</Text>
@@ -3732,7 +3480,7 @@ function LiveScreenInner() {
                 campus.libraries.map(lib => {
                   const status = isLibraryOpen(lib);
                   return (
-                    <View key={lib.name} style={{ backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }}>
+                    <View key={lib.name} style={{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: colours.border }}>
                         <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text, flex: 1 }} numberOfLines={1}>{lib.name}</Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: status.open ? '#00A78D18' : colours.red + '18', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
@@ -3762,7 +3510,7 @@ function LiveScreenInner() {
                           );
                         })}
                         <Text style={{ fontSize: 10, color: colours.muted, marginTop: 8, fontStyle: 'italic' }}>{language === 'fr' ? lib.note_fr : lib.note_en}</Text>
-                        <TouchableOpacity activeOpacity={0.7} onPress={() => routeToCampusPlace(lib.name, lib.lat, lib.lng)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, padding: 10, borderRadius: 8, backgroundColor: accent + '15', borderWidth: 1, borderColor: accent + '30' }}>
+                        <TouchableOpacity activeOpacity={0.7} onPress={() => routeToCampusPlace(lib.name, lib.lat, lib.lng)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, padding: 10, borderRadius: 10, backgroundColor: accent + '15', borderWidth: 1, borderColor: accent + '30' }}>
                           <Ionicons name="navigate" size={13} color={accent} />
                           <Text style={{ fontSize: 12, fontWeight: '700', color: accent }}>{t(`Route to ${lib.name.split(' (')[0]}`, `Itinéraire vers ${lib.name.split(' (')[0]}`)}</Text>
                         </TouchableOpacity>
@@ -3775,11 +3523,11 @@ function LiveScreenInner() {
               {/* ── Study Spots Tab ── */}
               {campusTab === 'study' && campus && (
                 campus.studySpots.map(spot => (
-                  <View key={spot.name} style={{ backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginBottom: 10, overflow: 'hidden' }}>
+                  <View key={spot.name} style={{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 10, overflow: 'hidden' }}>
                     <View style={{ padding: 14 }}>
                       <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text }}>{language === 'fr' ? spot.name_fr : spot.name}</Text>
                       <Text style={{ fontSize: 12, color: colours.muted, marginTop: 4 }}>{language === 'fr' ? spot.description_fr : spot.description_en}</Text>
-                      <TouchableOpacity activeOpacity={0.7} onPress={() => routeToCampusPlace(spot.name, spot.lat, spot.lng)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10, padding: 10, borderRadius: 8, backgroundColor: accent + '15', borderWidth: 1, borderColor: accent + '30' }}>
+                      <TouchableOpacity activeOpacity={0.7} onPress={() => routeToCampusPlace(spot.name, spot.lat, spot.lng)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10, padding: 10, borderRadius: 10, backgroundColor: accent + '15', borderWidth: 1, borderColor: accent + '30' }}>
                         <Ionicons name="navigate" size={13} color={accent} />
                         <Text style={{ fontSize: 12, fontWeight: '700', color: accent }}>{t(`Route to ${spot.name}`, `Itinéraire vers ${language === 'fr' ? spot.name_fr : spot.name}`)}</Text>
                       </TouchableOpacity>
@@ -3790,7 +3538,7 @@ function LiveScreenInner() {
 
               {/* ── U-Pass Tab ── */}
               {campusTab === 'upass' && campus && (
-                <View style={{ backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
+                <View style={{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
                   <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: colours.border, alignItems: 'center' }}>
                     <Ionicons name="card" size={32} color={accent} style={{ marginBottom: 8 }} />
                     <Text style={{ fontSize: 24, fontWeight: '800', color: colours.text }}>{t('U-Pass', 'U-Pass')}</Text>
@@ -3828,7 +3576,7 @@ function LiveScreenInner() {
                   <View style={{ alignItems: 'center', paddingVertical: 32 }}>
                     <Ionicons name="restaurant-outline" size={36} color={colours.muted} />
                     <Text style={{ color: colours.muted, marginTop: 8 }}>{t('No food places found', 'Aucun resto trouvé')}</Text>
-                    <TouchableOpacity activeOpacity={0.7} onPress={() => fetchCampusFood(campus)} style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: accent, backgroundColor: accent + '15' }}>
+                    <TouchableOpacity activeOpacity={0.7} onPress={() => fetchCampusFood(campus)} style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: accent, backgroundColor: accent + '15' }}>
                       <Text style={{ fontSize: 13, fontWeight: '700', color: accent }}>{t('Retry', 'Réessayer')}</Text>
                     </TouchableOpacity>
                   </View>
@@ -3836,7 +3584,7 @@ function LiveScreenInner() {
                   campusFood.map(place => (
                     <View key={place.id} style={{ backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginBottom: 8, overflow: 'hidden' }}>
                       <TouchableOpacity onPress={() => Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(place.name + ' ' + place.vicinity)}`).catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 }}>
-                        <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+                        <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: accent + '18', alignItems: 'center', justifyContent: 'center' }}>
                           <Ionicons name="restaurant" size={18} color={accent} />
                         </View>
                         <View style={{ flex: 1 }}>
@@ -3869,7 +3617,7 @@ function LiveScreenInner() {
               )}
             </ScrollView>
 
-            <TouchableOpacity activeOpacity={0.7} onPress={() => setCampusModal(false)} style={{ marginHorizontal: 20, paddingVertical: 14, borderRadius: 12, backgroundColor: accent, alignItems: 'center' }}>
+            <TouchableOpacity activeOpacity={0.7} onPress={() => setCampusModal(false)} style={{ marginHorizontal: 20, paddingVertical: 14, borderRadius: 14, backgroundColor: accent, alignItems: 'center' }}>
               <Text style={{ color: 'white', fontWeight: '700', fontSize: 15 }}>{t('Done', 'Terminé')}</Text>
             </TouchableOpacity>
           </View>
@@ -3991,16 +3739,10 @@ function LiveScreenInner() {
             </Text>
           </TouchableOpacity>
           <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }} numberOfLines={1}>{item.headsign ? `→ ${item.headsign}` : `→ ${t('Checking route...', 'Vérification...')}`}</Text>
-          {item.isScheduled && isLRT && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
-              <Ionicons name="time-outline" size={11} color={colours.muted} />
-              <Text style={{ fontSize: 10, color: colours.muted, fontWeight: '600' }}>{t('Schedule only — every 3-5 min peak', 'Horaire seulement — aux 3-5 min en pointe')}</Text>
-            </View>
-          )}
-          {item.isScheduled && !isLRT && (
+          {item.isScheduled && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
               <Ionicons name="warning" size={11} color={colours.orange} />
-              <Text style={{ fontSize: 10, color: colours.orange, fontWeight: '600' }}>{t('Scheduled — no real-time data', 'Horaire — pas de données en temps réel')}</Text>
+              <Text style={{ fontSize: 10, color: colours.orange, fontWeight: '600' }}>{t('Scheduled only', 'Horaire seulement')}</Text>
             </View>
           )}
           {ghostBus && (
@@ -4044,18 +3786,11 @@ function LiveScreenInner() {
           {item.delay > 5 && (() => {
             const ctx = getDelayContext(item.routeId, item.delay, alerts, weather, forecast);
             if (!ctx) return null;
-            const isExpanded = expandedDelayId === item.id;
             return (
-              <TouchableOpacity onPress={() => setExpandedDelayId(isExpanded ? null : item.id)} activeOpacity={0.7} style={{ marginTop: 3 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <Ionicons name={ctx.icon as any} size={11} color={ctx.colour} />
-                  <Text style={{ fontSize: 11, fontWeight: '600', color: ctx.colour }}>{t(ctx.label, ctx.labelFr)}</Text>
-                  <Text style={{ fontSize: 10, fontWeight: '700', color: ctx.colour }}>{t('Why?', 'Pourquoi?')}</Text>
-                </View>
-                {isExpanded && (
-                  <Text style={{ fontSize: 11, color: colours.muted, marginTop: 4, lineHeight: 16 }}>{t(ctx.detail, ctx.detailFr)}</Text>
-                )}
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
+                <Ionicons name={ctx.icon as any} size={11} color={ctx.colour} />
+                <Text style={{ fontSize: 11, fontWeight: '600', color: ctx.colour }}>{t(ctx.label, ctx.labelFr)}</Text>
+              </View>
             );
           })()}
         </View>
@@ -4080,7 +3815,7 @@ function LiveScreenInner() {
               const pillBg = c ? (c.avg <= 0.8 ? '#34C759' : c.avg <= 1.7 ? '#FFD60A' : c.avg <= 2.4 ? '#FF9500' : '#FF3B30') + '20' : colours.muted + '18';
               const pillColor = c ? (c.avg <= 0.8 ? '#34C759' : c.avg <= 1.7 ? '#b8960a' : c.avg <= 2.4 ? '#FF9500' : '#FF3B30') : colours.muted;
               return (
-                <TouchableOpacity onPress={() => { setCrowdingReportItem(item); setShowCrowdingSheet(true); fetchCrowdingHourly(item.routeId, expandedStopId || stopId); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 8, backgroundColor: pillBg }} accessibilityRole="button" accessibilityLabel={t('Report crowding', 'Signaler l\'achalandage')}>
+                <TouchableOpacity onPress={() => { setCrowdingReportItem(item); setShowCrowdingSheet(true); fetchCrowdingHourly(item.routeId, expandedStopId || stopId); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 10, backgroundColor: pillBg }} accessibilityRole="button" accessibilityLabel={t('Report crowding', 'Signaler l\'achalandage')}>
                   <Ionicons name="people" size={11} color={pillColor} />
                   <Text style={{ fontSize: 9, fontWeight: '700', color: pillColor }}>{pillLabel}</Text>
                 </TouchableOpacity>
@@ -4183,10 +3918,10 @@ function LiveScreenInner() {
                     const label = daysUntil === 0 ? 'TODAY' : daysUntil === 1 ? 'TOMORROW' : null;
                     const isNext = i === 0;
                     return (
-                      <View key={i} style={{ marginBottom: 10, padding: 14, borderRadius: 12, borderWidth: isNext ? 1.5 : 1, borderColor: isNext ? colours.accent : colours.border, backgroundColor: isNext ? colours.accent + '10' : colours.surface }}>
+                      <View key={i} style={{ marginBottom: 10, padding: 14, borderRadius: 14, borderWidth: isNext ? 1.5 : 1, borderColor: isNext ? colours.accent : colours.border, backgroundColor: isNext ? colours.accent + '10' : colours.surface }}>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                           <Text style={{ fontSize: 14, fontWeight: '800', color: colours.text }}>{d.toLocaleDateString('en-CA', { weekday: 'long', month: 'short', day: 'numeric' })}</Text>
-                          {label && <View style={{ backgroundColor: colours.accent, borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3 }}><Text style={{ color: 'white', fontSize: 10, fontWeight: '800' }}>{label}</Text></View>}
+                          {label && <View style={{ backgroundColor: colours.accent, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}><Text style={{ color: 'white', fontSize: 10, fontWeight: '800' }}>{label}</Text></View>}
                         </View>
                         <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
                           {ev.flags.map(flag => { const bin = BIN_LABELS[flag]; if (!bin) return null; return (<View key={flag} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: bin.color + '18', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 }}><View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: bin.color }} /><Text style={{ fontSize: 11, fontWeight: '700', color: colours.text }}>{bin.label}</Text></View>); })}
@@ -4206,17 +3941,7 @@ function LiveScreenInner() {
                     <Text style={{ color: colours.muted, marginTop: 8 }}>No upcoming arrivals</Text>
                   </View>
                 ) : (
-                  <>
-                    {disappearedTrips.length > 0 && (
-                      <View style={{ marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FF9500' + '15', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
-                        <Ionicons name="alert-circle" size={16} color="#FF9500" />
-                        <Text style={{ flex: 1, fontSize: 12, fontWeight: '600', color: '#FF9500' }}>
-                          {t(`Route ${disappearedTrips.map(d => d.routeId).join(', ')} may be cancelled — disappeared from feed`, `Route ${disappearedTrips.map(d => d.routeId).join(', ')} possiblement annulée — disparue du flux`)}
-                        </Text>
-                      </View>
-                    )}
-                    {arrivals.map(renderArrival)}
-                  </>
+                  arrivals.map(renderArrival)
                 )}
               </ScrollView>
             )}
@@ -4289,7 +4014,7 @@ function LiveScreenInner() {
                 <Text style={{ fontSize: fonts.md, color: colours.muted, textAlign: 'center', marginTop: 12 }}>{t('Enter your Ottawa address to see your collection schedule.', 'Entrez votre adresse \u00E0 Ottawa pour voir votre calendrier de collecte.')}</Text>
               </View>
             )}
-            <TouchableOpacity onPress={() => { setGarbageModalVisible(false); setExpandedBin(null); }} style={{ marginHorizontal: 20, marginTop: 8, paddingVertical: 14, borderRadius: 12, backgroundColor: colours.accent, alignItems: 'center' }} accessibilityRole="button" accessibilityLabel={t('Done', 'Termine')}>
+            <TouchableOpacity onPress={() => { setGarbageModalVisible(false); setExpandedBin(null); }} style={{ marginHorizontal: 20, marginTop: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: colours.accent, alignItems: 'center' }} accessibilityRole="button" accessibilityLabel={t('Done', 'Termine')}>
               <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>Done</Text>
             </TouchableOpacity>
           </View>
@@ -4314,52 +4039,6 @@ function LiveScreenInner() {
             const catColour = CATEGORY_COLOUR[alert.category] || colours.accent;
             return (<TouchableOpacity key={alert.id} style={[styles.alertCard, { backgroundColor: colours.surface, borderColor: colours.border, borderLeftColor: catColour, ...cardShadow }]} onPress={() => alert.link && Linking.openURL(alert.link)} activeOpacity={alert.link ? 0.8 : 1}><View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}><View style={[styles.alertCatBadge, { backgroundColor: catColour + '20' }]}><Text style={{ fontSize: 9, fontWeight: '800', color: catColour, textTransform: 'uppercase', letterSpacing: 0.5 }}>{alert.category}</Text></View>{alert.routes.length > 0 && (<View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap', flex: 1 }}>{alert.routes.slice(0, 4).map(route => (<View key={route} style={[styles.routeBadge, { backgroundColor: colours.accent + '18' }]}><Text style={{ fontSize: 9, fontWeight: '700', color: colours.accent }}>{route}</Text></View>))}</View>)}</View><Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, marginTop: 8, lineHeight: 20 }}>{alert.title}</Text>{alert.description ? <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 4, lineHeight: 18 }} numberOfLines={3}>{alert.description}</Text> : null}{alert.pubDate ? <Text style={{ fontSize: 10, color: colours.muted, marginTop: 6 }}>{alert.pubDate}</Text> : null}{alert.link ? <Text style={{ fontSize: fonts.sm, color: colours.accent, fontWeight: '600', marginTop: 6 }}>{t('View details →', 'Voir les détails →')}</Text> : null}</TouchableOpacity>);
           })}
-          {/* Past week alert history */}
-          {(() => {
-            const activeTitles = new Set(alerts.map(a => a.title));
-            const pastAlerts = alertHistory
-              .filter(h => !activeTitles.has(h.title))
-              .sort((a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime());
-            if (pastAlerts.length === 0) return null;
-            const formatHistoryTime = (iso: string) => {
-              const d = new Date(iso);
-              const now = new Date();
-              const diffH = Math.round((now.getTime() - d.getTime()) / 3600000);
-              if (diffH < 1) return t('Just now', 'À l\'instant');
-              if (diffH < 24) return t(`${diffH}h ago`, `il y a ${diffH}h`);
-              const diffD = Math.round(diffH / 24);
-              return t(`${diffD}d ago`, `il y a ${diffD}j`);
-            };
-            return (
-              <View style={{ marginTop: 24, paddingHorizontal: 20 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-                  <Ionicons name="time-outline" size={16} color={colours.muted} />
-                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>{t('Past Week', 'Dernière semaine')}</Text>
-                  <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Resolved alerts', 'Alertes résolues')}</Text>
-                </View>
-                {pastAlerts.map((h, i) => {
-                  const catColour = CATEGORY_COLOUR[h.category] || colours.muted;
-                  return (
-                    <View key={`hist-${i}`} style={{ flexDirection: 'row', gap: 10, paddingVertical: 10, borderBottomWidth: i < pastAlerts.length - 1 ? 1 : 0, borderBottomColor: colours.border }}>
-                      <View style={{ width: 3, borderRadius: 2, backgroundColor: catColour, marginTop: 2 }} />
-                      <View style={{ flex: 1 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                          <View style={{ backgroundColor: catColour + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
-                            <Text style={{ fontSize: 8, fontWeight: '800', color: catColour, textTransform: 'uppercase', letterSpacing: 0.5 }}>{h.category}</Text>
-                          </View>
-                          {h.routes.slice(0, 3).map(r => (
-                            <Text key={r} style={{ fontSize: 9, fontWeight: '700', color: colours.accent }}>#{r}</Text>
-                          ))}
-                        </View>
-                        <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.text, lineHeight: 18 }} numberOfLines={2}>{h.title}</Text>
-                        <Text style={{ fontSize: 10, color: colours.muted, marginTop: 2 }}>{formatHistoryTime(h.lastSeen)}</Text>
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-            );
-          })()}
         </ScrollView>
       </View>
     </Modal>
@@ -4377,7 +4056,7 @@ function LiveScreenInner() {
             {ALL_OTTAWA_LIFE.map(item => {
               const isActive = swapTileIndex !== null && ottawaLifeIds[swapTileIndex] === item.id;
               const isUsed = ottawaLifeIds.includes(item.id) && !isActive;
-              return (<TouchableOpacity key={item.id} disabled={isUsed} onPress={() => swapTileIndex !== null && swapOttawaLifeTile(swapTileIndex, item.id)} style={{ width: '21%', alignItems: 'center', padding: 10, borderRadius: 12, borderWidth: 2, borderColor: isActive ? item.accent : isUsed ? colours.border : colours.border, backgroundColor: isActive ? item.accent + '18' : isUsed ? colours.bg : colours.surface, opacity: isUsed ? 0.4 : 1 }}><Ionicons name={item.icon as any} size={22} color={isActive ? item.accent : isUsed ? colours.muted : item.accent} /><Text style={{ fontSize: 10, fontWeight: '700', color: isActive ? item.accent : colours.text, marginTop: 4, textAlign: 'center' }} numberOfLines={1}>{language === 'fr' ? item.label_fr : item.label_en}</Text></TouchableOpacity>);
+              return (<TouchableOpacity key={item.id} disabled={isUsed} onPress={() => swapTileIndex !== null && swapOttawaLifeTile(swapTileIndex, item.id)} style={{ width: '21%', alignItems: 'center', padding: 10, borderRadius: 14, borderWidth: 2, borderColor: isActive ? item.accent : isUsed ? colours.border : colours.border, backgroundColor: isActive ? item.accent + '18' : isUsed ? colours.bg : colours.surface, opacity: isUsed ? 0.4 : 1 }}><Ionicons name={item.icon as any} size={22} color={isActive ? item.accent : isUsed ? colours.muted : item.accent} /><Text style={{ fontSize: 10, fontWeight: '700', color: isActive ? item.accent : colours.text, marginTop: 4, textAlign: 'center' }} numberOfLines={1}>{language === 'fr' ? item.label_fr : item.label_en}</Text></TouchableOpacity>);
             })}
           </View>
         </View>
@@ -4420,7 +4099,7 @@ function LiveScreenInner() {
             </View>
           </View>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }}>
-            {loading ? (<View style={{ marginTop: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>) : error ? (<View style={styles.modalCenter}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.md, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text></View>) : arrivals.length === 0 ? (<View style={styles.modalCenter}><Ionicons name="time-outline" size={48} color={colours.muted} /><Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 12 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<View style={{ marginTop: 8 }}>{cachedAt && !(weatherFetchFailed && arrivalsFetchFailed) && (<View style={{ backgroundColor: '#ff9500' + '15', borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8 }}><Text style={{ fontSize: fonts.sm, color: '#ff9500', fontWeight: '600' }}>{t(`Offline — last updated ${Math.round((Date.now() - cachedAt) / 60000)} min ago`, `Hors ligne — dernière mise à jour il y a ${Math.round((Date.now() - cachedAt) / 60000)} min`)}</Text></View>)}{arrivals.map(renderArrival)}</View>)}
+            {loading ? (<View style={{ marginTop: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>) : error ? (<View style={styles.modalCenter}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.md, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text></View>) : arrivals.length === 0 ? (<View style={styles.modalCenter}><Ionicons name="time-outline" size={48} color={colours.muted} /><Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 12 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<View style={{ marginTop: 8 }}>{cachedAt && (<View style={{ backgroundColor: '#ff9500' + '15', borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8 }}><Text style={{ fontSize: fonts.sm, color: '#ff9500', fontWeight: '600' }}>{t(`Offline — last updated ${Math.round((Date.now() - cachedAt) / 60000)} min ago`, `Hors ligne — dernière mise à jour il y a ${Math.round((Date.now() - cachedAt) / 60000)} min`)}</Text></View>)}{arrivals.map(renderArrival)}</View>)}
             {/* Report an issue button */}
             <TouchableOpacity
               onPress={() => { setReportCategory(null); setReportDescription(''); if (!expandedStopId && stopId) setExpandedStopId(stopId); setShowReportModal(true); }}
@@ -4435,7 +4114,7 @@ function LiveScreenInner() {
               </Text>
             </TouchableOpacity>
             {!helpBannerDismissed && arrivals.length > 0 && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginTop: 12, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8, backgroundColor: colours.muted + '12' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginTop: 12, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colours.muted + '12' }}>
                 <Ionicons name="people-outline" size={14} color={colours.muted} style={{ marginRight: 8 }} />
                 <Text style={{ flex: 1, fontSize: 10, color: colours.muted, fontWeight: '600' }}>{t('Help Ottawa riders — tap to report crowding or missed buses', 'Aidez les usagers — signalez l\'achalandage ou les bus manqués')}</Text>
                 <TouchableOpacity onPress={() => setHelpBannerDismissed(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginLeft: 8 }}>
@@ -4464,7 +4143,7 @@ function LiveScreenInner() {
           </TouchableOpacity>
         </View>
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-          <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
+          <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
             {t('What\'s the issue?', 'Quel est le probleme?')}
           </Text>
           <View style={{ gap: 8, marginBottom: 20 }}>
@@ -4474,10 +4153,10 @@ function LiveScreenInner() {
                 <TouchableOpacity
                   key={cat.id}
                   onPress={() => setReportCategory(cat.id)}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, borderWidth: 1.5, borderColor: active ? '#cc3b2a' : colours.border, backgroundColor: active ? '#cc3b2a10' : colours.surface }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1.5, borderColor: active ? '#cc3b2a' : colours.border, backgroundColor: active ? '#cc3b2a10' : colours.surface }}
                   activeOpacity={0.7}
                 >
-                  <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: active ? '#cc3b2a18' : colours.bg, alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: active ? '#cc3b2a18' : colours.bg, alignItems: 'center', justifyContent: 'center' }}>
                     <Ionicons name={cat.icon} size={18} color={active ? '#cc3b2a' : colours.muted} />
                   </View>
                   <Text style={{ fontSize: fonts.md, fontWeight: active ? '700' : '500', color: active ? '#cc3b2a' : colours.text }}>
@@ -4488,7 +4167,7 @@ function LiveScreenInner() {
               );
             })}
           </View>
-          <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+          <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
             {t('Details (optional)', 'Details (facultatif)')}
           </Text>
           <TextInput
@@ -4502,7 +4181,7 @@ function LiveScreenInner() {
           <TouchableOpacity
             onPress={submitStopReport}
             disabled={!reportCategory || reportSubmitting}
-            style={{ marginTop: 20, backgroundColor: reportCategory ? '#cc3b2a' : colours.border, borderRadius: 12, paddingVertical: 14, alignItems: 'center', opacity: reportCategory ? 1 : 0.5 }}
+            style={{ marginTop: 20, backgroundColor: reportCategory ? '#cc3b2a' : colours.border, borderRadius: 14, paddingVertical: 14, alignItems: 'center', opacity: reportCategory ? 1 : 0.5 }}
             activeOpacity={0.8}
           >
             {reportSubmitting ? (
@@ -4526,7 +4205,7 @@ function LiveScreenInner() {
       case 'otrain': return (
         <React.Fragment key="otrain">{wrapSection('otrain', <>
           <Text style={[styles.sectionLabel, { color: colours.muted, fontSize: fonts.sm, marginBottom: 6 }]}>{t('O-Train', 'O-Train')}</Text>
-          <TouchableOpacity style={[{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 20, marginBottom: showLine1 ? 0 : 8, borderWidth: 1, borderRadius: 12, borderBottomLeftRadius: showLine1 ? 0 : 14, borderBottomRightRadius: showLine1 ? 0 : 14, padding: 12, backgroundColor: showLine1 ? colours.lrt + '12' : colours.surface, borderColor: showLine1 ? colours.lrt : colours.border }, cardShadow]} onPress={() => { setShowLine1(!showLine1); setShowLine2(false); setShowEast(false); setShowWest(false); setShowNorth(false); setShowSouth(false); }}>
+          <TouchableOpacity style={[{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 20, marginBottom: showLine1 ? 0 : 8, borderWidth: 1, borderRadius: 14, borderBottomLeftRadius: showLine1 ? 0 : 14, borderBottomRightRadius: showLine1 ? 0 : 14, padding: 12, backgroundColor: showLine1 ? colours.lrt + '12' : colours.surface, borderColor: showLine1 ? colours.lrt : colours.border }, cardShadow]} onPress={() => { setShowLine1(!showLine1); setShowLine2(false); setShowEast(false); setShowWest(false); setShowNorth(false); setShowSouth(false); }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colours.lrt + '20', alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 11, fontWeight: '900', color: colours.lrt }}>L1</Text></View>
               <View><Text style={{ fontSize: fonts.md, fontWeight: '700', color: showLine1 ? colours.lrt : colours.text }}>{t('Confederation Line', 'Ligne Confédération')}</Text><Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>{t("Tunney's Pasture ↔ Blair", "Tunney's ↔ Blair")}</Text></View>
@@ -4547,7 +4226,7 @@ function LiveScreenInner() {
               {showWest && LRT_WEST.map((station, index) => (<TouchableOpacity key={station.id} style={[styles.stationRow, { borderBottomColor: colours.border }, stopId === station.id && { backgroundColor: colours.lrt + '12' }]} onPress={() => { loadStop(station.id, station.name); setExpandedStopId(station.id); setShowLine1(false); setShowWest(false); }} activeOpacity={0.7}><View style={styles.stationDotCol}><View style={[styles.stationDot, { borderColor: colours.border }, stopId === station.id && { backgroundColor: colours.lrt, borderColor: colours.lrt }]} />{index < LRT_WEST.length - 1 && <View style={[styles.stationLine, { backgroundColor: colours.border }]} />}</View><Text style={{ flex: 1, fontSize: fonts.md, fontWeight: stopId === station.id ? '700' : '500', color: stopId === station.id ? colours.lrt : colours.text }}>{station.name}</Text><Ionicons name="chevron-forward" size={14} color={colours.muted} /></TouchableOpacity>))}
             </View>
           )}
-          <TouchableOpacity style={[{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 20, marginBottom: showLine2 ? 0 : 12, borderWidth: 1, borderRadius: 12, borderBottomLeftRadius: showLine2 ? 0 : 14, borderBottomRightRadius: showLine2 ? 0 : 14, padding: 12, backgroundColor: showLine2 ? '#7b5ea7' + '12' : colours.surface, borderColor: showLine2 ? '#7b5ea7' : colours.border }, cardShadow]} onPress={() => { setShowLine2(!showLine2); setShowLine1(false); setShowEast(false); setShowWest(false); setShowNorth(false); setShowSouth(false); }}>
+          <TouchableOpacity style={[{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 20, marginBottom: showLine2 ? 0 : 12, borderWidth: 1, borderRadius: 14, borderBottomLeftRadius: showLine2 ? 0 : 14, borderBottomRightRadius: showLine2 ? 0 : 14, padding: 12, backgroundColor: showLine2 ? '#7b5ea7' + '12' : colours.surface, borderColor: showLine2 ? '#7b5ea7' : colours.border }, cardShadow]} onPress={() => { setShowLine2(!showLine2); setShowLine1(false); setShowEast(false); setShowWest(false); setShowNorth(false); setShowSouth(false); }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#7b5ea7' + '20', alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 11, fontWeight: '900', color: '#7b5ea7' }}>L2</Text></View>
               <View><Text style={{ fontSize: fonts.md, fontWeight: '700', color: showLine2 ? '#7b5ea7' : colours.text }}>{t('Trillium Line', 'Ligne Trillium')}</Text><Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>{t('Bayview ↔ Limebank', 'Bayview ↔ Limebank')}</Text></View>
@@ -4574,10 +4253,10 @@ function LiveScreenInner() {
       case 'saved': return savedPlaces.length === 0 ? null : (
         <React.Fragment key="saved">{wrapSection('saved', <>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 10 }}>
-            <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Saved Places', 'Lieux sauvegardés')}</Text>
+            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Saved Places', 'Lieux sauvegardés')}</Text>
             <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Long press to remove', 'Appui long pour retirer')}</Text>
           </View>
-          <FlatList horizontal data={savedPlaces} keyExtractor={p => p.id} showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 20, paddingRight: 32, gap: 10, paddingBottom: 4 }} style={{ marginBottom: 20 }} snapToInterval={170} decelerationRate="fast" renderItem={({ item: place }) => (<SavedPlaceCard place={place} colours={colours} fonts={fonts} language={language} t={t} onPress={() => Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(`${place.name} ${place.vicinity}`)}`)} onLongPress={() => Alert.alert(t('Remove?', 'Retirer?'), place.name, [{ text: t('Cancel', 'Annuler'), style: 'cancel' }, { text: t('Remove', 'Retirer'), style: 'destructive', onPress: () => removeSavedPlace(place.id) }])} cardShadow={cardShadow} />)} />
+          <FlatList horizontal data={savedPlaces} keyExtractor={p => p.id} showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 20, paddingRight: 20, gap: 10, paddingBottom: 4 }} style={{ marginBottom: 20 }} snapToInterval={170} decelerationRate="fast" renderItem={({ item: place }) => (<SavedPlaceCard place={place} colours={colours} fonts={fonts} language={language} t={t} onPress={() => Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(`${place.name} ${place.vicinity}`)}`)} onLongPress={() => Alert.alert(t('Remove?', 'Retirer?'), place.name, [{ text: t('Cancel', 'Annuler'), style: 'cancel' }, { text: t('Remove', 'Retirer'), style: 'destructive', onPress: () => removeSavedPlace(place.id) }])} cardShadow={cardShadow} />)} />
         </>)}</React.Fragment>
       );
 
@@ -4591,7 +4270,7 @@ function LiveScreenInner() {
       case 'alerts': return (
         <React.Fragment key="alerts">{wrapSection('alerts', <>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 6 }}>
-            <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, letterSpacing: 0.5, textTransform: 'uppercase' }}>{t('Service Alerts', 'Alertes')}</Text>
+            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, letterSpacing: 1, textTransform: 'uppercase' }}>{t('Service Alerts', 'Alertes')}</Text>
             <TouchableOpacity onPress={() => { const item: SavedBoardItem = { type: 'service_alert' }; isBoardSaved(item) ? removeFromBoard(item) : addToBoardIfMissing(item); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Save alerts to board', 'Sauvegarder les alertes au tableau')} accessibilityState={{ selected: isBoardSaved({ type: 'service_alert' }) }}>
               <Ionicons name={isBoardSaved({ type: 'service_alert' }) ? 'bookmark' : 'bookmark-outline'} size={18} color={isBoardSaved({ type: 'service_alert' }) ? colours.accent : colours.muted} />
             </TouchableOpacity>
@@ -4621,7 +4300,7 @@ function LiveScreenInner() {
       <View style={[styles.container, { backgroundColor: colours.bg }]}>
         <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
         {alertsModalVisible && renderAlertsModal()}
-        {weatherModalVisible && <WeatherModal visible={weatherModalVisible} onClose={() => setWeatherModalVisible(false)} colours={colours} fonts={fonts} t={t} weather={weather} forecast={forecast} dailyForecast={dailyForecast} locationName={locationName} onRetry={fetchWeather} />}
+        {weatherModalVisible && <WeatherModal visible={weatherModalVisible} onClose={() => setWeatherModalVisible(false)} colours={colours} fonts={fonts} t={t} weather={weather} forecast={forecast} dailyForecast={dailyForecast} locationName={locationName} />}
         {garbageModalVisible && renderGarbageModal()}
         {swapSheetVisible && renderSwapSheet()}
         {!!expandedStopId && renderExpandedArrivals()}
@@ -4673,7 +4352,7 @@ function LiveScreenInner() {
                       })();
                       return (
                         <View key={i} style={{
-                          paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8,
+                          paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
                           borderWidth: isCurrent ? 2 : 1,
                           borderColor: isCurrent ? colours.accent : colours.border,
                           backgroundColor: isCurrent ? colours.accent + '15' : isPast ? colours.bg : colours.surface,
@@ -4698,7 +4377,6 @@ function LiveScreenInner() {
         {parksModal && renderParksModal()}
         {bikeShareModal && renderBikeShareModal()}
         {(campusPicker || campusModal) && renderCampusModal()}
-        {scheduleModalVisible && <ClassScheduleModal visible={scheduleModalVisible} onClose={() => setScheduleModalVisible(false)} colours={colours} fonts={fonts} t={t} language={language} schedule={classSchedule} onSave={(s) => { setClassSchedule(s); if (!savedBoard.some(i => i.type === 'class_schedule')) { const next = [{ type: 'class_schedule' as const }, ...savedBoard]; setSavedBoard(next); AsyncStorage.setItem(SK_SAVED_BOARD, JSON.stringify(next)); } }} />}
 
         {/* 311 Report Modal */}
         {show311Modal && <Modal visible={show311Modal} animationType="slide" transparent onRequestClose={() => setShow311Modal(false)}>
@@ -4713,7 +4391,7 @@ function LiveScreenInner() {
                   </TouchableOpacity>
                 </View>
                 <ScrollView style={{ maxHeight: 480 }} contentContainerStyle={{ padding: 20, gap: 14 }} keyboardShouldPersistTaps="handled">
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Category', 'Cat\u00E9gorie')}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Category', 'Cat\u00E9gorie')}</Text>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                     {[
                       { key: 'Pothole', label: t('Pothole', 'Nid-de-poule') },
@@ -4723,13 +4401,13 @@ function LiveScreenInner() {
                       { key: 'Other', label: t('Other', 'Autre') },
                     ].map(cat => (
                       <TouchableOpacity key={cat.key} onPress={() => setReport311Category(cat.key)}
-                        style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, backgroundColor: report311Category === cat.key ? '#cc3b2a' + '18' : colours.surface, borderColor: report311Category === cat.key ? '#cc3b2a' : colours.border }}
+                        style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, backgroundColor: report311Category === cat.key ? '#cc3b2a' + '18' : colours.surface, borderColor: report311Category === cat.key ? '#cc3b2a' : colours.border }}
                         accessibilityRole="button" accessibilityLabel={cat.label} accessibilityState={{ selected: report311Category === cat.key }}>
                         <Text style={{ fontSize: 13, fontWeight: '700', color: report311Category === cat.key ? '#cc3b2a' : colours.muted }}>{cat.label}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Location', 'Emplacement')}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Location', 'Emplacement')}</Text>
                   <TextInput
                     value={report311Location}
                     onChangeText={setReport311Location}
@@ -4738,7 +4416,7 @@ function LiveScreenInner() {
                     style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 12, padding: 14, fontSize: fonts.md, color: colours.text, backgroundColor: colours.surface }}
                     accessibilityLabel={t('Report location', 'Emplacement du signalement')}
                   />
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Description', 'Description')}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Description', 'Description')}</Text>
                   <TextInput
                     value={report311Desc}
                     onChangeText={setReport311Desc}
@@ -4748,7 +4426,7 @@ function LiveScreenInner() {
                     style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 12, padding: 14, fontSize: fonts.md, color: colours.text, backgroundColor: colours.surface, minHeight: 80, textAlignVertical: 'top' }}
                     accessibilityLabel={t('Describe the issue', 'Decrivez le probleme')}
                   />
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Photo (optional)', 'Photo (optionnel)')}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Photo (optional)', 'Photo (optionnel)')}</Text>
                   <TouchableOpacity onPress={pick311Photo} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, borderWidth: 1, borderColor: colours.border, borderRadius: 12, backgroundColor: colours.surface, borderStyle: 'dashed' }} accessibilityRole="button" accessibilityLabel={t('Add photo', 'Ajouter une photo')}>
                     <Ionicons name={report311Photo ? 'checkmark-circle' : 'camera-outline'} size={20} color={report311Photo ? '#2d7a3a' : colours.muted} />
                     <Text style={{ fontSize: fonts.md, color: report311Photo ? '#2d7a3a' : colours.muted, fontWeight: '600' }}>
@@ -4839,8 +4517,6 @@ function LiveScreenInner() {
                     onPress={() => submitCrowdingReport(opt.level)}
                     style={{ width: '47%', backgroundColor: opt.color + '15', borderWidth: 1.5, borderColor: opt.color + '40', borderRadius: 16, paddingVertical: 20, alignItems: 'center', gap: 8 }}
                     activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel={opt.label}
                   >
                     <Ionicons name={opt.icon as any} size={28} color={opt.color} />
                     <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>{opt.label}</Text>
@@ -4848,9 +4524,9 @@ function LiveScreenInner() {
                 ))}
               </View>
               {/* Hourly crowding chart */}
-              {crowdingHourly.length > 0 && !crowdingHourly.every(e => e.count === 0) ? (
+              {crowdingHourly.length > 0 && (
                 <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
-                  <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Today by hour', 'Aujourd\'hui par heure')}</Text>
+                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Today by hour', 'Aujourd\'hui par heure')}</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 60 }}>
                     {Array.from({ length: 17 }, (_, i) => i + 6).map(hour => {
                       const entry = crowdingHourly.find(e => e.hour === hour);
@@ -4875,12 +4551,7 @@ function LiveScreenInner() {
                     ))}
                   </View>
                 </View>
-              ) : crowdingHourly.length > 0 ? (
-                <View style={{ paddingHorizontal: 20, marginBottom: 12, alignItems: 'center' }}>
-                  <Ionicons name="bar-chart-outline" size={24} color={colours.muted} />
-                  <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 6, textAlign: 'center' }}>{t('Not enough data yet', 'Pas encore assez de donnees')}</Text>
-                </View>
-              ) : null}
+              )}
               {crowdingHourlyLoading && <ActivityIndicator color={colours.accent} size="small" style={{ marginBottom: 12 }} />}
               <Text style={{ textAlign: 'center', fontSize: fonts.sm, color: colours.muted, paddingHorizontal: 20 }}>{t('Your report helps other riders plan their trip', 'Votre signalement aide les autres usagers')}</Text>
             </View>
@@ -4894,16 +4565,20 @@ function LiveScreenInner() {
             <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>{t('Thanks! Helping Ottawa riders', 'Merci! Vous aidez les usagers')}</Text>
           </View>
         )}
-        <ScrollView ref={mainScrollRef} style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true} contentContainerStyle={{ paddingBottom: 20 }} onScrollBeginDrag={() => { Keyboard.dismiss(); setSearchResults([]); }} onScroll={(e) => { setShowScrollTop(e.nativeEvent.contentOffset.y > 600); }} scrollEventThrottle={200}>
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true} contentContainerStyle={{ paddingBottom: 20 }} onScrollBeginDrag={() => { Keyboard.dismiss(); setSearchResults([]); }}>
           {/* Header */}
           <View style={styles.header}>
             <View>
               <Text style={{ fontSize: fonts.xxl, fontWeight: '800', color: colours.text, letterSpacing: -1 }}>Route<Text style={{ color: colours.accent }}>O</Text></Text>
+              <Text style={{ fontSize: fonts.sm, color: colours.muted, letterSpacing: 2, marginTop: -2 }}>OC TRANSPO · OTTAWA</Text>
             </View>
             <View style={styles.headerRight}>
               {isNight && (<View style={[styles.nightBadge, { backgroundColor: colours.accentAlt + '22', borderColor: colours.accentAlt }]}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Ionicons name="moon" size={12} color={colours.accentAlt} /><Text style={{ color: colours.accentAlt, fontSize: fonts.sm, fontWeight: '700' }}>{t('Night', 'Nuit')}</Text></View></View>)}
               {weather && (<TouchableOpacity onPress={() => setWeatherModalVisible(true)} style={[styles.nightBadge, { backgroundColor: colours.surface, borderColor: colours.border, flexDirection: 'row', alignItems: 'center', gap: 4 }]} accessibilityRole="button" accessibilityLabel={t(`Weather ${weather.temp} degrees`, `Meteo ${weather.temp} degres`)}><Ionicons name={weather.icon as any} size={13} color={iconColor(weather.icon)} /><Text style={{ color: colours.text, fontSize: fonts.sm, fontWeight: '700' }}>{weather.temp}°</Text></TouchableOpacity>)}
               <View style={[styles.liveBadge, { backgroundColor: colours.accent + '18', borderColor: colours.accent + '40' }]}><View style={[styles.liveDot, { backgroundColor: colours.accent }]} /><Text style={{ color: colours.accent, fontSize: fonts.sm, fontWeight: '700' }}>LIVE</Text></View>
+              <TouchableOpacity onPress={() => { if (editMode) { saveCustomization(sectionOrder, quickActionIds, ottawaLifeIds); } setEditMode(!editMode); }} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: editMode ? colours.accent : colours.border, backgroundColor: editMode ? colours.accent : colours.surface }} accessibilityRole="button" accessibilityLabel={editMode ? t('Done editing', 'Terminer la modification') : t('Edit layout', 'Modifier la disposition')}>
+                <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: editMode ? 'white' : colours.text }}>{editMode ? t('Done', 'Terminé') : t('Edit', 'Modifier')}</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -4931,7 +4606,7 @@ function LiveScreenInner() {
             <View style={styles.searchRow}>
               <TextInput style={[styles.searchInput, { backgroundColor: colours.surface, borderColor: colours.border, color: colours.text, fontSize: fonts.lg, ...cardShadow }]} placeholder={t('Street name or stop number...', "Nom de rue ou numéro d'arrêt...")} placeholderTextColor={colours.muted} value={searchText} onChangeText={handleSearchChange} keyboardType="default" returnKeyType="search" onSubmitEditing={handleSearch} accessibilityLabel={t('Search for a stop or street', 'Rechercher un arret ou une rue')} accessibilityRole="search" />
               <TouchableOpacity style={[styles.searchBtn, { backgroundColor: colours.accent }]} onPress={handleSearch} accessibilityRole="button" accessibilityLabel={t('Search', 'Rechercher')}>
-                <Text style={{ color: 'white', fontWeight: '800', fontSize: fonts.lg }}>{t('Go', 'Aller')}</Text>
+                <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>{t('Go', 'Aller')}</Text>
               </TouchableOpacity>
             </View>
             {(searchResults.length > 0 || addressResults.length > 0) && (
@@ -5010,7 +4685,7 @@ function LiveScreenInner() {
           {!boardLoaded ? (
             <View style={{ flexDirection: 'row', paddingHorizontal: 20, marginBottom: 16 }}>
               {[0, 1, 2].map(i => (
-                <View key={`skel-${i}`} style={{ width: 140, height: 100, borderRadius: 12, backgroundColor: colours.border, marginRight: 10, opacity: 0.5 }} />
+                <View key={`skel-${i}`} style={{ width: 140, height: 100, borderRadius: 14, backgroundColor: colours.border, marginRight: 10, opacity: 0.5 }} />
               ))}
             </View>
           ) : savedBoard.length === 0 ? (
@@ -5040,12 +4715,12 @@ function LiveScreenInner() {
                   </TouchableOpacity>
                 </View>
               </View>
-              {loading ? (<View style={{ paddingVertical: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>) : error ? (<View style={styles.centerState}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text><TouchableOpacity style={[styles.retryBtn, { backgroundColor: colours.accent }]} onPress={() => fetchArrivals(stopId)}><Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.sm }}>{t('Retry', 'Réessayer')}</Text></TouchableOpacity></View>) : arrivals.length === 0 ? (<View style={styles.centerState}><Ionicons name="time-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 8 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<>{cachedAt && !(weatherFetchFailed && arrivalsFetchFailed) && (<View style={{ backgroundColor: '#ff9500' + '15', borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 8, marginHorizontal: 0 }}><Text style={{ fontSize: fonts.sm, color: '#ff9500', fontWeight: '600' }}>{t(`Offline — last updated ${Math.round((Date.now() - cachedAt) / 60000)} min ago`, `Hors ligne — dernière mise à jour il y a ${Math.round((Date.now() - cachedAt) / 60000)} min`)}</Text></View>)}{arrivals.slice(0, 4).map(renderArrival)}{arrivals.length > 4 && (<TouchableOpacity onPress={() => setShowAllArrivals(v => !v)} style={{ paddingVertical: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: colours.border }}><Text style={{ color: colours.accent, fontWeight: '700', fontSize: fonts.sm }}>{showAllArrivals ? t('Show less ▲', 'Voir moins ▲') : t(`Show ${arrivals.length - 4} more ▼`, `Voir ${arrivals.length - 4} de plus ▼`)}</Text></TouchableOpacity>)}</>)}
+              {loading ? (<View style={{ paddingVertical: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>) : error ? (<View style={styles.centerState}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text><TouchableOpacity style={[styles.retryBtn, { backgroundColor: colours.accent }]} onPress={() => fetchArrivals(stopId)}><Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.sm }}>{t('Retry', 'Réessayer')}</Text></TouchableOpacity></View>) : arrivals.length === 0 ? (<View style={styles.centerState}><Ionicons name="time-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 8 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<>{cachedAt && (<View style={{ backgroundColor: '#ff9500' + '15', borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 8, marginHorizontal: 0 }}><Text style={{ fontSize: fonts.sm, color: '#ff9500', fontWeight: '600' }}>{t(`Offline — last updated ${Math.round((Date.now() - cachedAt) / 60000)} min ago`, `Hors ligne — dernière mise à jour il y a ${Math.round((Date.now() - cachedAt) / 60000)} min`)}</Text></View>)}{arrivals.slice(0, 4).map(renderArrival)}{arrivals.length > 4 && (<TouchableOpacity onPress={() => setShowAllArrivals(v => !v)} style={{ paddingVertical: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: colours.border }}><Text style={{ color: colours.accent, fontWeight: '700', fontSize: fonts.sm }}>{showAllArrivals ? t('Show less ▲', 'Voir moins ▲') : t(`Show ${arrivals.length - 4} more ▼`, `Voir ${arrivals.length - 4} de plus ▼`)}</Text></TouchableOpacity>)}</>)}
             </View>
             {nearbyAlternative && (
               <TouchableOpacity
                 onPress={() => loadStop(nearbyAlternative.stopId, nearbyAlternative.stopName)}
-                style={{ marginHorizontal: 20, marginBottom: 12, backgroundColor: colours.accent + '10', borderRadius: 12, borderWidth: 1, borderColor: colours.accent + '30', paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+                style={{ marginHorizontal: 20, marginBottom: 12, backgroundColor: colours.accent + '10', borderRadius: 14, borderWidth: 1, borderColor: colours.accent + '30', paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}
                 activeOpacity={0.7}
               >
                 <Ionicons name="walk" size={20} color={colours.accent} />
@@ -5067,17 +4742,8 @@ function LiveScreenInner() {
           ) : (
             <>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 8 }}>
-                <View>
-                  <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('My Board', 'Mon tableau')}</Text>
-                  {!boardHintShown && !editMode && (
-                    <Animated.Text style={{ fontSize: 10, color: colours.muted, marginTop: 2, opacity: boardHintOpacity }}>{t('Hold a card to reorder', 'Maintenez une carte pour réorganiser')}</Animated.Text>
-                  )}
-                </View>
-                {editMode && (
-                  <TouchableOpacity onPress={() => { saveCustomization(sectionOrder, quickActionIds, ottawaLifeIds); setEditMode(false); }} style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 16, backgroundColor: colours.accent }} accessibilityRole="button" accessibilityLabel={t('Done editing', 'Terminer la modification')}>
-                    <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: 'white' }}>{t('Done', 'Terminé')}</Text>
-                  </TouchableOpacity>
-                )}
+                <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('My Board', 'Mon tableau')}</Text>
+                <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Use arrows to reorder', 'Utilisez les flèches')}</Text>
               </View>
               <FlatList
                 horizontal
@@ -5092,7 +4758,6 @@ function LiveScreenInner() {
                   if (item.type === 'news') return 'news';
                   if (item.type === 'neighbourhood') return `neighbourhood-${item.id}`;
                   if (item.type === 'campus') return 'campus';
-                  if (item.type === 'class_schedule') return 'class_schedule';
                   if (item.type === 'saved_team') return `team-${item.id}`;
                   if (item.type === 'external_link') return `ext-${item.id}`;
                   return `${item.type}-${(item as any).id}-${i}`;
@@ -5113,15 +4778,7 @@ function LiveScreenInner() {
                   return (
                   <SavedBoardCard
                     item={item}
-                    drag={() => {
-                      if (!editMode) {
-                        setEditMode(true);
-                        if (!boardHintShown) {
-                          setBoardHintShown(true);
-                          Animated.timing(boardHintOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start();
-                        }
-                      }
-                    }}
+                    drag={() => {}}
                     isActive={false}
                     colours={colours}
                     fonts={fonts}
@@ -5132,7 +4789,6 @@ function LiveScreenInner() {
                     sensGame={sensGame}
                     timeFormat={timeFormat}
                     campusData={selectedCampus}
-                    scheduleData={classSchedule}
                     onMoveLeft={idx > 0 ? () => moveBoard(idx, idx - 1) : undefined}
                     onMoveRight={idx < savedBoard.length - 1 ? () => moveBoard(idx, idx + 1) : undefined}
                     onPress={() => {
@@ -5148,7 +4804,6 @@ function LiveScreenInner() {
                         setSportsInitialTab('scores');
                         setSportsModal(true);
                       }
-                      if (item.type === 'class_schedule') { setScheduleModalVisible(true); return; }
                       if (item.type === 'campus') { if (!selectedCampus) setCampusPicker(true); else setCampusModal(true); return; }
                       if (item.type === 'news') { /* scroll handled by section visibility */ }
                       if (item.type === 'neighbourhood') {
@@ -5164,55 +4819,22 @@ function LiveScreenInner() {
             </>
           )}
 
-          {!tonightDismissed && (
-            <TonightCard
-              colours={colours}
-              fonts={fonts}
-              cardShadow={cardShadow}
-              sensGame={sensGame}
-              events={events as any}
-              weather={weather}
-              sportsSchedule={sportsSchedule}
-              onPressSports={() => { setSportsInitialTab('teams'); setSportsModal(true); }}
-              onPressEvents={() => { setEventsSource('ticketmaster'); fetchTicketmasterEvents(); setEventsModal(true); }}
-              onPressDeals={() => setSocialModal(true)}
-              onDismiss={handleTonightDismiss}
-            />
-          )}
-          {showUndoToast && (
-            <View style={{ marginHorizontal: 20, marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 16, paddingVertical: 10 }}>
-              <Text style={{ fontSize: 13, color: colours.muted }}>{t('Card dismissed', 'Carte masquee')}</Text>
-              <TouchableOpacity onPress={undoTonightDismiss} accessibilityRole="button">
-                <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>{t('Undo', 'Annuler')}</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Schedule setup prompt */}
-          {selectedCampus && (!classSchedule || classSchedule.classes.length === 0) && (
-            <TouchableOpacity
-              onPress={() => setScheduleModalVisible(true)}
-              style={{ marginHorizontal: 20, marginBottom: 16, backgroundColor: selectedCampus.accent + '12', borderWidth: 1, borderColor: selectedCampus.accent + '30', borderRadius: 12, padding: 14, flexDirection: 'row', gap: 10, alignItems: 'center', ...cardShadow }}
-              activeOpacity={0.7}
-            >
-              <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: selectedCampus.accent + '20', alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="school-outline" size={18} color={selectedCampus.accent} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: selectedCampus.accent }}>
-                  {t('Add your class schedule', 'Ajoutez votre horaire de cours')}
-                </Text>
-                <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>
-                  {t('Get leave-time reminders and quick trip planning', 'Recevez des rappels de depart et planifiez vos trajets rapidement')}
-                </Text>
-              </View>
-              <Ionicons name="arrow-forward" size={16} color={selectedCampus.accent} />
-            </TouchableOpacity>
-          )}
+          <TonightCard
+            colours={colours}
+            fonts={fonts}
+            cardShadow={cardShadow}
+            sensGame={sensGame}
+            events={events as any}
+            weather={weather}
+            sportsSchedule={sportsSchedule}
+            onPressSports={() => { setSportsInitialTab('teams'); setSportsModal(true); }}
+            onPressEvents={() => { setEventsSource('ticketmaster'); fetchTicketmasterEvents(); setEventsModal(true); }}
+            onPressDeals={() => setSocialModal(true)}
+          />
 
           {/* Weather-aware transit banner */}
           {weather && !weatherBannerDismissed && (weather.temp <= -20 || (forecast.length > 0 && forecast.slice(0, 3).some(h => h.precip > 70))) && (
-            <View style={{ marginHorizontal: 20, marginBottom: 16, backgroundColor: '#004890' + '15', borderWidth: 1, borderColor: '#004890' + '40', borderRadius: 12, padding: 14, flexDirection: 'row', gap: 10, alignItems: 'flex-start', ...cardShadow }}>
+            <View style={{ marginHorizontal: 20, marginBottom: 16, backgroundColor: '#004890' + '15', borderWidth: 1, borderColor: '#004890' + '40', borderRadius: 14, padding: 14, flexDirection: 'row', gap: 10, alignItems: 'flex-start', ...cardShadow }}>
               <Ionicons name={weather.temp <= -20 ? 'snow' : 'rainy'} size={20} color="#004890" style={{ marginTop: 2 }} />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 13, fontWeight: '700', color: '#004890' }}>
@@ -5238,16 +4860,16 @@ function LiveScreenInner() {
             <TouchableOpacity
               onPress={() => router.push({ pathname: '/(tabs)/planner', params: { toLabel: commuteInsight.toLabel } } as any)}
               activeOpacity={0.85}
-              style={{ marginHorizontal: 20, marginBottom: 16, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, padding: 14, ...cardShadow }}
+              style={{ marginHorizontal: 20, marginBottom: 16, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 14, padding: 14, ...cardShadow }}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <Ionicons name="analytics" size={16} color={colours.accent} />
-                <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                   {t('Your Commute', 'Votre trajet')}
                 </Text>
               </View>
               <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>
-                {shortenLabel(commuteInsight.fromLabel)} → {shortenLabel(commuteInsight.toLabel)}
+                {commuteInsight.fromLabel} → {commuteInsight.toLabel}
               </Text>
               <Text style={{ fontSize: 12, color: colours.muted, marginTop: 4 }}>
                 {t(`Usually ${commuteInsight.avgDuration} min`, `Habituellement ${commuteInsight.avgDuration} min`)}
@@ -5267,34 +4889,6 @@ function LiveScreenInner() {
           {sectionOrder.map(renderSection)}
 
         </ScrollView>
-
-        {showScrollTop && (
-          <TouchableOpacity
-            onPress={() => mainScrollRef.current?.scrollTo({ y: 0, animated: true })}
-            style={{
-              position: 'absolute',
-              bottom: Platform.OS === 'ios' ? 100 : 80,
-              right: 20,
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              backgroundColor: colours.surface,
-              borderWidth: 1,
-              borderColor: colours.border,
-              alignItems: 'center',
-              justifyContent: 'center',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.15,
-              shadowRadius: 4,
-              elevation: 4,
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={t('Scroll to top', 'Retour en haut')}
-          >
-            <Ionicons name="chevron-up" size={20} color={colours.text} />
-          </TouchableOpacity>
-        )}
 
       </View>
     </KeyboardAvoidingView>
@@ -5318,24 +4912,24 @@ const styles = StyleSheet.create({
   liveDot: { width: 6, height: 6, borderRadius: 3 },
   searchContainer: { paddingHorizontal: 20, marginBottom: 12 },
   searchRow: { flexDirection: 'row', gap: 10 },
-  searchInput: { flex: 1, borderWidth: 1, borderRadius: 14, paddingHorizontal: 18, paddingVertical: 16, fontWeight: '500' },
-  searchBtn: { paddingHorizontal: 26, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  dropdown: { borderWidth: 1, borderRadius: 12, marginTop: 6, overflow: 'hidden' },
+  searchInput: { flex: 1, borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12, fontWeight: '500' },
+  searchBtn: { paddingHorizontal: 18, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  dropdown: { borderWidth: 1, borderRadius: 14, marginTop: 6, overflow: 'hidden' },
   dropdownItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
   arrivalsCard: { marginHorizontal: 20, borderRadius: 16, borderWidth: 1, marginBottom: 16, overflow: 'hidden' },
   boardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
   boardActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   addFavBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1 },
   arrivalRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
-  ghostRow: { opacity: 0.5 },
+  ghostRow: { opacity: 0.5 },222
   badge: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   arrivalInfo: { flex: 1 },
   arrivalRight: { alignItems: 'flex-end', gap: 6 },
   reportBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
   centerState: { alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 },
   retryBtn: { marginTop: 12, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12 },
-  sectionLabel: { fontWeight: '600', paddingHorizontal: 20, marginBottom: 8, letterSpacing: 0.5, textTransform: 'uppercase' },
-  notifBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 20, marginBottom: 16, padding: 14, borderRadius: 12, borderWidth: 1 },
+  sectionLabel: { fontWeight: '700', paddingHorizontal: 20, marginBottom: 8, letterSpacing: 1, textTransform: 'uppercase' },
+  notifBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 20, marginBottom: 16, padding: 14, borderRadius: 14, borderWidth: 1 },
   notifLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   notifDot: { width: 8, height: 8, borderRadius: 4, marginRight: 10 },
   stationRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1 },
@@ -5345,14 +4939,14 @@ const styles = StyleSheet.create({
   cardsRow: { paddingLeft: 20, paddingRight: 20, gap: 12, paddingBottom: 4 },
   discoverCardImage: { width: '100%', height: '100%', justifyContent: 'flex-end' },
   discoverCardFallback: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  categoryBadge: { position: 'absolute', top: 10, left: 10, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
+  categoryBadge: { position: 'absolute', top: 10, left: 10, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   discoverCardBottom: { padding: 10 },
   modalContainer: { flex: 1 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 20, borderBottomWidth: 1 },
   modalClose: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   modalCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
-  lrtStatusCard: { flexDirection: 'row', alignItems: 'center', margin: 16, padding: 14, borderRadius: 12, borderWidth: 1 },
-  alertCard: { marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderLeftWidth: 4 },
-  alertCatBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 },
+  lrtStatusCard: { flexDirection: 'row', alignItems: 'center', margin: 16, padding: 14, borderRadius: 14, borderWidth: 1 },
+  alertCard: { marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 14, borderWidth: 1, borderLeftWidth: 4 },
+  alertCatBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   routeBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
 });

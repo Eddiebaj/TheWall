@@ -62,9 +62,9 @@ type StopCoord = { stop_id: string; stop_name: string; stop_lat: number; stop_lo
 type NearbyTransit = { stopName: string; stopId: string; walkMin: number; routeId: string; minsAway: number };
 
 export default function ExploreScreen() {
-  const { colours, theme, language, t, fonts } = useApp();
+  const { colours, theme, resolvedTheme, language, t, fonts } = useApp();
   const router = useRouter();
-  const isLight = theme === 'light';
+  const isLight = resolvedTheme === 'light';
 
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locationError, setLocationError] = useState('');
@@ -72,6 +72,13 @@ export default function ExploreScreen() {
   const [selectedCategory, setSelectedCategory] = useState(
     CATEGORIES.find(c => c.id === category) || CATEGORIES[0]
   );
+  // Update category when deep-link param changes
+  useEffect(() => {
+    if (category) {
+      const match = CATEGORIES.find(c => c.id === category);
+      if (match) setSelectedCategory(match);
+    }
+  }, [category]);
   const [sortBy, setSortBy] = useState<SortId>('distance');
   const [maxDistance, setMaxDistance] = useState(0); // 0 = show all
   const [allPlaces, setAllPlaces] = useState<Place[]>([]);

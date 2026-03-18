@@ -42,8 +42,12 @@ class RootErrorBoundary extends React.Component<
         <View style={styles.container}>
           <View style={styles.card}>
             <Text style={styles.title}>RouteO Crashed</Text>
+            <Text style={[styles.title, { fontSize: 18, marginBottom: 12 }]}>RouteO a plant\u00e9</Text>
             <Text style={styles.subtitle}>
               Something went wrong at startup. This info can help debug the issue:
+            </Text>
+            <Text style={[styles.subtitle, { marginBottom: 16 }]}>
+              Une erreur est survenue au d\u00e9marrage. Ces informations peuvent aider au diagnostic:
             </Text>
             <ScrollView style={styles.scroll}>
               <Text style={styles.error} selectable>
