@@ -15,6 +15,10 @@ import { SK_NEWS_CACHE, SK_SAVED_ARTICLES } from '../lib/storageKeys';
 const NEWS_URL = 'https://routeo-backend.vercel.app/api/news';
 const REFRESH_MS = 15 * 60 * 1000;
 
+function decodeEntities(s: string): string {
+  return s.replace(/&#124;/g, '|').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+}
+
 export type SortMode = 'latest' | 'oldest' | 'source';
 
 type Props = {
@@ -67,7 +71,7 @@ function NewsSection({ colours, fonts, cardShadow, onArticlesLoaded, sortMode = 
   };
 
   const shareArticle = (article: NewsArticle) => {
-    Share.share({ message: `${article.title}\n${article.link}`, url: article.link });
+    Share.share({ message: `${decodeEntities(article.title)}\n${article.link}`, url: article.link });
   };
 
   const fetchNews = async (isManualRefresh = false) => {
@@ -220,7 +224,7 @@ function NewsSection({ colours, fonts, cardShadow, onArticlesLoaded, sortMode = 
                         textShadowRadius: 4,
                       }}
                     >
-                      {article.title}
+                      {decodeEntities(article.title)}
                     </Text>
                     <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 6 }}>
                       <TouchableOpacity onPress={() => toggleSave(article.id)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
@@ -257,7 +261,7 @@ function NewsSection({ colours, fonts, cardShadow, onArticlesLoaded, sortMode = 
                         lineHeight: 20,
                       }}
                     >
-                      {article.title}
+                      {decodeEntities(article.title)}
                     </Text>
                     <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 6 }}>
                       <TouchableOpacity onPress={() => toggleSave(article.id)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>

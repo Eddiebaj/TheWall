@@ -294,7 +294,11 @@ function decodePolyline(encoded: string): { latitude: number; longitude: number 
 }
 
 function legCoords(leg: Leg): { latitude: number; longitude: number }[] {
-  if ((leg as any).legGeometry?.points) return decodePolyline((leg as any).legGeometry.points);
+  if ((leg as any).legGeometry?.points) {
+    const decoded = decodePolyline((leg as any).legGeometry.points);
+    if (decoded.length > 0) return decoded;
+  }
+  if (!leg.from?.lat || !leg.to?.lat) return [];
   return [
     { latitude: leg.from.lat, longitude: leg.from.lon },
     { latitude: leg.to.lat, longitude: leg.to.lon },
@@ -1667,6 +1671,7 @@ function PlannerScreenInner() {
             >
               {(expandedItinerary.legs || []).map((leg, i) => {
                 const coords = legCoords(leg);
+                if (!coords || coords.length < 2) return null;
                 const color = LEG_COLOURS[leg.mode] || colours.accent;
                 const isActive = tracking && i === activeLeg;
                 return (
@@ -1679,7 +1684,7 @@ function PlannerScreenInner() {
                   />
                 );
               })}
-              {(expandedItinerary.legs || []).map((leg, i) => (
+              {(expandedItinerary.legs || []).filter(leg => leg.from?.lat != null).map((leg, i) => (
                 <Marker key={`m${i}`} coordinate={{ latitude: leg.from.lat, longitude: leg.from.lon }} anchor={{ x: 0.5, y: 0.5 }}>
                   <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: LEG_COLOURS[leg.mode] || colours.accent, borderWidth: 2, borderColor: 'white' }} />
                 </Marker>
