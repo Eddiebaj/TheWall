@@ -297,16 +297,20 @@ export default function AccountScreen() {
   };
 
   const startTripSharing = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert(t('Location needed', 'Localisation requise'), t('Enable location to share your trip.', 'Activez la localisation pour partager votre trajet.'));
-      return;
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(t('Location needed', 'Localisation requise'), t('Enable location to share your trip.', 'Activez la localisation pour partager votre trajet.'));
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({});
+      setLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+      setTripSharing(true);
+      AsyncStorage.setItem(SK_TRIP_SHARING, 'true');
+      Alert.alert(t('Trip sharing on', 'Partage activé'), t('Your location is being shared. Stay safe!', 'Votre position est partagée. Soyez prudent!'));
+    } catch {
+      Alert.alert(t('Location unavailable', 'Position indisponible'), t('Could not get your location. Please try again.', 'Impossible d\'obtenir votre position. Veuillez réessayer.'));
     }
-    const loc = await Location.getCurrentPositionAsync({});
-    setLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
-    setTripSharing(true);
-    AsyncStorage.setItem(SK_TRIP_SHARING, 'true');
-    Alert.alert(t('Trip sharing on', 'Partage activé'), t('Your location is being shared. Stay safe!', 'Votre position est partagée. Soyez prudent!'));
   };
 
   const stopTripSharing = () => { setTripSharing(false); setLocation(null); AsyncStorage.removeItem(SK_TRIP_SHARING); };

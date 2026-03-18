@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, ImageBackground, Linking, Platform,
   ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
@@ -81,7 +81,42 @@ type Place = {
 type StopCoord = { stop_id: string; stop_name: string; stop_lat: number; stop_lon: number };
 type NearbyTransit = { stopName: string; stopId: string; walkMin: number; routeId: string; minsAway: number };
 
-export default function ExploreScreen() {
+// ── Error Boundary ───────────────────────────────────────────────
+class NearbyErrorBoundary extends React.Component<
+  { children: React.ReactNode; colours: any; fonts: any; t: (en: string, fr: string) => string },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error: Error) { if (__DEV__) console.warn('NearbyErrorBoundary caught:', error); }
+  render() {
+    if (this.state.hasError) {
+      const { colours, fonts, t } = this.props;
+      return (
+        <View style={{ flex: 1, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+          <Ionicons name="alert-circle-outline" size={48} color={colours.muted} />
+          <Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
+            {t('Something went wrong', 'Une erreur s\'est produite')}
+          </Text>
+          <Text style={{ color: colours.muted, fontSize: fonts.sm, marginTop: 8, textAlign: 'center' }}>
+            {t('Tap below to try again', 'Appuyez ci-dessous pour r\u00e9essayer')}
+          </Text>
+          <TouchableOpacity
+            onPress={() => this.setState({ hasError: false })}
+            style={{ marginTop: 20, backgroundColor: colours.accent, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel={t('Tap to retry', 'Appuyez pour r\u00e9essayer')}
+          >
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: fonts.md }}>{t('Tap to retry', 'Appuyez pour r\u00e9essayer')}</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function ExploreScreenInner() {
   const { colours, theme, resolvedTheme, language, t, fonts } = useApp();
   const router = useRouter();
   const isLight = resolvedTheme === 'light';
@@ -267,16 +302,23 @@ export default function ExploreScreen() {
   };
 
   const getLocation = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLocationError(t(
+          'Location permission denied — enable it in Settings to use Explore.',
+          'Permission de localisation refusée — activez-la dans les paramètres.'
+        ));
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+    } catch {
       setLocationError(t(
-        'Location permission denied — enable it in Settings to use Explore.',
-        'Permission de localisation refusée — activez-la dans les paramètres.'
+        'Could not get your location. Please try again.',
+        'Impossible d\'obtenir votre position. Veuillez réessayer.'
       ));
-      return;
     }
-    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-    setLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
   };
 
   const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => {
@@ -693,5 +735,14 @@ export default function ExploreScreen() {
         {renderContent()}
       </View>
     </View>
+  );
+}
+
+export default function ExploreScreen() {
+  const { colours, fonts, t } = useApp();
+  return (
+    <NearbyErrorBoundary colours={colours} fonts={fonts} t={t}>
+      <ExploreScreenInner />
+    </NearbyErrorBoundary>
   );
 }

@@ -790,6 +790,7 @@ function PlannerScreenInner() {
         });
       }
     } catch (e) {
+      timeOverride.current = null;
       setError(t('Could not connect to trip planner. Check your connection.', 'Connexion au planificateur impossible. V\u00e9rifiez votre connexion.'));
     }
     setLoading(false);

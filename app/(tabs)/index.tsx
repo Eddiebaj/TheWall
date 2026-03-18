@@ -941,16 +941,21 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
 
   const handleVote = async (id: string, type: 'confirm' | 'dispute') => {
     if (votedIds.has(id)) return;
-    setVotedIds(prev => {
-      const updated = new Set(prev).add(id);
-      AsyncStorage.setItem(SK_GAS_VOTED_IDS, JSON.stringify([...updated])).catch(() => {});
-      return updated;
-    });
     const col = type === 'confirm' ? 'confirmed_count' : 'disputed_count';
     const report = reports.find(r => r.id === id);
     if (!report) return;
-    supabase.from('gas_prices').update({ [col]: (report[col] || 0) + 1 }).eq('id', id).then(() => {}, () => {});
+    // Optimistically update UI
+    setVotedIds(prev => new Set(prev).add(id));
     setReports(prev => prev.map(r => r.id === id ? { ...r, [col]: (r[col] || 0) + 1 } : r));
+    const { error } = await supabase.from('gas_prices').update({ [col]: (report[col] || 0) + 1 }).eq('id', id);
+    if (error) {
+      // Rollback on failure
+      setVotedIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+      setReports(prev => prev.map(r => r.id === id ? { ...r, [col]: report[col] || 0 } : r));
+      Alert.alert(t('Error', 'Erreur'), t('Failed to save — please try again.', 'Échec de la sauvegarde — veuillez réessayer.'));
+      return;
+    }
+    AsyncStorage.setItem(SK_GAS_VOTED_IDS, JSON.stringify([...votedIds, id])).catch(() => {});
   };
 
   const FUEL_TYPES: { key: 'regular' | 'premium' | 'diesel'; label: string }[] = [
@@ -1327,14 +1332,15 @@ function LiveScreenInner() {
   const router = useRouter();
   const { width: screenWidth } = useWindowDimensions();
   const CARD_W = screenWidth - 40;
-  const [stopId, setStopId] = useState('CD995');
-  const [stopName, setStopName] = useState('Rideau');
+  const [stopId, setStopId] = useState('');
+  const [stopName, setStopName] = useState('');
   const [arrivals, setArrivals] = useState<Arrival[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [cachedAt, setCachedAt] = useState<number | null>(null);
   const [weatherFetchFailed, setWeatherFetchFailed] = useState(false);
   const [arrivalsFetchFailed, setArrivalsFetchFailed] = useState(false);
+  const [hasNoSavedStops, setHasNoSavedStops] = useState(false);
   const [stopReports, setStopReports] = useState<Record<string, { count: number; reports: any[] }>>({});
   const [showReportSheet, setShowReportSheet] = useState(false);
   const [reportSheetStopId, setReportSheetStopId] = useState('');
@@ -1478,7 +1484,7 @@ function LiveScreenInner() {
 
   // ── Fetch Senators live game for board card ──
   useEffect(() => {
-    const fetchSensGame = async () => {
+    const fetchSensGame = async (): Promise<boolean> => {
       try {
         const resp = await fetchWithTimeout('https://api-web.nhle.com/v1/schedule/now');
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -1486,7 +1492,7 @@ function LiveScreenInner() {
         const today = new Date().toLocaleDateString('en-CA');
         const todayEntry = (data.gameWeek || []).find((d: any) => d.date === today);
         const game = (todayEntry?.games || []).find((g: any) => g.awayTeam?.abbrev === 'OTT' || g.homeTeam?.abbrev === 'OTT');
-        if (!game) { setSensGame({ state: 'none' }); return; }
+        if (!game) { setSensGame({ state: 'none' }); return false; }
         const gs = game.gameState;
         const homeAbbr = game.homeTeam?.abbrev || '?';
         const awayAbbr = game.awayTeam?.abbrev || '?';
@@ -1503,11 +1509,17 @@ function LiveScreenInner() {
           const startTime = new Date(game.startTimeUTC).toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' });
           setSensGame({ state: 'pre', opponentAbbr, startTime });
         }
-      } catch { setSensGame({ state: 'none' }); }
+        return true;
+      } catch { setSensGame({ state: 'none' }); return false; }
     };
-    fetchSensGame();
-    const interval = setInterval(() => { if (AppState.currentState === 'active') fetchSensGame(); }, 60000);
-    return () => clearInterval(interval);
+    let interval: ReturnType<typeof setInterval> | null = null;
+    fetchSensGame().then((hasGame) => {
+      // Only start polling if there's a Senators game today
+      if (hasGame) {
+        interval = setInterval(() => { if (AppState.currentState === 'active') fetchSensGame(); }, 60000);
+      }
+    });
+    return () => { if (interval) clearInterval(interval); };
   }, []);
 
   useEffect(() => {
@@ -1515,9 +1527,9 @@ function LiveScreenInner() {
       try {
         const savedFavs: Fav[] = val ? JSON.parse(val) : [];
         setFavs(savedFavs);
-        if (savedFavs.length > 0) { setStopId(savedFavs[0].id); setStopName(savedFavs[0].name); fetchArrivals(savedFavs[0].id); fetchStopReports(savedFavs[0].id); fetchStopAmenities(savedFavs[0].id); }
-        else { fetchArrivals('CD995'); fetchStopReports('CD995'); fetchStopAmenities('CD995'); }
-      } catch { fetchArrivals('CD995'); fetchStopReports('CD995'); }
+        if (savedFavs.length > 0) { setStopId(savedFavs[0].id); setStopName(savedFavs[0].name); setLoading(true); fetchArrivals(savedFavs[0].id); fetchStopReports(savedFavs[0].id); fetchStopAmenities(savedFavs[0].id); }
+        else { setHasNoSavedStops(true); }
+      } catch { setHasNoSavedStops(true); }
     });
     AsyncStorage.getItem(SK_SAVED_PLACES).then(val => { try { if (val) setSavedPlaces(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved places failed:', e); } });
     AsyncStorage.getItem(SK_SAVED_TEAMS).then(val => { try { if (val) setSavedTeams(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved teams failed:', e); } });
@@ -2122,6 +2134,7 @@ function LiveScreenInner() {
   };
 
   const fetchArrivals = useCallback(async (id: string) => {
+    if (!id) return;
     try {
       setError('');
       const isNumericOnly = /^\d+$/.test(id);
@@ -2210,7 +2223,7 @@ function LiveScreenInner() {
       if (!nearbyStops || nearbyStops.length === 0) return;
       for (const ns of nearbyStops) {
         try {
-          const resp = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/arrivals?stop=${ns.stop_id}`, { signal: AbortSignal.timeout(4000) } as any);
+          const resp = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/arrivals?stop=${ns.stop_id}`, { timeout: 4000 });
           if (!resp.ok) continue;
           const data = await resp.json();
           const firstArrival = (data.arrivals || [])[0];
@@ -2404,6 +2417,7 @@ function LiveScreenInner() {
   }, [frequentRoutes]);
 
   useEffect(() => {
+    if (!stopId) return;
     const interval = setInterval(() => {
       if (AppState.currentState === 'active') {
         fetchArrivals(stopId);
@@ -2900,10 +2914,13 @@ function LiveScreenInner() {
                         if (!socialDealVenue.trim() || !socialDealDesc.trim()) return;
                         setSocialDealSending(true);
                         try {
-                          await supabase.from('community_deals').insert({ venue_name: socialDealVenue.trim(), deal_description: socialDealDesc.trim(), approved: false });
+                          const { error } = await supabase.from('community_deals').insert({ venue_name: socialDealVenue.trim(), deal_description: socialDealDesc.trim(), approved: false });
+                          if (error) throw error;
                           setSocialDealSent(true);
                           setSocialDealForm(false);
-                        } catch (e) { if (__DEV__) console.warn('submit deal failed:', e); }
+                        } catch {
+                          Alert.alert(t('Error', 'Erreur'), t('Failed to save — please try again.', 'Échec de la sauvegarde — veuillez réessayer.'));
+                        }
                         setSocialDealSending(false);
                       }}
                       style={{ flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: socialDealVenue.trim() && socialDealDesc.trim() ? '#7b5ea7' : colours.border, alignItems: 'center' }}
@@ -2955,9 +2972,12 @@ function LiveScreenInner() {
                         if (!socialFeedbackText.trim()) return;
                         setSocialFeedbackSending(true);
                         try {
-                          await supabase.from('social_feedback').insert({ venue_name: socialFeedbackVenue, suggestion: socialFeedbackText.trim() });
+                          const { error } = await supabase.from('social_feedback').insert({ venue_name: socialFeedbackVenue, suggestion: socialFeedbackText.trim() });
+                          if (error) throw error;
                           setSocialFeedbackSent(true);
-                        } catch (e) { if (__DEV__) console.warn('submit social feedback failed:', e); }
+                        } catch {
+                          Alert.alert(t('Error', 'Erreur'), t('Failed to save — please try again.', 'Échec de la sauvegarde — veuillez réessayer.'));
+                        }
                         setSocialFeedbackSending(false);
                       }}
                       style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: socialFeedbackText.trim() ? '#7b5ea7' : colours.border, alignItems: 'center' }}
@@ -3959,6 +3979,14 @@ function LiveScreenInner() {
               <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
                 {loading ? (
                   <View style={{ padding: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>
+                ) : error ? (
+                  <View style={{ alignItems: 'center', padding: 40 }}>
+                    <Ionicons name="wifi-outline" size={36} color={colours.muted} />
+                    <Text style={{ color: colours.muted, marginTop: 8, textAlign: 'center' }}>{t('Couldn\'t load arrivals', 'Impossible de charger les arrivées')}</Text>
+                    <TouchableOpacity onPress={() => fetchArrivals((boardExpandItem as any).id)} style={{ marginTop: 12, backgroundColor: colours.accent, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 }}>
+                      <Text style={{ color: '#fff', fontWeight: '700', fontSize: fonts.sm }}>{t('Tap to retry', 'Appuyez pour réessayer')}</Text>
+                    </TouchableOpacity>
+                  </View>
                 ) : arrivals.length === 0 ? (
                   <View style={{ alignItems: 'center', padding: 40 }}>
                     <Ionicons name="time-outline" size={36} color={colours.muted} />
@@ -4819,33 +4847,50 @@ function LiveScreenInner() {
             </View>
           ) : savedBoard.length === 0 ? (
             <>
-            <View style={[styles.arrivalsCard, { borderColor: colours.border, backgroundColor: colours.surface, ...cardShadow }]}>
-              <View style={[styles.boardHeader, { borderBottomColor: colours.border, borderBottomWidth: 1 }]}>
-                <TouchableOpacity onPress={() => setExpandedStopId(stopId)} style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>{toTitleCase(stopName)}</Text>
-                    <Ionicons name="chevron-forward" size={14} color={colours.accent} />
-                  </View>
-                  {lastUpdated ? <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Updated', 'Mis à jour')} {lastUpdated} · {t('Tap to expand', 'Appuyez pour élargir')}</Text> : null}
-                  {stopAmenities && (
-                    <View style={{ flexDirection: 'row', gap: 4, marginTop: 4 }}>
-                      {stopAmenities.has_shelter && <View style={{ backgroundColor: '#00A78D' + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, flexDirection: 'row', alignItems: 'center', gap: 3 }}><Ionicons name="umbrella" size={10} color="#00A78D" /><Text style={{ fontSize: 9, fontWeight: '700', color: '#00A78D' }}>{t('Shelter', 'Abribus')}</Text></View>}
-                      {stopAmenities.has_bench && <View style={{ backgroundColor: '#00A78D' + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, flexDirection: 'row', alignItems: 'center', gap: 3 }}><Ionicons name="bed" size={10} color="#00A78D" /><Text style={{ fontSize: 9, fontWeight: '700', color: '#00A78D' }}>{t('Bench', 'Banc')}</Text></View>}
-                      {stopAmenities.has_bin && <View style={{ backgroundColor: '#00A78D' + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, flexDirection: 'row', alignItems: 'center', gap: 3 }}><Ionicons name="trash" size={10} color="#00A78D" /><Text style={{ fontSize: 9, fontWeight: '700', color: '#00A78D' }}>{t('Bin', 'Poubelle')}</Text></View>}
-                    </View>
-                  )}
-                </TouchableOpacity>
-                <View style={styles.boardActions}>
-                  <TouchableOpacity style={[styles.addFavBtn, { borderColor: isFav ? colours.accent : colours.border, backgroundColor: isFav ? colours.accent + '15' : colours.surface }]} onPress={() => isFav ? removeFav(stopId) : addFav(stopId, stopName)}>
-                    <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: isFav ? colours.accent : colours.muted }}>{isFav ? t('✓ Saved', '✓ Sauvegardé') : t('+ Save', '+ Sauvegarder')}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => fetchArrivals(stopId)}>
-                    <Text style={{ fontSize: fonts.sm, color: colours.accent, fontWeight: '600' }}>{t('Refresh ↺', 'Actualiser ↺')}</Text>
-                  </TouchableOpacity>
+            {hasNoSavedStops && !stopId ? (
+              <View style={[styles.arrivalsCard, { borderColor: colours.border, backgroundColor: colours.surface, ...cardShadow }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+                  <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>{t('My Board', 'Mon tableau')}</Text>
+                </View>
+                <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 }}>
+                  <Ionicons name="bus-outline" size={40} color={colours.muted} />
+                  <Text style={{ color: colours.text, fontSize: fonts.md, fontWeight: '700', marginTop: 12, textAlign: 'center' }}>
+                    {t('Add a stop to see live arrivals', 'Ajoutez un arret pour voir les arrivées en direct')}
+                  </Text>
+                  <Text style={{ color: colours.muted, fontSize: fonts.sm, marginTop: 4, textAlign: 'center' }}>
+                    {t('Search by stop number or street name above', 'Recherchez par numéro d\'arret ou nom de rue ci-dessus')}
+                  </Text>
                 </View>
               </View>
-              {loading ? (<View style={{ paddingVertical: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>) : error ? (<View style={styles.centerState}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text><TouchableOpacity style={[styles.retryBtn, { backgroundColor: colours.accent }]} onPress={() => fetchArrivals(stopId)}><Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.sm }}>{t('Retry', 'Réessayer')}</Text></TouchableOpacity></View>) : arrivals.length === 0 ? (<View style={styles.centerState}><Ionicons name="time-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 8 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<>{cachedAt && (<View style={{ backgroundColor: '#ff9500' + '15', borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 8, marginHorizontal: 0 }}><Text style={{ fontSize: fonts.sm, color: '#ff9500', fontWeight: '600' }}>{t(`Offline — last updated ${Math.round((Date.now() - cachedAt) / 60000)} min ago`, `Hors ligne — dernière mise à jour il y a ${Math.round((Date.now() - cachedAt) / 60000)} min`)}</Text></View>)}{arrivals.slice(0, 4).map(renderArrival)}{arrivals.length > 4 && (<TouchableOpacity onPress={() => setShowAllArrivals(v => !v)} style={{ paddingVertical: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: colours.border }}><Text style={{ color: colours.accent, fontWeight: '700', fontSize: fonts.sm }}>{showAllArrivals ? t('Show less ▲', 'Voir moins ▲') : t(`Show ${arrivals.length - 4} more ▼`, `Voir ${arrivals.length - 4} de plus ▼`)}</Text></TouchableOpacity>)}</>)}
-            </View>
+            ) : stopId ? (
+              <View style={[styles.arrivalsCard, { borderColor: colours.border, backgroundColor: colours.surface, ...cardShadow }]}>
+                <View style={[styles.boardHeader, { borderBottomColor: colours.border, borderBottomWidth: 1 }]}>
+                  <TouchableOpacity onPress={() => setExpandedStopId(stopId)} style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>{toTitleCase(stopName)}</Text>
+                      <Ionicons name="chevron-forward" size={14} color={colours.accent} />
+                    </View>
+                    {lastUpdated ? <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Updated', 'Mis à jour')} {lastUpdated} · {t('Tap to expand', 'Appuyez pour élargir')}</Text> : null}
+                    {stopAmenities && (
+                      <View style={{ flexDirection: 'row', gap: 4, marginTop: 4 }}>
+                        {stopAmenities.has_shelter && <View style={{ backgroundColor: '#00A78D' + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, flexDirection: 'row', alignItems: 'center', gap: 3 }}><Ionicons name="umbrella" size={10} color="#00A78D" /><Text style={{ fontSize: 9, fontWeight: '700', color: '#00A78D' }}>{t('Shelter', 'Abribus')}</Text></View>}
+                        {stopAmenities.has_bench && <View style={{ backgroundColor: '#00A78D' + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, flexDirection: 'row', alignItems: 'center', gap: 3 }}><Ionicons name="bed" size={10} color="#00A78D" /><Text style={{ fontSize: 9, fontWeight: '700', color: '#00A78D' }}>{t('Bench', 'Banc')}</Text></View>}
+                        {stopAmenities.has_bin && <View style={{ backgroundColor: '#00A78D' + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, flexDirection: 'row', alignItems: 'center', gap: 3 }}><Ionicons name="trash" size={10} color="#00A78D" /><Text style={{ fontSize: 9, fontWeight: '700', color: '#00A78D' }}>{t('Bin', 'Poubelle')}</Text></View>}
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                  <View style={styles.boardActions}>
+                    <TouchableOpacity style={[styles.addFavBtn, { borderColor: isFav ? colours.accent : colours.border, backgroundColor: isFav ? colours.accent + '15' : colours.surface }]} onPress={() => isFav ? removeFav(stopId) : addFav(stopId, stopName)}>
+                      <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: isFav ? colours.accent : colours.muted }}>{isFav ? t('✓ Saved', '✓ Sauvegardé') : t('+ Save', '+ Sauvegarder')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => fetchArrivals(stopId)}>
+                      <Text style={{ fontSize: fonts.sm, color: colours.accent, fontWeight: '600' }}>{t('Refresh ↺', 'Actualiser ↺')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                {loading ? (<View style={{ paddingVertical: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>) : error ? (<View style={styles.centerState}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text><TouchableOpacity style={[styles.retryBtn, { backgroundColor: colours.accent }]} onPress={() => fetchArrivals(stopId)}><Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.sm }}>{t('Retry', 'Réessayer')}</Text></TouchableOpacity></View>) : arrivals.length === 0 ? (<View style={styles.centerState}><Ionicons name="time-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 8 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<>{cachedAt && (<View style={{ backgroundColor: '#ff9500' + '15', borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 8, marginHorizontal: 0 }}><Text style={{ fontSize: fonts.sm, color: '#ff9500', fontWeight: '600' }}>{t(`Offline — last updated ${Math.round((Date.now() - cachedAt) / 60000)} min ago`, `Hors ligne — dernière mise à jour il y a ${Math.round((Date.now() - cachedAt) / 60000)} min`)}</Text></View>)}{arrivals.slice(0, 4).map(renderArrival)}{arrivals.length > 4 && (<TouchableOpacity onPress={() => setShowAllArrivals(v => !v)} style={{ paddingVertical: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: colours.border }}><Text style={{ color: colours.accent, fontWeight: '700', fontSize: fonts.sm }}>{showAllArrivals ? t('Show less ▲', 'Voir moins ▲') : t(`Show ${arrivals.length - 4} more ▼`, `Voir ${arrivals.length - 4} de plus ▼`)}</Text></TouchableOpacity>)}</>)}
+              </View>
+            ) : null}
             {nearbyAlternative && (
               <TouchableOpacity
                 onPress={() => loadStop(nearbyAlternative.stopId, nearbyAlternative.stopName)}

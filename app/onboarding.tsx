@@ -92,7 +92,7 @@ export default function OnboardingScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [activeSchool, setActiveSchool] = useState<CampusId | null>(null);
-
+  const [finishing, setFinishing] = useState(false);
 
   const goToSlide = (index: number) => {
     scrollRef.current?.scrollTo({ x: index * width, animated: true });
@@ -105,10 +105,15 @@ export default function OnboardingScreen() {
   };
 
   const finish = async () => {
+    if (finishing) return;
+    setFinishing(true);
     try {
       await AsyncStorage.setItem(SK_ONBOARDED, 'true');
-    } catch (e) { if (__DEV__) console.warn('AsyncStorage error:', e); }
-    router.replace('/(tabs)');
+      router.replace('/(tabs)');
+    } catch (e) {
+      if (__DEV__) console.warn('AsyncStorage error:', e);
+      setFinishing(false);
+    }
   };
 
   const saveCampus = async (campus: CampusId | null) => {
@@ -347,15 +352,17 @@ export default function OnboardingScreen() {
                 borderRadius: 16, paddingVertical: 16,
                 alignItems: 'center', flexDirection: 'row',
                 justifyContent: 'center', gap: 8,
+                opacity: finishing ? 0.6 : 1,
               }}
               onPress={() => isLast ? finish() : goToSlide(currentIndex + 1)}
+              disabled={finishing}
               activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel={isLast ? t('Get Started', 'Commencer') : t('Next slide', 'Diapositive suivante')}
             >
               <Text style={{ color: 'white', fontWeight: '800', fontSize: 17 }}>
                 {isLast
-                  ? t('Get Started', 'Commencer')
+                  ? (finishing ? t('Saving...', 'Sauvegarde...') : t('Get Started', 'Commencer'))
                   : t('Next', 'Suivant')}
               </Text>
               {!isLast && <Ionicons name="arrow-forward" size={18} color="white" />}
