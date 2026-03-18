@@ -268,14 +268,25 @@ const AM_PM = ['AM', 'PM'];
 // Strip ", Canada" and redundant province from place labels, truncate to street-level
 function shortenLabel(label: string): string {
   let s = label
-    .replace(/, Canada$/, '')
-    .replace(/, ON,/, ',')
-    .replace(/, QC,/, ',')
+    .replace(/, Canada$/i, '')
+    .replace(/, ON$/i, '')
+    .replace(/, QC$/i, '')
+    .replace(/, Ottawa, ON/i, '')
+    .replace(/, Gatineau, QC/i, '')
+    .replace(/, Ottawa$/i, '')
+    .replace(/, Gatineau$/i, '')
+    .replace(/, ON,/i, ',')
+    .replace(/, QC,/i, ',')
     .trim();
-  // If still long (full address), keep only first two comma-separated parts (name + street or street + city)
-  const parts = s.split(',').map(p => p.trim());
-  if (parts.length > 2) s = parts.slice(0, 2).join(', ');
-  return s;
+  // Deduplicate adjacent identical segments (e.g. "Bank St, Bank St" → "Bank St")
+  const parts = s.split(',').map(p => p.trim()).filter(Boolean);
+  const deduped: string[] = [];
+  for (const p of parts) {
+    if (deduped.length === 0 || deduped[deduped.length - 1].toLowerCase() !== p.toLowerCase()) deduped.push(p);
+  }
+  // Keep only first two parts to stay concise
+  if (deduped.length > 2) return deduped.slice(0, 2).join(', ');
+  return deduped.join(', ');
 }
 
 function decodePolyline(encoded: string): { latitude: number; longitude: number }[] {
@@ -529,13 +540,13 @@ function PlannerScreenInner() {
           lat: parseFloat(params.fromLat as string),
           lng: parseFloat(params.fromLng as string),
         };
-        setFromPlace(from); setFromText(from.label);
-        setToPlace(to); setToText(to.label);
+        setFromPlace(from); setFromText(shortenLabel(from.label));
+        setToPlace(to); setToText(shortenLabel(to.label));
         // Auto-trigger plan after state settles
         setTimeout(() => planWithPlaces(from, to), 200);
       } else {
         // No origin — get current location then auto-plan
-        setToPlace(to); setToText(to.label);
+        setToPlace(to); setToText(shortenLabel(to.label));
         (async () => {
           try {
             const { status } = await Location.requestForegroundPermissionsAsync();
@@ -548,7 +559,7 @@ function PlannerScreenInner() {
             const geo = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
             const label = geo[0] ? [geo[0].name, geo[0].street, geo[0].city].filter(Boolean).join(', ') : 'My Location';
             const from: PlaceResult = { placeId: 'current', label, lat, lng };
-            setFromPlace(from); setFromText(label);
+            setFromPlace(from); setFromText(shortenLabel(label));
             // Auto-trigger plan — longer delay for arriveBy state to settle
             setTimeout(() => planWithPlaces(from, to), 200);
           } catch (e) { if (__DEV__) console.warn('get current location failed:', e); }
@@ -574,7 +585,7 @@ function PlannerScreenInner() {
               if (result) {
                 const from: PlaceResult = { placeId: result.placeId || 'deeplink', label: result.label || fromStr, lat: result.lat, lng: result.lng };
                 setFromPlace(from);
-                setFromText(from.label);
+                setFromText(shortenLabel(from.label));
               }
             }
           }
@@ -588,7 +599,7 @@ function PlannerScreenInner() {
               if (result) {
                 const to: PlaceResult = { placeId: result.placeId || 'deeplink', label: result.label || toStr, lat: result.lat, lng: result.lng };
                 setToPlace(to);
-                setToText(to.label);
+                setToText(shortenLabel(to.label));
               }
             }
           }
@@ -641,8 +652,9 @@ function PlannerScreenInner() {
       const geo = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
       const label = geo[0] ? [geo[0].name, geo[0].street, geo[0].city].filter(Boolean).join(', ') : 'My Location';
       const place: PlaceResult = { placeId: 'current', label, lat, lng };
-      if (field === 'from') { setFromPlace(place); setFromText(label); setFromResults([]); }
-      else { setToPlace(place); setToText(label); setToResults([]); }
+      const short = shortenLabel(label);
+      if (field === 'from') { setFromPlace(place); setFromText(short); setFromResults([]); }
+      else { setToPlace(place); setToText(short); setToResults([]); }
     } catch { Alert.alert(t('Error', 'Erreur'), t('Could not get location.', 'Impossible d\'obtenir la position.')); }
   };
 
@@ -816,7 +828,7 @@ function PlannerScreenInner() {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const d = await r.json();
         const result = d.results?.[0];
-        if (result?.lat) { resolvedFrom = { placeId: 'geo', label: result.label, lat: result.lat, lng: result.lng }; setFromPlace(resolvedFrom); setFromText(result.label); }
+        if (result?.lat) { resolvedFrom = { placeId: 'geo', label: result.label, lat: result.lat, lng: result.lng }; setFromPlace(resolvedFrom); setFromText(shortenLabel(result.label)); }
       } catch (e) { if (__DEV__) console.warn('geocode from-address failed:', e); }
     }
     if (toText && !toPlace?.lat) {
@@ -825,7 +837,7 @@ function PlannerScreenInner() {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const d = await r.json();
         const result = d.results?.[0];
-        if (result?.lat) { resolvedTo = { placeId: 'geo', label: result.label, lat: result.lat, lng: result.lng }; setToPlace(resolvedTo); setToText(result.label); }
+        if (result?.lat) { resolvedTo = { placeId: 'geo', label: result.label, lat: result.lat, lng: result.lng }; setToPlace(resolvedTo); setToText(shortenLabel(result.label)); }
       } catch (e) { if (__DEV__) console.warn('geocode to-address failed:', e); }
     }
 
@@ -2016,7 +2028,7 @@ function PlannerScreenInner() {
                 key={r.placeId}
                 onPress={async () => {
                   const resolved = await resolvePlace(r);
-                  setFromPlace(resolved); setFromText(resolved.label); setFromResults([]);
+                  setFromPlace(resolved); setFromText(shortenLabel(resolved.label)); setFromResults([]);
                   Keyboard.dismiss();
                 }}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: i < fromResults.length - 1 ? 1 : 0, borderBottomColor: colours.border }}
@@ -2039,7 +2051,7 @@ function PlannerScreenInner() {
                 key={r.placeId}
                 onPress={async () => {
                   const resolved = await resolvePlace(r);
-                  setToPlace(resolved); setToText(resolved.label); setToResults([]);
+                  setToPlace(resolved); setToText(shortenLabel(resolved.label)); setToResults([]);
                   Keyboard.dismiss();
                 }}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: i < toResults.length - 1 ? 1 : 0, borderBottomColor: colours.border }}
@@ -2061,7 +2073,7 @@ function PlannerScreenInner() {
                   key={r.placeId}
                   onPress={async () => {
                     const resolved = await resolvePlace(r);
-                    setWaypoints(prev => prev.map((w, wi) => wi === idx ? { text: resolved.label, place: resolved } : w));
+                    setWaypoints(prev => prev.map((w, wi) => wi === idx ? { text: shortenLabel(resolved.label), place: resolved } : w));
                     setWaypointResults(prev => { const next = { ...prev }; delete next[idx]; return next; });
                     Keyboard.dismiss();
                   }}

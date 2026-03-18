@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { toTitleCase } from '../../lib/utils';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -533,6 +533,11 @@ export default function MapScreen() {
   const [selectedRouteShape, setSelectedRouteShape] = useState<{latitude: number; longitude: number}[]>([]);
   const [busEtaInfo, setBusEtaInfo] = useState<{ mins: number; stopName: string } | null>(null);
 
+  // Tapped location ("Route here" feature)
+  const [tappedLocation, setTappedLocation] = useState<{ lat: number; lng: number; address: string } | null>(null);
+  const tappedAnim = useRef(new Animated.Value(0)).current;
+  const router = useRouter();
+
   // Community contribute modal
   const [contributeVisible, setContributeVisible] = useState(false);
   const [contribName, setContribName] = useState('');
@@ -570,6 +575,8 @@ export default function MapScreen() {
   }, []);
 
   const openSheet = useCallback((bus?: Bus, event?: MapEvent, clusterEvs?: MapEvent[], venue?: VenuePin) => {
+    // Dismiss tapped location card if open
+    if (tappedLocation) { setTappedLocation(null); tappedAnim.setValue(0); }
     setSelectedBus(bus || null); setSelectedEvent(event || null); setSelectedCluster(clusterEvs || null); setSelectedVenue(venue || null);
     if (!bus && !event && !clusterEvs && !venue) {
       // saved pin — selectedSavedPin is already set
@@ -593,6 +600,62 @@ export default function MapScreen() {
   };
 
   const sheetTranslate = sheetAnim.interpolate({ inputRange: [0, 1], outputRange: [300, 0] });
+  const tappedTranslate = tappedAnim.interpolate({ inputRange: [0, 1], outputRange: [200, 0] });
+
+  const handleMapTap = useCallback(async (e: any) => {
+    // If a sheet is open, dismiss it instead
+    if (selectedBus || selectedEvent || selectedCluster || selectedVenue || selectedSavedPin || searchedPlace) {
+      hideSheet();
+      return;
+    }
+    const coord = e.nativeEvent?.coordinate;
+    if (!coord) return;
+    const { latitude, longitude } = coord;
+    if (!validCoord(latitude, longitude)) return;
+    // Show card immediately with "Loading address..."
+    setTappedLocation({ lat: latitude, lng: longitude, address: '' });
+    Animated.spring(tappedAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
+    // Reverse geocode
+    try {
+      const results = await Location.reverseGeocodeAsync({ latitude, longitude });
+      if (results?.[0]) {
+        const r = results[0];
+        const parts = [r.streetNumber, r.street, r.city].filter(Boolean);
+        setTappedLocation(prev => prev ? { ...prev, address: parts.join(' ') || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}` } : null);
+      } else {
+        setTappedLocation(prev => prev ? { ...prev, address: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}` } : null);
+      }
+    } catch {
+      setTappedLocation(prev => prev ? { ...prev, address: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}` } : null);
+    }
+  }, [selectedBus, selectedEvent, selectedCluster, selectedVenue, selectedSavedPin, searchedPlace, hideSheet, tappedAnim]);
+
+  const dismissTapped = useCallback(() => {
+    Animated.spring(tappedAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start(() => {
+      setTappedLocation(null);
+    });
+  }, [tappedAnim]);
+
+  const routeToTapped = useCallback(() => {
+    if (!tappedLocation) return;
+    const label = tappedLocation.address || `${tappedLocation.lat.toFixed(5)}, ${tappedLocation.lng.toFixed(5)}`;
+    dismissTapped();
+    router.push({ pathname: '/(tabs)/planner', params: { toLabel: label, toLat: String(tappedLocation.lat), toLng: String(tappedLocation.lng) } } as any);
+  }, [tappedLocation, dismissTapped, router]);
+
+  const dropPinAtTapped = useCallback(async () => {
+    if (!tappedLocation) return;
+    const label = tappedLocation.address || `${tappedLocation.lat.toFixed(5)}, ${tappedLocation.lng.toFixed(5)}`;
+    const newPin: SavedPin = { id: `pin_${Date.now()}`, name: label, lat: tappedLocation.lat, lng: tappedLocation.lng, kind: 'place' };
+    setSavedPins(prev => [...prev, newPin]);
+    try {
+      const raw = await AsyncStorage.getItem(SK_SAVED_PLACES);
+      const existing = raw ? JSON.parse(raw) : [];
+      existing.push({ id: newPin.id, name: label, lat: tappedLocation.lat, lng: tappedLocation.lng, categoryId: 'pin', categoryLabel_en: 'Dropped Pin', categoryLabel_fr: 'Epingle' });
+      await AsyncStorage.setItem(SK_SAVED_PLACES, JSON.stringify(existing));
+    } catch {}
+    dismissTapped();
+  }, [tappedLocation, dismissTapped]);
 
   // Calculate ETA from bus to user's nearest stop on that route
   useEffect(() => {
@@ -1040,7 +1103,8 @@ export default function MapScreen() {
         showsUserLocation
         showsCompass={false}
         onMapReady={() => setMapReady(true)}
-        onPress={() => hasSheet && hideSheet()}
+        onPress={handleMapTap}
+        onPanDrag={() => { if (tappedLocation) dismissTapped(); }}
         onRegionChangeComplete={(r) => setRegion(r)}
       >
         {/* ALL markers deferred until native map is ready to prevent AIRMap crash */}
@@ -1143,6 +1207,21 @@ export default function MapScreen() {
               Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
             }}
           />
+        )}
+
+        {/* Tapped location marker */}
+        {tappedLocation && Marker && (
+          <Marker
+            coordinate={{ latitude: tappedLocation.lat, longitude: tappedLocation.lng }}
+            anchor={{ x: 0.5, y: 1 }}
+          >
+            <View style={{ alignItems: 'center' }}>
+              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 4 }}>
+                <Ionicons name="location" size={16} color="#fff" />
+              </View>
+              <View style={{ width: 2, height: 6, backgroundColor: colours.accent, marginTop: -1 }} />
+            </View>
+          </Marker>
         )}
 
         {/* Route shape polyline for selected bus */}
@@ -1271,7 +1350,7 @@ export default function MapScreen() {
       </View>
 
       {/* Floating action buttons */}
-      <View style={{ position: 'absolute', bottom: hasSheet ? 300 : Platform.OS === 'ios' ? 24 : 16, right: 16, gap: 10, alignItems: 'center' }}>
+      <View style={{ position: 'absolute', bottom: hasSheet ? 300 : tappedLocation ? 160 : Platform.OS === 'ios' ? 24 : 16, right: 16, gap: 10, alignItems: 'center' }}>
         <TouchableOpacity
           style={{
             width: 44, height: 44, borderRadius: 22,
@@ -1410,6 +1489,54 @@ export default function MapScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Tapped location "Route here" card */}
+      {tappedLocation && (
+        <Animated.View style={{
+          position: 'absolute', bottom: Platform.OS === 'ios' ? 34 : 16, left: 16, right: 16,
+          transform: [{ translateY: tappedTranslate }],
+          backgroundColor: colours.surface,
+          borderRadius: 20, borderWidth: 1, borderColor: colours.border,
+          padding: 16,
+          shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12,
+          shadowOffset: { width: 0, height: -3 }, elevation: 10,
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+            <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="location" size={20} color={colours.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }} numberOfLines={2}>
+                {tappedLocation.address || t('Loading address...', 'Chargement de l\'adresse...')}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={dismissTapped} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel={t('Dismiss', 'Fermer')}>
+              <Ionicons name="close" size={20} color={colours.muted} />
+            </TouchableOpacity>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+            <TouchableOpacity
+              onPress={dropPinAtTapped}
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface }}
+              accessibilityRole="button"
+              accessibilityLabel={t('Drop pin', 'Epingler')}
+            >
+              <Ionicons name="pin" size={16} color={colours.text} />
+              <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.text }}>{t('Drop pin', 'Epingler')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={routeToTapped}
+              style={{ flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 12, backgroundColor: colours.accent }}
+              accessibilityRole="button"
+              accessibilityLabel={t('Route here', 'M\'y rendre')}
+            >
+              <Ionicons name="navigate" size={16} color="#fff" />
+              <Text style={{ fontSize: fonts.sm, fontWeight: '800', color: '#fff' }}>{t('Route here', 'M\'y rendre')}</Text>
+              <Ionicons name="arrow-forward" size={14} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      )}
 
       {/* Bottom sheet */}
       {hasSheet && (
