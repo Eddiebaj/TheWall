@@ -82,6 +82,8 @@ type MapEvent = {
   lat?: number; lng?: number;
 };
 
+type DiscoveryResult = { id: string; name: string; address: string; lat: number; lng: number; rating?: number };
+
 const ROUTE_COLOURS: { [key: string]: string } = {
   '1': '#00A78D', '2': '#7b5ea7', '4': '#004890', '7': '#cc3b2a',
   '8': '#e8a020', '14': '#004890', '16': '#00A78D', '18': '#cc3b2a',
@@ -405,6 +407,17 @@ const VENUE_PINS: VenuePin[] = [
 
 const VENUE_COLORS = { food: '#E67E22', happy_hour: '#8E44AD', clubs: '#E91E63', fitness: '#2ECC71' };
 
+const DISCOVER_PLACE_TYPES: Record<string, string> = {
+  food: 'restaurant', coffee: 'cafe', bars: 'bar', gyms: 'gym', grocery: 'supermarket',
+};
+const DISC_CAT_META: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string }> = {
+  food: { icon: 'restaurant', color: '#E67E22' },
+  coffee: { icon: 'cafe', color: '#795548' },
+  bars: { icon: 'beer', color: '#8E44AD' },
+  gyms: { icon: 'barbell', color: '#2ECC71' },
+  grocery: { icon: 'cart', color: '#3498db' },
+};
+
 const venueTypeColor = (tp: string): string =>
   tp === 'fitness' ? VENUE_COLORS.fitness : tp === 'club' ? VENUE_COLORS.clubs : tp === 'restaurant' ? VENUE_COLORS.food : VENUE_COLORS.happy_hour;
 
@@ -546,6 +559,11 @@ export default function MapScreen() {
   const [contribAddress, setContribAddress] = useState('');
   const [contribSending, setContribSending] = useState(false);
   const [contribSent, setContribSent] = useState(false);
+
+  // Discovery mode — Google Places nearby search
+  const [discoveryCategory, setDiscoveryCategory] = useState<string | null>(null);
+  const [discoveryResults, setDiscoveryResults] = useState<DiscoveryResult[]>([]);
+  const [discoveryLoading, setDiscoveryLoading] = useState(false);
 
   const sheetAnim = useRef(new Animated.Value(0)).current;
 
@@ -969,16 +987,17 @@ export default function MapScreen() {
 
   const visibleBuses = useMemo(() => filteredBuses.slice(0, visibleBusCount), [filteredBuses, visibleBusCount]);
 
-  const showVenueFilters = hasAll || filters.has('food') || filters.has('happy_hour') || filters.has('clubs') || filters.has('fitness');
+  const showVenueFilters = hasAll || filters.has('food') || filters.has('bars') || filters.has('coffee') || filters.has('gyms') || filters.has('happy_hour') || filters.has('clubs') || filters.has('fitness');
   const searchLower = searchText.toLowerCase();
   const filteredVenues = useMemo(() => showVenueFilters ? VENUE_PINS.filter(v => {
     if (!venueHasActiveOrUpcomingToday(v)) return false;
     if (searchText && !v.name.toLowerCase().includes(searchLower)) return false;
     if (hasAll) return true;
-    if (filters.has('food') && v.type.includes('restaurant')) return true;
-    if (filters.has('happy_hour') && v.type.includes('bar')) return true;
+    if ((filters.has('food')) && v.type.includes('restaurant')) return true;
+    if ((filters.has('bars') || filters.has('happy_hour')) && (v.type.includes('bar') || v.type.includes('club'))) return true;
+    if ((filters.has('coffee')) && (v.type.includes('cafe') || v.type.includes('coffee'))) return true;
+    if ((filters.has('gyms') || filters.has('fitness')) && v.type.includes('fitness')) return true;
     if (filters.has('clubs') && v.type.includes('club')) return true;
-    if (filters.has('fitness') && v.type.includes('fitness')) return true;
     return false;
   }) : [], [showVenueFilters, searchLower, hasAll, filters]);
 
@@ -1069,6 +1088,44 @@ export default function MapScreen() {
     setSearchedPlace(null);
     hideSheet();
   }, []);
+
+  const searchDiscovery = useCallback(async (placeType: string) => {
+    setDiscoveryLoading(true);
+    setDiscoveryResults([]);
+    try {
+      const lat = region.latitude;
+      const lng = region.longitude;
+      // Calculate visible radius from region span, capped at 50km
+      const radius = Math.min(Math.round((region.latitudeDelta / 2) * 111000), 50000);
+      const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=nearby&location=${lat},${lng}&radius=${radius}&type=${placeType}`);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const data = await r.json();
+      if (data.results) {
+        setDiscoveryResults(data.results.slice(0, 20).map((p: any) => ({
+          id: p.place_id, name: p.name, address: p.vicinity || '',
+          lat: p.geometry?.location?.lat, lng: p.geometry?.location?.lng,
+          rating: p.rating,
+        })).filter((p: any) => validCoord(p.lat, p.lng)));
+      }
+    } catch (e) { if (__DEV__) console.warn('Discovery search failed:', e); }
+    setDiscoveryLoading(false);
+  }, [region.latitude, region.longitude, region.latitudeDelta]);
+
+  const clearDiscovery = useCallback(() => {
+    setDiscoveryCategory(null);
+    setDiscoveryResults([]);
+  }, []);
+
+  // Re-fetch discovery results when region changes while a category is active
+  const discoveryDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!discoveryCategory || !DISCOVER_PLACE_TYPES[discoveryCategory]) return;
+    if (discoveryDebounceRef.current) clearTimeout(discoveryDebounceRef.current);
+    discoveryDebounceRef.current = setTimeout(() => {
+      searchDiscovery(DISCOVER_PLACE_TYPES[discoveryCategory]);
+    }, 500);
+    return () => { if (discoveryDebounceRef.current) clearTimeout(discoveryDebounceRef.current); };
+  }, [region.latitude, region.longitude, region.latitudeDelta]);
 
   const hasSheet = selectedBus || selectedEvent || selectedCluster || selectedVenue || selectedSavedPin || searchedPlace;
 
@@ -1209,6 +1266,29 @@ export default function MapScreen() {
           />
         )}
 
+        {/* Discovery result markers */}
+        {discoveryResults.map(dr => {
+          const meta = DISC_CAT_META[discoveryCategory || ''] || { icon: 'location' as const, color: '#E67E22' };
+          return (
+            <PlaceMarker
+              key={`disc_${dr.id}`}
+              coordinate={{ latitude: dr.lat, longitude: dr.lng }}
+              icon={meta.icon}
+              color={meta.color}
+              title={dr.name}
+              description={dr.address}
+              onPress={() => {
+                mapRef.current?.animateToRegion({ latitude: dr.lat, longitude: dr.lng, latitudeDelta: 0.005, longitudeDelta: 0.005 }, 400);
+                setSearchedPlace({ placeId: dr.id, name: dr.name, address: dr.address, lat: dr.lat, lng: dr.lng });
+                setSearchText(dr.name);
+                clearDiscovery();
+                setSelectedBus(null); setSelectedEvent(null); setSelectedCluster(null); setSelectedVenue(null); setSelectedSavedPin(null); setSelectedRouteShape([]);
+                Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
+              }}
+            />
+          );
+        })}
+
         {/* Tapped location marker */}
         {tappedLocation && Marker && (
           <Marker
@@ -1301,56 +1381,69 @@ export default function MapScreen() {
           )}
         </View>
 
-        {/* Filter chips */}
-        <View style={{ flexDirection: 'row', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+        {/* Category pills */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} contentContainerStyle={{ gap: 6, paddingRight: 8 }}>
           {([
             { key: 'all', label_en: 'All', label_fr: 'Tous', icon: 'apps-outline' as const, color: colours.accent },
-            { key: 'bus', label_en: 'Bus', label_fr: 'Bus', icon: 'bus-outline' as const, color: colours.accent },
-            { key: 'food', label_en: 'Food', label_fr: 'Restos', icon: 'restaurant-outline' as const, color: VENUE_COLORS.food },
-            { key: 'happy_hour', label_en: 'Happy Hour', label_fr: 'Happy Hour', icon: 'beer-outline' as const, color: VENUE_COLORS.happy_hour },
-            { key: 'clubs', label_en: 'Clubs', label_fr: 'Clubs', icon: 'musical-notes-outline' as const, color: VENUE_COLORS.clubs },
-            { key: 'fitness', label_en: 'Fitness', label_fr: 'Fitness', icon: 'barbell-outline' as const, color: VENUE_COLORS.fitness },
+            { key: 'bus', label_en: 'Bus', label_fr: 'Bus', icon: 'bus-outline' as const, color: '#CE1126' },
+            { key: 'food', label_en: 'Food', label_fr: 'Restos', icon: 'restaurant-outline' as const, color: '#E67E22' },
+            { key: 'coffee', label_en: 'Coffee', label_fr: 'Cafe', icon: 'cafe-outline' as const, color: '#795548' },
+            { key: 'bars', label_en: 'Bars', label_fr: 'Bars', icon: 'beer-outline' as const, color: '#8E44AD' },
+            { key: 'gyms', label_en: 'Gyms', label_fr: 'Gyms', icon: 'barbell-outline' as const, color: '#2ECC71' },
+            { key: 'grocery', label_en: 'Grocery', label_fr: 'Epicerie', icon: 'cart-outline' as const, color: '#3498db' },
+            { key: 'events', label_en: 'Events', label_fr: 'Evenements', icon: 'ticket-outline' as const, color: '#026CDF' },
             { key: 'saved', label_en: 'Saved', label_fr: 'Favoris', icon: 'heart' as const, color: '#e74c3c' },
           ] as const).map(f => {
-            const active = filters.has(f.key);
+            const isDiscovery = f.key in DISCOVER_PLACE_TYPES;
+            const active = isDiscovery ? discoveryCategory === f.key
+              : f.key === 'events' ? showEvents
+              : filters.has(f.key);
             const bg = active ? f.color : colours.surface;
             const border = active ? f.color : colours.border;
             return (
               <TouchableOpacity key={f.key}
                 style={{ borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: bg, borderWidth: 1, borderColor: border, flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                onPress={() => toggleFilter(f.key)}
+                onPress={() => {
+                  if (isDiscovery) {
+                    if (discoveryCategory === f.key) {
+                      clearDiscovery();
+                    } else {
+                      setDiscoveryCategory(f.key);
+                      searchDiscovery(DISCOVER_PLACE_TYPES[f.key]);
+                    }
+                    // Also toggle the filter so venue pins show
+                    if (!filters.has(f.key)) {
+                      setFilters(prev => { const next = new Set(prev); next.delete('all'); next.add(f.key); return next; });
+                    }
+                  } else if (f.key === 'events') {
+                    setShowEvents((v: boolean) => !v);
+                  } else {
+                    if (discoveryCategory) clearDiscovery();
+                    toggleFilter(f.key);
+                  }
+                }}
                 accessibilityRole="button"
                 accessibilityLabel={t(`Filter by ${f.label_en}`, `Filtrer par ${f.label_fr}`)}
                 accessibilityState={{ selected: active }}>
-                <Ionicons name={f.icon} size={12} color={active ? 'white' : colours.muted} />
+                {f.key === 'events' && eventsLoading
+                  ? <ActivityIndicator size="small" color="white" />
+                  : <Ionicons name={f.icon} size={12} color={active ? 'white' : colours.muted} />}
                 <Text style={{ fontSize: 11, fontWeight: '700', color: active ? 'white' : colours.muted }}>
                   {t(f.label_en, f.label_fr)}
                 </Text>
+                {f.key === 'events' && !eventsLoading && showEvents && todayEvents.length > 0 && (
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: 'white' }}>({todayEvents.length})</Text>
+                )}
               </TouchableOpacity>
             );
           })}
-
-          {/* Events toggle */}
-          <TouchableOpacity
-            style={{ borderRadius: 10, paddingHorizontal: 14, paddingVertical: 7, flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: showEvents ? '#026CDF' : colours.surface, borderWidth: 1, borderColor: showEvents ? '#026CDF' : colours.border }}
-            onPress={() => setShowEvents((v: boolean) => !v)}
-            accessibilityRole="button"
-            accessibilityLabel={t('Toggle today\'s events', 'Afficher les evenements du jour')}
-            accessibilityState={{ selected: showEvents }}>
-            {eventsLoading
-              ? <ActivityIndicator size="small" color="white" />
-              : <Ionicons name="ticket-outline" size={13} color={showEvents ? 'white' : colours.muted} />}
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: showEvents ? 'white' : colours.muted }}>
-              {t('Today', 'Aujourd\'hui')} {!eventsLoading && todayEvents.length > 0 ? `(${todayEvents.length})` : ''}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        </ScrollView>
 
         {error ? <Text style={{ fontSize: 11, color: 'red', marginTop: 6 }}>{error}</Text> : null}
       </View>
 
       {/* Floating action buttons */}
-      <View style={{ position: 'absolute', bottom: hasSheet ? 300 : tappedLocation ? 160 : Platform.OS === 'ios' ? 24 : 16, right: 16, gap: 10, alignItems: 'center' }}>
+      <View style={{ position: 'absolute', bottom: hasSheet ? 300 : (discoveryCategory && discoveryResults.length > 0) ? 320 : tappedLocation ? 160 : Platform.OS === 'ios' ? 24 : 16, right: 16, gap: 10, alignItems: 'center' }}>
         <TouchableOpacity
           style={{
             width: 44, height: 44, borderRadius: 22,
@@ -1536,6 +1629,76 @@ export default function MapScreen() {
             </TouchableOpacity>
           </View>
         </Animated.View>
+      )}
+
+      {/* Discovery results sheet */}
+      {discoveryCategory && discoveryResults.length > 0 && !hasSheet && (
+        <View style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          backgroundColor: colours.surface,
+          borderTopLeftRadius: 24, borderTopRightRadius: 24,
+          borderWidth: 1, borderColor: colours.border,
+          maxHeight: '40%',
+          paddingBottom: 34,
+          shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12,
+          shadowOffset: { width: 0, height: -3 }, elevation: 10,
+        }}>
+          <View style={{ alignItems: 'center', paddingTop: 12, paddingBottom: 4 }}>
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border }} />
+          </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 8 }}>
+            <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>
+              {discoveryResults.length} {t('Results', 'Resultats')}
+            </Text>
+            <TouchableOpacity onPress={clearDiscovery} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Clear results', 'Effacer les resultats')}>
+              <Ionicons name="close-circle" size={22} color={colours.muted} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} style={{ paddingHorizontal: 20 }}>
+            {discoveryResults.map(dr => {
+              const meta = DISC_CAT_META[discoveryCategory || ''] || { icon: 'location' as const, color: '#E67E22' };
+              return (
+                <TouchableOpacity
+                  key={dr.id}
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colours.border, gap: 12 }}
+                  onPress={() => {
+                    mapRef.current?.animateToRegion({ latitude: dr.lat, longitude: dr.lng, latitudeDelta: 0.005, longitudeDelta: 0.005 }, 400);
+                    setSearchedPlace({ placeId: dr.id, name: dr.name, address: dr.address, lat: dr.lat, lng: dr.lng });
+                    setSearchText(dr.name);
+                    clearDiscovery();
+                    setSelectedBus(null); setSelectedEvent(null); setSelectedCluster(null); setSelectedVenue(null); setSelectedSavedPin(null); setSelectedRouteShape([]);
+                    Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
+                  }}
+                >
+                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: meta.color + '18', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name={meta.icon} size={18} color={meta.color} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }} numberOfLines={1}>{dr.name}</Text>
+                    <Text style={{ fontSize: 12, color: colours.muted }} numberOfLines={1}>{dr.address}</Text>
+                  </View>
+                  {dr.rating != null && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                      <Ionicons name="star" size={12} color="#f5a623" />
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: colours.text }}>{dr.rating}</Text>
+                    </View>
+                  )}
+                  <Ionicons name="chevron-forward" size={14} color={colours.muted} />
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Discovery loading indicator */}
+      {discoveryLoading && !hasSheet && (
+        <View style={{ position: 'absolute', bottom: 60, left: 0, right: 0, alignItems: 'center' }}>
+          <View style={{ backgroundColor: colours.surface, borderRadius: 20, paddingHorizontal: 20, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: colours.border, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 }}>
+            <ActivityIndicator color={colours.accent} size="small" />
+            <Text style={{ fontSize: 13, color: colours.text, fontWeight: '600' }}>{t('Searching nearby...', 'Recherche a proximite...')}</Text>
+          </View>
+        </View>
       )}
 
       {/* Bottom sheet */}
