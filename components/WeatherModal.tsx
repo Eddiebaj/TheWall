@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
+import React, { useRef } from 'react';
 import {
-  Modal, ScrollView, Text, TouchableOpacity, View,
+  Animated, Modal, PanResponder, ScrollView, Text, TouchableOpacity, View,
 } from 'react-native';
 
 const iconColor = (icon: string) => {
@@ -24,12 +24,35 @@ type WeatherModalProps = {
 };
 
 export default function WeatherModal({ visible, onClose, colours, fonts, t, weather, forecast, dailyForecast, locationName, onRetry }: WeatherModalProps) {
+  const translateY = useRef(new Animated.Value(0)).current;
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, g) => g.dy > 5,
+      onPanResponderMove: (_, g) => {
+        if (g.dy > 0) translateY.setValue(g.dy);
+      },
+      onPanResponderRelease: (_, g) => {
+        if (g.dy > 50) {
+          Animated.timing(translateY, { toValue: 500, duration: 200, useNativeDriver: true }).start(() => {
+            onClose();
+            translateY.setValue(0);
+          });
+        } else {
+          Animated.spring(translateY, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start();
+        }
+      },
+    })
+  ).current;
+
   if (!weather && forecast.length === 0 && dailyForecast.length === 0) {
     return (
       <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
         <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
-          <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40, alignItems: 'center', paddingTop: 20 }}>
-            <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 8 }} />
+          <Animated.View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40, alignItems: 'center', paddingTop: 20, transform: [{ translateY }] }}>
+            <View {...panResponder.panHandlers} style={{ alignSelf: 'center', width: '100%', alignItems: 'center', paddingVertical: 8 }}>
+              <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border }} />
+            </View>
             <Ionicons name="cloud-offline-outline" size={40} color={colours.muted} style={{ marginTop: 20 }} />
             <Text style={{ fontSize: fonts.md, color: colours.muted, marginTop: 12, textAlign: 'center', paddingHorizontal: 20 }}>
               {t('Weather data unavailable', 'Donnees meteo indisponibles')}
@@ -47,7 +70,7 @@ export default function WeatherModal({ visible, onClose, colours, fonts, t, weat
             <TouchableOpacity onPress={onClose} style={{ marginTop: 20, marginHorizontal: 20, paddingVertical: 14, paddingHorizontal: 40, borderRadius: 12, backgroundColor: colours.accent, alignItems: 'center' }} accessibilityRole="button" accessibilityLabel={t('Close weather', 'Fermer la meteo')}>
               <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>{t('Done', 'Fermer')}</Text>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
     );
@@ -56,8 +79,10 @@ export default function WeatherModal({ visible, onClose, colours, fonts, t, weat
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
-        <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40 }}>
-          <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 8 }} />
+        <Animated.View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40, transform: [{ translateY }] }}>
+          <View {...panResponder.panHandlers} style={{ alignSelf: 'center', width: '100%', alignItems: 'center', paddingVertical: 8 }}>
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border }} />
+          </View>
           <View style={{ alignItems: 'center', paddingVertical: 20 }}>
             <Ionicons name={(weather?.icon ?? 'cloudy') as any} size={56} color={iconColor(weather?.icon ?? 'cloudy')} />
             <Text style={{ fontSize: 64, fontWeight: '200', color: colours.text, marginTop: 8 }}>{weather?.temp}°</Text>
@@ -84,7 +109,7 @@ export default function WeatherModal({ visible, onClose, colours, fonts, t, weat
           <TouchableOpacity onPress={onClose} style={{ marginHorizontal: 20, marginTop: 16, paddingVertical: 14, borderRadius: 12, backgroundColor: colours.accent, alignItems: 'center' }} accessibilityRole="button" accessibilityLabel={t('Close weather', 'Fermer la meteo')}>
             <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>{t('Done', 'Fermer')}</Text>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );

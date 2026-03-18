@@ -5,11 +5,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import {
-    Alert, Linking, Modal, Platform, ScrollView,
+    ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView,
     StatusBar, Switch, Text, TextInput,
     TouchableOpacity, View
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
+import { supabase } from '../../lib/supabase';
 import { registerPushToken, syncSubscriptions } from '../../lib/pushNotifications';
 import { SK_FAVS, SK_SAVED_PLACES, SK_SAVED_BOARD, SK_NOTIF_SETTINGS, SK_TRIP_SHARING, SK_TRIP_HISTORY, SK_PRESTO_BALANCE, SK_PRESTO_RESET_DATE, SK_BATTERY_SAVER, SK_CLASS_SCHEDULE, SK_CAMPUS } from '../../lib/storageKeys';
 import { CAMPUSES, CampusConfig } from '../../lib/campusData';
@@ -114,6 +115,13 @@ export default function AccountScreen() {
   const [acctSchedule, setAcctSchedule] = useState<ClassSchedule | null>(null);
   const [acctCampus, setAcctCampus] = useState<CampusConfig | null>(null);
   const [acctScheduleModal, setAcctScheduleModal] = useState(false);
+
+  // Bug report modal
+  const [bugModalVisible, setBugModalVisible] = useState(false);
+  const [bugMessage, setBugMessage] = useState('');
+  const [bugScreen, setBugScreen] = useState('');
+  const [bugSending, setBugSending] = useState(false);
+  const [bugSent, setBugSent] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem(SK_CAMPUS).then(val => { if (val) { const c = CAMPUSES.find(x => x.id === val); if (c) setAcctCampus(c); } }).catch(() => {});
@@ -249,7 +257,16 @@ export default function AccountScreen() {
       'lrtDisruption', 'routeCancellation', 'significantDelay',
       'serviceResumed', 'arrivalAlerts', 'tripDisruption',
     ];
-    const subs = pushTypes.map(key => ({ type: key, enabled: updated[key] }));
+    // Include saved stop IDs in arrivalAlerts metadata so server can check arrivals
+    const stopIds = savedBoard
+      .filter((i: any) => i.type === 'bus_stop' || i.type === 'lrt_station')
+      .map((i: any) => i.id)
+      .slice(0, 10); // Limit to 10 stops
+    const subs = pushTypes.map(key => ({
+      type: key,
+      enabled: updated[key],
+      ...(key === 'arrivalAlerts' ? { metadata: { stop_ids: stopIds } } : {}),
+    }));
     registerPushToken(language).then(() => syncSubscriptions(subs)).catch(() => {});
   };
 
@@ -426,7 +443,7 @@ export default function AccountScreen() {
           </View>
           <View>
             <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text }}>{t('Ottawa Rider', 'Usager Ottawa')}</Text>
-            <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Sign in coming in Phase 6', 'Connexion disponible en Phase 6')}</Text>
+            <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Coming soon', 'Bientôt disponible')}</Text>
           </View>
         </View>
 
@@ -454,7 +471,7 @@ export default function AccountScreen() {
               {commuteStats.topRoute && (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 10, borderTopWidth: 1, borderTopColor: colours.border }}>
                   <Ionicons name="navigate" size={14} color={colours.accent} />
-                  <Text style={{ fontSize: fonts.sm, color: colours.muted, flex: 1 }} numberOfLines={1}>{t('Top route', 'Trajet principal')}: <Text style={{ fontWeight: '700', color: colours.text }}>{commuteStats.topRoute}</Text></Text>
+                  <Text style={{ fontSize: fonts.sm, color: colours.muted, flex: 1 }} numberOfLines={1}>{t('Top route', 'Trajet principal')}: <Text style={{ fontWeight: '700', color: colours.text }}>{(() => { const parts = commuteStats.topRoute.split(',').map(s => s.trim()).filter(s => !/^(Ottawa|ON|Canada)$/i.test(s)); const deduped = parts.filter((s, i) => parts.indexOf(s) === i).join(', '); return deduped.length > 35 ? deduped.substring(0, 35).trim() + '...' : deduped; })()}</Text></Text>
                 </View>
               )}
             </View>
@@ -736,7 +753,7 @@ export default function AccountScreen() {
                   </Text>
                   <Text style={{ fontSize: 11, color: colours.muted }}>
                     {acctSchedule && acctSchedule.classes.length > 0
-                      ? t(`${acctSchedule.classes.length} classes · ${acctSchedule.commuteMins}min commute`, `${acctSchedule.classes.length} cours · ${acctSchedule.commuteMins}min trajet`)
+                      ? t(`${acctSchedule.classes.length} ${acctSchedule.classes.length === 1 ? 'class' : 'classes'} · ${acctSchedule.commuteMins}min commute`, `${acctSchedule.classes.length} cours · ${acctSchedule.commuteMins}min trajet`)
                       : t('Tap to set up your schedule', 'Appuyez pour configurer votre horaire')}
                   </Text>
                 </View>
@@ -1010,16 +1027,11 @@ export default function AccountScreen() {
         {/* Bug Report */}
         <Card>
           <TouchableOpacity
-            onPress={() => {
-              const deviceInfo = `${Platform.OS} ${Platform.Version}`;
-              const subject = encodeURIComponent('RouteO Bug Report');
-              const body = encodeURIComponent(`\n\n---\nDevice: ${deviceInfo}\nApp: RouteO\nDate: ${new Date().toLocaleDateString('en-CA')}\n`);
-              Linking.openURL(`mailto:support@routeo.ca?subject=${subject}&body=${body}`).catch(() => Alert.alert(t('Could not open email', 'Impossible d\'ouvrir le courriel')));
-            }}
+            onPress={() => { setBugModalVisible(true); setBugSent(false); setBugMessage(''); setBugScreen(''); }}
             style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel={t('Report a bug', 'Signaler un bug')}
+            accessibilityLabel={t('Report a bug', 'Signaler un bogue')}
           >
             <View style={{
               width: 36, height: 36, borderRadius: 8,
@@ -1029,7 +1041,7 @@ export default function AccountScreen() {
               <Ionicons name="bug-outline" size={18} color="#cc3b2a" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{t('Report a Bug', 'Signaler un bug')}</Text>
+              <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{t('Report a Bug', 'Signaler un bogue')}</Text>
               <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Send us feedback or report an issue', 'Envoyez-nous vos commentaires ou signalez un problème')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={colours.muted} />
@@ -1131,6 +1143,109 @@ export default function AccountScreen() {
         </View>
       </Modal>}
       {acctScheduleModal && <ClassScheduleModal visible={acctScheduleModal} onClose={() => setAcctScheduleModal(false)} colours={colours} fonts={fonts} t={t} language={language} schedule={acctSchedule} onSave={(s) => setAcctSchedule(s)} />}
+
+      {/* Bug Report Modal */}
+      <Modal visible={bugModalVisible} animationType="slide" transparent onRequestClose={() => setBugModalVisible(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+          <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40 }}>
+            <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 16 }} />
+            {bugSent ? (
+              <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 }}>
+                <Ionicons name="checkmark-circle" size={48} color="#00A78D" />
+                <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text, marginTop: 12 }}>{t('Thanks for your report!', 'Merci pour votre rapport!')}</Text>
+                <Text style={{ fontSize: 14, color: colours.muted, textAlign: 'center', marginTop: 6, lineHeight: 20 }}>
+                  {t('We\'ll look into it. You can also follow up by email.', 'Nous allons examiner le probleme. Vous pouvez aussi nous contacter par courriel.')}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setBugModalVisible(false)}
+                  style={{ marginTop: 20, backgroundColor: colours.accent, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 40 }}
+                  accessibilityRole="button">
+                  <Text style={{ color: 'white', fontWeight: '700', fontSize: 16 }}>{t('Done', 'Fermer')}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={{ paddingHorizontal: 20 }}>
+                <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text, marginBottom: 4 }}>{t('Report a Bug', 'Signaler un bogue')}</Text>
+                <Text style={{ fontSize: 13, color: colours.muted, marginBottom: 16 }}>{t('Help us improve RouteO for everyone', 'Aidez-nous a ameliorer RouteO pour tous')}</Text>
+
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('What happened?', 'Que s\'est-il passe?')} *</Text>
+                <TextInput
+                  style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colours.text, minHeight: 80, textAlignVertical: 'top', marginBottom: 12 }}
+                  placeholder={t('Describe the issue...', 'Decrivez le probleme...')}
+                  placeholderTextColor={colours.muted}
+                  value={bugMessage}
+                  onChangeText={setBugMessage}
+                  multiline
+                />
+
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Which screen?', 'Quel ecran?')}</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                  {['Home', 'Map', 'Planner', 'Alerts', 'Nearby', 'Saved', 'Other'].map(s => (
+                    <TouchableOpacity
+                      key={s}
+                      onPress={() => setBugScreen(bugScreen === s ? '' : s)}
+                      style={{
+                        paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1,
+                        borderColor: bugScreen === s ? '#cc3b2a' : colours.border,
+                        backgroundColor: bugScreen === s ? '#cc3b2a' + '18' : colours.surface,
+                      }}>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: bugScreen === s ? '#cc3b2a' : colours.text }}>
+                        {t(s, s === 'Home' ? 'Accueil' : s === 'Map' ? 'Carte' : s === 'Planner' ? 'Planificateur' : s === 'Alerts' ? 'Alertes' : s === 'Nearby' ? 'Proximite' : s === 'Saved' ? 'Favoris' : 'Autre')}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
+                  <TouchableOpacity
+                    onPress={() => setBugModalVisible(false)}
+                    style={{ flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: colours.muted }}>{t('Cancel', 'Annuler')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={async () => {
+                      if (!bugMessage.trim()) return;
+                      setBugSending(true);
+                      try {
+                        let deviceId: string | null = null;
+                        try { deviceId = await AsyncStorage.getItem('routeo_device_id'); } catch {}
+                        const appVersion = `RouteO ${Platform.OS} ${Platform.Version}`;
+                        await supabase.from('bug_reports').insert({
+                          message: bugMessage.trim(),
+                          screen: bugScreen || null,
+                          device_id: deviceId,
+                          app_version: appVersion,
+                        });
+                        setBugSent(true);
+                        // Also open mailto as fallback
+                        const subject = encodeURIComponent('RouteO Bug Report');
+                        const body = encodeURIComponent(`${bugMessage.trim()}\n\n---\nScreen: ${bugScreen || 'N/A'}\nDevice: ${Platform.OS} ${Platform.Version}\nDate: ${new Date().toLocaleDateString('en-CA')}\n`);
+                        Linking.openURL(`mailto:support@routeo.ca?subject=${subject}&body=${body}`).catch(() => {});
+                      } catch (e) {
+                        if (__DEV__) console.warn('bug report failed:', e);
+                        // Fallback to email only
+                        const subject = encodeURIComponent('RouteO Bug Report');
+                        const body = encodeURIComponent(`${bugMessage.trim()}\n\n---\nScreen: ${bugScreen || 'N/A'}\nDevice: ${Platform.OS} ${Platform.Version}\nDate: ${new Date().toLocaleDateString('en-CA')}\n`);
+                        Linking.openURL(`mailto:support@routeo.ca?subject=${subject}&body=${body}`).catch(() => Alert.alert(t('Could not send report', 'Impossible d\'envoyer le rapport')));
+                        setBugSent(true);
+                      }
+                      setBugSending(false);
+                    }}
+                    style={{
+                      flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center',
+                      backgroundColor: bugMessage.trim() ? '#cc3b2a' : colours.border,
+                    }}>
+                    {bugSending
+                      ? <ActivityIndicator color="white" size="small" />
+                      : <Text style={{ fontSize: 15, fontWeight: '700', color: bugMessage.trim() ? 'white' : colours.muted }}>{t('Submit', 'Soumettre')}</Text>
+                    }
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }

@@ -106,3 +106,21 @@ CREATE POLICY "Read scores" ON neighbourhood_scores
 -- For now, allow all to enable initial seeding
 CREATE POLICY "Backend can upsert scores" ON neighbourhood_scores
   FOR ALL USING (true) WITH CHECK (true);
+
+-- ── 6. Bug reports ────────────────────────────────────────────────
+CREATE TABLE bug_reports (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  message TEXT NOT NULL,
+  screen TEXT,
+  device_id TEXT,
+  app_version TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE bug_reports ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can submit bug reports" ON bug_reports
+  FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Anyone can read bug reports" ON bug_reports
+  FOR SELECT USING (true);

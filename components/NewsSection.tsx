@@ -199,12 +199,8 @@ function NewsSection({ colours, fonts, cardShadow, onArticlesLoaded, sortMode = 
                 resizeMode="cover"
               >
                 {!hasImage && (
-                  <View style={{ flex: 1, backgroundColor: sourceColour + '10', alignItems: 'center', justifyContent: 'center' }}>
-                    {SOURCE_LOGOS[article.source] ? (
-                      <Image source={SOURCE_LOGOS[article.source].image} style={{ width: SOURCE_LOGOS[article.source].size, height: SOURCE_LOGOS[article.source].size }} resizeMode="contain" />
-                    ) : (
-                      <Ionicons name={fallbackIcon as any} size={36} color={sourceColour} />
-                    )}
+                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colours.surface, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 13, color: colours.muted }}>{article.source}</Text>
                   </View>
                 )}
                 {hasImage && (

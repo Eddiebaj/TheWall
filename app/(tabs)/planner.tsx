@@ -8,7 +8,7 @@ try { Notifications = require('expo-notifications'); } catch {}
 import { useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Dimensions, FlatList, Keyboard, KeyboardAvoidingView,
+  ActivityIndicator, Alert, Dimensions, FlatList, Image, Keyboard, KeyboardAvoidingView,
   Linking, Modal, NativeScrollEvent, NativeSyntheticEvent, Platform, RefreshControl, ScrollView, Share,
   Text,
   TextInput, TouchableOpacity, View
@@ -23,6 +23,7 @@ import { useApp } from '../../context/AppContext';
 import { ItinerarySkeleton } from '../../components/Shimmer';
 import ActiveTrip from '../../components/ActiveTrip';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
+import { supabase } from '../../lib/supabase';
 
 // ── Error Boundary ───────────────────────────────────────────────
 class PlannerErrorBoundary extends React.Component<
@@ -61,6 +62,12 @@ class PlannerErrorBoundary extends React.Component<
 import { SK_PLANNER_PREFS, SK_SAVED_ROUTES, SK_TRIP_HISTORY, SK_LEAVE_REMINDERS, SK_ACCESSIBILITY_ROUTING, SK_MOTION, SK_WALK_PREFERENCE, SK_WALK_PACE, SK_BATTERY_SAVER, SK_CAMPUS, SK_CLASS_SCHEDULE } from '../../lib/storageKeys';
 import { CAMPUSES, CampusConfig } from '../../lib/campusData';
 import { ClassSchedule, nextClass, fmt12h as schedFmt12h } from '../../lib/scheduleData';
+
+const CAMPUS_LOGOS: Record<string, any> = {
+  carleton: require('../../assets/schools/carleton.png'),
+  uottawa: require('../../assets/schools/uottawa.png'),
+  algonquin: require('../../assets/schools/algonquin.png'),
+};
 
 const PLAN_URL = 'https://routeo-backend.vercel.app/api/plan';
 const PLACES_URL = 'https://routeo-backend.vercel.app/api/places';
@@ -232,6 +239,7 @@ function WheelColumn({ items, selectedIndex, onSelect, width, colours }: {
         showsVerticalScrollIndicator={false}
         snapToInterval={WHEEL_ITEM_H}
         decelerationRate="fast"
+        nestedScrollEnabled
         onMomentumScrollEnd={onMomentumEnd}
         getItemLayout={(_, index) => ({ length: WHEEL_ITEM_H, offset: WHEEL_ITEM_H * index, index })}
       />
@@ -345,6 +353,8 @@ function PlannerScreenInner() {
   const [error, setError] = useState('');
   const [alerts, setAlerts] = useState<{ routes: string[]; title: string }[]>([]);
   const [searched, setSearched] = useState(false);
+  const [transferReliability, setTransferReliability] = useState<Record<string, { onTimePercent: number; avgDelay: number }>>({});
+  const [walkAlt, setWalkAlt] = useState<{ walkMins: number; transitMins: number; transitWait: number; temp: number | null; precip: boolean } | null>(null);
 
   const [expandedItinerary, setExpandedItinerary] = useState<Itinerary | null>(null);
   const [expandedLeg, setExpandedLeg] = useState<number | null>(null);
@@ -658,7 +668,7 @@ function PlannerScreenInner() {
     const day = String(d.getDate()).padStart(2,'0');
     const dateStr = `${month}-${day}-${d.getFullYear()}`;
 
-    const url = `${PLAN_URL}?fromLat=${resolvedFrom.lat}&fromLng=${resolvedFrom.lng}&fromLabel=${encodeURIComponent(resolvedFrom.label)}&toLat=${resolvedTo.lat}&toLng=${resolvedTo.lng}&toLabel=${encodeURIComponent(resolvedTo.label)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=${useArriveBy}&mode=${travelMode}${accessibleRouting ? '&wheelchair=true' : ''}${travelMode === 'transit' ? `&maxWalk=${walkPreference}&walkSpeed=${walkPace}` : ''}`;
+    const url = `${PLAN_URL}?fromLat=${resolvedFrom.lat}&fromLng=${resolvedFrom.lng}&fromLabel=${encodeURIComponent(resolvedFrom.label)}&toLat=${resolvedTo.lat}&toLng=${resolvedTo.lng}&toLabel=${encodeURIComponent(resolvedTo.label)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=${useArriveBy}&mode=${travelMode}${accessibleRouting ? '&wheelchair=true' : ''}${travelMode === 'transit' ? `&maxWalk=${walkPreference}&walkSpeed=${walkPace}` : ''}${travelMode === 'walking' ? `&walkSpeed=${walkPace}` : ''}`;
 
     try {
       const resp = await fetchWithTimeout(url);
@@ -749,8 +759,8 @@ function PlannerScreenInner() {
             setItineraries(allItins);
           }
         } else {
-          // Non-transit modes (driving, bicycling, walking): pass through unfiltered
-          setItineraries(data.itineraries || []);
+          // Non-transit modes (driving, bicycling, walking): show best result only
+          setItineraries((data.itineraries || []).slice(0, 1));
         }
       }
       // Auto-save to trip history
@@ -764,10 +774,15 @@ function PlannerScreenInner() {
           plannedAt: new Date().toISOString(),
         };
         setTripHistory(prev => {
-          // Deduplicate: skip if same from/to was planned in last 5 min
-          const isDupe = prev.some(p => p.fromLabel === record.fromLabel && p.toLabel === record.toLabel
-            && (Date.now() - new Date(p.plannedAt).getTime()) < 300000);
-          if (isDupe) return prev;
+          // Deduplicate: if same from/to exists, move it to top with updated timestamp
+          const existingIdx = prev.findIndex(p => p.fromLabel === record.fromLabel && p.toLabel === record.toLabel);
+          if (existingIdx >= 0) {
+            const updated = [...prev];
+            updated.splice(existingIdx, 1);
+            updated.unshift({ ...prev[existingIdx], plannedAt: record.plannedAt, durationMins: record.durationMins });
+            AsyncStorage.setItem(SK_TRIP_HISTORY, JSON.stringify(updated)).catch(() => {});
+            return updated;
+          }
           const updated = [record, ...prev].slice(0, MAX_TRIP_HISTORY);
           AsyncStorage.setItem(SK_TRIP_HISTORY, JSON.stringify(updated)).catch(() => {});
           return updated;
@@ -880,9 +895,14 @@ function PlannerScreenInner() {
           plannedAt: new Date().toISOString(),
         };
         setTripHistory(prev => {
-          const isDupe = prev.length > 0 && prev[0].fromLabel === record.fromLabel && prev[0].toLabel === record.toLabel
-            && (Date.now() - new Date(prev[0].plannedAt).getTime()) < 300000;
-          if (isDupe) return prev;
+          const existingIdx = prev.findIndex(p => p.fromLabel === record.fromLabel && p.toLabel === record.toLabel);
+          if (existingIdx >= 0) {
+            const updated = [...prev];
+            updated.splice(existingIdx, 1);
+            updated.unshift({ ...prev[existingIdx], plannedAt: record.plannedAt, durationMins: record.durationMins });
+            AsyncStorage.setItem(SK_TRIP_HISTORY, JSON.stringify(updated)).catch(() => {});
+            return updated;
+          }
           const updated = [record, ...prev].slice(0, MAX_TRIP_HISTORY);
           AsyncStorage.setItem(SK_TRIP_HISTORY, JSON.stringify(updated)).catch(() => {});
           return updated;
@@ -897,6 +917,112 @@ function PlannerScreenInner() {
 
     planWithPlaces(resolvedFrom, resolvedTo);
   };
+
+  // Auto re-plan when travel mode or walk pace changes (if a trip was already planned)
+  useEffect(() => {
+    if (searched && fromPlace?.lat && toPlace?.lat && !loading) {
+      planWithPlaces(fromPlace, toPlace);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [travelMode, walkPace]);
+
+  // ── Fetch transfer reliability for planned itineraries ────────
+  const fetchTransferReliability = useCallback(async (itins: Itinerary[]) => {
+    try {
+      // Collect all transit route IDs involved in transfers
+      const routeIds = new Set<string>();
+      for (const itin of itins) {
+        const legs = itin.legs || [];
+        for (let i = 1; i < legs.length; i++) {
+          if (legs[i - 1].mode === 'WALK' || legs[i].mode === 'WALK') continue;
+          if (legs[i - 1].routeShortName) routeIds.add(legs[i - 1].routeShortName!);
+        }
+      }
+      if (routeIds.size === 0) { setTransferReliability({}); return; }
+
+      const { data, error } = await supabase
+        .from('route_reliability')
+        .select('route_id, delta_minutes')
+        .in('route_id', Array.from(routeIds));
+      if (error || !data || data.length === 0) { setTransferReliability({}); return; }
+
+      const grouped: Record<string, { onTime: number; total: number; totalDelay: number }> = {};
+      for (const row of data) {
+        if (!grouped[row.route_id]) grouped[row.route_id] = { onTime: 0, total: 0, totalDelay: 0 };
+        grouped[row.route_id].total++;
+        grouped[row.route_id].totalDelay += Math.max(0, row.delta_minutes || 0);
+        if (Math.abs(row.delta_minutes || 0) <= 3) grouped[row.route_id].onTime++;
+      }
+      const result: Record<string, { onTimePercent: number; avgDelay: number }> = {};
+      for (const [routeId, stats] of Object.entries(grouped)) {
+        if (stats.total >= 5) {
+          result[routeId] = {
+            onTimePercent: Math.round((stats.onTime / stats.total) * 100),
+            avgDelay: Math.round(stats.totalDelay / stats.total),
+          };
+        }
+      }
+      setTransferReliability(result);
+    } catch { setTransferReliability({}); }
+  }, []);
+
+  // Fetch reliability data whenever itineraries change
+  useEffect(() => {
+    if (itineraries.length > 0) fetchTransferReliability(itineraries);
+    else setTransferReliability({});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itineraries]);
+
+  // ── Walk or Wait? comparison ────────────────────────────────
+  useEffect(() => {
+    if (travelMode !== 'transit' || itineraries.length === 0 || !fromPlace?.lat || !toPlace?.lat) {
+      setWalkAlt(null);
+      return;
+    }
+    const bestTransit = itineraries[0];
+    const transitMins = Math.round((bestTransit.duration || 0) / 60);
+    if (transitMins < 15) { setWalkAlt(null); return; }
+
+    // Calculate wait time (first walk leg duration before first transit leg)
+    const legs = bestTransit.legs || [];
+    const firstTransitIdx = legs.findIndex(l => l.mode !== 'WALK');
+    const transitWait = firstTransitIdx > 0 ? Math.round(legs[0].duration / 60) : 0;
+
+    (async () => {
+      try {
+        // Fetch walk-only route
+        const now = new Date();
+        const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+        const month = String(now.getMonth() + 1).padStart(2,'0');
+        const day = String(now.getDate()).padStart(2,'0');
+        const dateStr = `${month}-${day}-${now.getFullYear()}`;
+        const walkUrl = `${PLAN_URL}?fromLat=${fromPlace.lat}&fromLng=${fromPlace.lng}&fromLabel=${encodeURIComponent(fromPlace.label)}&toLat=${toPlace.lat}&toLng=${toPlace.lng}&toLabel=${encodeURIComponent(toPlace.label)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=false&mode=walking`;
+        const walkResp = await fetchWithTimeout(walkUrl, { timeout: 6000 });
+        if (!walkResp.ok) { setWalkAlt(null); return; }
+        const walkData = await walkResp.json();
+        const walkItin = walkData?.itineraries?.[0];
+        if (!walkItin) { setWalkAlt(null); return; }
+        const walkMins = Math.round((walkItin.duration || 0) / 60);
+        if (walkMins > 45) { setWalkAlt(null); return; }
+
+        // Fetch current weather
+        let temp: number | null = null;
+        let precip = false;
+        try {
+          const wResp = await fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?latitude=${fromPlace.lat}&longitude=${fromPlace.lng}&current=temperature_2m,weathercode&timezone=auto`, { timeout: 4000 });
+          if (wResp.ok) {
+            const wData = await wResp.json();
+            temp = wData?.current?.temperature_2m ?? null;
+            const code = wData?.current?.weathercode ?? 0;
+            precip = [51,53,55,56,57,61,63,65,66,67,71,73,75,77,80,81,82,85,86,95,96,99].includes(code);
+          }
+        } catch { /* silent */ }
+
+        setWalkAlt({ walkMins, transitMins, transitWait, temp, precip });
+      } catch { setWalkAlt(null); }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itineraries, travelMode]);
 
   // ── Save / unsave route ───────────────────────────────────────
   const isRouteSaved = () => {
@@ -1095,14 +1221,20 @@ function PlannerScreenInner() {
         }, cardShadow]}
         activeOpacity={0.85}
       >
-        {/* Badge */}
-        {isFirst && !isWalkOnly && (
+        {/* Badge — mode-specific */}
+        {travelMode !== 'transit' && isFirst && (
+          <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: (LEG_COLOURS[travelMode === 'driving' ? 'CAR' : travelMode === 'bicycling' ? 'BICYCLE' : 'WALK'] || colours.accent) + '20', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: (LEG_COLOURS[travelMode === 'driving' ? 'CAR' : travelMode === 'bicycling' ? 'BICYCLE' : 'WALK'] || colours.accent) + '40' }}>
+            <Text style={{ color: LEG_COLOURS[travelMode === 'driving' ? 'CAR' : travelMode === 'bicycling' ? 'BICYCLE' : 'WALK'] || colours.accent, fontSize: 9, fontWeight: '800' }}>
+              {travelMode === 'driving' ? t('DRIVE', 'AUTO') : travelMode === 'bicycling' ? t('CYCLE', 'VELO') : t('WALK', 'MARCHE')}
+            </Text>
+          </View>
+        )}
+        {travelMode === 'transit' && isFirst && !isWalkOnly && (
           <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: colours.accent, borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3 }}>
             <Text style={{ color: 'white', fontSize: 9, fontWeight: '800' }}>{arriveBy ? t('RECOMMENDED', 'RECOMMANDE') : t('FASTEST', 'PLUS RAPIDE')}</Text>
           </View>
         )}
-        {!isFirst && !isWalkOnly && arriveBy && (() => {
-          // Show "TIGHT" for options arriving within 5 min of target or after
+        {travelMode === 'transit' && !isFirst && !isWalkOnly && arriveBy && (() => {
           const targetMs = departTime.getTime();
           const buffer = targetMs - (itin.endTime ?? 0);
           const bufferMin = Math.round(buffer / 60000);
@@ -1115,7 +1247,7 @@ function PlannerScreenInner() {
           }
           return null;
         })()}
-        {isWalkOnly && (
+        {travelMode === 'transit' && isWalkOnly && (
           <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: '#34c759' + '20', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#34c759' + '40' }}>
             <Text style={{ color: '#34c759', fontSize: 9, fontWeight: '800' }}>{t('FREE', 'GRATUIT')}</Text>
           </View>
@@ -1129,13 +1261,15 @@ function PlannerScreenInner() {
           </Text>
         </View>
 
-        {/* Leg pills */}
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
-          {(itin.legs || []).map((leg, i) => renderLegPill(leg, i))}
-        </View>
+        {/* Leg pills — hide for single-leg non-transit */}
+        {(travelMode === 'transit' || (itin.legs || []).length > 1) && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
+            {(itin.legs || []).map((leg, i) => renderLegPill(leg, i))}
+          </View>
+        )}
 
-        {/* Cross-border warning */}
-        {hasCrossBorderTrip(itin) && (
+        {/* Cross-border warning — transit only */}
+        {travelMode === 'transit' && hasCrossBorderTrip(itin) && (
           <View style={{ backgroundColor: '#ff9500' + '15', borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, marginBottom: 10 }}>
             <Text style={{ fontSize: 12, color: '#ff9500', fontWeight: '600' }}>{t('Cross-Border Trip', 'Trajet interregional')}</Text>
             <Text style={{ fontSize: 11, color: colours.muted, marginTop: 4 }}>{t('Separate Presto tap required ($4.10 each)', 'Paiement Presto distinct requis (4,10 $ chacun)')}</Text>
@@ -1159,33 +1293,80 @@ function PlannerScreenInner() {
           );
         })()}
 
-        {/* Transfer warnings */}
-        {(itin.legs || []).map((leg, i, arr) => {
+        {/* Transfer warnings with reliability data — transit only */}
+        {travelMode === 'transit' && (itin.legs || []).map((leg, i, arr) => {
           if (i === 0) return null;
           const prevLeg = arr[i - 1];
           if (prevLeg.mode === 'WALK' || leg.mode === 'WALK') return null;
           const connectionMin = Math.round((leg.startTime - prevLeg.endTime) / 60000);
+          const incomingRoute = prevLeg.routeShortName;
           const connectingRoute = leg.routeShortName;
           const hasAlert = connectingRoute && alerts.some(a => a.routes.includes(connectingRoute));
-          // Long wait warning (>15 min)
-          if (connectionMin > 15) return (
-            <View key={`transfer-${i}`} style={{ backgroundColor: '#ff950015', borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, marginBottom: 8 }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: '#ff9500' }}>{t(`Long wait \u2014 ${connectionMin} min at ${prevLeg.to?.name || 'transfer'}`, `Longue attente \u2014 ${connectionMin} min \u00e0 ${prevLeg.to?.name || 'correspondance'}`)}</Text>
-            </View>
-          );
-          if (connectionMin > 3) return null;
+          const reliability = incomingRoute ? transferReliability[incomingRoute] : null;
+          const transferStop = prevLeg.to?.name || '';
+          const warnings: { text: string; textFr: string; color: string }[] = [];
+
+          // Very tight transfer (<3 min) — always warn
+          if (connectionMin < 3) {
+            warnings.push({
+              text: `Very tight transfer — consider the next departure`,
+              textFr: `Correspondance tres serree — envisagez le prochain depart`,
+              color: '#cc3b2a',
+            });
+          }
+          // Tight + unreliable (<5 min AND <80% on time)
+          else if (connectionMin < 5 && reliability && reliability.onTimePercent < 80) {
+            warnings.push({
+              text: `Tight transfer at ${transferStop} — Route ${incomingRoute} was late ${100 - reliability.onTimePercent}% of the time this week`,
+              textFr: `Correspondance serree a ${transferStop} — Route ${incomingRoute} etait en retard ${100 - reliability.onTimePercent}% du temps cette semaine`,
+              color: '#F59E0B',
+            });
+          }
+          // Route unreliable (<60% on time)
+          if (reliability && reliability.onTimePercent < 60 && !warnings.some(w => w.color === '#cc3b2a')) {
+            warnings.push({
+              text: `Route ${incomingRoute} has been unreliable this week (${reliability.onTimePercent}% on time)`,
+              textFr: `Route ${incomingRoute} a ete peu fiable cette semaine (${reliability.onTimePercent}% a l'heure)`,
+              color: '#F59E0B',
+            });
+          }
+          // Alert on connecting route
+          if (hasAlert) {
+            warnings.push({
+              text: `Alert on connecting Route ${connectingRoute} at ${transferStop}`,
+              textFr: `Alerte sur la Route ${connectingRoute} a ${transferStop}`,
+              color: '#cc3b2a',
+            });
+          }
+          // Long wait (>15 min)
+          if (connectionMin > 15) {
+            warnings.push({
+              text: `Long wait — ${connectionMin} min at ${transferStop}`,
+              textFr: `Longue attente — ${connectionMin} min a ${transferStop}`,
+              color: '#ff9500',
+            });
+          }
+          // Tight transfer (3-5 min, no reliability data or good reliability)
+          if (connectionMin <= 3 && warnings.length === 0) {
+            warnings.push({
+              text: `Tight transfer — ${connectionMin} min`,
+              textFr: `Correspondance serree — ${connectionMin} min`,
+              color: '#ff9500',
+            });
+          }
+
+          if (warnings.length === 0) return null;
+          const topColor = warnings[0].color;
           return (
-            <View key={`transfer-${i}`} style={{ backgroundColor: hasAlert ? '#cc3b2a15' : '#ff950015', borderLeftWidth: 3, borderLeftColor: hasAlert ? '#cc3b2a' : '#ff9500', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, marginBottom: 8 }}>
-              {hasAlert ? (
-                <>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#cc3b2a' }}>{t('Alert on connecting route', 'Alerte sur la correspondance')}</Text>
-                  <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }}>{t(`Route ${connectingRoute} at ${prevLeg.to?.name || ''}`, `Route ${connectingRoute} \u00e0 ${prevLeg.to?.name || ''}`)}</Text>
-                </>
-              ) : (
-                <>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#ff9500' }}>{t(`Tight transfer \u2014 ${connectionMin} min`, `Correspondance serr\u00e9e \u2014 ${connectionMin} min`)}</Text>
-                  <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }}>{t(`${prevLeg.to?.name || ''} \u2192 Route ${connectingRoute || ''}`, `${prevLeg.to?.name || ''} \u2192 Route ${connectingRoute || ''}`)}</Text>
-                </>
+            <View key={`transfer-${i}`} style={{ backgroundColor: topColor + '12', borderLeftWidth: 3, borderLeftColor: topColor, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, marginBottom: 8, gap: 4 }}>
+              {warnings.map((w, wi) => (
+                <View key={wi} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
+                  <Ionicons name="warning" size={12} color={w.color} style={{ marginTop: 1 }} />
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: w.color, flex: 1 }}>{t(w.text, w.textFr)}</Text>
+                </View>
+              ))}
+              {!warnings.some(w => w.color === '#cc3b2a' || w.color === '#F59E0B') && connectionMin <= 5 && (
+                <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }}>{t(`${transferStop} → Route ${connectingRoute || ''}`, `${transferStop} → Route ${connectingRoute || ''}`)}</Text>
               )}
             </View>
           );
@@ -1194,17 +1375,31 @@ function PlannerScreenInner() {
         {/* Footer row */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
-            {hasTransit && (
+            {travelMode === 'transit' && hasTransit && (
               <Text style={{ fontSize: 11, color: colours.muted }}>
                 <Text style={{ fontWeight: '700' }}>{transferCount}</Text> {t(transferCount !== 1 ? 'transfers' : 'transfer', transferCount !== 1 ? 'correspondances' : 'correspondance')}
               </Text>
             )}
-            <Text style={{ fontSize: 11, color: colours.muted }}>
-              {travelMode === 'driving' ? fmtDistance(itin.walkDistance || (itin.legs || []).reduce((s, l) => s + l.distance, 0))
-                : travelMode === 'bicycling' ? fmtDistance((itin.legs || []).reduce((s, l) => s + l.distance, 0))
-                : fmtWalk(itin.walkDistance)}
-            </Text>
-            {hasTransit && (
+            {(travelMode === 'driving' || travelMode === 'bicycling') ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Ionicons name={travelMode === 'driving' ? 'speedometer-outline' : 'bicycle-outline'} size={13} color={colours.muted} />
+                <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted }}>
+                  {fmtDistance((itin.legs || []).reduce((s, l) => s + l.distance, 0))}
+                </Text>
+              </View>
+            ) : travelMode === 'walking' ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Ionicons name="walk-outline" size={13} color={colours.muted} />
+                <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted }}>
+                  {fmtDistance((itin.legs || []).reduce((s, l) => s + l.distance, 0))}
+                </Text>
+              </View>
+            ) : (
+              <Text style={{ fontSize: 11, color: colours.muted }}>
+                {fmtWalk(itin.walkDistance)}
+              </Text>
+            )}
+            {travelMode === 'transit' && hasTransit && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.accent + '15', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3 }}>
                 {accessibleRouting && <Ionicons name="accessibility-outline" size={10} color={colours.accent} />}
                 <Text style={{ fontSize: 10, color: colours.accent }}>🎫</Text>
@@ -2283,6 +2478,76 @@ function PlannerScreenInner() {
                 </View>
               ))}
             </View>
+
+            {/* Walk or Wait? card */}
+            {walkAlt && travelMode === 'transit' && (
+              <View style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 16, padding: 16, marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                  <Ionicons name="walk-outline" size={18} color={colours.accent} />
+                  <Text style={{ fontSize: 15, fontWeight: '800', color: colours.text }}>{t('Walk or Wait?', 'Marcher ou attendre?')}</Text>
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 0 }}>
+                  {/* Wait for bus */}
+                  <View style={{ flex: 1, alignItems: 'center', paddingVertical: 10 }}>
+                    <Ionicons name="bus-outline" size={24} color={colours.accent} />
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, marginTop: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Wait for bus', 'Attendre le bus')}</Text>
+                    <Text style={{ fontSize: 26, fontWeight: '800', color: colours.text, marginTop: 4 }}>{walkAlt.transitMins}<Text style={{ fontSize: 14, fontWeight: '600' }}> min</Text></Text>
+                    {walkAlt.transitWait > 0 && (
+                      <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }}>{t(`${walkAlt.transitWait} min wait`, `${walkAlt.transitWait} min d'attente`)}</Text>
+                    )}
+                  </View>
+
+                  {/* Divider */}
+                  <View style={{ width: 1, backgroundColor: colours.border, marginVertical: 8 }} />
+
+                  {/* Walk now */}
+                  <View style={{ flex: 1, alignItems: 'center', paddingVertical: 10 }}>
+                    <Ionicons name="walk-outline" size={24} color={walkAlt.walkMins <= walkAlt.transitMins + 5 ? '#00A78D' : colours.muted} />
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, marginTop: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Walk now', 'Marcher maintenant')}</Text>
+                    <Text style={{ fontSize: 26, fontWeight: '800', color: walkAlt.walkMins <= walkAlt.transitMins + 5 ? '#00A78D' : colours.text, marginTop: 4 }}>{walkAlt.walkMins}<Text style={{ fontSize: 14, fontWeight: '600' }}> min</Text></Text>
+                    {walkAlt.walkMins <= walkAlt.transitMins && (
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#00A78D', marginTop: 2 }}>{t('Faster!', 'Plus rapide!')}</Text>
+                    )}
+                    {walkAlt.walkMins > walkAlt.transitMins && walkAlt.walkMins <= walkAlt.transitMins + 5 && (
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: '#00A78D', marginTop: 2 }}>{t('About the same', 'A peu pres pareil')}</Text>
+                    )}
+                  </View>
+                </View>
+
+                {/* Weather warning */}
+                {walkAlt.temp !== null && (walkAlt.temp <= -10 || walkAlt.precip) && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#3b82f6' + '12', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginTop: 10 }}>
+                    <Text style={{ fontSize: 14 }}>{walkAlt.temp <= -10 ? '\u2744\uFE0F' : '\u2614'}</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#3b82f6', flex: 1 }}>
+                      {walkAlt.temp <= -10
+                        ? t(`Cold today (${Math.round(walkAlt.temp)}\u00B0C) \u2014 transit recommended`, `Froid aujourd'hui (${Math.round(walkAlt.temp)}\u00B0C) \u2014 transport recommande`)
+                        : t('Precipitation expected \u2014 transit recommended', 'Precipitations prevues \u2014 transport recommande')}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Action buttons */}
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                  <TouchableOpacity
+                    onPress={() => setTravelMode('walking')}
+                    style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: walkAlt.walkMins <= walkAlt.transitMins + 5 ? '#00A78D' : colours.surface, borderWidth: 1, borderColor: walkAlt.walkMins <= walkAlt.transitMins + 5 ? '#00A78D' : colours.border, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('Walk there', 'Y aller a pied')}>
+                    <Ionicons name="walk-outline" size={14} color={walkAlt.walkMins <= walkAlt.transitMins + 5 ? 'white' : colours.text} />
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: walkAlt.walkMins <= walkAlt.transitMins + 5 ? 'white' : colours.text }}>{t('Walk there', 'Y aller a pied')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setWalkAlt(null)}
+                    style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('Show bus routes', 'Afficher les bus')}>
+                    <Ionicons name="bus-outline" size={14} color={colours.text} />
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>{t('Show bus routes', 'Afficher les bus')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
           </View>
         ) : !loading && !searched ? (
           <View style={{ paddingHorizontal: 20 }}>
@@ -2329,9 +2594,13 @@ function PlannerScreenInner() {
                   style={[{ flexDirection: 'row', alignItems: 'center', backgroundColor: plannerCampus.accent + '12', borderRadius: 12, borderWidth: 1, borderColor: plannerCampus.accent + '30', padding: 12, marginBottom: 12, gap: 10 }, cardShadow]}
                   activeOpacity={0.7}
                 >
-                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: plannerCampus.accent + '20', alignItems: 'center', justifyContent: 'center' }}>
-                    <Ionicons name="school" size={18} color={plannerCampus.accent} />
-                  </View>
+                  {CAMPUS_LOGOS[plannerCampus.id] ? (
+                    <Image source={CAMPUS_LOGOS[plannerCampus.id]} style={{ width: 44, height: 44, borderRadius: 8 }} resizeMode="contain" />
+                  ) : (
+                    <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: plannerCampus.accent + '20', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="school" size={18} color={plannerCampus.accent} />
+                    </View>
+                  )}
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 13, fontWeight: '700', color: plannerCampus.accent }}>
                       {t(`Plan to ${plannerCampus.name}`, `Planifier vers ${plannerCampus.name_fr}`)}

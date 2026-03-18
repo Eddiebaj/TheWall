@@ -9,12 +9,17 @@ import {
   Text, TouchableOpacity, View
 } from 'react-native';
 import { useApp } from '../context/AppContext';
-import { SK_CAMPUS, SK_HOME_NEIGHBOURHOOD, SK_ONBOARDED } from '../lib/storageKeys';
-import { NEIGHBOURHOODS } from '../lib/neighbourhoodData';
+import { SK_CAMPUS, SK_ONBOARDED } from '../lib/storageKeys';
 import type { CampusId } from '../lib/campusData';
 
 const LinearGradient: any = LinearGradientModule?.LinearGradient ?? View;
 const { width } = Dimensions.get('window');
+
+const CAMPUS_LOGOS: Record<string, any> = {
+  carleton: require('../assets/schools/carleton.png'),
+  uottawa: require('../assets/schools/uottawa.png'),
+  algonquin: require('../assets/schools/algonquin.png'),
+};
 
 const SLIDES = [
   {
@@ -62,19 +67,7 @@ const SLIDES = [
     isWelcome: false,
     isCampus: true,
   },
-  {
-    id: 'neighbourhood',
-    icon: 'location' as const,
-    iconBg: '#c0852a',
-    title_en: 'Your Neighbourhood',
-    title_fr: 'Votre quartier',
-    body_en: "Select your home neighbourhood to personalize events and deals near you.",
-    body_fr: "Choisissez votre quartier pour personnaliser les \u00e9v\u00e9nements et offres pr\u00e8s de chez vous.",
-    accent: '#c0852a',
-    isWelcome: false,
-    isNeighbourhood: true,
-  },
-  {
+{
     id: 'more',
     icon: 'sparkles' as const,
     iconBg: '#7b5ea7',
@@ -98,7 +91,7 @@ export default function OnboardingScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [activeSchool, setActiveSchool] = useState<CampusId | null>(null);
-  const [selectedNeighbourhood, setSelectedNeighbourhood] = useState<string | null>(null);
+
 
   const goToSlide = (index: number) => {
     scrollRef.current?.scrollTo({ x: index * width, animated: true });
@@ -127,21 +120,10 @@ export default function OnboardingScreen() {
     } catch (e) { if (__DEV__) console.warn('campus save error:', e); }
   };
 
-  const saveNeighbourhood = async (id: string | null) => {
-    try {
-      if (id) {
-        await AsyncStorage.setItem(SK_HOME_NEIGHBOURHOOD, id);
-      } else {
-        await AsyncStorage.removeItem(SK_HOME_NEIGHBOURHOOD);
-      }
-    } catch (e) { if (__DEV__) console.warn('neighbourhood save error:', e); }
-  };
-
   const isLast = currentIndex === SLIDES.length - 1;
   const slide = SLIDES[currentIndex];
   const isCampusSlide = 'isCampus' in slide && (slide as any).isCampus;
-  const isNeighbourhoodSlide = 'isNeighbourhood' in slide && (slide as any).isNeighbourhood;
-  const isPickerSlide = isCampusSlide || isNeighbourhoodSlide;
+  const isPickerSlide = isCampusSlide;
 
   return (
     <View style={{ flex: 1, backgroundColor: '#0a0f1a' }}>
@@ -229,13 +211,7 @@ export default function OnboardingScreen() {
                           borderRadius: 14, padding: 16, gap: 14,
                         }}
                       >
-                        <View style={{
-                          width: 44, height: 44, borderRadius: 22,
-                          backgroundColor: c.accent + '25',
-                          alignItems: 'center', justifyContent: 'center',
-                        }}>
-                          <Ionicons name="school" size={22} color={c.accent} />
-                        </View>
+                        <Image source={CAMPUS_LOGOS[c.id]} style={{ width: 44, height: 44, borderRadius: 8 }} resizeMode="contain" />
                         <Text style={{ flex: 1, fontSize: 16, fontWeight: '700', color: '#fff' }}>
                           {language === 'fr' ? c.name_fr : c.name_en}
                         </Text>
@@ -252,74 +228,6 @@ export default function OnboardingScreen() {
                     );
                   })}
                 </View>
-              </>
-            ) : 'isNeighbourhood' in s && (s as any).isNeighbourhood ? (
-              <>
-                {/* Neighbourhood selection screen */}
-                <Text style={{
-                  fontSize: 28, fontWeight: '800', color: '#fff',
-                  textAlign: 'center', letterSpacing: -0.5, lineHeight: 36,
-                  marginBottom: 8,
-                }}>
-                  {language === 'fr' ? s.title_fr : s.title_en}
-                </Text>
-                <Text style={{
-                  fontSize: 14, color: '#8899aa', textAlign: 'center',
-                  lineHeight: 20, marginBottom: 24,
-                }}>
-                  {language === 'fr' ? s.body_fr : s.body_en}
-                </Text>
-                <ScrollView
-                  showsVerticalScrollIndicator={false}
-                  style={{ width: '100%', maxHeight: 340 }}
-                  contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center', paddingBottom: 8 }}
-                >
-                  {NEIGHBOURHOODS.map((n) => {
-                    const selected = selectedNeighbourhood === n.id;
-                    const name = language === 'fr' ? n.name_fr : n.name_en;
-                    return (
-                      <TouchableOpacity
-                        key={n.id}
-                        activeOpacity={0.85}
-                        onPress={() => setSelectedNeighbourhood(selected ? null : n.id)}
-                        style={{
-                          width: (width - 72 - 10) / 2,
-                          height: 80,
-                          borderRadius: 12,
-                          overflow: 'hidden',
-                          borderWidth: 2,
-                          borderColor: selected ? '#00A78D' : 'transparent',
-                        }}
-                      >
-                        <Image
-                          source={{ uri: n.photoUrl }}
-                          style={{ position: 'absolute', width: '100%', height: '100%' }}
-                          resizeMode="cover"
-                        />
-                        <LinearGradient
-                          colors={['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.65)']}
-                          style={{ position: 'absolute', width: '100%', height: '100%' }}
-                          pointerEvents="none"
-                        />
-                        <View style={{ flex: 1, justifyContent: 'flex-end', padding: 8 }}>
-                          <Text numberOfLines={1} style={{ color: '#fff', fontSize: 13, fontWeight: '800', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3 }}>
-                            {name}
-                          </Text>
-                        </View>
-                        {selected && (
-                          <View style={{
-                            position: 'absolute', top: 6, right: 6,
-                            width: 22, height: 22, borderRadius: 11,
-                            backgroundColor: '#00A78D',
-                            alignItems: 'center', justifyContent: 'center',
-                          }}>
-                            <Ionicons name="checkmark" size={14} color="#fff" />
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
               </>
             ) : (
               <>
@@ -390,8 +298,7 @@ export default function OnboardingScreen() {
                 alignItems: 'center', borderWidth: 1.5, borderColor: '#3a4a5a',
               }}
               onPress={() => {
-                if (isCampusSlide) saveCampus(null);
-                if (isNeighbourhoodSlide) saveNeighbourhood(null);
+                saveCampus(null);
                 goToSlide(currentIndex + 1);
               }}
               activeOpacity={0.85}
@@ -410,8 +317,7 @@ export default function OnboardingScreen() {
                 justifyContent: 'center', gap: 8,
               }}
               onPress={() => {
-                if (isCampusSlide) saveCampus(activeSchool);
-                if (isNeighbourhoodSlide) saveNeighbourhood(selectedNeighbourhood);
+                saveCampus(activeSchool);
                 goToSlide(currentIndex + 1);
               }}
               activeOpacity={0.85}

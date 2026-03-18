@@ -288,6 +288,12 @@ const TEAM_LOGOS: { [name: string]: any } = {
   'Rapid FC': require('../../assets/images/Ottawa_Rapid_FC.png'),
 };
 
+const CAMPUS_LOGOS: Record<string, any> = {
+  carleton: require('../../assets/schools/carleton.png'),
+  uottawa: require('../../assets/schools/uottawa.png'),
+  algonquin: require('../../assets/schools/algonquin.png'),
+};
+
 // ── Shared time formatter ────────────────────────────────────────
 const fmtTime = (date: Date): string => {
   const h = date.getHours();
@@ -595,9 +601,13 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
     return (
       <ScaleDecorator>
       <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 16, padding: 14, backgroundColor: isActive ? accent + '22' : colours.surface, borderWidth: 1, borderTopWidth: 3, borderColor: isActive ? accent : colours.border, borderTopColor: accent, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
-        <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: accent + '18', alignItems: 'center', justifyContent: 'center' }}>
-          <Ionicons name="school" size={18} color={accent} />
-        </View>
+        {campus && CAMPUS_LOGOS[campus.id] ? (
+          <Image source={CAMPUS_LOGOS[campus.id]} style={{ width: 44, height: 44, borderRadius: 8 }} resizeMode="contain" />
+        ) : (
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="school" size={18} color={accent} />
+          </View>
+        )}
         <View>
           <Text style={{ fontSize: 14, fontWeight: '800', color: colours.text, marginBottom: 2 }} numberOfLines={1}>{campus ? t(campus.name, campus.name_fr) : t('My Campus', 'Mon Campus')}</Text>
           {nextShuttle ? (
@@ -2803,7 +2813,7 @@ function LiveScreenInner() {
                         <View style={{ marginTop: 2, gap: 4 }}>
                           {deals.map((d: any, j: number) => (
                             <View key={j} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
-                              <Text style={{ fontSize: 11, color: v.isActive ? '#7b5ea7' : colours.muted, marginTop: 1 }}>{v.isActive ? '●' : '○'}</Text>
+                              <Ionicons name={v.isActive ? 'pricetag' : 'pricetag-outline'} size={11} color={v.isActive ? '#7b5ea7' : colours.muted} style={{ marginTop: 2 }} />
                               <Text style={{ fontSize: 12, color: colours.text, flex: 1, lineHeight: 16 }}>{d.description}</Text>
                             </View>
                           ))}
@@ -2816,8 +2826,9 @@ function LiveScreenInner() {
                             : `Starts ${(statusDeal.start || '').replace(/^0/, '')}`}
                         </Text>
                       )}
-                      <TouchableOpacity onPress={() => { setSocialFeedbackVenue(v.name); setSocialFeedbackText(''); setSocialFeedbackSent(false); }} style={{ marginTop: 6, alignSelf: 'flex-start' }}>
-                        <Text style={{ fontSize: 10, color: colours.muted, textDecorationLine: 'underline' }}>Is this accurate?</Text>
+                      <TouchableOpacity onPress={() => { setSocialFeedbackVenue(v.name); setSocialFeedbackText(''); setSocialFeedbackSent(false); }} style={{ marginTop: 6, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.muted + '14', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
+                        <Ionicons name="help-circle-outline" size={12} color={colours.muted} />
+                        <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{t('Is this accurate?', 'Est-ce exact?')}</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -3738,7 +3749,7 @@ function LiveScreenInner() {
 
             </Text>
           </TouchableOpacity>
-          <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }} numberOfLines={1}>{item.headsign ? `→ ${item.headsign}` : `→ ${t('Checking route...', 'Vérification...')}`}</Text>
+          {item.headsign ? <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }} numberOfLines={1}>→ {item.headsign}</Text> : null}
           {item.isScheduled && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
               <Ionicons name="warning" size={11} color={colours.orange} />
@@ -3802,28 +3813,8 @@ function LiveScreenInner() {
                 <TouchableOpacity onPress={() => { reportBusPassed(item.routeId); setPassedHintShown(true); }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.muted + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Report bus passed', 'Signaler le bus passé')}>
                   <Ionicons name="hand-left-outline" size={14} color={colours.orange} />
                 </TouchableOpacity>
-                {!passedHintShown && item === arrivals[0] && (
-                  <View style={{ position: 'absolute', top: -22, right: -4, backgroundColor: colours.text, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                    <Text style={{ fontSize: 8, fontWeight: '700', color: colours.bg }}>{t('Did it pass?', 'Passé?')}</Text>
-                  </View>
-                )}
               </View>
             )}
-            {!item.isScheduled && (() => {
-              const c = crowdingData[item.routeId];
-              const pillLabel = c ? (c.avg <= 0.8 ? t('Empty', 'Vide') : c.avg <= 1.7 ? t('Some seats', 'Places') : c.avg <= 2.4 ? t('Crowded', 'Bondé') : t('Packed', 'Plein')) : t('Rate', 'Noter');
-              const pillBg = c ? (c.avg <= 0.8 ? '#34C759' : c.avg <= 1.7 ? '#FFD60A' : c.avg <= 2.4 ? '#FF9500' : '#FF3B30') + '20' : colours.muted + '18';
-              const pillColor = c ? (c.avg <= 0.8 ? '#34C759' : c.avg <= 1.7 ? '#b8960a' : c.avg <= 2.4 ? '#FF9500' : '#FF3B30') : colours.muted;
-              return (
-                <TouchableOpacity onPress={() => { setCrowdingReportItem(item); setShowCrowdingSheet(true); fetchCrowdingHourly(item.routeId, expandedStopId || stopId); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 10, backgroundColor: pillBg }} accessibilityRole="button" accessibilityLabel={t('Report crowding', 'Signaler l\'achalandage')}>
-                  <Ionicons name="people" size={11} color={pillColor} />
-                  <Text style={{ fontSize: 9, fontWeight: '700', color: pillColor }}>{pillLabel}</Text>
-                </TouchableOpacity>
-              );
-            })()}
-            <TouchableOpacity onPress={() => shareETA(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Share arrival time', 'Partager l\'heure d\'arrivee')}>
-              <Ionicons name="share-outline" size={16} color={colours.muted} />
-            </TouchableOpacity>
             {stopReports[stopId]?.count > 0 && (
               <TouchableOpacity
                 onPress={() => { setReportSheetStopId(stopId); setShowReportSheet(true); }}
@@ -4570,12 +4561,12 @@ function LiveScreenInner() {
           <View style={styles.header}>
             <View>
               <Text style={{ fontSize: fonts.xxl, fontWeight: '800', color: colours.text, letterSpacing: -1 }}>Route<Text style={{ color: colours.accent }}>O</Text></Text>
-              <Text style={{ fontSize: fonts.sm, color: colours.muted, letterSpacing: 2, marginTop: -2 }}>OC TRANSPO · OTTAWA</Text>
+              <Text style={{ fontSize: fonts.sm, color: colours.muted, letterSpacing: 2, marginTop: -2 }}>OTTAWA & GATINEAU TRANSIT</Text>
             </View>
             <View style={styles.headerRight}>
-              {isNight && (<View style={[styles.nightBadge, { backgroundColor: colours.accentAlt + '22', borderColor: colours.accentAlt }]}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Ionicons name="moon" size={12} color={colours.accentAlt} /><Text style={{ color: colours.accentAlt, fontSize: fonts.sm, fontWeight: '700' }}>{t('Night', 'Nuit')}</Text></View></View>)}
-              {weather && (<TouchableOpacity onPress={() => setWeatherModalVisible(true)} style={[styles.nightBadge, { backgroundColor: colours.surface, borderColor: colours.border, flexDirection: 'row', alignItems: 'center', gap: 4 }]} accessibilityRole="button" accessibilityLabel={t(`Weather ${weather.temp} degrees`, `Meteo ${weather.temp} degres`)}><Ionicons name={weather.icon as any} size={13} color={iconColor(weather.icon)} /><Text style={{ color: colours.text, fontSize: fonts.sm, fontWeight: '700' }}>{weather.temp}°</Text></TouchableOpacity>)}
-              <View style={[styles.liveBadge, { backgroundColor: colours.accent + '18', borderColor: colours.accent + '40' }]}><View style={[styles.liveDot, { backgroundColor: colours.accent }]} /><Text style={{ color: colours.accent, fontSize: fonts.sm, fontWeight: '700' }}>LIVE</Text></View>
+              {isNight && (<View style={[styles.nightBadge, { backgroundColor: colours.accentAlt + '22', borderColor: colours.accentAlt }]}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Ionicons name="moon" size={12} color={colours.accentAlt} /><Text style={{ color: colours.accentAlt, fontSize: 12, fontWeight: '700' }}>{t('Night', 'Nuit')}</Text></View></View>)}
+              {weather && (<TouchableOpacity onPress={() => setWeatherModalVisible(true)} style={[styles.nightBadge, { backgroundColor: colours.surface, borderColor: colours.border, flexDirection: 'row', alignItems: 'center', gap: 4 }]} accessibilityRole="button" accessibilityLabel={t(`Weather ${weather.temp} degrees`, `Meteo ${weather.temp} degres`)}><Ionicons name={weather.icon as any} size={13} color={iconColor(weather.icon)} /><Text style={{ color: colours.text, fontSize: 12, fontWeight: '700' }}>{weather.temp}°</Text></TouchableOpacity>)}
+              <View style={[styles.liveBadge, { backgroundColor: colours.accent + '18', borderColor: colours.accent + '40' }]}><View style={[styles.liveDot, { backgroundColor: colours.accent }]} /><Text style={{ color: colours.accent, fontSize: 12, fontWeight: '700' }}>LIVE</Text></View>
               <TouchableOpacity onPress={() => { if (editMode) { saveCustomization(sectionOrder, quickActionIds, ottawaLifeIds); } setEditMode(!editMode); }} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: editMode ? colours.accent : colours.border, backgroundColor: editMode ? colours.accent : colours.surface }} accessibilityRole="button" accessibilityLabel={editMode ? t('Done editing', 'Terminer la modification') : t('Edit layout', 'Modifier la disposition')}>
                 <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: editMode ? 'white' : colours.text }}>{editMode ? t('Done', 'Terminé') : t('Edit', 'Modifier')}</Text>
               </TouchableOpacity>
@@ -4743,7 +4734,7 @@ function LiveScreenInner() {
             <>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 8 }}>
                 <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('My Board', 'Mon tableau')}</Text>
-                <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Use arrows to reorder', 'Utilisez les flèches')}</Text>
+                <Ionicons name="reorder-three-outline" size={16} color={colours.muted} />
               </View>
               <FlatList
                 horizontal
@@ -4869,7 +4860,7 @@ function LiveScreenInner() {
                 </Text>
               </View>
               <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>
-                {commuteInsight.fromLabel} → {commuteInsight.toLabel}
+                {commuteInsight.fromLabel.replace(/, Ottawa, ON,? ?Canada?/gi, '').replace(/, Ottawa, ON/gi, '').substring(0, 28).trim()}{commuteInsight.fromLabel.replace(/, Ottawa, ON,? ?Canada?/gi, '').replace(/, Ottawa, ON/gi, '').length > 28 ? '...' : ''} → {commuteInsight.toLabel.replace(/, Ottawa, ON,? ?Canada?/gi, '').replace(/, Ottawa, ON/gi, '').substring(0, 28).trim()}{commuteInsight.toLabel.replace(/, Ottawa, ON,? ?Canada?/gi, '').replace(/, Ottawa, ON/gi, '').length > 28 ? '...' : ''}
               </Text>
               <Text style={{ fontSize: 12, color: colours.muted, marginTop: 4 }}>
                 {t(`Usually ${commuteInsight.avgDuration} min`, `Habituellement ${commuteInsight.avgDuration} min`)}
@@ -4906,9 +4897,9 @@ export default function LiveScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 20, paddingTop: 56, paddingBottom: 10 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '60%' },
-  nightBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
-  liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '60%', flexShrink: 1 },
+  nightBadge: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
+  liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
   liveDot: { width: 6, height: 6, borderRadius: 3 },
   searchContainer: { paddingHorizontal: 20, marginBottom: 12 },
   searchRow: { flexDirection: 'row', gap: 10 },
@@ -4921,7 +4912,7 @@ const styles = StyleSheet.create({
   boardActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   addFavBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1 },
   arrivalRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
-  ghostRow: { opacity: 0.5 },222
+  ghostRow: { opacity: 0.5 },
   badge: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   arrivalInfo: { flex: 1 },
   arrivalRight: { alignItems: 'flex-end', gap: 6 },

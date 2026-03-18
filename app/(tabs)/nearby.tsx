@@ -40,6 +40,25 @@ const DISTANCE_OPTIONS = [
   { label: '5 km', label_fr: '5 km', value: 5000 },
 ];
 
+// Keyword categories — when search matches a key, expand to match related terms
+const KEYWORD_CATEGORIES: { [key: string]: string[] } = {
+  'happy hour': ['bar', 'pub', 'brewery', 'lounge'],
+  'cheap': ['fast food', 'food court', 'cafe'],
+  'pizza': ['pizza', 'pizzeria', 'italian'],
+  'fast food': ['mcdonald', 'subway', 'tim hortons', 'wendy', 'burger'],
+  'chinese': ['chinese', 'dim sum', 'wonton', 'szechuan'],
+  'coffee': ['cafe', 'coffee', 'espresso', 'starbucks', 'tim hortons'],
+  'shoes': ['shoe', 'footwear', 'nike', 'adidas', 'foot locker'],
+  'nike': ['nike', 'athletic', 'sportswear'],
+  'sushi': ['sushi', 'japanese', 'ramen'],
+  'indian': ['indian', 'curry', 'tandoori', 'biryani'],
+  'thai': ['thai', 'pad thai'],
+  'mexican': ['mexican', 'taco', 'burrito'],
+  'breakfast': ['breakfast', 'brunch', 'pancake', 'waffle', 'egg'],
+  'beer': ['bar', 'pub', 'brewery', 'beer', 'craft'],
+  'dessert': ['dessert', 'ice cream', 'bakery', 'donut', 'cake'],
+};
+
 // Fetch radius — large enough to capture the whole downtown core
 const FETCH_RADIUS = 5000;
 
@@ -90,6 +109,7 @@ export default function ExploreScreen() {
   const [transitMap, setTransitMap] = useState<{ [placeId: string]: NearbyTransit }>({});
   const transitFetchedRef = useRef<Set<string>>(new Set());
   const [savedPlaceIds, setSavedPlaceIds] = useState<Set<string>>(new Set());
+  const [failedPhotos, setFailedPhotos] = useState<Set<string>>(new Set());
 
   // Load saved place IDs on mount
   useEffect(() => {
@@ -193,14 +213,54 @@ export default function ExploreScreen() {
     applyFilters(allPlaces, searchQuery, maxDistance);
   }, [searchQuery, maxDistance, allPlaces]);
 
+  // Keyword-triggered Google Places search when local filter returns no results
+  const keywordTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (keywordTimer.current) clearTimeout(keywordTimer.current);
+    if (!searchQuery.trim() || !location || filteredPlaces.length > 0) return;
+    const q = searchQuery.toLowerCase();
+    const hasKeyword = Object.keys(KEYWORD_CATEGORIES).some(k => q.includes(k) || k.includes(q));
+    if (!hasKeyword && q.length < 3) return;
+    // Debounce 600ms then search Google Places by keyword
+    keywordTimer.current = setTimeout(async () => {
+      try {
+        const url = `https://routeo-backend.vercel.app/api/places?action=nearby&location=${location.lat},${location.lng}&radius=${FETCH_RADIUS}&keyword=${encodeURIComponent(searchQuery)}`;
+        const resp = await fetchWithTimeout(url);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const results: Place[] = (data.results || []).map((p: any) => {
+          const loc = p.geometry?.location;
+          if (!loc?.lat || !loc?.lng) return null;
+          return {
+            id: p.place_id, name: p.name, vicinity: p.vicinity,
+            lat: loc.lat, lng: loc.lng,
+            distance: getDistance(location.lat, location.lng, loc.lat, loc.lng),
+            rating: p.rating, reviewCount: p.user_ratings_total,
+            open: p.opening_hours?.open_now, photoRef: p.photos?.[0]?.photo_reference ?? null,
+          };
+        }).filter(Boolean) as Place[];
+        results.sort((a, b) => a.distance - b.distance);
+        if (results.length > 0) setFilteredPlaces(results);
+      } catch { /* silent */ }
+    }, 600);
+    return () => { if (keywordTimer.current) clearTimeout(keywordTimer.current); };
+  }, [searchQuery, filteredPlaces.length, location]);
+
   const applyFilters = (places: Place[], query: string, distCap: number) => {
     let result = places;
     if (distCap > 0) result = result.filter(p => p.distance <= distCap);
     if (query.trim()) {
       const q = query.toLowerCase();
-      result = result.filter(p =>
-        p.name.toLowerCase().includes(q) || p.vicinity.toLowerCase().includes(q)
-      );
+      // Check if query matches a keyword category for expanded search
+      const expandedTerms = Object.entries(KEYWORD_CATEGORIES)
+        .filter(([key]) => q.includes(key) || key.includes(q))
+        .flatMap(([, terms]) => terms);
+      const searchTerms = expandedTerms.length > 0 ? [q, ...expandedTerms] : [q];
+      result = result.filter(p => {
+        const name = p.name.toLowerCase();
+        const addr = p.vicinity.toLowerCase();
+        return searchTerms.some(t => name.includes(t) || addr.includes(t));
+      });
     }
     setFilteredPlaces(result);
   };
@@ -312,7 +372,7 @@ export default function ExploreScreen() {
   };
 
   const renderPlaceCard = (place: Place, index: number) => {
-    const hasPhoto = !!place.photoRef;
+    const hasPhoto = !!place.photoRef && !failedPhotos.has(place.id);
     const transit = transitMap[place.id];
     return (
       <TouchableOpacity
@@ -333,17 +393,18 @@ export default function ExploreScreen() {
       >
         <ImageBackground
           source={hasPhoto ? { uri: getPhotoUrl(place.photoRef!) } : undefined}
+          onError={() => setFailedPhotos(prev => new Set(prev).add(place.id))}
           style={{
             width: '100%',
             height: 120,
-            backgroundColor: hasPhoto ? '#1a1a2a' : selectedCategory.color + '18',
-            alignItems: hasPhoto ? undefined : 'center',
-            justifyContent: hasPhoto ? undefined : 'center',
+            backgroundColor: hasPhoto ? '#1a1a2a' : colours.surface,
           }}
           resizeMode="cover"
         >
           {!hasPhoto && (
-            <Ionicons name={selectedCategory.icon as any} size={32} color={selectedCategory.color} />
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colours.surface, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 13, color: colours.muted }}>{language === 'fr' ? selectedCategory.label_fr : selectedCategory.label_en}</Text>
+            </View>
           )}
 
           <View style={{ position: 'absolute', top: 8, right: 8, flexDirection: 'row', gap: 6 }}>

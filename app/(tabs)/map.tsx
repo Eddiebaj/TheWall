@@ -1,18 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Animated, AppState, Keyboard, Linking, Platform,
+  ActivityIndicator, Animated, AppState, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform,
   ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
 let RNMaps: typeof import('react-native-maps') | null = null;
 try { RNMaps = require('react-native-maps'); } catch {}
 const MapView = RNMaps?.default ?? null;
 const Marker = (RNMaps as any)?.Marker ?? null;
+const Polyline = (RNMaps as any)?.Polyline ?? null;
 type Region = import('react-native-maps').Region;
 import { useApp } from '../../context/AppContext';
 import { SK_SAVED_ROUTES, SK_FAVS, SK_SAVED_BOARD, SK_SAVED_NEIGHBOURHOODS, SK_SAVED_PLACES } from '../../lib/storageKeys';
+import { supabase } from '../../lib/supabase';
 import { NEIGHBOURHOODS } from '../../lib/neighbourhoodData';
 
 // Error boundary to catch AIRMap native crashes and show a recoverable fallback
@@ -97,12 +100,21 @@ const validCoord = (lat: any, lng: any) => lat != null && lng != null && !isNaN(
 // Styled square badge bus marker — OC red (#CE1126), STO teal (#00A78D)
 // tracksViewChanges must be true for first render so the custom View is captured
 // as a bitmap, then switches to false for scroll performance.
+// tracksViewChanges briefly re-enables when position changes so iOS re-snapshots.
 const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) => void }) => {
   const [tracked, setTracked] = React.useState(true);
+  const prevCoord = React.useRef(`${bus.lat},${bus.lng}`);
+
   React.useEffect(() => {
-    const id = setTimeout(() => setTracked(false), 500);
+    const coord = `${bus.lat},${bus.lng}`;
+    if (coord !== prevCoord.current) {
+      prevCoord.current = coord;
+      setTracked(true);
+    }
+    const id = setTimeout(() => setTracked(false), 300);
     return () => clearTimeout(id);
-  }, []);
+  }, [bus.lat, bus.lng]);
+
   if (!validCoord(bus.lat, bus.lng) || !bus.routeId || bus.routeId === '?') return null;
   const isSTO = bus.agency === 'STO';
   const label = isLRT(bus.routeId) ? 'LRT' : bus.routeId.split('-')[0];
@@ -120,7 +132,7 @@ const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) =>
       </View>
     </Marker>
   );
-});
+}, (prev, next) => prev.bus.id === next.bus.id && prev.bus.lat === next.bus.lat && prev.bus.lng === next.bus.lng && prev.bus.routeId === next.bus.routeId);
 
 // Styled category marker — colored rounded square with white Ionicon inside
 const PlaceMarker = React.memo(({ coordinate, icon, color, title, description, onPress }: {
@@ -166,6 +178,27 @@ type VenuePin = {
   lat: number; lng: number;
   deals: { days: number[]; start: string; end: string; description: string }[];
 };
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function distAlongShape(shape: {latitude: number; longitude: number}[], lat: number, lng: number): { index: number; cumDist: number } {
+  let bestIdx = 0, bestDist = Infinity;
+  for (let i = 0; i < shape.length; i++) {
+    const d = haversineKm(lat, lng, shape[i].latitude, shape[i].longitude);
+    if (d < bestDist) { bestDist = d; bestIdx = i; }
+  }
+  let cumDist = 0;
+  for (let i = 1; i <= bestIdx; i++) {
+    cumDist += haversineKm(shape[i - 1].latitude, shape[i - 1].longitude, shape[i].latitude, shape[i].longitude);
+  }
+  return { index: bestIdx, cumDist };
+}
 
 const VENUE_PINS: VenuePin[] = [
   { name: "Joey's Lansdowne", address: '825 Exhibition Way', type: ['bar', 'restaurant'], lat: 45.3998, lng: -75.6844, deals: [
@@ -496,8 +529,44 @@ export default function MapScreen() {
   const [savedRouteIds, setSavedRouteIds] = useState<Set<string>>(new Set());
   const [selectedSavedPin, setSelectedSavedPin] = useState<SavedPin | null>(null);
   const [savedLoaded, setSavedLoaded] = useState(false);
+  const [selectedRouteShape, setSelectedRouteShape] = useState<{latitude: number; longitude: number}[]>([]);
+  const [busEtaInfo, setBusEtaInfo] = useState<{ mins: number; stopName: string } | null>(null);
+
+  // Community contribute modal
+  const [contributeVisible, setContributeVisible] = useState(false);
+  const [contribName, setContribName] = useState('');
+  const [contribType, setContribType] = useState('');
+  const [contribInfo, setContribInfo] = useState('');
+  const [contribAddress, setContribAddress] = useState('');
+  const [contribSending, setContribSending] = useState(false);
+  const [contribSent, setContribSent] = useState(false);
 
   const sheetAnim = useRef(new Animated.Value(0)).current;
+
+  const fetchRouteShape = useCallback(async (routeId: string, agency?: string) => {
+    try {
+      const bareId = routeId.split('-')[0];
+      const agencyParam = agency === 'STO' ? '&agency=STO' : '';
+      if (__DEV__) console.log(`[RouteShape] fetching shape for routeId="${routeId}" bareId="${bareId}" agency="${agency}"`);
+      const resp = await fetchWithTimeout(
+        `https://routeo-backend.vercel.app/api/route?id=${encodeURIComponent(bareId)}&action=shape${agencyParam}`,
+        { timeout: 8000 }
+      );
+      if (!resp.ok) {
+        if (__DEV__) console.log(`[RouteShape] backend returned ${resp.status}`);
+        return;
+      }
+      const data = await resp.json();
+      if (__DEV__) console.log(`[RouteShape] route=${data?.routeId} received ${data?.shape?.length ?? 0} points`);
+      if (data?.shape?.length) {
+        setSelectedRouteShape(data.shape);
+      } else {
+        if (__DEV__) console.log(`[RouteShape] no shape returned for route ${bareId}`);
+      }
+    } catch (e) {
+      if (__DEV__) console.log('[RouteShape] error:', e);
+    }
+  }, []);
 
   const openSheet = useCallback((bus?: Bus, event?: MapEvent, clusterEvs?: MapEvent[], venue?: VenuePin) => {
     setSelectedBus(bus || null); setSelectedEvent(event || null); setSelectedCluster(clusterEvs || null); setSelectedVenue(venue || null);
@@ -506,23 +575,99 @@ export default function MapScreen() {
     } else {
       setSelectedSavedPin(null);
     }
+    if (bus?.routeId) {
+      setSelectedRouteShape([]);
+      fetchRouteShape(bus.routeId, bus.agency);
+    } else {
+      setSelectedRouteShape([]);
+    }
     Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
-  }, [sheetAnim]);
+  }, [sheetAnim, fetchRouteShape]);
 
   const hideSheet = () => {
     Animated.spring(sheetAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start(() => {
       setSelectedBus(null); setSelectedEvent(null); setSelectedCluster(null); setSelectedVenue(null); setSelectedSavedPin(null);
+      setSelectedRouteShape([]); setBusEtaInfo(null);
     });
   };
 
   const sheetTranslate = sheetAnim.interpolate({ inputRange: [0, 1], outputRange: [300, 0] });
+
+  // Calculate ETA from bus to user's nearest stop on that route
+  useEffect(() => {
+    if (!selectedBus || selectedRouteShape.length < 2) { setBusEtaInfo(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        // Get user location
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted' || cancelled) return;
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        if (cancelled) return;
+        const uLat = loc.coords.latitude;
+        const uLng = loc.coords.longitude;
+
+        // Query stops near the user that are on this route
+        const delta = 0.02; // ~2km bounding box
+        const routeNum = selectedBus.routeId.split('-')[0];
+        const { data: nearbyStops } = await supabase
+          .from('stops')
+          .select('stop_id,stop_name,stop_lat,stop_lon')
+          .gte('stop_lat', uLat - delta)
+          .lte('stop_lat', uLat + delta)
+          .gte('stop_lon', uLng - delta)
+          .lte('stop_lon', uLng + delta)
+          .limit(200);
+        if (cancelled || !nearbyStops || nearbyStops.length === 0) return;
+
+        // Find nearest stop to user
+        let bestStop: { stop_name: string; stop_lat: number; stop_lon: number } | null = null;
+        let bestDist = Infinity;
+        for (const s of nearbyStops) {
+          const d = haversineKm(uLat, uLng, s.stop_lat, s.stop_lon);
+          if (d < bestDist) { bestDist = d; bestStop = s; }
+        }
+        if (!bestStop || bestDist > 1.5) return; // Too far from any stop
+
+        // Find bus position and stop position along route shape
+        const busPos = distAlongShape(selectedRouteShape, selectedBus.lat, selectedBus.lng);
+        const stopPos = distAlongShape(selectedRouteShape, bestStop.stop_lat, bestStop.stop_lon);
+
+        // Only show if bus is approaching the stop (bus index < stop index along shape)
+        if (stopPos.index <= busPos.index) return;
+
+        const distKm = stopPos.cumDist - busPos.cumDist;
+        if (distKm <= 0 || distKm > 30) return;
+
+        // Express routes (95, 97, 98) average ~40km/h, others ~25km/h
+        const EXPRESS_ROUTES = new Set(['95', '97', '98', '99']);
+        const avgSpeed = EXPRESS_ROUTES.has(routeNum) ? 40 : 25;
+        const etaMins = Math.max(1, Math.round((distKm / avgSpeed) * 60));
+
+        if (!cancelled) {
+          const cleanName = bestStop.stop_name.replace(/\s*\(\d+\)$/, '');
+          setBusEtaInfo({ mins: etaMins, stopName: cleanName });
+        }
+      } catch { /* silently fail */ }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedBus?.id, selectedRouteShape.length]);
 
   const fetchBuses = async () => {
     try {
       const resp = await fetchWithTimeout(`${VEHICLES_URL}?t=${Date.now()}`, { headers: { 'Accept': 'application/json' } });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
-      setBuses(data.vehicles || []);
+      const incoming: Bus[] = data.vehicles || [];
+      // Stable merge: reuse existing bus objects when position hasn't changed
+      setBuses(prev => {
+        const prevMap = new Map(prev.map(b => [b.id, b]));
+        return incoming.map(b => {
+          const old = prevMap.get(b.id);
+          if (old && old.lat === b.lat && old.lng === b.lng && old.routeId === b.routeId && old.progress === b.progress) return old;
+          return b;
+        });
+      });
       setError('');
       const now = new Date();
       setLastUpdated(`${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`);
@@ -730,9 +875,16 @@ export default function MapScreen() {
     return result;
   }, [showBuses, zoomTooFar, zoomNeighborhood, buses, hasAll, hasSaved, filters, savedRouteIds, viewBounds]);
 
-  // Incrementally render buses in batches of 5 to prevent AIRMap crash on mount
+  // Incrementally render buses in batches of 5 to prevent AIRMap crash on mount.
+  // Only batch on initial load; subsequent updates show all markers immediately.
+  const initialBatchDone = useRef(false);
   useEffect(() => {
-    if (!mapReady || filteredBuses.length === 0) { setVisibleBusCount(0); return; }
+    if (!mapReady || filteredBuses.length === 0) { setVisibleBusCount(0); initialBatchDone.current = false; return; }
+    // After initial batch, just show all markers immediately on updates
+    if (initialBatchDone.current) {
+      setVisibleBusCount(filteredBuses.length);
+      return;
+    }
     setVisibleBusCount(0);
     let intervalId: ReturnType<typeof setInterval> | null = null;
     const timeoutId = setTimeout(() => {
@@ -741,6 +893,7 @@ export default function MapScreen() {
         count += 5;
         if (count >= filteredBuses.length) {
           setVisibleBusCount(filteredBuses.length);
+          initialBatchDone.current = true;
           if (intervalId) clearInterval(intervalId);
         } else {
           setVisibleBusCount(count);
@@ -754,8 +907,7 @@ export default function MapScreen() {
 
   const showVenueFilters = hasAll || filters.has('food') || filters.has('happy_hour') || filters.has('clubs') || filters.has('fitness');
   const searchLower = searchText.toLowerCase();
-  const venuesTooFar = region.latitudeDelta > 0.08;
-  const filteredVenues = useMemo(() => showVenueFilters && !venuesTooFar ? VENUE_PINS.filter(v => {
+  const filteredVenues = useMemo(() => showVenueFilters ? VENUE_PINS.filter(v => {
     if (!venueHasActiveOrUpcomingToday(v)) return false;
     if (searchText && !v.name.toLowerCase().includes(searchLower)) return false;
     if (hasAll) return true;
@@ -764,7 +916,37 @@ export default function MapScreen() {
     if (filters.has('clubs') && v.type.includes('club')) return true;
     if (filters.has('fitness') && v.type.includes('fitness')) return true;
     return false;
-  }) : [], [showVenueFilters, venuesTooFar, searchLower, hasAll, filters]);
+  }) : [], [showVenueFilters, searchLower, hasAll, filters]);
+
+  // Cluster nearby venues when very close together (~50px on screen)
+  const clusteredVenueData = useMemo(() => {
+    if (filteredVenues.length === 0) return { singles: [] as typeof filteredVenues, clusters: [] as { lat: number; lng: number; count: number; venues: typeof filteredVenues }[] };
+    // ~50px on screen: debouncedDelta covers ~screen height in degrees, divide by screen points
+    const threshold = debouncedDelta * 0.015;
+    const used = new Set<number>();
+    const clusters: { lat: number; lng: number; count: number; venues: typeof filteredVenues }[] = [];
+    const singles: typeof filteredVenues = [];
+    for (let i = 0; i < filteredVenues.length; i++) {
+      if (used.has(i)) continue;
+      const group = [filteredVenues[i]];
+      used.add(i);
+      for (let j = i + 1; j < filteredVenues.length; j++) {
+        if (used.has(j)) continue;
+        if (Math.abs(filteredVenues[i].lat - filteredVenues[j].lat) < threshold && Math.abs(filteredVenues[i].lng - filteredVenues[j].lng) < threshold) {
+          group.push(filteredVenues[j]);
+          used.add(j);
+        }
+      }
+      if (group.length >= 3) {
+        const avgLat = group.reduce((s, v) => s + v.lat, 0) / group.length;
+        const avgLng = group.reduce((s, v) => s + v.lng, 0) / group.length;
+        clusters.push({ lat: avgLat, lng: avgLng, count: group.length, venues: group });
+      } else {
+        singles.push(...group);
+      }
+    }
+    return { singles, clusters };
+  }, [filteredVenues, debouncedDelta]);
 
   const getVenuePinColor = (v: VenuePin): string => {
     if (v.type.includes('fitness')) return VENUE_COLORS.fitness;
@@ -811,7 +993,7 @@ export default function MapScreen() {
         setSearchText(place.name);
         mapRef.current?.animateToRegion({ latitude: lat, longitude: lng, latitudeDelta: 0.005, longitudeDelta: 0.005 }, 600);
         // Open sheet for this place
-        setSelectedBus(null); setSelectedEvent(null); setSelectedCluster(null); setSelectedVenue(null); setSelectedSavedPin(null);
+        setSelectedBus(null); setSelectedEvent(null); setSelectedCluster(null); setSelectedVenue(null); setSelectedSavedPin(null); setSelectedRouteShape([]);
         Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
       }
     } catch (_) { if (__DEV__) console.warn('Place details failed:', _); }
@@ -912,8 +1094,8 @@ export default function MapScreen() {
             );
           })}
 
-          {/* Venue markers */}
-          {filteredVenues.map((v, i) => {
+          {/* Venue markers (singles + clusters) */}
+          {clusteredVenueData.singles.map((v, i) => {
             if (!validCoord(v.lat, v.lng)) return null;
             const venueIcon: keyof typeof Ionicons.glyphMap = v.type.includes('cafe') || v.type.includes('coffee') ? 'cafe' : v.type.includes('bar') || v.type.includes('pub') ? 'beer' : v.type.includes('restaurant') || v.type.includes('food') ? 'restaurant' : v.type.includes('club') || v.type.includes('night') ? 'musical-notes' : v.type.includes('fitness') || v.type.includes('gym') ? 'barbell' : 'pint';
             const venueColor = getVenuePinColor(v);
@@ -932,6 +1114,19 @@ export default function MapScreen() {
               />
             );
           })}
+          {clusteredVenueData.clusters.map((cl, ci) => (
+            <Marker
+              key={`vcluster_${ci}`}
+              coordinate={{ latitude: cl.lat, longitude: cl.lng }}
+              tracksViewChanges={false}
+              anchor={{ x: 0.5, y: 0.5 }}
+              onPress={() => mapRef.current?.animateToRegion({ latitude: cl.lat, longitude: cl.lng, latitudeDelta: debouncedDelta * 0.4, longitudeDelta: debouncedDelta * 0.4 }, 400)}
+            >
+              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#7b5ea7', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.6)' }}>
+                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>{cl.count}</Text>
+              </View>
+            </Marker>
+          ))}
         </>}
 
         {/* Searched place marker */}
@@ -943,11 +1138,24 @@ export default function MapScreen() {
             title={searchedPlace.name}
             description={searchedPlace.address}
             onPress={() => {
-              setSelectedBus(null); setSelectedEvent(null); setSelectedCluster(null); setSelectedVenue(null); setSelectedSavedPin(null);
+              setSelectedBus(null); setSelectedEvent(null); setSelectedCluster(null); setSelectedVenue(null); setSelectedSavedPin(null); setSelectedRouteShape([]);
               Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
             }}
           />
         )}
+
+        {/* Route shape polyline for selected bus */}
+        {Polyline && selectedRouteShape.length > 0 && (() => {
+          if (__DEV__) console.log(`[RouteShape] rendering Polyline with ${selectedRouteShape.length} points, agency=${selectedBus?.agency}`);
+          return (
+            <Polyline
+              coordinates={selectedRouteShape}
+              strokeColor={selectedBus?.agency === 'STO' ? '#00A78D' : '#CE1126'}
+              strokeWidth={4}
+              zIndex={10}
+            />
+          );
+        })()}
       </MapView>}
 
       {/* Header */}
@@ -1061,21 +1269,146 @@ export default function MapScreen() {
         {error ? <Text style={{ fontSize: 11, color: 'red', marginTop: 6 }}>{error}</Text> : null}
       </View>
 
-      {/* Re-center button */}
-      <TouchableOpacity
-        style={{
-          position: 'absolute', bottom: hasSheet ? 300 : Platform.OS === 'ios' ? 24 : 16, right: 16,
-          width: 44, height: 44, borderRadius: 22,
-          backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border,
-          alignItems: 'center', justifyContent: 'center',
-          shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6,
-          shadowOffset: { width: 0, height: 2 }, elevation: 4,
-        }}
-        onPress={centerOnOttawa}
-        accessibilityRole="button"
-        accessibilityLabel={t('Re-center map on Ottawa', 'Recentrer la carte sur Ottawa')}>
-        <Ionicons name="locate" size={20} color={colours.accent} />
-      </TouchableOpacity>
+      {/* Floating action buttons */}
+      <View style={{ position: 'absolute', bottom: hasSheet ? 300 : Platform.OS === 'ios' ? 24 : 16, right: 16, gap: 10, alignItems: 'center' }}>
+        <TouchableOpacity
+          style={{
+            width: 44, height: 44, borderRadius: 22,
+            backgroundColor: '#7b5ea7', alignItems: 'center', justifyContent: 'center',
+            shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6,
+            shadowOffset: { width: 0, height: 2 }, elevation: 4,
+          }}
+          onPress={() => { setContributeVisible(true); setContribSent(false); setContribName(''); setContribType(''); setContribInfo(''); setContribAddress(''); }}
+          accessibilityRole="button"
+          accessibilityLabel={t('Add a place or deal', 'Ajouter un lieu ou une offre')}>
+          <Ionicons name="add" size={24} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{
+            width: 44, height: 44, borderRadius: 22,
+            backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border,
+            alignItems: 'center', justifyContent: 'center',
+            shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6,
+            shadowOffset: { width: 0, height: 2 }, elevation: 4,
+          }}
+          onPress={centerOnOttawa}
+          accessibilityRole="button"
+          accessibilityLabel={t('Re-center map on Ottawa', 'Recentrer la carte sur Ottawa')}>
+          <Ionicons name="locate" size={20} color={colours.accent} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Community contribute modal */}
+      <Modal visible={contributeVisible} animationType="slide" transparent onRequestClose={() => setContributeVisible(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+          <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40 }}>
+            <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 16 }} />
+            {contribSent ? (
+              <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 }}>
+                <Ionicons name="checkmark-circle" size={48} color="#00A78D" />
+                <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text, marginTop: 12 }}>{t('Thank you!', 'Merci!')}</Text>
+                <Text style={{ fontSize: 14, color: colours.muted, textAlign: 'center', marginTop: 6, lineHeight: 20 }}>
+                  {t('Deal submitted! It will appear on the map shortly.', 'Offre soumise! Elle apparaitra bientot sur la carte.')}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setContributeVisible(false)}
+                  style={{ marginTop: 20, backgroundColor: colours.accent, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 40 }}
+                  accessibilityRole="button">
+                  <Text style={{ color: 'white', fontWeight: '700', fontSize: 16 }}>{t('Done', 'Fermer')}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={{ paddingHorizontal: 20 }}>
+                <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text, marginBottom: 4 }}>{t('Add a Place or Deal', 'Ajouter un lieu ou une offre')}</Text>
+                <Text style={{ fontSize: 13, color: colours.muted, marginBottom: 16 }}>{t('Help fellow Ottawa riders discover great spots', 'Aidez les usagers a decouvrir de bons endroits')}</Text>
+
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Place Name', 'Nom du lieu')} *</Text>
+                <TextInput
+                  style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colours.text, marginBottom: 12 }}
+                  placeholder={t('e.g. The Clocktower Brew Pub', 'ex. The Clocktower Brew Pub')}
+                  placeholderTextColor={colours.muted}
+                  value={contribName}
+                  onChangeText={setContribName}
+                />
+
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Deal Type', 'Type d\'offre')} *</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                  {['Happy Hour', 'Food Special', 'Student Deal', 'Event', 'Other'].map(type => (
+                    <TouchableOpacity
+                      key={type}
+                      onPress={() => setContribType(type)}
+                      style={{
+                        paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1,
+                        borderColor: contribType === type ? '#7b5ea7' : colours.border,
+                        backgroundColor: contribType === type ? '#7b5ea7' + '18' : colours.surface,
+                      }}>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: contribType === type ? '#7b5ea7' : colours.text }}>
+                        {t(type, type === 'Happy Hour' ? 'Happy Hour' : type === 'Food Special' ? 'Special bouffe' : type === 'Student Deal' ? 'Offre etudiante' : type === 'Event' ? 'Evenement' : 'Autre')}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Details', 'Details')} *</Text>
+                <TextInput
+                  style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colours.text, minHeight: 60, textAlignVertical: 'top', marginBottom: 12 }}
+                  placeholder={t('e.g. $5 pints Mon-Fri 3-6pm', 'ex. Pintes a 5$ lun-ven 15h-18h')}
+                  placeholderTextColor={colours.muted}
+                  value={contribInfo}
+                  onChangeText={setContribInfo}
+                  multiline
+                />
+
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Address', 'Adresse')} ({t('optional', 'optionnel')})</Text>
+                <TextInput
+                  style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colours.text, marginBottom: 16 }}
+                  placeholder={t('e.g. 575 Bank St', 'ex. 575 rue Bank')}
+                  placeholderTextColor={colours.muted}
+                  value={contribAddress}
+                  onChangeText={setContribAddress}
+                />
+
+                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
+                  <TouchableOpacity
+                    onPress={() => setContributeVisible(false)}
+                    style={{ flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: colours.muted }}>{t('Cancel', 'Annuler')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={async () => {
+                      if (!contribName.trim() || !contribType.trim() || !contribInfo.trim()) return;
+                      setContribSending(true);
+                      try {
+                        await supabase.from('community_deals').insert({
+                          venue_name: contribName.trim(),
+                          deal_description: `[${contribType}] ${contribInfo.trim()}${contribAddress.trim() ? ` | ${contribAddress.trim()}` : ''}`,
+                          approved: true, // TODO: revert to false and add admin approval before public launch
+                        });
+                        // Notify backend about new submission
+                        fetchWithTimeout('https://routeo-backend.vercel.app/api/community?action=deal.notify', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ venue_name: contribName.trim(), deal_type: contribType, deal_description: contribInfo.trim(), address: contribAddress.trim() || null }),
+                        }).catch(() => {});
+                        setContribSent(true);
+                      } catch (e) { if (__DEV__) console.warn('contribute submit failed:', e); }
+                      setContribSending(false);
+                    }}
+                    style={{
+                      flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center',
+                      backgroundColor: contribName.trim() && contribType.trim() && contribInfo.trim() ? '#7b5ea7' : colours.border,
+                    }}>
+                    {contribSending
+                      ? <ActivityIndicator color="white" size="small" />
+                      : <Text style={{ fontSize: 15, fontWeight: '700', color: contribName.trim() && contribType.trim() && contribInfo.trim() ? 'white' : colours.muted }}>{t('Submit', 'Soumettre')}</Text>
+                    }
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* Bottom sheet */}
       {hasSheet && (
@@ -1130,6 +1463,15 @@ export default function MapScreen() {
                 <View style={{ height: 6, backgroundColor: colours.border, borderRadius: 3 }}>
                   <View style={{ height: 6, borderRadius: 3, backgroundColor: busIsSTO ? '#00A78D' : '#CE1126', width: `${Math.min(100, selectedBus.progress ?? 0)}%` as any }} />
                 </View>
+                {busEtaInfo && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, backgroundColor: colours.accent + '12', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 }}>
+                    <Ionicons name="location-outline" size={14} color={colours.accent} />
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: colours.accent }}>~{busEtaInfo.mins} min</Text>
+                    <Text style={{ fontSize: 12, color: colours.muted, flex: 1 }} numberOfLines={1}>
+                      {t(`to ${busEtaInfo.stopName}`, `avant ${busEtaInfo.stopName}`)}
+                    </Text>
+                  </View>
+                )}
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colours.accent }} />
