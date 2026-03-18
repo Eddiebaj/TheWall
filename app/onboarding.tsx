@@ -8,6 +8,7 @@ import {
   Dimensions, Image, ScrollView, StatusBar,
   Text, TouchableOpacity, View
 } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { useApp } from '../context/AppContext';
 import { SK_CAMPUS, SK_ONBOARDED } from '../lib/storageKeys';
 import type { CampusId } from '../lib/campusData';
@@ -157,6 +158,13 @@ export default function OnboardingScreen() {
 
             {s.isWelcome ? (
               <>
+                {/* Parliament Hill silhouette */}
+                <Svg width={200} height={80} viewBox="0 0 200 80" style={{ marginBottom: 24, opacity: 0.85 }}>
+                  <Path
+                    d="M0 80 L0 55 L15 55 L15 50 L20 50 L20 45 L25 45 L25 50 L30 50 L30 55 L40 55 L40 48 L45 48 L45 42 L50 42 L50 48 L55 48 L55 55 L65 55 L65 50 L70 50 L70 40 L75 40 L75 35 L80 35 L80 30 L85 30 L85 25 L88 25 L88 20 L91 20 L91 15 L94 15 L94 10 L97 10 L97 5 L100 2 L103 5 L103 10 L106 10 L106 15 L109 15 L109 20 L112 20 L112 25 L115 25 L115 30 L120 30 L120 35 L125 35 L125 40 L130 40 L130 50 L135 50 L135 55 L145 55 L145 48 L150 48 L150 42 L155 42 L155 48 L160 48 L160 55 L170 55 L170 50 L175 50 L175 45 L180 45 L180 50 L185 50 L185 55 L200 55 L200 80 Z"
+                    fill={s.accent}
+                  />
+                </Svg>
                 {/* Welcome screen: logo */}
                 <Text style={{
                   fontSize: 52, fontWeight: '900', color: '#fff',

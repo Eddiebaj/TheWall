@@ -21,6 +21,7 @@ import {
 const ScaleDecorator = ({ children }: { children: React.ReactNode }) => <>{children}</>;
 import { useApp } from '../../context/AppContext';
 import { ArrivalRowSkeleton } from '../../components/Shimmer';
+import BusTrackingModal from '../../components/BusTrackingModal';
 import { supabase } from '../../lib/supabase';
 import stopMap from './stopmap.json';
 import stopNameMap from './stopnamemap.json';
@@ -65,7 +66,10 @@ import { HAPPY_HOUR_VENUES } from '../../lib/happyHourData';
 import { SK_SAVED_NEIGHBOURHOODS, SK_TONIGHT_DISMISSED, SK_TRIP_HISTORY, SK_LAST_CROWDING_REPORT, SK_CROWDING_CACHE, SK_FREQUENT_CARD_DISMISSED, SK_FREQUENT_ARRIVALS_CACHE, SK_TRIP_SHARING } from '../../lib/storageKeys';
 import { FrequentRoute, detectFrequentRoutes } from '../../lib/frequentRoutes';
 import { getDelayContext } from '../../lib/delayContext';
-// NewsSection removed from home — news lives in Account tab modal
+import { toTitleCase } from '../../lib/utils';
+import NewsSection, { SortMode as NewsSortMode } from '../../components/NewsSection';
+import { NewsArticle, SOURCE_COLOURS } from '../../lib/newsData';
+import { SK_NEWS_CACHE } from '../../lib/storageKeys';
 // NeighbourhoodSection removed — inlined for scroll reliability
 // NeighbourhoodSheet removed — discover section moved to dedicated tab
 import TonightCard from '../../components/TonightCard';
@@ -238,7 +242,7 @@ const ALL_OTTAWA_LIFE = [
 
 const DEFAULT_OTTAWA_LIFE_IDS = ['restaurant', 'cafe', 'shopping', 'events'];
 // 'map' removed from default section order
-const DEFAULT_SECTION_ORDER = ['otrain', 'saved', 'services', 'alerts'];
+const DEFAULT_SECTION_ORDER = ['otrain', 'saved', 'services', 'alerts', 'news'];
 
 // DISCOVER_CARDS removed — replaced by NEIGHBOURHOODS from lib/neighbourhoodData.ts
 
@@ -647,14 +651,12 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
           </Text>
         </View>
       )}
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name={isLRT ? 'train' : 'bus'} size={12} color={isLRT ? colours.lrt : isSTO ? '#0072bc' : colours.accent} />
+          <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: (isLRT ? colours.lrt : isSTO ? '#0072bc' : colours.accent) + '18', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name={isLRT ? 'train' : 'bus-outline'} size={12} color={isLRT ? colours.lrt : isSTO ? '#0072bc' : colours.accent} />
           </View>
-          <Text style={{ fontSize: 10, fontWeight: '700', color: isSTO ? '#0072bc' : colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            {isLRT ? 'O-Train' : isSTO ? 'STO' : t('Stop', 'Arrêt')}
-          </Text>
+          <Text style={{ fontSize: 15, fontWeight: '800', color: colours.text, flex: 1, lineHeight: 18 }} numberOfLines={2}>{toTitleCase(item.name)}</Text>
           {!previewLoading && preview.length > 0 && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
               <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: isLive ? (isSTO ? stoBlue : '#22c55e') : colours.muted }} />
@@ -675,12 +677,14 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
           )}
         </View>
       </View>
-      <Text style={{ fontSize: 14, fontWeight: '800', color: colours.text, lineHeight: 18 }} numberOfLines={2}>{item.name}</Text>
-      <View style={{ gap: 4 }}>
+      <View style={{ gap: 3 }}>
         {previewLoading ? (
           <ActivityIndicator size="small" color={colours.accent} />
         ) : preview.length === 0 ? (
-          <Text style={{ fontSize: 11, color: colours.muted }}>{t('No arrivals', 'Aucune arrivée')}</Text>
+          <View style={{ alignItems: 'center', paddingVertical: 4 }}>
+            <Ionicons name="bus-outline" size={18} color={colours.muted} />
+            <Text style={{ fontSize: 11, color: colours.muted, marginTop: 3 }}>{t('No arrivals scheduled', 'Aucune arrivée prévue')}</Text>
+          </View>
         ) : (
           preview.map((a, i) => {
             const badgeColor = isSTO ? stoBlue : colours.accent;
@@ -689,7 +693,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
               <View style={{ backgroundColor: badgeColor + '18', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, minWidth: 26, alignItems: 'center' }}>
                 <Text style={{ fontSize: 10, fontWeight: '800', color: badgeColor }}>{(a.routeId || '').split('-')[0]}</Text>
               </View>
-              <Text style={{ fontSize: 11, fontWeight: '800', color: a.minsAway <= 2 ? colours.red : badgeColor }}>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: a.minsAway <= 2 ? colours.red : badgeColor }}>
                 {timeFormat === 'absolute'
                   ? fmtAbsTime(a.minsAway)
                   : (a.minsAway === 0 ? t('Now', 'Maint.') : `${a.minsAway}m`)}
@@ -743,7 +747,7 @@ function SavedStopCard({ fav, isActive, colours, fonts, t, onPress, onLongPress,
           </View>
         )}
       </View>
-      <Text style={{ fontSize: 14, fontWeight: '800', color: isActive ? 'white' : colours.text, lineHeight: 18 }} numberOfLines={2}>{fav.name}</Text>
+      <Text style={{ fontSize: 14, fontWeight: '800', color: isActive ? 'white' : colours.text, lineHeight: 18 }} numberOfLines={2}>{toTitleCase(fav.name)}</Text>
       <View style={{ gap: 5 }}>
         {previewLoading ? <ActivityIndicator size="small" color={isActive ? 'rgba(255,255,255,0.6)' : stopColor} /> : preview.length === 0 ? <Text style={{ fontSize: 11, color: isActive ? 'rgba(255,255,255,0.5)' : colours.muted }}>{t('No arrivals', 'Aucune arrivée')}</Text> : (
           preview.map((a, i) => (
@@ -964,7 +968,7 @@ function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBo
             <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#00A78D18', alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="speedometer" size={16} color="#00A78D" />
             </View>
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('GAS PRICES', 'PRIX ESSENCE')}</Text>
+            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, letterSpacing: 1 }}>{t('Gas Prices', 'Prix essence')}</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <TouchableOpacity onPress={toggleBoard} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -1357,6 +1361,7 @@ function LiveScreenInner() {
   const [showAllArrivals, setShowAllArrivals] = useState(false);
   const [expandedStopId, setExpandedStopId] = useState<string | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [trackingBus, setTrackingBus] = useState<{ routeId: string; headsign: string; minsAway: number; isSTO: boolean } | null>(null);
   const [reportCategory, setReportCategory] = useState<string | null>(null);
   const [reportDescription, setReportDescription] = useState('');
   const [reportSubmitting, setReportSubmitting] = useState(false);
@@ -1378,7 +1383,13 @@ function LiveScreenInner() {
   const [showWest, setShowWest] = useState(false);
   const [showNorth, setShowNorth] = useState(false);
   const [showSouth, setShowSouth] = useState(false);
-  // newsArticles, selectedNeighbourhood, neighbourhoodSheetVisible removed — discover section moved to dedicated tab
+  // ── News widget state ──
+  const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([]);
+  const [newsLoading, setNewsLoading] = useState(true);
+  const [newsModalVisible, setNewsModalVisible] = useState(false);
+  const [newsSortMode, setNewsSortMode] = useState<NewsSortMode>('latest');
+  const [newsSourceFilter, setNewsSourceFilter] = useState<string | null>(null);
+  const [newsSources, setNewsSources] = useState<string[]>([]);
   const [alerts, setAlerts] = useState<ServiceAlert[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [alertsModalVisible, setAlertsModalVisible] = useState(false);
@@ -1557,7 +1568,7 @@ function LiveScreenInner() {
         if (val) {
           let saved: string[] = JSON.parse(val);
           // Remove legacy keys
-          saved = saved.filter(s => s !== 'quick' && s !== 'ottawa' && s !== 'map' && s !== 'gas' && s !== 'news' && s !== 'discover');
+          saved = saved.filter(s => s !== 'quick' && s !== 'ottawa' && s !== 'map' && s !== 'gas' && s !== 'discover');
           // Ensure all required sections exist
           const required = DEFAULT_SECTION_ORDER;
           for (const key of required) {
@@ -1578,6 +1589,7 @@ function LiveScreenInner() {
     AsyncStorage.removeItem(SK_QUICK_ACTIONS);
     AsyncStorage.removeItem(SK_OTTAWA_LIFE);
     fetchAlerts();
+    fetchNewsWidget();
     fetchWeather();
     loadSavedGarbageAddress();
     // Check for unseen critical service alerts and notify
@@ -1869,6 +1881,22 @@ function LiveScreenInner() {
   const fetchAlerts = async () => {
     try { setAlertsLoading(true); const resp = await fetchWithTimeout(ALERTS_URL); if (!resp.ok) throw new Error('HTTP ' + resp.status); const data = await resp.json(); setAlerts(data.alerts || []); }
     catch { setAlerts([]); } finally { setAlertsLoading(false); }
+  };
+
+  const fetchNewsWidget = async () => {
+    try {
+      const cached = await AsyncStorage.getItem(SK_NEWS_CACHE);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.articles?.length) { setNewsArticles(parsed.articles); setNewsLoading(false); }
+      }
+      const resp = await fetchWithTimeout('https://routeo-backend.vercel.app/api/news');
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      const items: NewsArticle[] = data.articles || [];
+      setNewsArticles(items);
+      AsyncStorage.setItem(SK_NEWS_CACHE, JSON.stringify({ articles: items, ts: Date.now() }));
+    } catch {} finally { setNewsLoading(false); }
   };
 
   // Cross-reference commute with active alerts
@@ -3323,7 +3351,7 @@ function LiveScreenInner() {
 
   const alertBarText = () => {
     if (alertsLoading) return t('Checking for alerts...', 'Vérification des alertes...');
-    if (!hasAlerts) return t('No active service alerts', 'Aucune alerte de service active');
+    if (!hasAlerts) return t('All clear — no active alerts', 'Tout est normal — aucune alerte active');
     const first = activeAlerts[0];
     return activeAlerts.length === 1 ? first.title : `${first.title} +${activeAlerts.length - 1} ${t('more', 'autres')}`;
   };
@@ -3461,7 +3489,7 @@ function LiveScreenInner() {
                           {route.stops.map((stop, i) => (
                             <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                               <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: i === 0 ? accent : i === route.stops.length - 1 ? accent : colours.border }} />
-                              <Text style={{ fontSize: 13, color: colours.text }}>{stop}</Text>
+                              <Text style={{ fontSize: 13, color: colours.text }}>{toTitleCase(stop)}</Text>
                             </View>
                           ))}
                           {route.note_en && (
@@ -3806,7 +3834,12 @@ function LiveScreenInner() {
           })()}
         </View>
         <View style={styles.arrivalRight}>
-          <Text style={{ fontSize: fonts.xl, fontWeight: '700', color: item.minsAway <= 2 ? colours.red : colours.accent }}>{timeDisplay}</Text>
+          <TouchableOpacity onPress={() => { if (!item.isScheduled) setTrackingBus({ routeId: item.routeId, headsign: item.headsign, minsAway: item.minsAway, isSTO: isStoStop(stopId) }); }} activeOpacity={item.isScheduled ? 1 : 0.6}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Text style={{ fontSize: fonts.xl, fontWeight: '700', color: item.minsAway <= 2 ? colours.red : colours.accent }}>{timeDisplay}</Text>
+              {!item.isScheduled && <Ionicons name="locate-outline" size={14} color={colours.accent} />}
+            </View>
+          </TouchableOpacity>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
             {!item.isScheduled && (
               <View>
@@ -3845,7 +3878,7 @@ function LiveScreenInner() {
 
     const modalTitle = isGarbage ? 'Garbage Day'
       : isGas ? 'Gas Prices · Ottawa'
-      : isStop ? (boardExpandItem as any).name
+      : isStop ? toTitleCase((boardExpandItem as any).name)
       : '';
     const modalSub = isGarbage ? 'Collection schedule'
       : isGas ? 'Nearby station prices'
@@ -4064,7 +4097,7 @@ function LiveScreenInner() {
         <View style={[styles.modalContainer, { backgroundColor: colours.bg }]}>
           <View style={[styles.modalHeader, { borderBottomColor: colours.border }]}>
             <View style={{ flex: 1, marginRight: 12 }}>
-              <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }} numberOfLines={2}>{expandedName}</Text>
+              <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }} numberOfLines={2}>{toTitleCase(expandedName)}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
                 <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{lastUpdated ? `${t('Updated', 'Mis \u00E0 jour')} ${lastUpdated}` : t('All arrivals', 'Toutes les arriv\u00E9es')}</Text>
                 <TouchableOpacity onPress={toggleTimeFormat} style={{ flexDirection: 'row', borderRadius: 8, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }} accessibilityRole="button" accessibilityLabel={t('Toggle time format', 'Changer le format de l\'heure')}>
@@ -4126,7 +4159,7 @@ function LiveScreenInner() {
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>{t('Report an Issue', 'Signaler un probleme')}</Text>
             <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
-              {t('Stop', 'Arret')} #{expandedStopId} · {stopName}
+              {t('Stop', 'Arret')} #{expandedStopId} · {toTitleCase(stopName)}
             </Text>
           </View>
           <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setShowReportModal(false)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
@@ -4244,7 +4277,7 @@ function LiveScreenInner() {
       case 'saved': return savedPlaces.length === 0 ? null : (
         <React.Fragment key="saved">{wrapSection('saved', <>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 10 }}>
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Saved Places', 'Lieux sauvegardés')}</Text>
+            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, letterSpacing: 1 }}>{t('Saved Places', 'Lieux sauvegardés')}</Text>
             <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Long press to remove', 'Appui long pour retirer')}</Text>
           </View>
           <FlatList horizontal data={savedPlaces} keyExtractor={p => p.id} showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 20, paddingRight: 20, gap: 10, paddingBottom: 4 }} style={{ marginBottom: 20 }} snapToInterval={170} decelerationRate="fast" renderItem={({ item: place }) => (<SavedPlaceCard place={place} colours={colours} fonts={fonts} language={language} t={t} onPress={() => Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(`${place.name} ${place.vicinity}`)}`)} onLongPress={() => Alert.alert(t('Remove?', 'Retirer?'), place.name, [{ text: t('Cancel', 'Annuler'), style: 'cancel' }, { text: t('Remove', 'Retirer'), style: 'destructive', onPress: () => removeSavedPlace(place.id) }])} cardShadow={cardShadow} />)} />
@@ -4261,14 +4294,14 @@ function LiveScreenInner() {
       case 'alerts': return (
         <React.Fragment key="alerts">{wrapSection('alerts', <>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 6 }}>
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, letterSpacing: 1, textTransform: 'uppercase' }}>{t('Service Alerts', 'Alertes')}</Text>
+            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, letterSpacing: 1 }}>{t('Service Alerts', 'Alertes')}</Text>
             <TouchableOpacity onPress={() => { const item: SavedBoardItem = { type: 'service_alert' }; isBoardSaved(item) ? removeFromBoard(item) : addToBoardIfMissing(item); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Save alerts to board', 'Sauvegarder les alertes au tableau')} accessibilityState={{ selected: isBoardSaved({ type: 'service_alert' }) }}>
               <Ionicons name={isBoardSaved({ type: 'service_alert' }) ? 'bookmark' : 'bookmark-outline'} size={18} color={isBoardSaved({ type: 'service_alert' }) ? colours.accent : colours.muted} />
             </TouchableOpacity>
           </View>
-          <TouchableOpacity style={[styles.notifBar, { backgroundColor: hasAlerts ? alertDotColour() + '12' : colours.surface, borderColor: hasAlerts ? alertDotColour() : colours.border, ...cardShadow }]} onPress={() => setAlertsModalVisible(true)} accessibilityRole="button" accessibilityLabel={t('View service alerts', 'Voir les alertes de service')}>
+          <TouchableOpacity style={[styles.notifBar, { backgroundColor: hasAlerts ? alertDotColour() + '12' : colours.accent + '10', borderColor: hasAlerts ? alertDotColour() : colours.border, ...cardShadow }]} onPress={() => setAlertsModalVisible(true)} accessibilityRole="button" accessibilityLabel={t('View service alerts', 'Voir les alertes de service')}>
             <View style={styles.notifLeft}>
-              {alertsLoading ? <ActivityIndicator size="small" color={colours.muted} style={{ marginRight: 8 }} /> : <View style={[styles.notifDot, { backgroundColor: alertDotColour() }]} />}
+              {alertsLoading ? <ActivityIndicator size="small" color={colours.muted} style={{ marginRight: 8 }} /> : hasAlerts ? <View style={[styles.notifDot, { backgroundColor: alertDotColour() }]} /> : <Ionicons name="checkmark-circle-outline" size={16} color={colours.accent} style={{ marginRight: 10 }} />}
               <Text style={{ color: colours.text, fontSize: fonts.md, fontWeight: '500', flex: 1 }} numberOfLines={1}>{alertBarText()}</Text>
             </View>
             <Text style={{ color: hasAlerts ? alertDotColour() : colours.accent, fontSize: fonts.sm, fontWeight: '600', marginLeft: 8 }}>{t('View all →', 'Voir tout →')}</Text>
@@ -4278,7 +4311,54 @@ function LiveScreenInner() {
 
       // 'map' case removed — Live Map is accessible via the dedicated tab
 
-      // 'news' case removed — news lives in Account tab modal
+      case 'news': return (
+        <React.Fragment key="news">{wrapSection('news', <>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="newspaper-outline" size={14} color={colours.muted} />
+              <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, letterSpacing: 1 }}>{t('Local News', 'Actualités locales')}</Text>
+            </View>
+            <TouchableOpacity onPress={() => setNewsModalVisible(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.accent }}>{t('See all →', 'Tout voir →')}</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={{ marginHorizontal: 20, borderRadius: 14, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, overflow: 'hidden', ...cardShadow }}>
+            {newsLoading ? (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color={colours.accent} />
+              </View>
+            ) : newsArticles.length === 0 ? (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('No news available', 'Aucune actualité disponible')}</Text>
+              </View>
+            ) : (
+              newsArticles.slice(0, 3).map((article, i) => {
+                const srcColour = SOURCE_COLOURS[article.source] || colours.accent;
+                return (
+                  <TouchableOpacity
+                    key={article.id}
+                    onPress={() => Linking.openURL(article.link)}
+                    activeOpacity={0.7}
+                    style={{
+                      flexDirection: 'row', alignItems: 'center', gap: 10,
+                      paddingHorizontal: 14, paddingVertical: 12,
+                      borderBottomWidth: i < 2 ? 1 : 0, borderBottomColor: colours.border,
+                    }}
+                  >
+                    <View style={{ backgroundColor: srcColour, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4, minWidth: 36, alignItems: 'center' }}>
+                      <Text style={{ color: '#fff', fontSize: 8, fontWeight: '800', textTransform: 'uppercase' }} numberOfLines={1}>{article.source}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text, lineHeight: 18 }} numberOfLines={2}>{article.title}</Text>
+                    </View>
+                    <Text style={{ fontSize: 10, color: colours.muted, minWidth: 32, textAlign: 'right' }}>{timeAgo(article.pubDate)}</Text>
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </View>
+        </>)}</React.Fragment>
+      );
 
       // 'discover' case removed — neighbourhoods live in dedicated Discover tab
 
@@ -4296,6 +4376,64 @@ function LiveScreenInner() {
         {swapSheetVisible && renderSwapSheet()}
         {!!expandedStopId && renderExpandedArrivals()}
         {showReportModal && renderStopReportModal()}
+        {trackingBus && <BusTrackingModal visible={!!trackingBus} onClose={() => setTrackingBus(null)} routeId={trackingBus.routeId} headsign={trackingBus.headsign} stopName={stopName} minsAway={trackingBus.minsAway} isSTO={trackingBus.isSTO} colours={colours} fonts={fonts} t={t} />}
+
+        {/* News Modal */}
+        <Modal visible={newsModalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setNewsModalVisible(false)}>
+          <View style={{ flex: 1, backgroundColor: colours.bg }}>
+            <View style={[styles.modalHeader, { borderBottomColor: colours.border }]}>
+              <View>
+                <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>{t('Local News', 'Actualités locales')}</Text>
+                <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Ottawa news sources', 'Sources d\'actualités d\'Ottawa')}</Text>
+              </View>
+              <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setNewsModalVisible(false)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
+                <Ionicons name="close" size={18} color={colours.text} />
+              </TouchableOpacity>
+            </View>
+            {/* Sort pills */}
+            <View style={{ paddingHorizontal: 20, paddingTop: 12, marginBottom: 6 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                {([{ id: 'latest' as NewsSortMode, en: 'Latest', fr: 'Récents' }, { id: 'oldest' as NewsSortMode, en: 'Oldest', fr: 'Anciens' }, { id: 'source' as NewsSortMode, en: 'Source A-Z', fr: 'Source A-Z' }]).map(opt => {
+                  const active = newsSortMode === opt.id;
+                  return (
+                    <TouchableOpacity key={opt.id} onPress={() => setNewsSortMode(opt.id)} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: active ? colours.accent + '18' : colours.surface, borderWidth: 1, borderColor: active ? colours.accent + '40' : colours.border }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: active ? colours.accent : colours.muted }}>{t(opt.en, opt.fr)}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+            {/* Source filter pills */}
+            {newsSources.length > 0 && (
+              <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                  <TouchableOpacity onPress={() => setNewsSourceFilter(null)} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: !newsSourceFilter ? colours.accent + '18' : colours.surface, borderWidth: 1, borderColor: !newsSourceFilter ? colours.accent + '40' : colours.border }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: !newsSourceFilter ? colours.accent : colours.muted }}>{t('All', 'Tous')}</Text>
+                  </TouchableOpacity>
+                  {newsSources.map(src => {
+                    const active = newsSourceFilter === src;
+                    const srcC = SOURCE_COLOURS[src] || colours.accent;
+                    return (
+                      <TouchableOpacity key={src} onPress={() => setNewsSourceFilter(active ? null : src)} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: active ? srcC + '18' : colours.surface, borderWidth: 1, borderColor: active ? srcC + '40' : colours.border }}>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: active ? srcC : colours.muted }}>{src}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            )}
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+              <NewsSection
+                colours={colours}
+                fonts={fonts}
+                cardShadow={cardShadow}
+                onArticlesLoaded={(articles) => { setNewsSources([...new Set(articles.map(a => a.source))].sort()); }}
+                sortMode={newsSortMode}
+                sourceFilter={newsSourceFilter}
+              />
+            </ScrollView>
+          </View>
+        </Modal>
 
         {/* Full Schedule Modal */}
         {!!scheduleRoute && <Modal visible={!!scheduleRoute} animationType="slide" transparent onRequestClose={() => setScheduleRoute(null)}>
@@ -4685,7 +4823,7 @@ function LiveScreenInner() {
               <View style={[styles.boardHeader, { borderBottomColor: colours.border, borderBottomWidth: 1 }]}>
                 <TouchableOpacity onPress={() => setExpandedStopId(stopId)} style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>{stopName}</Text>
+                    <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>{toTitleCase(stopName)}</Text>
                     <Ionicons name="chevron-forward" size={14} color={colours.accent} />
                   </View>
                   {lastUpdated ? <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Updated', 'Mis à jour')} {lastUpdated} · {t('Tap to expand', 'Appuyez pour élargir')}</Text> : null}
@@ -4720,7 +4858,7 @@ function LiveScreenInner() {
                     {t('Closer option?', 'Option plus proche?')}
                   </Text>
                   <Text style={{ fontSize: fonts.sm, color: colours.text, marginTop: 2 }}>
-                    {t(`Walk ${nearbyAlternative.walkMeters}m to ${nearbyAlternative.stopName}`, `Marcher ${nearbyAlternative.walkMeters}m vers ${nearbyAlternative.stopName}`)}
+                    {t(`Walk ${nearbyAlternative.walkMeters}m to ${toTitleCase(nearbyAlternative.stopName)}`, `Marcher ${nearbyAlternative.walkMeters}m vers ${toTitleCase(nearbyAlternative.stopName)}`)}
                   </Text>
                   <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>
                     {t(`Route ${nearbyAlternative.routeId} in ${nearbyAlternative.minsAway} min`, `Route ${nearbyAlternative.routeId} dans ${nearbyAlternative.minsAway} min`)}
@@ -4733,7 +4871,7 @@ function LiveScreenInner() {
           ) : (
             <>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 8 }}>
-                <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('My Board', 'Mon tableau')}</Text>
+                <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, letterSpacing: 1 }}>{t('My Board', 'Mon tableau')}</Text>
                 <Ionicons name="reorder-three-outline" size={16} color={colours.muted} />
               </View>
               <FlatList
@@ -4855,7 +4993,7 @@ function LiveScreenInner() {
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <Ionicons name="analytics" size={16} color={colours.accent} />
-                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, letterSpacing: 0.5 }}>
                   {t('Your Commute', 'Votre trajet')}
                 </Text>
               </View>
@@ -4903,8 +5041,8 @@ const styles = StyleSheet.create({
   liveDot: { width: 6, height: 6, borderRadius: 3 },
   searchContainer: { paddingHorizontal: 20, marginBottom: 12 },
   searchRow: { flexDirection: 'row', gap: 10 },
-  searchInput: { flex: 1, borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12, fontWeight: '500' },
-  searchBtn: { paddingHorizontal: 18, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  searchInput: { flex: 1, borderWidth: 1, borderRadius: 24, paddingHorizontal: 16, paddingVertical: 12, fontWeight: '500' },
+  searchBtn: { paddingHorizontal: 18, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
   dropdown: { borderWidth: 1, borderRadius: 14, marginTop: 6, overflow: 'hidden' },
   dropdownItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
   arrivalsCard: { marginHorizontal: 20, borderRadius: 16, borderWidth: 1, marginBottom: 16, overflow: 'hidden' },
@@ -4919,7 +5057,7 @@ const styles = StyleSheet.create({
   reportBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
   centerState: { alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 },
   retryBtn: { marginTop: 12, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12 },
-  sectionLabel: { fontWeight: '700', paddingHorizontal: 20, marginBottom: 8, letterSpacing: 1, textTransform: 'uppercase' },
+  sectionLabel: { fontWeight: '700', paddingHorizontal: 20, marginBottom: 8, letterSpacing: 1 },
   notifBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 20, marginBottom: 16, padding: 14, borderRadius: 14, borderWidth: 1 },
   notifLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   notifDot: { width: 8, height: 8, borderRadius: 4, marginRight: 10 },

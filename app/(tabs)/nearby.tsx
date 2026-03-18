@@ -12,6 +12,7 @@ import { PlaceCardSkeleton } from '../../components/Shimmer';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { SK_SAVED_PLACES } from '../../lib/storageKeys';
 import { supabase } from '../../lib/supabase';
+import { toTitleCase } from '../../lib/utils';
 const ARRIVALS_URL = 'https://routeo-backend.vercel.app/api/arrivals';
 
 const CATEGORIES = [
@@ -152,17 +153,17 @@ export default function ExploreScreen() {
   useEffect(() => {
     if (!location || nearbyStops.length > 0) return;
     const delta = 0.04; // ~4km bounding box
-    supabase.from('stops')
+    Promise.resolve(supabase.from('stops')
       .select('stop_id,stop_name,stop_lat,stop_lon')
       .gte('stop_lat', location.lat - delta)
       .lte('stop_lat', location.lat + delta)
       .gte('stop_lon', location.lng - delta)
       .lte('stop_lon', location.lng + delta)
-      .limit(500)
+      .limit(500))
       .then(({ data }) => {
         if (data && data.length > 0) setNearbyStops(data);
       })
-      .catch(e => { if (__DEV__) console.warn('Supabase stops query failed:', e); });
+      .catch((e: unknown) => { if (__DEV__) console.warn('Supabase stops query failed:', e); });
   }, [location]);
 
   // Find nearest stop + next arrival for each place
@@ -505,7 +506,7 @@ export default function ExploreScreen() {
                 <Ionicons name="bus" size={10} color={colours.accent} />
               </View>
               <Text style={{ fontSize: fonts.sm, color: colours.muted, flex: 1 }} numberOfLines={1}>
-                {transit.stopName}
+                {toTitleCase(transit.stopName)}
               </Text>
               <Text style={{ fontSize: 10, color: colours.muted }}>
                 {transit.walkMin} {t('min walk', 'min à pied')}

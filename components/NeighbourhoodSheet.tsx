@@ -14,6 +14,7 @@ import { Neighbourhood } from '../lib/neighbourhoodData';
 import { NewsArticle, SOURCE_COLOURS, timeAgo } from '../lib/newsData';
 import { getDeviceId } from '../lib/pushNotifications';
 import { supabase } from '../lib/supabase';
+import { toTitleCase } from '../lib/utils';
 
 type Props = {
   visible: boolean;
@@ -445,7 +446,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
             )}
             {!stopsLoading && stops.map((s: any, i: number) => (
               <View key={i} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border }}>
-                <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{s.name || `Stop #${s.id}`}</Text>
+                <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{toTitleCase(s.name) || `Stop #${s.id}`}</Text>
                 {s.routes && <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Routes', 'Lignes')}: {s.routes.join(', ')}</Text>}
               </View>
             ))}

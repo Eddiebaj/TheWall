@@ -184,7 +184,6 @@ function NewsSection({ colours, fonts, cardShadow, onArticlesLoaded, sortMode = 
               activeOpacity={0.85}
               onPress={() => Linking.openURL(article.link)}
               style={[{
-                height: 160,
                 borderRadius: 16,
                 overflow: 'hidden',
                 backgroundColor: colours.surface,
@@ -192,52 +191,85 @@ function NewsSection({ colours, fonts, cardShadow, onArticlesLoaded, sortMode = 
                 borderColor: colours.border,
               }, cardShadow]}
             >
-              <ImageBackground
-                source={hasImage ? { uri: article.thumbnail } : undefined}
-                onError={() => setFailedImages(prev => new Set(prev).add(article.id))}
-                style={{ width: '100%', height: '100%', justifyContent: 'flex-end' }}
-                resizeMode="cover"
-              >
-                {!hasImage && (
-                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colours.surface, alignItems: 'center', justifyContent: 'center' }}>
+              {hasImage ? (
+                <ImageBackground
+                  source={{ uri: article.thumbnail }}
+                  onError={() => setFailedImages(prev => new Set(prev).add(article.id))}
+                  style={{ width: '100%', height: 160, justifyContent: 'flex-end' }}
+                  resizeMode="cover"
+                >
+                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)' }} />
+                  {/* Source badge */}
+                  <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: sourceColour, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 4 }}>
+                    <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.3 }}>{article.source}</Text>
+                  </View>
+                  {/* Time ago */}
+                  <View style={{ position: 'absolute', top: 8, right: 8 }}>
+                    <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>{timeAgo(article.pubDate, language)}</Text>
+                  </View>
+                  {/* Headline + actions */}
+                  <View style={{ padding: 12 }}>
+                    <Text
+                      numberOfLines={2}
+                      style={{
+                        color: '#fff',
+                        fontSize: fonts.md,
+                        fontWeight: '800',
+                        lineHeight: 20,
+                        textShadowColor: 'rgba(0,0,0,0.6)',
+                        textShadowRadius: 4,
+                      }}
+                    >
+                      {article.title}
+                    </Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 6 }}>
+                      <TouchableOpacity onPress={() => toggleSave(article.id)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                        <Ionicons name={savedIds.has(article.id) ? 'bookmark' : 'bookmark-outline'} size={16} color="#fff" />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => shareArticle(article)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                        <Ionicons name="share-outline" size={16} color="#fff" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </ImageBackground>
+              ) : (
+                <View>
+                  {/* Fallback: outlet name centered */}
+                  <View style={{ height: 100, backgroundColor: colours.surface, alignItems: 'center', justifyContent: 'center' }}>
                     <Text style={{ fontSize: 13, color: colours.muted }}>{article.source}</Text>
                   </View>
-                )}
-                {hasImage && (
-                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)' }} />
-                )}
-                {/* Source badge */}
-                <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: sourceColour, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 4 }}>
-                  <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.3 }}>{article.source}</Text>
-                </View>
-                {/* Time ago */}
-                <View style={{ position: 'absolute', top: 8, right: 8 }}>
-                  <Text style={{ color: hasImage ? '#fff' : colours.muted, fontSize: 10, fontWeight: '700' }}>{timeAgo(article.pubDate, language)}</Text>
-                </View>
-                {/* Headline + actions */}
-                <View style={{ padding: 12 }}>
-                  <Text
-                    numberOfLines={2}
-                    style={{
-                      color: hasImage ? '#fff' : colours.text,
-                      fontSize: fonts.md,
-                      fontWeight: '800',
-                      lineHeight: 20,
-                      ...(hasImage ? { textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 } : {}),
-                    }}
-                  >
-                    {article.title}
-                  </Text>
-                  <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 6 }}>
-                    <TouchableOpacity onPress={() => toggleSave(article.id)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                      <Ionicons name={savedIds.has(article.id) ? 'bookmark' : 'bookmark-outline'} size={16} color={hasImage ? '#fff' : colours.muted} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => shareArticle(article)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                      <Ionicons name="share-outline" size={16} color={hasImage ? '#fff' : colours.muted} />
-                    </TouchableOpacity>
+                  {/* Source badge */}
+                  <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: sourceColour, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 4 }}>
+                    <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.3 }}>{article.source}</Text>
+                  </View>
+                  {/* Time ago */}
+                  <View style={{ position: 'absolute', top: 8, right: 8 }}>
+                    <Text style={{ color: colours.muted, fontSize: 10, fontWeight: '700' }}>{timeAgo(article.pubDate, language)}</Text>
+                  </View>
+                  {/* Headline + actions */}
+                  <View style={{ padding: 12 }}>
+                    <Text
+                      numberOfLines={2}
+                      style={{
+                        color: colours.text,
+                        fontSize: fonts.md,
+                        fontWeight: '800',
+                        lineHeight: 20,
+                      }}
+                    >
+                      {article.title}
+                    </Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 6 }}>
+                      <TouchableOpacity onPress={() => toggleSave(article.id)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                        <Ionicons name={savedIds.has(article.id) ? 'bookmark' : 'bookmark-outline'} size={16} color={colours.muted} />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => shareArticle(article)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                        <Ionicons name="share-outline" size={16} color={colours.muted} />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
-              </ImageBackground>
+              )}
             </TouchableOpacity>
           );
         })}

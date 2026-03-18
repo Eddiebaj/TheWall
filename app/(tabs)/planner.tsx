@@ -6,6 +6,7 @@ try { Haptics = require('expo-haptics'); } catch {}
 let Notifications: typeof import('expo-notifications') | null = null;
 try { Notifications = require('expo-notifications'); } catch {}
 import { useLocalSearchParams } from 'expo-router';
+import { toTitleCase } from '../../lib/utils';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, Dimensions, FlatList, Image, Keyboard, KeyboardAvoidingView,
@@ -1755,7 +1756,7 @@ function PlannerScreenInner() {
                           </View>
                         )}
                         <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>
-                          {(leg.from?.name || '').replace(/ O-TRAIN (EAST|WEST|NORTH|SOUTH).*$/i, '').replace(/ \/ EST$| \/ OUEST$/i, '')} → {(leg.to?.name || '').replace(/ O-TRAIN (EAST|WEST|NORTH|SOUTH).*$/i, '').replace(/ \/ EST$| \/ OUEST$/i, '')}
+                          {toTitleCase((leg.from?.name || '').replace(/ O-TRAIN (EAST|WEST|NORTH|SOUTH).*$/i, '').replace(/ \/ EST$| \/ OUEST$/i, ''))} → {toTitleCase((leg.to?.name || '').replace(/ O-TRAIN (EAST|WEST|NORTH|SOUTH).*$/i, '').replace(/ \/ EST$| \/ OUEST$/i, ''))}
                         </Text>
                       </View>
                       <View style={{ alignItems: 'flex-end', gap: 2 }}>
@@ -2290,7 +2291,7 @@ function PlannerScreenInner() {
                   isoStops.map((stop, i) => (
                     <View key={stop.name} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: colours.border }}>
                       <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{stop.name}</Text>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{toTitleCase(stop.name)}</Text>
                         {stop.routes.length > 0 && (
                           <View style={{ flexDirection: 'row', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
                             {stop.routes.map(r => (
@@ -2626,7 +2627,7 @@ function PlannerScreenInner() {
             ) : tripHistory.length > 0 ? (
               <View style={{ paddingTop: savedRoutes.length > 0 ? 0 : 12 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, letterSpacing: 0.5 }}>
                     {t('Recent Trips', 'Trajets recents')}
                   </Text>
                   {tripHistory.length > 3 && (

@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
+import { toTitleCase } from '../../lib/utils';
 
 const BACKEND_URL = 'https://routeo-backend.vercel.app/api/arrivals';
 
@@ -102,7 +103,7 @@ export default function StopScreen() {
           headerShown: true,
           headerStyle: { backgroundColor: colours.bg },
           headerTintColor: colours.text,
-          headerTitle: stopName || `${t('Stop', 'Arret')} #${id}`,
+          headerTitle: toTitleCase(stopName) || `${t('Stop', 'Arret')} #${id}`,
           headerTitleStyle: { fontWeight: '700', fontSize: fonts.lg },
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/')} style={{ marginRight: 8 }}>

@@ -13,6 +13,7 @@ import { useApp } from '../../context/AppContext';
 import { supabase } from '../../lib/supabase';
 import { registerPushToken, syncSubscriptions } from '../../lib/pushNotifications';
 import { SK_FAVS, SK_SAVED_PLACES, SK_SAVED_BOARD, SK_NOTIF_SETTINGS, SK_TRIP_SHARING, SK_TRIP_HISTORY, SK_PRESTO_BALANCE, SK_PRESTO_RESET_DATE, SK_BATTERY_SAVER, SK_CLASS_SCHEDULE, SK_CAMPUS } from '../../lib/storageKeys';
+import { toTitleCase } from '../../lib/utils';
 import { CAMPUSES, CampusConfig } from '../../lib/campusData';
 import { ClassSchedule } from '../../lib/scheduleData';
 import ClassScheduleModal from '../../components/ClassScheduleModal';
@@ -471,7 +472,7 @@ export default function AccountScreen() {
               {commuteStats.topRoute && (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 10, borderTopWidth: 1, borderTopColor: colours.border }}>
                   <Ionicons name="navigate" size={14} color={colours.accent} />
-                  <Text style={{ fontSize: fonts.sm, color: colours.muted, flex: 1 }} numberOfLines={1}>{t('Top route', 'Trajet principal')}: <Text style={{ fontWeight: '700', color: colours.text }}>{(() => { const parts = commuteStats.topRoute.split(',').map(s => s.trim()).filter(s => !/^(Ottawa|ON|Canada)$/i.test(s)); const deduped = parts.filter((s, i) => parts.indexOf(s) === i).join(', '); return deduped.length > 35 ? deduped.substring(0, 35).trim() + '...' : deduped; })()}</Text></Text>
+                  <Text style={{ fontSize: fonts.sm, color: colours.muted, flex: 1 }} numberOfLines={1}>{t('Top route', 'Trajet principal')}: <Text style={{ fontWeight: '700', color: colours.text }}>{(() => { const parts = commuteStats.topRoute.split(',').map(s => s.trim()).filter(s => !/^(Ottawa|ON|Canada)$/i.test(s)); const deduped = parts.filter((s, i) => i === 0 || s !== parts[i - 1]); const joined = deduped.join(', '); return joined.length > 35 ? joined.substring(0, 35).trim() + '...' : joined; })()}</Text></Text>
                 </View>
               )}
             </View>
@@ -1084,7 +1085,7 @@ export default function AccountScreen() {
                         <Ionicons name="bus" size={16} color={colours.accent} />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{fav.name}</Text>
+                        <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{toTitleCase(fav.name)}</Text>
                         <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Stop', 'Arrêt')} #{fav.id}</Text>
                       </View>
                       <TouchableOpacity onPress={() => { const next = savedFavs.filter((f: any) => f.id !== fav.id); setSavedFavs(next); AsyncStorage.setItem(SK_FAVS, JSON.stringify(next)); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.border, alignItems: 'center', justifyContent: 'center' }}>
@@ -1123,7 +1124,7 @@ export default function AccountScreen() {
                   {savedBoard.map((item: any, idx: number) => (
                     <View key={`${item.type}-${item.id || idx}`} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 12 }}>
                       <View style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
-                        <Ionicons name={({ bus_stop: 'bus', lrt_station: 'train', garbage: 'trash', service_alert: 'alert-circle', gas_prices: 'speedometer', otrain: 'train', services: 'grid', discover: 'compass', saved_team: 'american-football', external_link: 'link', campus: 'school', news: 'newspaper', neighbourhood: 'map', class_schedule: 'school-outline' }[item.type] || 'cube') as any} size={16} color={colours.accent} />
+                        <Ionicons name={({ bus_stop: 'bus', lrt_station: 'train', garbage: 'trash', service_alert: 'alert-circle', gas_prices: 'speedometer', otrain: 'train', services: 'grid', discover: 'compass', saved_team: 'american-football', external_link: 'link', campus: 'school', news: 'newspaper', neighbourhood: 'map', class_schedule: 'school-outline' } as Record<string, string>)[item.type] as any || 'cube'} size={16} color={colours.accent} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }} numberOfLines={1}>

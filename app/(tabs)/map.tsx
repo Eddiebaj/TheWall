@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { useLocalSearchParams } from 'expo-router';
+import { toTitleCase } from '../../lib/utils';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Animated, AppState, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform,
@@ -174,7 +175,7 @@ const CATEGORY_COLORS: { [key: string]: string } = {
 const getCatColor = (cat?: string) => CATEGORY_COLORS[cat || ''] || '#555';
 
 type VenuePin = {
-  name: string; address: string; type: ('bar' | 'restaurant' | 'club' | 'fitness')[];
+  name: string; address: string; type: ('bar' | 'restaurant' | 'club' | 'fitness' | 'cafe' | 'coffee' | 'pub' | 'food' | 'night' | 'gym')[];
   lat: number; lng: number;
   deals: { days: number[]; start: string; end: string; description: string }[];
 };
@@ -1167,7 +1168,7 @@ export default function MapScreen() {
         {/* Search bar + bus count */}
         <View style={{ zIndex: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 10, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 10, height: 36 }}>
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 24, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 10, height: 36 }}>
             <Ionicons name="search-outline" size={16} color={colours.muted} />
             <TextInput
               style={{ flex: 1, marginLeft: 8, fontSize: 13, color: colours.text, padding: 0 }}
@@ -1468,7 +1469,7 @@ export default function MapScreen() {
                     <Ionicons name="location-outline" size={14} color={colours.accent} />
                     <Text style={{ fontSize: 13, fontWeight: '800', color: colours.accent }}>~{busEtaInfo.mins} min</Text>
                     <Text style={{ fontSize: 12, color: colours.muted, flex: 1 }} numberOfLines={1}>
-                      {t(`to ${busEtaInfo.stopName}`, `avant ${busEtaInfo.stopName}`)}
+                      {t(`to ${toTitleCase(busEtaInfo.stopName)}`, `avant ${toTitleCase(busEtaInfo.stopName)}`)}
                     </Text>
                   </View>
                 )}

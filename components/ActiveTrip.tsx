@@ -4,6 +4,7 @@ import {
   Alert, Animated, Dimensions, Modal, Platform, ScrollView, Text, TouchableOpacity, View,
 } from 'react-native';
 import { fetchWithTimeout } from '../lib/fetchWithTimeout';
+import { toTitleCase } from '../lib/utils';
 
 // ── Types ──────────────────────────────────────────────────────
 type WalkStep = { distance: number; relativeDirection: string; streetName: string; instruction?: string | null };
@@ -56,7 +57,7 @@ function fmtDistance(metres: number) {
   return `${(metres / 1000).toFixed(1)}km`;
 }
 function cleanStopName(name: string) {
-  return name.replace(/ O-TRAIN (EAST|WEST|NORTH|SOUTH).*$/i, '').replace(/ \/ EST$| \/ OUEST$/i, '');
+  return toTitleCase(name.replace(/ O-TRAIN (EAST|WEST|NORTH|SOUTH).*$/i, '').replace(/ \/ EST$| \/ OUEST$/i, ''));
 }
 function distMetres(lat1: number, lon1: number, lat2: number, lon2: number) {
   return Math.sqrt(
