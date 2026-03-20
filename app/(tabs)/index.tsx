@@ -256,7 +256,16 @@ type Arrival = { id: string; routeId: string; headsign: string; minsAway: number
 type Fav = { id: string; name: string; icon: string };
 type ReportEntry = { count: number; expiresAt: number };
 type Reports = { [key: string]: ReportEntry };
+type GhostReportData = { total: number; uniqueDevices: number; confirmedCount: number; netScore: number; likelyGhost: boolean };
+type GhostReports = { [routeId: string]: GhostReportData };
 type StopResult = { id: string; internalId: string; name: string };
+
+const GHOST_REASONS = [
+  { id: 'drove_past', label_en: 'Drove past without stopping', label_fr: 'Pass\u00e9 sans s\'arr\u00eater', icon: 'bus-outline' as const },
+  { id: 'out_of_service', label_en: 'Out of service sign', label_fr: 'Hors service', icon: 'close-circle-outline' as const },
+  { id: 'never_showed', label_en: 'Never showed up', label_fr: 'N\'est pas venu', icon: 'time-outline' as const },
+  { id: 'wrong_destination', label_en: 'Wrong destination showing', label_fr: 'Mauvaise destination affich\u00e9e', icon: 'swap-horizontal-outline' as const },
+];
 
 const STOP_MAP: { [key: string]: string } = stopMap;
 const TRIP_MAP: { [key: string]: string } = tripMap;
@@ -322,6 +331,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   const [preview, setPreview] = useState<{ routeId: string; headsign: string; minsAway: number }[]>([]);
   const [previewLoading, setPreviewLoading] = useState(true);
   const [previewSource, setPreviewSource] = useState<'gtfs-rt' | 'gtfs-static' | 'sto-gtfs-rt' | null>(null);
+  const [previewGhosts, setPreviewGhosts] = useState<GhostReports>({});
   const [gasPrice, setGasPrice] = useState<string | null>(null);
   const [gasFailed, setGasFailed] = useState(false);
 
@@ -340,6 +350,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
         if (!cancelled) {
           setPreview((data.arrivals || []).slice(0, 3).map((a: any) => ({ routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway })));
           setPreviewSource(data.source === 'sto-gtfs-rt' ? 'sto-gtfs-rt' as any : data.source === 'gtfs-rt' ? 'gtfs-rt' : 'gtfs-static');
+          if (data.ghostReports) setPreviewGhosts(data.ghostReports);
         }
       } catch { if (!cancelled) setPreview([]); }
       finally { if (!cancelled) setPreviewLoading(false); }
@@ -651,6 +662,17 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
           </Text>
         </View>
       )}
+      {(() => {
+        const ghostRoutes = Object.entries(previewGhosts).filter(([, g]) => g.likelyGhost).map(([rid]) => rid);
+        if (ghostRoutes.length === 0) return null;
+        return (
+          <View style={{ backgroundColor: '#FF9500' + '20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, marginBottom: 2 }}>
+            <Text style={{ fontSize: 9, fontWeight: '700', color: '#FF9500' }} numberOfLines={1}>
+              {'\u26A0\uFE0F'} {t(`Route ${ghostRoutes[0]} may be running ghost buses`, `Route ${ghostRoutes[0]} signal\u00e9 hors service`)}
+            </Text>
+          </View>
+        );
+      })()}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
           <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: (isLRT ? colours.lrt : isSTO ? '#0072bc' : colours.accent) + '18', alignItems: 'center', justifyContent: 'center' }}>
@@ -1359,7 +1381,7 @@ function LiveScreenInner() {
   const [frequentArrivals, setFrequentArrivals] = useState<Record<string, { minsAway: number; delay: number; headsign: string } | null>>({});
   const [frequentCardDismissed, setFrequentCardDismissed] = useState(true);
   const [timeFormat, setTimeFormat] = useState<'relative' | 'absolute'>('relative');
-  const [passedHintShown, setPassedHintShown] = useState(false);
+
   const [helpBannerDismissed, setHelpBannerDismissed] = useState(false);
   const [scheduleRoute, setScheduleRoute] = useState<{ routeId: string; headsign: string } | null>(null);
   const [scheduleTrips, setScheduleTrips] = useState<{ time: string; tripId: string }[]>([]);
@@ -1377,6 +1399,11 @@ function LiveScreenInner() {
   const [searchResults, setSearchResults] = useState<StopResult[]>([]);
   const [addressResults, setAddressResults] = useState<{label: string, lat: number, lng: number}[]>([]);
   const [reports, setReports] = useState<Reports>({});
+  const [ghostReports, setGhostReports] = useState<GhostReports>({});
+  const [ghostSheetRoute, setGhostSheetRoute] = useState<{ routeId: string; headsign: string } | null>(null);
+  const [ghostNotes, setGhostNotes] = useState('');
+  const [ghostSubmitting, setGhostSubmitting] = useState(false);
+  const [ghostCooldowns, setGhostCooldowns] = useState<{ [key: string]: number }>({});
   const [favs, setFavs] = useState<Fav[]>([]);
   const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
   const [savedBoard, setSavedBoard] = useState<SavedBoardItem[]>([]);
@@ -2147,6 +2174,7 @@ function LiveScreenInner() {
         const stoIsStatic = data.source === 'gtfs-static';
         const stoParsed = (data.arrivals || []).map((a: any) => ({ id: `${a.stopId || id}-${a.scheduledTime || Math.random()}`, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway, delay: 0, secsAway: a.minsAway * 60, isScheduled: stoIsStatic }));
         setArrivals(stoParsed);
+        if (data.ghostReports) setGhostReports(data.ghostReports);
         AsyncStorage.setItem(`routeo_arrivals_${id}`, JSON.stringify({ arrivals: stoParsed, timestamp: Date.now() }));
         setCachedAt(null);
         const now = new Date();
@@ -2163,6 +2191,7 @@ function LiveScreenInner() {
         const data = await resp.json();
         const lrtParsed = (data.arrivals || []).map((a: any) => ({ id: `${a.stopId}-${a.scheduledTime}`, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway, delay: 0, secsAway: a.minsAway * 60, isScheduled: true }));
         setArrivals(lrtParsed);
+        if (data.ghostReports) setGhostReports(data.ghostReports);
         AsyncStorage.setItem(`routeo_arrivals_${id}`, JSON.stringify({ arrivals: lrtParsed, timestamp: Date.now() }));
         setCachedAt(null);
         const now = new Date();
@@ -2175,6 +2204,10 @@ function LiveScreenInner() {
       const data = await resp.json();
       const gtfsParsed = parseGTFS(data, internalId);
       setArrivals(gtfsParsed);
+      // Fetch ghost reports for OC Transpo stops
+      fetchWithTimeout(`${COMMUNITY_URL}?action=ghost.stats&stop_id=${internalId}`).then(r => r.ok ? r.json() : null).then(d => {
+        if (d?.ghostReports) setGhostReports(d.ghostReports);
+      }).catch(() => {});
       AsyncStorage.setItem(`routeo_arrivals_${id}`, JSON.stringify({ arrivals: gtfsParsed, timestamp: Date.now() }));
       setCachedAt(null);
       const now = new Date();
@@ -2610,15 +2643,72 @@ function LiveScreenInner() {
     if (internalId !== searchText) { loadStop(searchText); setSearchText(''); setSearchResults([]); Keyboard.dismiss(); }
   };
 
-  const reportBusPassed = (routeId: string) => {
-    const TWO_HOURS = 2 * 60 * 60 * 1000; const now = Date.now();
-    setReports(prev => {
-      const existing = prev[routeId];
-      const updated: Reports = { ...prev, [routeId]: { count: (existing && existing.expiresAt > now ? existing.count : 0) + 1, expiresAt: now + TWO_HOURS } };
-      AsyncStorage.setItem(SK_GHOST_REPORTS, JSON.stringify(updated));
-      return updated;
-    });
-    Alert.alert(t('Thanks!', 'Merci!'), t('Reported — helps other riders.', 'Signalé — aide les autres usagers.'));
+  const openGhostSheet = (routeId: string, headsign: string) => {
+    const key = `${routeId}_${stopId}`;
+    const lastReport = ghostCooldowns[key];
+    if (lastReport && Date.now() - lastReport < 120000) {
+      Alert.alert(t('Please wait', 'Veuillez patienter'), t('You can report again in 2 minutes.', 'Vous pouvez signaler de nouveau dans 2 minutes.'));
+      return;
+    }
+    setGhostSheetRoute({ routeId, headsign });
+    setGhostNotes('');
+  };
+
+  const submitGhostReport = async (reportType: string) => {
+    if (!ghostSheetRoute || !stopId) return;
+    setGhostSubmitting(true);
+    try {
+      const deviceId = await getDeviceId();
+      const resp = await fetchWithTimeout(`${COMMUNITY_URL}?action=ghost.report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stop_id: stopId,
+          route_id: ghostSheetRoute.routeId,
+          report_type: reportType,
+          notes: ghostNotes.trim(),
+          device_id: deviceId,
+        }),
+      });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      Haptics?.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Update local report count + cooldown
+      const key = `${ghostSheetRoute.routeId}_${stopId}`;
+      setGhostCooldowns(prev => ({ ...prev, [key]: Date.now() }));
+      const TWO_HOURS = 2 * 60 * 60 * 1000; const now = Date.now();
+      setReports(prev => {
+        const existing = prev[ghostSheetRoute!.routeId];
+        const updated: Reports = { ...prev, [ghostSheetRoute!.routeId]: { count: (existing && existing.expiresAt > now ? existing.count : 0) + 1, expiresAt: now + TWO_HOURS } };
+        AsyncStorage.setItem(SK_GHOST_REPORTS, JSON.stringify(updated));
+        return updated;
+      });
+      // Count today's reports for this route+stop
+      const todayKey = `ghost_today_${ghostSheetRoute.routeId}_${stopId}`;
+      const prevCount = parseInt(await AsyncStorage.getItem(todayKey) || '0', 10) + 1;
+      AsyncStorage.setItem(todayKey, String(prevCount));
+      Alert.alert(
+        t('Thanks!', 'Merci!'),
+        t(`You've reported Route ${ghostSheetRoute.routeId} ${prevCount} time${prevCount > 1 ? 's' : ''} at this stop today. This helps other riders!`,
+          `Vous avez signal\u00e9 la route ${ghostSheetRoute.routeId} ${prevCount} fois \u00e0 cet arr\u00eat aujourd'hui. Merci d'aider les autres usagers!`),
+      );
+      setGhostSheetRoute(null);
+    } catch (e) {
+      Alert.alert(t('Error', 'Erreur'), t('Could not submit report. Try again.', 'Impossible d\'envoyer le signalement.'));
+      if (__DEV__) console.warn('ghost report failed:', e);
+    }
+    setGhostSubmitting(false);
+  };
+
+  const confirmBusArrived = async (routeId: string) => {
+    try {
+      const deviceId = await getDeviceId();
+      await fetchWithTimeout(`${COMMUNITY_URL}?action=ghost.report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stop_id: stopId, route_id: routeId, report_type: 'confirmed_arrived', notes: '', device_id: deviceId }),
+      });
+      Haptics?.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (e) { if (__DEV__) console.warn('confirm arrived failed:', e); }
   };
 
   const REPORT_CATEGORIES = [
@@ -3770,7 +3860,12 @@ function LiveScreenInner() {
     const now = Date.now();
     const reportEntry = reports[item.routeId];
     const reportCount = reportEntry && reportEntry.expiresAt > now ? reportEntry.count : 0;
-    const ghostBus = reportCount >= 2;
+    // Server-side ghost data takes priority, fall back to local reports
+    const serverGhost = ghostReports[item.routeId];
+    const ghostBus = serverGhost ? serverGhost.likelyGhost : reportCount >= 2;
+    const ghostTotal = serverGhost?.total || reportCount;
+    const ghostDevices = serverGhost?.uniqueDevices || 0;
+    const ghostConfirmed = serverGhost?.confirmedCount || 0;
     const timeDisplay = timeFormat === 'absolute'
       ? fmtAbsTime(item.minsAway)
       : (item.minsAway === 0 ? t('Due', 'Imminent') : `${item.minsAway}m`);
@@ -3780,7 +3875,7 @@ function LiveScreenInner() {
       <View key={item.id} style={[styles.arrivalRow, { borderBottomColor: colours.border, backgroundColor: colours.surface }, ghostBus && styles.ghostRow]}>
         <View style={{ alignItems: 'center', gap: 3 }}>
           <TouchableOpacity onPress={() => fetchFullSchedule(item.routeId, item.headsign)} style={[styles.badge, { backgroundColor: isLRT ? colours.accentAlt + '18' : colours.accent + '18' }]}>
-            <Text style={{ fontWeight: '800', fontSize: fonts.md, color: isLRT ? colours.lrt : colours.accent }}>{isLRT ? '🚊' : item.routeId}</Text>
+            <Text style={{ fontWeight: '800', fontSize: fonts.md, color: isLRT ? colours.lrt : colours.accent }}>{isLRT ? '\ud83d\ude8a' : item.routeId}</Text>
           </TouchableOpacity>
           {rel && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
@@ -3791,52 +3886,71 @@ function LiveScreenInner() {
         </View>
         <View style={styles.arrivalInfo}>
           <TouchableOpacity onPress={() => fetchFullSchedule(item.routeId, item.headsign)}>
-            <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
+            <Text style={{ fontSize: fonts.md, fontWeight: '700', color: ghostBus ? colours.muted : colours.text, textDecorationLine: ghostBus ? 'line-through' : 'none' }}>
               {isLRT ? 'O-Train' : `${t('Route', 'Route')} ${item.routeId}`}
               {item.delay > 0 ? <Text style={{ color: colours.orange, fontSize: fonts.sm }}> (+{item.delay}m {t('late', 'retard')})</Text> : null}
-
             </Text>
           </TouchableOpacity>
-          {item.headsign ? <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }} numberOfLines={1}>→ {item.headsign}</Text> : null}
+          {item.headsign ? <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }} numberOfLines={1}>{'\u2192'} {item.headsign}</Text> : null}
           {item.isScheduled && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
               <Ionicons name="warning" size={11} color={colours.orange} />
               <Text style={{ fontSize: 10, color: colours.orange, fontWeight: '600' }}>{t('Scheduled only', 'Horaire seulement')}</Text>
             </View>
           )}
+          {/* Ghost bus status from server */}
           {ghostBus && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
-              <Text style={{ fontSize: 11 }}>{'👻'}</Text>
-              <Text style={{ fontSize: 10, fontWeight: '700', color: colours.orange }}>{t('Ghost bus reported', 'Bus fantôme signalé')}</Text>
+              <Text style={{ fontSize: 11 }}>{'\u26A0\uFE0F'}</Text>
+              <Text style={{ fontSize: 10, fontWeight: '700', color: '#FF3B30' }}>
+                {ghostDevices >= 2
+                  ? t(`${ghostDevices} riders reporting ghost buses`, `${ghostDevices} usagers signalent des bus fant\u00f4mes`)
+                  : t('Ghost bus reported', 'Bus fant\u00f4me signal\u00e9')}
+              </Text>
             </View>
           )}
-          {!ghostBus && reportCount === 1 && (
-            <TouchableOpacity onPress={() => reportBusPassed(item.routeId)} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, backgroundColor: colours.orange + '12' }} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
-              <Text style={{ fontSize: 10, color: colours.orange, fontWeight: '600' }}>{t('1 rider says passed', '1 usager dit passé')}</Text>
-              <Text style={{ fontSize: 10, color: colours.orange, fontWeight: '600' }}> — </Text>
-              <Text style={{ fontSize: 10, color: colours.orange, fontWeight: '800' }}>{t('agree?', 'd\'accord?')}</Text>
-            </TouchableOpacity>
+          {!ghostBus && ghostTotal > 0 && ghostConfirmed > 0 && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
+              <Ionicons name="information-circle-outline" size={11} color={colours.orange} />
+              <Text style={{ fontSize: 10, fontWeight: '600', color: colours.orange }}>
+                {t(`${ghostTotal} ghost report${ghostTotal > 1 ? 's' : ''}, ${ghostConfirmed} confirmed arrival${ghostConfirmed > 1 ? 's' : ''} \u2014 use caution`,
+                   `${ghostTotal} signalement${ghostTotal > 1 ? 's' : ''}, ${ghostConfirmed} confirmation${ghostConfirmed > 1 ? 's' : ''} \u2014 prudence`)}
+              </Text>
+            </View>
           )}
-          {(() => {
+          {!ghostBus && ghostTotal > 0 && ghostConfirmed === 0 && ghostDevices >= 2 && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
+              <Text style={{ fontSize: 11 }}>{'\u26A0\uFE0F'}</Text>
+              <Text style={{ fontSize: 10, fontWeight: '700', color: colours.orange }}>
+                {t(`${ghostTotal} reports from ${ghostDevices} rider${ghostDevices > 1 ? 's' : ''}`, `${ghostTotal} signalements de ${ghostDevices} usager${ghostDevices > 1 ? 's' : ''}`)}
+              </Text>
+            </View>
+          )}
+          {!ghostBus && ghostTotal > 0 && ghostConfirmed === 0 && ghostDevices < 2 && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
+              <Text style={{ fontSize: 10, color: colours.muted }}>{'\ud83d\udc7b'} {t(`${ghostTotal} report`, `${ghostTotal} signalement`)}</Text>
+            </View>
+          )}
+          {ghostTotal === 0 && !ghostBus && (() => {
             const c = crowdingData[item.routeId];
             if (c) {
-              const label = c.avg <= 0.8 ? t('Usually empty', 'Habituellement vide') : c.avg <= 1.7 ? t('Some seats', 'Quelques places') : c.avg <= 2.4 ? t('Gets crowded', 'Souvent bondé') : t('Usually packed', 'Habituellement plein');
+              const label = c.avg <= 0.8 ? t('Usually empty', 'Habituellement vide') : c.avg <= 1.7 ? t('Some seats', 'Quelques places') : c.avg <= 2.4 ? t('Gets crowded', 'Souvent bond\u00e9') : t('Usually packed', 'Habituellement plein');
               const color = c.avg <= 0.8 ? '#34C759' : c.avg <= 1.7 ? '#FFD60A' : c.avg <= 2.4 ? '#FF9500' : '#FF3B30';
               return (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
                   <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: color }} />
                   <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{label}</Text>
-                  {c.confidence === 'low' && <Text style={{ fontSize: 9, color: colours.muted, fontStyle: 'italic' }}>{t('(few reports)', '(peu de données)')}</Text>}
+                  {c.confidence === 'low' && <Text style={{ fontSize: 9, color: colours.muted, fontStyle: 'italic' }}>{t('(few reports)', '(peu de donn\u00e9es)')}</Text>}
                 </View>
               );
             }
             return (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{t('Did this bus come?', 'Ce bus est-il passé?')}</Text>
-                <TouchableOpacity onPress={() => reportBusPassed(item.routeId)} style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#FF3B30' + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Report as missed', 'Signaler comme manqué')}>
+                <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{t('Did this bus come?', 'Ce bus est-il pass\u00e9?')}</Text>
+                <TouchableOpacity onPress={() => openGhostSheet(item.routeId, item.headsign)} style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#FF3B30' + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Report as missed', 'Signaler comme manqu\u00e9')}>
                   <Ionicons name="close" size={12} color="#FF3B30" />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => { Haptics?.impactAsync(Haptics.ImpactFeedbackStyle.Light); }} style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#34C759' + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Confirm it came', 'Confirmer son passage')}>
+                <TouchableOpacity onPress={() => confirmBusArrived(item.routeId)} style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#34C759' + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Confirm it came', 'Confirmer son passage')}>
                   <Ionicons name="checkmark" size={12} color="#34C759" />
                 </TouchableOpacity>
               </View>
@@ -3856,17 +3970,15 @@ function LiveScreenInner() {
         <View style={styles.arrivalRight}>
           <TouchableOpacity onPress={() => { if (!item.isScheduled) setTrackingBus({ routeId: item.routeId, headsign: item.headsign, minsAway: item.minsAway, isSTO: isStoStop(stopId) }); }} activeOpacity={item.isScheduled ? 1 : 0.6}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Text style={{ fontSize: fonts.xl, fontWeight: '700', color: item.minsAway <= 2 ? colours.red : colours.accent }}>{timeDisplay}</Text>
+              <Text style={{ fontSize: fonts.xl, fontWeight: '700', color: ghostBus ? colours.muted : (item.minsAway <= 2 ? colours.red : colours.accent), textDecorationLine: ghostBus ? 'line-through' : 'none' }}>{timeDisplay}</Text>
               {!item.isScheduled && <Ionicons name="locate-outline" size={14} color={colours.accent} />}
             </View>
           </TouchableOpacity>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
             {!item.isScheduled && (
-              <View>
-                <TouchableOpacity onPress={() => { reportBusPassed(item.routeId); setPassedHintShown(true); }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.muted + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Report bus passed', 'Signaler le bus passé')}>
-                  <Ionicons name="hand-left-outline" size={14} color={colours.orange} />
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity onPress={() => openGhostSheet(item.routeId, item.headsign)} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.muted + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Report ghost bus', 'Signaler bus fant\u00f4me')}>
+                <Ionicons name="hand-left-outline" size={14} color={colours.orange} />
+              </TouchableOpacity>
             )}
             {stopReports[stopId]?.count > 0 && (
               <TouchableOpacity
@@ -4404,6 +4516,68 @@ function LiveScreenInner() {
         {swapSheetVisible && renderSwapSheet()}
         {!!expandedStopId && renderExpandedArrivals()}
         {showReportModal && renderStopReportModal()}
+
+        {/* Ghost Bus Report Sheet */}
+        <Modal visible={!!ghostSheetRoute} animationType="slide" transparent onRequestClose={() => setGhostSheetRoute(null)}>
+          <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+            <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 40, maxHeight: '80%' }}>
+              <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 6 }}>
+                <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border }} />
+              </View>
+              <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
+                <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>
+                  {t('Report Ghost Bus', 'Signaler un bus fant\u00f4me')}
+                </Text>
+                <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 4 }}>
+                  {t(`Route ${ghostSheetRoute?.routeId || ''} \u2192 ${ghostSheetRoute?.headsign || ''}`,
+                     `Route ${ghostSheetRoute?.routeId || ''} \u2192 ${ghostSheetRoute?.headsign || ''}`)}
+                </Text>
+              </View>
+              <View style={{ paddingHorizontal: 20, gap: 8, marginTop: 16 }}>
+                {GHOST_REASONS.map(reason => (
+                  <TouchableOpacity
+                    key={reason.id}
+                    onPress={() => submitGhostReport(reason.id)}
+                    disabled={ghostSubmitting}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colours.orange + '15', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name={reason.icon} size={18} color={colours.orange} />
+                    </View>
+                    <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text, flex: 1 }}>
+                      {t(reason.label_en, reason.label_fr)}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={16} color={colours.muted} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={{ paddingHorizontal: 20, marginTop: 12 }}>
+                <TextInput
+                  value={ghostNotes}
+                  onChangeText={setGhostNotes}
+                  placeholder={t('Optional notes...', 'Notes optionnelles...')}
+                  placeholderTextColor={colours.muted}
+                  style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 10, padding: 12, fontSize: fonts.sm, color: colours.text, backgroundColor: colours.surface, minHeight: 44 }}
+                  maxLength={200}
+                  multiline
+                />
+              </View>
+              <TouchableOpacity
+                onPress={() => setGhostSheetRoute(null)}
+                style={{ alignSelf: 'center', marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: colours.border }}
+              >
+                <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.muted }}>{t('Cancel', 'Annuler')}</Text>
+              </TouchableOpacity>
+              {ghostSubmitting && (
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.2)', borderTopLeftRadius: 20, borderTopRightRadius: 20, alignItems: 'center', justifyContent: 'center' }}>
+                  <ActivityIndicator size="large" color={colours.accent} />
+                </View>
+              )}
+            </View>
+          </View>
+        </Modal>
+
         {trackingBus && <BusTrackingModal visible={!!trackingBus} onClose={() => setTrackingBus(null)} routeId={trackingBus.routeId} headsign={trackingBus.headsign} stopName={stopName} minsAway={trackingBus.minsAway} isSTO={trackingBus.isSTO} colours={colours} fonts={fonts} t={t} />}
 
         {/* News Modal */}

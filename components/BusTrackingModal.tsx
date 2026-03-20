@@ -331,7 +331,7 @@ export default function BusTrackingModal({
                     shadowColor: accentColor, shadowOpacity: 0.4, shadowRadius: 8,
                     shadowOffset: { width: 0, height: 2 }, elevation: 6,
                   }}>
-                    <Ionicons name={isSTO ? 'bus' : 'bus'} size={18} color="#fff" />
+                    <Ionicons name="bus" size={18} color="#fff" />
                   </Animated.View>
                 </Marker>
               )}

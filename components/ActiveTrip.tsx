@@ -105,11 +105,12 @@ type ActiveTripProps = {
   reducedMotion?: boolean;
   batterySaver?: boolean;
   alerts?: { routes: string[]; title: string; description?: string }[];
+  onConfirmArrival?: (routeId: string, stopId: string) => void;
 };
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
-export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, reducedMotion, batterySaver, alerts }: ActiveTripProps) {
+export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, reducedMotion, batterySaver, alerts, onConfirmArrival }: ActiveTripProps) {
   const [activeLeg, setActiveLeg] = useState(0);
   const [now, setNow] = useState(Date.now());
   const [userCoords, setUserCoords] = useState<{ lat: number; lon: number } | null>(null);
@@ -139,6 +140,14 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
   // ── Manual advance leg ───────────────────────────────────────
   const advanceLeg = () => {
     if (activeLeg >= legs.length - 1) return;
+    // If advancing from walk to bus leg ("I'm at the stop"), confirm arrival
+    const cl = legs[activeLeg];
+    const nl = legs[activeLeg + 1];
+    if (cl.mode === 'WALK' && nl && nl.mode === 'BUS' && nl.routeShortName && onConfirmArrival) {
+      // Use the stop name from the walk leg's destination as a rough stop identifier
+      const stopName = cl.to.name || '';
+      onConfirmArrival(nl.routeShortName, stopName);
+    }
     setActiveLeg(prev => prev + 1);
     setGetOffAlert(false);
     setLiveArrival(null);
@@ -183,7 +192,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
     if (currentLeg.mode !== 'WALK' && destDist < 200 && !getOffAlert) {
       setGetOffAlert(true);
       Haptics?.notificationAsync?.(Haptics.NotificationFeedbackType.Warning);
-      fireNotification(t('Get off soon', 'Descendez bientot'), t('Your stop is approaching', 'Votre arret approche'));
+      fireNotification(t('Get off soon', 'Descendez bient\u00f4t'), t('Your stop is approaching', 'Votre arr\u00eat approche'));
     }
 
     if (destDist < 50 && activeLeg < legs.length - 1) {
@@ -507,7 +516,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
 
   // Advance button label
   const advanceLabel = isWalk
-    ? t("I'm at the stop →", "Je suis a l'arret →")
+    ? t("I'm at the stop →", "Je suis \u00e0 l'arr\u00eat →")
     : isCar
     ? t('Arrived →', 'Arrive →')
     : isBike
@@ -766,7 +775,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
           {getOffAlert && (
             <View style={{ marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.red + '22', borderWidth: 1, borderColor: colours.red, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
               <Ionicons name="notifications" size={16} color={colours.red} />
-              <Text style={{ flex: 1, fontSize: 13, fontWeight: '800', color: colours.red }}>{t('Get off soon!', 'Descendez bientot!')}</Text>
+              <Text style={{ flex: 1, fontSize: 13, fontWeight: '800', color: colours.red }}>{t('Get off soon!', 'Descendez bient\u00f4t!')}</Text>
             </View>
           )}
           {tripEnded && (

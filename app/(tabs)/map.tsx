@@ -18,6 +18,7 @@ import { useApp } from '../../context/AppContext';
 import { SK_SAVED_ROUTES, SK_FAVS, SK_SAVED_BOARD, SK_SAVED_NEIGHBOURHOODS, SK_SAVED_PLACES } from '../../lib/storageKeys';
 import { supabase } from '../../lib/supabase';
 import { NEIGHBOURHOODS } from '../../lib/neighbourhoodData';
+import ActiveTrip from '../../components/ActiveTrip';
 
 // Error boundary to catch AIRMap native crashes and show a recoverable fallback
 class MapErrorBoundary extends React.Component<
@@ -83,6 +84,16 @@ type MapEvent = {
 };
 
 type DiscoveryResult = { id: string; name: string; address: string; lat: number; lng: number; rating?: number };
+
+type TripLeg = {
+  mode: string; startTime: number; endTime: number; duration: number; distance: number;
+  from: { name: string; lat: number; lon: number }; to: { name: string; lat: number; lon: number };
+  agencyId?: string; routeShortName: string | null; routeLongName: string | null;
+  headsign: string | null; intermediateStops: string[];
+  steps: { distance: number; relativeDirection: string; streetName: string; instruction?: string | null }[];
+  legGeometry?: { points: string };
+};
+type TripItinerary = { duration: number; startTime: number; endTime: number; transfers: number; walkDistance: number; legs: TripLeg[] };
 
 const ROUTE_COLOURS: { [key: string]: string } = {
   '1': '#00A78D', '2': '#7b5ea7', '4': '#004890', '7': '#cc3b2a',
@@ -560,6 +571,13 @@ export default function MapScreen() {
   const [contribSending, setContribSending] = useState(false);
   const [contribSent, setContribSent] = useState(false);
 
+  // Inline trip planning
+  const [tripResults, setTripResults] = useState<TripItinerary[]>([]);
+  const [tripLoading, setTripLoading] = useState(false);
+  const [tripDestLabel, setTripDestLabel] = useState('');
+  const [tripDest, setTripDest] = useState<{ lat: number; lng: number } | null>(null);
+  const [activeTripItinerary, setActiveTripItinerary] = useState<TripItinerary | null>(null);
+
   // Discovery mode — Google Places nearby search
   const [discoveryCategory, setDiscoveryCategory] = useState<string | null>(null);
   const [discoveryResults, setDiscoveryResults] = useState<DiscoveryResult[]>([]);
@@ -654,12 +672,44 @@ export default function MapScreen() {
     });
   }, [tappedAnim]);
 
+  const fetchInlineTrip = useCallback(async (destLat: number, destLng: number, destLabel: string) => {
+    setTripLoading(true);
+    setTripResults([]);
+    setTripDestLabel(destLabel);
+    setTripDest({ lat: destLat, lng: destLng });
+    // Dismiss other sheets
+    hideSheet();
+    dismissTapped();
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') { setTripLoading(false); return; }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const now = new Date();
+      const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const date = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${now.getFullYear()}`;
+      const resp = await fetchWithTimeout(
+        `https://routeo-backend.vercel.app/api/plan?fromLat=${loc.coords.latitude}&fromLng=${loc.coords.longitude}&fromLabel=Current+Location&toLat=${destLat}&toLng=${destLng}&toLabel=${encodeURIComponent(destLabel)}&time=${time}&date=${date}&arriveBy=false&mode=transit&maxWalk=1000`,
+        { timeout: 12000 }
+      );
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      const itins: TripItinerary[] = data.itineraries || [];
+      setTripResults(itins);
+    } catch (e) { if (__DEV__) console.warn('Inline trip plan failed:', e); }
+    setTripLoading(false);
+  }, [hideSheet, dismissTapped]);
+
+  const clearTripResults = useCallback(() => {
+    setTripResults([]);
+    setTripDest(null);
+    setTripDestLabel('');
+  }, []);
+
   const routeToTapped = useCallback(() => {
     if (!tappedLocation) return;
     const label = tappedLocation.address || `${tappedLocation.lat.toFixed(5)}, ${tappedLocation.lng.toFixed(5)}`;
-    dismissTapped();
-    router.push({ pathname: '/(tabs)/planner', params: { toLabel: label, toLat: String(tappedLocation.lat), toLng: String(tappedLocation.lng) } } as any);
-  }, [tappedLocation, dismissTapped, router]);
+    fetchInlineTrip(tappedLocation.lat, tappedLocation.lng, label);
+  }, [tappedLocation, fetchInlineTrip]);
 
   const dropPinAtTapped = useCallback(async () => {
     if (!tappedLocation) return;
@@ -1443,7 +1493,7 @@ export default function MapScreen() {
       </View>
 
       {/* Floating action buttons */}
-      <View style={{ position: 'absolute', bottom: hasSheet ? 300 : (discoveryCategory && discoveryResults.length > 0) ? 320 : tappedLocation ? 160 : Platform.OS === 'ios' ? 24 : 16, right: 16, gap: 10, alignItems: 'center' }}>
+      <View style={{ position: 'absolute', bottom: (tripResults.length > 0 || tripLoading) ? 380 : hasSheet ? 300 : (discoveryCategory && discoveryResults.length > 0) ? 320 : tappedLocation ? 160 : Platform.OS === 'ios' ? 24 : 16, right: 16, gap: 10, alignItems: 'center' }}>
         <TouchableOpacity
           style={{
             width: 44, height: 44, borderRadius: 22,
@@ -1933,13 +1983,13 @@ export default function MapScreen() {
                 </TouchableOpacity>
               </View>
               <TouchableOpacity
-                onPress={() => Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${searchedPlace.lat},${searchedPlace.lng}&destination_place_id=${searchedPlace.placeId}&travelmode=transit`)}
+                onPress={() => { fetchInlineTrip(searchedPlace.lat, searchedPlace.lng, searchedPlace.name); }}
                 style={{ marginTop: 14, backgroundColor: '#3498db', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
-                accessibilityRole="link"
-                accessibilityLabel={t('Get directions', 'Obtenir l\'itineraire')}>
+                accessibilityRole="button"
+                accessibilityLabel={t('Route here', 'M\'y rendre')}>
                 <Ionicons name="navigate" size={16} color="white" />
                 <Text style={{ color: 'white', fontWeight: '800', fontSize: fonts.md }}>
-                  {t('Directions', 'Itineraire')}
+                  {t('Route here', 'M\'y rendre')} →
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1990,6 +2040,150 @@ export default function MapScreen() {
             </View>
           )}
         </Animated.View>
+      )}
+      {/* Inline trip results sheet */}
+      {(tripResults.length > 0 || tripLoading) && !activeTripItinerary && (
+        <View style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          backgroundColor: colours.surface,
+          borderTopLeftRadius: 24, borderTopRightRadius: 24,
+          borderWidth: 1, borderColor: colours.border,
+          paddingBottom: 34,
+          shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12,
+          shadowOffset: { width: 0, height: -3 }, elevation: 10,
+        }}>
+          <View style={{ alignItems: 'center', paddingTop: 12, paddingBottom: 4 }}>
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border }} />
+          </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 8 }}>
+            <View style={{ flex: 1, marginRight: 12 }}>
+              <Text style={{ fontSize: 12, color: colours.muted, fontWeight: '600' }}>{t('Routes to', 'Itineraires vers')}</Text>
+              <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }} numberOfLines={1}>{tripDestLabel}</Text>
+            </View>
+            <TouchableOpacity onPress={clearTripResults} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
+              <Ionicons name="close" size={16} color={colours.text} />
+            </TouchableOpacity>
+          </View>
+
+          {tripLoading ? (
+            <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+              <ActivityIndicator color={colours.accent} size="large" />
+              <Text style={{ color: colours.muted, fontSize: fonts.sm, marginTop: 10 }}>{t('Finding routes...', 'Recherche d\'itineraires...')}</Text>
+            </View>
+          ) : tripResults.length === 0 ? (
+            <View style={{ alignItems: 'center', paddingVertical: 24, paddingHorizontal: 20 }}>
+              <Ionicons name="warning-outline" size={28} color={colours.muted} />
+              <Text style={{ color: colours.muted, fontSize: fonts.sm, marginTop: 8, textAlign: 'center' }}>{t('No routes found. Try the full planner for more options.', 'Aucun itineraire trouve. Essayez le planificateur complet.')}</Text>
+            </View>
+          ) : (
+            <ScrollView style={{ maxHeight: 320, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
+              {tripResults.slice(0, 3).map((itin, i) => {
+                const depTime = new Date(itin.startTime);
+                const arrTime = new Date(itin.endTime);
+                const fmt = (d: Date) => `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+                const durationMin = Math.round(itin.duration / 60000);
+                const walkMin = Math.round(itin.walkDistance / 80);
+                const transitLegs = itin.legs.filter(l => l.mode !== 'WALK');
+                return (
+                  <View key={i} style={{ backgroundColor: colours.bg, borderRadius: 16, borderWidth: 1, borderColor: colours.border, padding: 14, marginBottom: 10 }}>
+                    {/* Time + duration row */}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text }}>
+                        {fmt(depTime)} → {fmt(arrTime)}
+                      </Text>
+                      <View style={{ backgroundColor: colours.accent + '18', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                        <Text style={{ fontSize: 12, fontWeight: '800', color: colours.accent }}>{durationMin} min</Text>
+                      </View>
+                    </View>
+                    {/* Route pills */}
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                      {itin.legs.map((leg, li) => {
+                        if (leg.mode === 'WALK') {
+                          return (
+                            <View key={li} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                              <Ionicons name="walk" size={14} color={colours.muted} />
+                              <Text style={{ fontSize: 11, color: colours.muted }}>{Math.round(leg.distance)}m</Text>
+                            </View>
+                          );
+                        }
+                        const isSTO = leg.agencyId?.includes('STO') || leg.agencyId?.includes('sto');
+                        const bg = isSTO ? '#00A78D' : '#CE1126';
+                        return (
+                          <View key={li} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            {li > 0 && itin.legs[li - 1]?.mode !== 'WALK' && <Ionicons name="arrow-forward" size={10} color={colours.muted} />}
+                            <View style={{ backgroundColor: bg, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
+                              <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800' }}>{leg.routeShortName || leg.mode}</Text>
+                            </View>
+                            {leg.headsign && <Text style={{ fontSize: 11, color: colours.muted }} numberOfLines={1}>{leg.headsign}</Text>}
+                          </View>
+                        );
+                      })}
+                    </View>
+                    {/* Details row */}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        {itin.transfers > 0 && (
+                          <Text style={{ fontSize: 11, color: colours.muted }}>
+                            {itin.transfers} {t('transfer', 'correspondance')}{itin.transfers > 1 ? 's' : ''}
+                          </Text>
+                        )}
+                        <Text style={{ fontSize: 11, color: colours.muted }}>
+                          {walkMin} min {t('walk', 'marche')}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => setActiveTripItinerary(itin)}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#34c759', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 }}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('Start trip', 'Demarrer le trajet')}>
+                        <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>GO</Text>
+                        <Ionicons name="arrow-forward" size={12} color="#fff" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })}
+
+              {/* See all / More options link */}
+              {tripDest && (
+                <TouchableOpacity
+                  onPress={() => {
+                    clearTripResults();
+                    router.push({ pathname: '/(tabs)/planner', params: { toLabel: tripDestLabel, toLat: String(tripDest.lat), toLng: String(tripDest.lng) } } as any);
+                  }}
+                  style={{ alignSelf: 'center', paddingVertical: 12, paddingHorizontal: 20 }}
+                  accessibilityRole="button">
+                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>
+                    {tripResults.length > 3
+                      ? t(`See all ${tripResults.length} routes`, `Voir les ${tripResults.length} itineraires`) + ' →'
+                      : t('More options', 'Plus d\'options') + ' →'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+          )}
+        </View>
+      )}
+
+      {/* ActiveTrip overlay */}
+      {activeTripItinerary && (
+        <ActiveTrip
+          visible={!!activeTripItinerary}
+          itinerary={activeTripItinerary}
+          onEnd={() => { setActiveTripItinerary(null); clearTripResults(); }}
+          colours={colours}
+          t={t}
+          onConfirmArrival={async (routeId, stopName) => {
+            try {
+              const { getDeviceId } = require('../../lib/pushNotifications');
+              const deviceId = await getDeviceId();
+              fetchWithTimeout('https://routeo-backend.vercel.app/api/community?action=ghost.report', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ stop_id: stopName, route_id: routeId, report_type: 'confirmed_arrived', notes: '', device_id: deviceId }),
+              }).catch(() => {});
+            } catch {}
+          }}
+        />
       )}
     </View>
     </MapErrorBoundary>

@@ -397,6 +397,15 @@ function PlannerScreenInner() {
   const [reminderTime, setReminderTime] = useState<Date>(new Date());
   const [leaveReminders, setLeaveReminders] = useState<{ id: string; destination: string; departAt: number; notifId: string }[]>([]);
 
+  // Route detail modal state
+  const [routeDetailLeg, setRouteDetailLeg] = useState<Leg | null>(null);
+  const [routeDetailStops, setRouteDetailStops] = useState<{ stop_id: string; stop_name: string; arrival_time: string }[]>([]);
+  const [routeDetailDepartures, setRouteDetailDepartures] = useState<string[]>([]);
+  const [routeDetailBus, setRouteDetailBus] = useState<{ lat: number; lng: number; routeId: string } | null>(null);
+  const [routeDetailShape, setRouteDetailShape] = useState<{ latitude: number; longitude: number }[]>([]);
+  const [routeDetailLoading, setRouteDetailLoading] = useState(false);
+  const routeDetailMapRef = useRef<any>(null);
+
   // Override time/arriveBy for schedule GO button (ref avoids stale closure)
   const timeOverride = useRef<{ time: Date; arriveBy: boolean } | null>(null);
   // Holds Expo notification IDs so we can cancel them on stopTracking
@@ -936,13 +945,25 @@ function PlannerScreenInner() {
     planWithPlaces(resolvedFrom, resolvedTo);
   };
 
-  // Auto re-plan when travel mode or walk pace changes (if a trip was already planned)
+  // Auto re-plan when travel mode, walk pace, or departure time changes (if a trip was already planned)
   useEffect(() => {
     if (searched && fromPlace?.lat && toPlace?.lat && !loading) {
       planWithPlaces(fromPlace, toPlace);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [travelMode, walkPace]);
+
+  // Auto re-plan when departure time changes while time picker closes
+  const prevDepartTimeRef = useRef(departTime.getTime());
+  useEffect(() => {
+    if (showTimePicker) return; // Only re-plan after picker closes
+    if (Math.abs(departTime.getTime() - prevDepartTimeRef.current) < 60000) return; // Skip if <1min change
+    prevDepartTimeRef.current = departTime.getTime();
+    if (searched && fromPlace?.lat && toPlace?.lat && !loading) {
+      planWithPlaces(fromPlace, toPlace);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showTimePicker, departTime]);
 
   // ── Fetch transfer reliability for planned itineraries ────────
   const fetchTransferReliability = useCallback(async (itins: Itinerary[]) => {
@@ -1192,22 +1213,147 @@ function PlannerScreenInner() {
     setIsoLoading(false);
   };
 
+  // ── Route detail modal ───────────────────────────────────────
+  const openRouteDetail = useCallback(async (leg: Leg) => {
+    if (!leg.routeShortName) return;
+    setRouteDetailLeg(leg);
+    setRouteDetailLoading(true);
+    setRouteDetailStops([]);
+    setRouteDetailDepartures([]);
+    setRouteDetailBus(null);
+    setRouteDetailShape([]);
+
+    const routeNum = leg.routeShortName;
+    const isSTO = leg.agencyId?.includes('STO');
+    const agencyParam = isSTO ? '&agency=STO' : '';
+    const boardingStopName = leg.from?.name || '';
+
+    // Fetch route detail (stops), shape, departures, and live bus in parallel
+    const [detailRes, shapeRes, vehiclesRes] = await Promise.allSettled([
+      // Route detail — full stop list
+      fetchWithTimeout(`https://routeo-backend.vercel.app/api/route?id=${encodeURIComponent(routeNum)}${agencyParam}`, { timeout: 8000 }),
+      // Route shape
+      fetchWithTimeout(`https://routeo-backend.vercel.app/api/route?id=${encodeURIComponent(routeNum)}&action=shape${agencyParam}`, { timeout: 8000 }),
+      // Live vehicles
+      fetchWithTimeout(`https://routeo-backend.vercel.app/api/vehicles?t=${Date.now()}`, { timeout: 8000 }),
+    ]);
+
+    // Process route detail — find matching direction by headsign, build stop list with times
+    if (detailRes.status === 'fulfilled' && detailRes.value.ok) {
+      try {
+        const data = await detailRes.value.json();
+        const dirs = data.directions || [];
+        // Match direction by headsign
+        const dir = dirs.find((d: any) => d.headsign === leg.headsign) || dirs[0];
+        if (dir?.stops?.length) {
+          // Fetch stop names from Supabase
+          const { data: stopRows } = await supabase
+            .from('stops')
+            .select('stop_id,stop_name')
+            .in('stop_id', dir.stops);
+          const nameMap = new Map((stopRows || []).map((s: any) => [s.stop_id, s.stop_name]));
+
+          // Build ordered stop list — fetch scheduled times for these stops on this route
+          const now = new Date();
+          const nowMins = now.getHours() * 60 + now.getMinutes();
+          const stops = dir.stops.map((sid: string) => ({
+            stop_id: sid,
+            stop_name: nameMap.get(sid) || `Stop #${sid}`,
+            arrival_time: '',
+          }));
+          setRouteDetailStops(stops);
+
+          // Fetch next departures at the boarding stop
+          const boardingStopId = dir.stops.find((sid: string) => {
+            const name = nameMap.get(sid) || '';
+            return name.toLowerCase().includes(boardingStopName.toLowerCase().split('(')[0].trim().slice(0, 10));
+          }) || dir.stops[0];
+
+          if (boardingStopId) {
+            const { data: depRows } = await supabase
+              .from('stop_times')
+              .select('arrival_time')
+              .eq('route_id', routeNum)
+              .eq('stop_id', boardingStopId)
+              .order('arrival_time')
+              .limit(200);
+            if (depRows?.length) {
+              const upcoming = depRows
+                .filter((r: any) => {
+                  const parts = (r.arrival_time || '').split(':');
+                  return parts.length >= 2 && (parseInt(parts[0]) * 60 + parseInt(parts[1])) >= nowMins;
+                })
+                .slice(0, 6)
+                .map((r: any) => {
+                  const parts = (r.arrival_time || '').split(':');
+                  const h = parseInt(parts[0]) % 12 || 12;
+                  const ampm = parseInt(parts[0]) >= 12 ? 'PM' : 'AM';
+                  return `${h}:${parts[1]} ${ampm}`;
+                });
+              setRouteDetailDepartures(upcoming);
+            }
+          }
+        }
+      } catch (e) { if (__DEV__) console.warn('Route detail parse failed:', e); }
+    }
+
+    // Process shape
+    if (shapeRes.status === 'fulfilled' && shapeRes.value.ok) {
+      try {
+        const data = await shapeRes.value.json();
+        if (data.shape?.length) setRouteDetailShape(data.shape);
+      } catch {}
+    }
+
+    // Process live bus
+    if (vehiclesRes.status === 'fulfilled' && vehiclesRes.value.ok) {
+      try {
+        const data = await vehiclesRes.value.json();
+        const buses = (data.vehicles || []).filter((v: any) => {
+          const base = (v.routeId || '').split('-')[0];
+          return base === routeNum;
+        });
+        if (buses.length > 0) {
+          setRouteDetailBus({ lat: buses[0].lat, lng: buses[0].lng, routeId: buses[0].routeId });
+        }
+      } catch {}
+    }
+
+    setRouteDetailLoading(false);
+  }, []);
+
+  const closeRouteDetail = useCallback(() => {
+    setRouteDetailLeg(null);
+    setRouteDetailStops([]);
+    setRouteDetailDepartures([]);
+    setRouteDetailBus(null);
+    setRouteDetailShape([]);
+  }, []);
+
   // ── Render helpers ────────────────────────────────────────────
   const renderLegPill = (leg: Leg, i: number) => {
     const color = LEG_COLOURS[leg.mode] || colours.accent;
     const icon = LEG_ICONS[leg.mode] || 'bus';
+    const isTransitLeg = leg.mode !== 'WALK' && leg.mode !== 'CAR' && leg.mode !== 'BICYCLE' && !!leg.routeShortName;
+    const pill = (
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: color + '18', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 3 }}>
+        <Ionicons name={icon as any} size={10} color={color} />
+        {isTransitLeg && (
+          <Text style={{ fontSize: 10, fontWeight: '800', color }}>{leg.routeShortName}</Text>
+        )}
+        {(leg.mode === 'WALK' || leg.mode === 'CAR' || leg.mode === 'BICYCLE') && (
+          <Text style={{ fontSize: 10, fontWeight: '600', color }}>{fmtDistance(leg.distance)}</Text>
+        )}
+      </View>
+    );
     return (
       <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
         {i > 0 && <View style={{ width: 6, height: 1, backgroundColor: colours.border }} />}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: color + '18', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 3 }}>
-          <Ionicons name={icon as any} size={10} color={color} />
-          {leg.mode !== 'WALK' && leg.mode !== 'CAR' && leg.mode !== 'BICYCLE' && leg.routeShortName && (
-            <Text style={{ fontSize: 10, fontWeight: '800', color }}>{leg.routeShortName}</Text>
-          )}
-          {(leg.mode === 'WALK' || leg.mode === 'CAR' || leg.mode === 'BICYCLE') && (
-            <Text style={{ fontSize: 10, fontWeight: '600', color }}>{fmtDistance(leg.distance)}</Text>
-          )}
-        </View>
+        {isTransitLeg ? (
+          <TouchableOpacity onPress={() => openRouteDetail(leg)} activeOpacity={0.7}>
+            {pill}
+          </TouchableOpacity>
+        ) : pill}
       </View>
     );
   };
@@ -1252,14 +1398,25 @@ function PlannerScreenInner() {
             <Text style={{ color: 'white', fontSize: 9, fontWeight: '800' }}>{arriveBy ? t('RECOMMENDED', 'RECOMMANDE') : t('FASTEST', 'PLUS RAPIDE')}</Text>
           </View>
         )}
-        {travelMode === 'transit' && !isFirst && !isWalkOnly && arriveBy && (() => {
-          const targetMs = departTime.getTime();
-          const buffer = targetMs - (itin.endTime ?? 0);
-          const bufferMin = Math.round(buffer / 60000);
-          if (bufferMin < 5 && bufferMin > -30) {
+        {travelMode === 'transit' && !isFirst && !isWalkOnly && (() => {
+          if (arriveBy) {
+            const targetMs = departTime.getTime();
+            const buffer = targetMs - (itin.endTime ?? 0);
+            const bufferMin = Math.round(buffer / 60000);
+            if (bufferMin < 5 && bufferMin > -30) {
+              return (
+                <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: '#e8a020' + '20', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#e8a020' + '40' }}>
+                  <Text style={{ color: '#e8a020', fontSize: 9, fontWeight: '800' }}>{t('TIGHT', 'SERRE')}</Text>
+                </View>
+              );
+            }
+          }
+          // "LATER" badge for depart-by mode: show if this route departs 10+ min after fastest
+          const firstTransit = itineraries.find(it => (it.legs || []).some(l => l.mode !== 'WALK'));
+          if (!arriveBy && firstTransit && (itin.startTime - firstTransit.startTime) >= 600000) {
             return (
-              <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: '#e8a020' + '20', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#e8a020' + '40' }}>
-                <Text style={{ color: '#e8a020', fontSize: 9, fontWeight: '800' }}>{t('TIGHT', 'SERRE')}</Text>
+              <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: '#7b5ea7' + '20', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#7b5ea7' + '40' }}>
+                <Text style={{ color: '#7b5ea7', fontSize: 9, fontWeight: '800' }}>{t('LATER', 'PLUS TARD')}</Text>
               </View>
             );
           }
@@ -1866,6 +2023,158 @@ function PlannerScreenInner() {
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colours.bg }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       {renderExpandedItinerary()}
+
+      {/* Route detail modal */}
+      <Modal visible={!!routeDetailLeg} animationType="slide" onRequestClose={closeRouteDetail}>
+        {routeDetailLeg && (() => {
+          const leg = routeDetailLeg;
+          const isSTO = leg.agencyId?.includes('STO');
+          const routeColor = isSTO ? '#00A78D' : '#CE1126';
+          const boardName = toTitleCase((leg.from?.name || '').replace(/\s*\(\d+\)$/, ''));
+          const alightName = toTitleCase((leg.to?.name || '').replace(/\s*\(\d+\)$/, ''));
+          return (
+            <View style={{ flex: 1, backgroundColor: colours.bg }}>
+              {/* Header */}
+              <View style={{ paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 16, paddingHorizontal: 20, backgroundColor: colours.surface, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+                    <View style={{ backgroundColor: routeColor, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, minWidth: 44, alignItems: 'center' }}>
+                      <Text style={{ color: '#fff', fontSize: 18, fontWeight: '900' }}>{leg.routeShortName}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }} numberOfLines={1}>
+                        {t('Route', 'Route')} {leg.routeShortName}
+                      </Text>
+                      {leg.headsign && <Text style={{ fontSize: fonts.sm, color: colours.muted }} numberOfLines={1}>{leg.headsign}</Text>}
+                    </View>
+                  </View>
+                  <TouchableOpacity onPress={closeRouteDetail} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
+                    <Ionicons name="close" size={18} color={colours.text} />
+                  </TouchableOpacity>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 }}>
+                  <View style={{ backgroundColor: (isSTO ? '#00A78D' : '#CE1126') + '18', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1, borderColor: (isSTO ? '#00A78D' : '#CE1126') + '40' }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: isSTO ? '#00A78D' : '#CE1126' }}>{isSTO ? 'STO' : 'OC Transpo'}</Text>
+                  </View>
+                  {routeDetailBus && (
+                    <View style={{ backgroundColor: '#34c759' + '18', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1, borderColor: '#34c759' + '40', flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#34c759' }} />
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: '#34c759' }}>{t('Live', 'En direct')}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              <ScrollView contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+                {routeDetailLoading ? (
+                  <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                    <ActivityIndicator color={colours.accent} size="large" />
+                    <Text style={{ color: colours.muted, fontSize: fonts.sm, marginTop: 10 }}>{t('Loading route details...', 'Chargement des details...')}</Text>
+                  </View>
+                ) : (
+                  <>
+                    {/* Next departures */}
+                    {routeDetailDepartures.length > 0 && (
+                      <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
+                        <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text, marginBottom: 10 }}>{t('Next departures', 'Prochains departs')}</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                          {routeDetailDepartures.map((dep, di) => (
+                            <View key={di} style={{ backgroundColor: di === 0 ? routeColor + '18' : colours.surface, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: di === 0 ? routeColor + '40' : colours.border, minWidth: 80, alignItems: 'center' }}>
+                              <Text style={{ fontSize: 15, fontWeight: '800', color: di === 0 ? routeColor : colours.text }}>{dep}</Text>
+                              {di === 0 && <Text style={{ fontSize: 9, fontWeight: '700', color: routeColor, marginTop: 2 }}>{t('NEXT', 'PROCHAIN')}</Text>}
+                            </View>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    )}
+
+                    {/* Mini map with live bus + route shape */}
+                    {(routeDetailBus || routeDetailShape.length > 0) && MapView && (
+                      <View style={{ marginHorizontal: 20, marginTop: 16, height: 160, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: colours.border }}>
+                        <MapView
+                          ref={routeDetailMapRef}
+                          style={{ flex: 1 }}
+                          initialRegion={{
+                            latitude: routeDetailBus?.lat || leg.from?.lat || 45.4215,
+                            longitude: routeDetailBus?.lng || leg.from?.lon || -75.6972,
+                            latitudeDelta: 0.04, longitudeDelta: 0.04,
+                          }}
+                          scrollEnabled={false}
+                          zoomEnabled={false}
+                          showsUserLocation
+                        >
+                          {routeDetailShape.length > 1 && Polyline && (
+                            <Polyline coordinates={routeDetailShape} strokeColor={routeColor} strokeWidth={3} />
+                          )}
+                          {routeDetailBus && Marker && (
+                            <Marker coordinate={{ latitude: routeDetailBus.lat, longitude: routeDetailBus.lng }} anchor={{ x: 0.5, y: 0.5 }}>
+                              <View style={{ backgroundColor: routeColor, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' }}>
+                                <Text style={{ color: '#fff', fontSize: 11, fontWeight: '900' }}>{leg.routeShortName}</Text>
+                              </View>
+                            </Marker>
+                          )}
+                        </MapView>
+                      </View>
+                    )}
+
+                    {/* All stops */}
+                    {routeDetailStops.length > 0 && (
+                      <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
+                        <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text, marginBottom: 12 }}>{t('All stops', 'Tous les arrets')}</Text>
+                        {routeDetailStops.map((stop, si) => {
+                          const cleanName = toTitleCase(stop.stop_name.replace(/\s*\(\d+\)$/, ''));
+                          const isBoard = cleanName.toLowerCase().includes(boardName.toLowerCase().slice(0, 10)) || stop.stop_id === (leg.from?.name?.match(/\((\d+)\)/)?.[1] || '');
+                          const isAlight = cleanName.toLowerCase().includes(alightName.toLowerCase().slice(0, 10)) || stop.stop_id === (leg.to?.name?.match(/\((\d+)\)/)?.[1] || '');
+                          // Determine if this stop is past (before boarding stop)
+                          const boardIdx = routeDetailStops.findIndex(s => {
+                            const cn = toTitleCase(s.stop_name.replace(/\s*\(\d+\)$/, ''));
+                            return cn.toLowerCase().includes(boardName.toLowerCase().slice(0, 10));
+                          });
+                          const alightIdx = routeDetailStops.findIndex(s => {
+                            const cn = toTitleCase(s.stop_name.replace(/\s*\(\d+\)$/, ''));
+                            return cn.toLowerCase().includes(alightName.toLowerCase().slice(0, 10));
+                          });
+                          const isPast = boardIdx >= 0 && si < boardIdx;
+                          const isBeyond = alightIdx >= 0 && si > alightIdx;
+                          const isMuted = isPast || isBeyond;
+                          return (
+                            <View key={si} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 }}>
+                              {/* Timeline dot + line */}
+                              <View style={{ alignItems: 'center', width: 20 }}>
+                                {si > 0 && <View style={{ width: 2, height: 12, backgroundColor: isMuted ? colours.border : routeColor + '40', marginBottom: -2 }} />}
+                                <View style={{
+                                  width: isBoard || isAlight ? 14 : 8,
+                                  height: isBoard || isAlight ? 14 : 8,
+                                  borderRadius: isBoard || isAlight ? 7 : 4,
+                                  backgroundColor: isBoard ? '#00A78D' : isAlight ? colours.accent : isMuted ? colours.border : routeColor + '60',
+                                  borderWidth: isBoard || isAlight ? 2 : 0,
+                                  borderColor: isBoard ? '#00A78D' : isAlight ? colours.accent : 'transparent',
+                                }} />
+                                {si < routeDetailStops.length - 1 && <View style={{ width: 2, height: 12, backgroundColor: isMuted && !isBoard ? colours.border : routeColor + '40', marginTop: -2 }} />}
+                              </View>
+                              {/* Stop name + label */}
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ fontSize: fonts.sm, fontWeight: isBoard || isAlight ? '800' : '500', color: isMuted ? colours.muted : colours.text }} numberOfLines={1}>
+                                  {cleanName}
+                                </Text>
+                                {isBoard && <Text style={{ fontSize: 10, fontWeight: '700', color: '#00A78D' }}>{t('Board here', 'Montez ici')}</Text>}
+                                {isAlight && <Text style={{ fontSize: 10, fontWeight: '700', color: colours.accent }}>{t('Exit here', 'Descendez ici')}</Text>}
+                              </View>
+                              {/* Stop ID */}
+                              <Text style={{ fontSize: 10, color: colours.muted }}>#{stop.stop_id}</Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    )}
+                  </>
+                )}
+              </ScrollView>
+            </View>
+          );
+        })()}
+      </Modal>
+
       {activeTripItinerary && (
         <ActiveTrip
           visible={!!activeTripItinerary}
@@ -1876,6 +2185,16 @@ function PlannerScreenInner() {
           reducedMotion={reducedMotion}
           batterySaver={batterySaverMode}
           alerts={alerts}
+          onConfirmArrival={async (routeId, stopName) => {
+            try {
+              const { getDeviceId } = require('../../lib/pushNotifications');
+              const deviceId = await getDeviceId();
+              fetchWithTimeout('https://routeo-backend.vercel.app/api/community?action=ghost.report', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ stop_id: stopName, route_id: routeId, report_type: 'confirmed_arrived', notes: '', device_id: deviceId }),
+              }).catch(() => {});
+            } catch {}
+          }}
         />
       )}
 

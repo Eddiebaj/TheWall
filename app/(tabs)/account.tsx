@@ -13,6 +13,7 @@ import { useApp } from '../../context/AppContext';
 import { supabase } from '../../lib/supabase';
 import { registerPushToken, syncSubscriptions } from '../../lib/pushNotifications';
 import { SK_FAVS, SK_SAVED_PLACES, SK_SAVED_BOARD, SK_NOTIF_SETTINGS, SK_TRIP_SHARING, SK_TRIP_HISTORY, SK_PRESTO_BALANCE, SK_PRESTO_RESET_DATE, SK_BATTERY_SAVER, SK_CLASS_SCHEDULE, SK_CAMPUS } from '../../lib/storageKeys';
+import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { toTitleCase } from '../../lib/utils';
 import { CAMPUSES, CampusConfig } from '../../lib/campusData';
 import { ClassSchedule } from '../../lib/scheduleData';
@@ -116,6 +117,7 @@ export default function AccountScreen() {
   const [acctSchedule, setAcctSchedule] = useState<ClassSchedule | null>(null);
   const [acctCampus, setAcctCampus] = useState<CampusConfig | null>(null);
   const [acctScheduleModal, setAcctScheduleModal] = useState(false);
+  const [ghostStats, setGhostStats] = useState<{ totalThisWeek: number; mostAffectedRoute: string | null; mostAffectedCount: number } | null>(null);
 
   // Bug report modal
   const [bugModalVisible, setBugModalVisible] = useState(false);
@@ -127,6 +129,15 @@ export default function AccountScreen() {
   useEffect(() => {
     AsyncStorage.getItem(SK_CAMPUS).then(val => { if (val) { const c = CAMPUSES.find(x => x.id === val); if (c) setAcctCampus(c); } }).catch(() => {});
     AsyncStorage.getItem(SK_CLASS_SCHEDULE).then(val => { try { if (val) setAcctSchedule(JSON.parse(val)); } catch {} }).catch(() => {});
+    // Fetch ghost bus stats
+    (async () => {
+      try {
+        const { getDeviceId } = require('../../lib/pushNotifications');
+        const deviceId = await getDeviceId();
+        const resp = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/community?action=ghost.device_stats&device_id=${deviceId}`);
+        if (resp.ok) { const data = await resp.json(); setGhostStats(data); }
+      } catch {}
+    })();
   }, []);
 
   useEffect(() => {
@@ -481,6 +492,28 @@ export default function AccountScreen() {
               )}
             </View>
           </Card>
+
+          {/* Ghost Bus Stats */}
+          {ghostStats && ghostStats.totalThisWeek > 0 && (
+            <Card>
+              <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#FF9500' + '18', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="warning-outline" size={20} color="#FF9500" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
+                    {t(`Ghost buses reported this week: ${ghostStats.totalThisWeek}`, `Bus fant\u00f4mes signal\u00e9s cette semaine: ${ghostStats.totalThisWeek}`)}
+                  </Text>
+                  {ghostStats.mostAffectedRoute && (
+                    <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
+                      {t(`Most affected: Route ${ghostStats.mostAffectedRoute} (${ghostStats.mostAffectedCount} reports)`,
+                         `Plus touch\u00e9: Route ${ghostStats.mostAffectedRoute} (${ghostStats.mostAffectedCount} signalements)`)}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            </Card>
+          )}
         </>)}
 
         {/* SAFETY */}
