@@ -14,8 +14,8 @@ type Leg = {
   endTime: number;
   duration: number;
   distance: number;
-  from: { name: string; lat: number; lon: number };
-  to: { name: string; lat: number; lon: number };
+  from: { name: string; lat: number; lon: number; stopCode?: string | null; stopId?: string | null };
+  to: { name: string; lat: number; lon: number; stopCode?: string | null; stopId?: string | null };
   agencyId?: string;
   routeShortName: string | null;
   routeLongName: string | null;
@@ -144,9 +144,9 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
     const cl = legs[activeLeg];
     const nl = legs[activeLeg + 1];
     if (cl.mode === 'WALK' && nl && nl.mode === 'BUS' && nl.routeShortName && onConfirmArrival) {
-      // Use the stop name from the walk leg's destination as a rough stop identifier
-      const stopName = cl.to.name || '';
-      onConfirmArrival(nl.routeShortName, stopName);
+      // Use the bus leg's boarding stop code (preferred) or fall back to stop ID / name
+      const stopIdentifier = nl.from.stopCode || (nl.from.stopId ? nl.from.stopId.replace(/^2:/, '') : null) || cl.to.name || '';
+      onConfirmArrival(nl.routeShortName, stopIdentifier);
     }
     setActiveLeg(prev => prev + 1);
     setGetOffAlert(false);
@@ -214,13 +214,14 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
   // ── Poll arrivals for current transit leg ────────────────────
   const pollArrivals = useCallback(async () => {
     if (!currentLeg || currentLeg.mode === 'WALK' || currentLeg.mode === 'CAR' || currentLeg.mode === 'BICYCLE') return;
-    const stopName = currentLeg.from.name;
     const routeId = switchedRoute || currentLeg.routeShortName;
     if (!routeId) return;
+    // Use stopCode (numeric stop ID from OTP) — fall back to stopId (OTP internal), then name
+    const stopParam = currentLeg.from.stopCode || (currentLeg.from.stopId ? currentLeg.from.stopId.replace(/^2:/, '') : null) || currentLeg.from.name;
 
     try {
       const resp = await fetchWithTimeout(
-        `https://routeo-backend.vercel.app/api/arrivals?stop=${encodeURIComponent(stopName)}`
+        `https://routeo-backend.vercel.app/api/arrivals?stop=${encodeURIComponent(stopParam)}`
       );
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
@@ -234,18 +235,20 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
         normalizeRoute(a.routeId || a.route || '') === normalizeRoute(routeId)
       );
       if (!match) {
-        // Fuzzy fallback: check if one contains the other
+        // Fuzzy fallback: match if one starts with the other (avoids "4" matching "44")
         match = arrivals.find((a: any) => {
           const aRoute = normalizeRoute(a.routeId || a.route || '');
           const targetRoute = normalizeRoute(routeId);
-          return aRoute.includes(targetRoute) || targetRoute.includes(aRoute);
+          return aRoute === targetRoute || aRoute.startsWith(targetRoute + '-') || targetRoute.startsWith(aRoute + '-');
         });
       }
       if (match) {
         // Bus found — clear disappearance state
         setBusDisappeared(false);
         setBusDisappearedAt(null);
-        const arrMs = match.expectedMs || match.scheduledMs || match.expected_ms || match.scheduled_ms;
+        // Backend returns minsAway (integer minutes) — convert to ms timestamp
+        const minsAway = typeof match.minsAway === 'number' ? match.minsAway : null;
+        const arrMs = minsAway !== null ? Date.now() + minsAway * 60000 : null;
         if (arrMs) {
           setLiveArrival(arrMs);
           // Calculate adjusted ETA: shift remaining trip duration by delay/early
@@ -276,19 +279,16 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
       }
 
       // Find alternative routes within ±5 min of planned departure
-      const plannedMs = match
-        ? (match.expectedMs || match.scheduledMs || match.expected_ms || match.scheduled_ms || currentLeg.startTime)
-        : currentLeg.startTime;
+      const plannedMins = match && typeof match.minsAway === 'number' ? match.minsAway : null;
       const destName = (currentLeg.headsign || currentLeg.to.name || '').toLowerCase();
-      const windowMs = 5 * 60 * 1000;
       const alts: string[] = [];
 
       for (const a of arrivals) {
         const aRoute = String(a.routeId || a.route || '').replace(/-.*/,'');
         if (aRoute === String(routeId).replace(/-.*/,'')) continue;
-        const aMs = a.expectedMs || a.scheduledMs || a.expected_ms || a.scheduled_ms;
-        if (!aMs) continue;
-        if (Math.abs(aMs - plannedMs) > windowMs) continue;
+        const aMins = typeof a.minsAway === 'number' ? a.minsAway : null;
+        if (aMins === null || plannedMins === null) continue;
+        if (Math.abs(aMins - plannedMins) > 5) continue;
         const aHeadsign = String(a.headsign || a.destination || '').toLowerCase();
         if (aHeadsign && destName && aHeadsign.includes(destName.split('/')[0].trim().slice(0, 8))) {
           if (!alts.includes(aRoute)) alts.push(aRoute);

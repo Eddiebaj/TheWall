@@ -4,6 +4,7 @@ import {
   Animated, Modal, Platform, Text, TouchableOpacity, View,
 } from 'react-native';
 import { fetchWithTimeout } from '../lib/fetchWithTimeout';
+import { computeCountdown } from '../lib/useLiveCountdown';
 import { toTitleCase } from '../lib/utils';
 
 // Lazy-load optional modules
@@ -383,7 +384,7 @@ export default function BusTrackingModal({
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
                     <Text style={{ fontSize: 22, fontWeight: '800', color: minsAway <= 2 ? colours.red : accentColor }}>
-                      {minsAway === 0 ? t('Now', 'Maint.') : `${minsAway}m`}
+                      {(() => { const cd = computeCountdown(minsAway, Date.now()); return t(cd.text, cd.textFr); })()}
                     </Text>
                     <Text style={{ fontSize: 10, color: colours.muted }}>{t('to stop', 'à l\'arrêt')}</Text>
                   </View>

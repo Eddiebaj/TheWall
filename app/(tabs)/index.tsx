@@ -23,6 +23,7 @@ import { useApp } from '../../context/AppContext';
 import { ArrivalRowSkeleton } from '../../components/Shimmer';
 import BusTrackingModal from '../../components/BusTrackingModal';
 import { supabase } from '../../lib/supabase';
+import { computeCountdown } from '../../lib/useLiveCountdown';
 import stopMap from './stopmap.json';
 import stopNameMap from './stopnamemap.json';
 import stopsearch from './stopsearch.json';
@@ -716,9 +717,9 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
                 <Text style={{ fontSize: 10, fontWeight: '800', color: badgeColor }}>{(a.routeId || '').split('-')[0]}</Text>
               </View>
               <Text style={{ fontSize: 12, fontWeight: '800', color: a.minsAway <= 2 ? colours.red : badgeColor }}>
-                {timeFormat === 'absolute'
+                {(() => { const cd = computeCountdown(a.minsAway, Date.now()); return timeFormat === 'absolute'
                   ? fmtAbsTime(a.minsAway)
-                  : (a.minsAway === 0 ? t('Now', 'Maint.') : `${a.minsAway}m`)}
+                  : t(cd.text, cd.textFr); })()}
               </Text>
               <Text style={{ fontSize: 10, color: colours.muted, flex: 1 }} numberOfLines={1}>{a.headsign || ''}</Text>
             </TouchableOpacity>
@@ -778,7 +779,7 @@ function SavedStopCard({ fav, isActive, colours, fonts, t, onPress, onLongPress,
                 <Text style={{ fontSize: 10, fontWeight: '800', color: isActive ? 'white' : stopColor }}>{(a.routeId || '').split('-')[0]}</Text>
               </View>
               <Text style={{ fontSize: 11, color: isActive ? 'rgba(255,255,255,0.7)' : colours.muted, flex: 1 }} numberOfLines={1}>{a.headsign ? `→ ${a.headsign}` : ''}</Text>
-              <Text style={{ fontSize: 12, fontWeight: '800', color: isActive ? 'white' : (a.minsAway <= 2 ? colours.red : stopColor) }}>{a.minsAway === 0 ? t('Now', 'Maint.') : `${a.minsAway}m`}</Text>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: isActive ? 'white' : (a.minsAway <= 2 ? colours.red : stopColor) }}>{(() => { const cd = computeCountdown(a.minsAway, Date.now()); return t(cd.text, cd.textFr); })()}</Text>
             </View>
           ))
         )}
@@ -1357,11 +1358,14 @@ function LiveScreenInner() {
   const [stopId, setStopId] = useState('');
   const [stopName, setStopName] = useState('');
   const [arrivals, setArrivals] = useState<Arrival[]>([]);
+  const [arrivalsFetchedAt, setArrivalsFetchedAt] = useState(0);
+  const arrivalsAbortRef = useRef<AbortController | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [cachedAt, setCachedAt] = useState<number | null>(null);
   const [weatherFetchFailed, setWeatherFetchFailed] = useState(false);
   const [arrivalsFetchFailed, setArrivalsFetchFailed] = useState(false);
+  const [countdownTick, setCountdownTick] = useState(0);
   const [hasNoSavedStops, setHasNoSavedStops] = useState(false);
   const [stopReports, setStopReports] = useState<Record<string, { count: number; reports: any[] }>>({});
   const [showReportSheet, setShowReportSheet] = useState(false);
@@ -2162,18 +2166,25 @@ function LiveScreenInner() {
 
   const fetchArrivals = useCallback(async (id: string) => {
     if (!id) return;
+    // Abort any in-flight fetch to prevent race conditions
+    arrivalsAbortRef.current?.abort();
+    const controller = new AbortController();
+    arrivalsAbortRef.current = controller;
     try {
       setError('');
       const isNumericOnly = /^\d+$/.test(id);
       const internalId = isNumericOnly ? resolveStopId(id) : id;
       // STO stops — route through backend which handles STO GTFS-RT
       if (isStoStop(id)) {
-        const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${id}`);
+        const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${id}`, { signal: controller.signal });
+        if (controller.signal.aborted) return;
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
         const stoIsStatic = data.source === 'gtfs-static';
         const stoParsed = (data.arrivals || []).map((a: any) => ({ id: `${a.stopId || id}-${a.scheduledTime || Math.random()}`, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway, delay: 0, secsAway: a.minsAway * 60, isScheduled: stoIsStatic }));
+        if (controller.signal.aborted) return;
         setArrivals(stoParsed);
+        setArrivalsFetchedAt(Date.now());
         if (data.ghostReports) setGhostReports(data.ghostReports);
         AsyncStorage.setItem(`routeo_arrivals_${id}`, JSON.stringify({ arrivals: stoParsed, timestamp: Date.now() }));
         setCachedAt(null);
@@ -2186,11 +2197,14 @@ function LiveScreenInner() {
         const rawId = LRT_STOP_IDS.has(id) ? id : internalId;
         const platforms = MULTI_PLATFORM_STOPS[rawId];
         const lrtId = platforms ? (platforms.find(p => /^[A-Z]/.test(p)) || rawId) : rawId;
-        const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${lrtId}`);
+        const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${lrtId}`, { signal: controller.signal });
+        if (controller.signal.aborted) return;
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
         const lrtParsed = (data.arrivals || []).map((a: any) => ({ id: `${a.stopId}-${a.scheduledTime}`, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway, delay: 0, secsAway: a.minsAway * 60, isScheduled: true }));
+        if (controller.signal.aborted) return;
         setArrivals(lrtParsed);
+        setArrivalsFetchedAt(Date.now());
         if (data.ghostReports) setGhostReports(data.ghostReports);
         AsyncStorage.setItem(`routeo_arrivals_${id}`, JSON.stringify({ arrivals: lrtParsed, timestamp: Date.now() }));
         setCachedAt(null);
@@ -2199,11 +2213,33 @@ function LiveScreenInner() {
         setLoading(false);
         return;
       }
-      const resp = await fetchWithTimeout(TRIP_UPDATES, { headers: { 'Ocp-Apim-Subscription-Key': OC_TRANSPO_API_KEY } });
+      const resp = await fetchWithTimeout(TRIP_UPDATES, { headers: { 'Ocp-Apim-Subscription-Key': OC_TRANSPO_API_KEY }, signal: controller.signal });
+      if (controller.signal.aborted) return;
       if (!resp.ok) throw new Error(`API error ${resp.status}`);
       const data = await resp.json();
       const gtfsParsed = parseGTFS(data, internalId);
+      if (controller.signal.aborted) return;
+      // If GTFS-RT returned empty, fall back to backend static schedule
+      if (gtfsParsed.length === 0) {
+        const backendResp = await fetchWithTimeout(`${BACKEND_URL}?stop=${id}`, { signal: controller.signal });
+        if (controller.signal.aborted) return;
+        if (backendResp.ok) {
+          const backendData = await backendResp.json();
+          const backendParsed = (backendData.arrivals || []).map((a: any) => ({ id: `${a.stopId || id}-${a.scheduledTime || Math.random()}`, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway, delay: 0, secsAway: a.minsAway * 60, isScheduled: true }));
+          if (controller.signal.aborted) return;
+          setArrivals(backendParsed);
+          setArrivalsFetchedAt(Date.now());
+          if (backendData.ghostReports) setGhostReports(backendData.ghostReports);
+          AsyncStorage.setItem(`routeo_arrivals_${id}`, JSON.stringify({ arrivals: backendParsed, timestamp: Date.now() }));
+          setCachedAt(null);
+          setLastUpdated(fmtTime(new Date()));
+          setLoading(false);
+          setArrivalsFetchFailed(false);
+          return;
+        }
+      }
       setArrivals(gtfsParsed);
+      setArrivalsFetchedAt(Date.now());
       // Fetch ghost reports for OC Transpo stops
       fetchWithTimeout(`${COMMUNITY_URL}?action=ghost.stats&stop_id=${internalId}`).then(r => r.ok ? r.json() : null).then(d => {
         if (d?.ghostReports) setGhostReports(d.ghostReports);
@@ -2459,6 +2495,18 @@ function LiveScreenInner() {
     }, 30000);
     return () => clearInterval(interval);
   }, [stopId, fetchArrivals, frequentRoutes, frequentCardDismissed]);
+
+  // Live countdown tick — 1s when any arrival < 2min, 15s otherwise
+  useEffect(() => {
+    if (!arrivalsFetchedAt || arrivals.length === 0) return;
+    const anyUrgent = arrivals.some(a => {
+      const remaining = a.minsAway * 60 - Math.floor((Date.now() - arrivalsFetchedAt) / 1000);
+      return remaining < 120 && remaining > 0;
+    });
+    const ms = anyUrgent ? 1000 : 15000;
+    const id = setInterval(() => setCountdownTick(t => t + 1), ms);
+    return () => clearInterval(id);
+  }, [arrivalsFetchedAt, arrivals.length, countdownTick]);
 
   useEffect(() => {
     if (arrivals.length > 0 && arrivals[0].minsAway > 15) {
@@ -3856,6 +3904,7 @@ function LiveScreenInner() {
   };
 
   const renderArrival = (item: Arrival) => {
+    void countdownTick; // triggers re-render for live countdown
     const isLRT = item.isScheduled || item.routeId.includes('350') || item.routeId.includes('354') || item.routeId === '1' || item.routeId === '2';
     const now = Date.now();
     const reportEntry = reports[item.routeId];
@@ -3866,9 +3915,10 @@ function LiveScreenInner() {
     const ghostTotal = serverGhost?.total || reportCount;
     const ghostDevices = serverGhost?.uniqueDevices || 0;
     const ghostConfirmed = serverGhost?.confirmedCount || 0;
+    const countdown = arrivalsFetchedAt ? computeCountdown(item.minsAway, arrivalsFetchedAt) : null;
     const timeDisplay = timeFormat === 'absolute'
       ? fmtAbsTime(item.minsAway)
-      : (item.minsAway === 0 ? t('Due', 'Imminent') : `${item.minsAway}m`);
+      : (countdown ? t(countdown.text, countdown.textFr) : (item.minsAway === 0 ? t('Due', 'Imminent') : `${item.minsAway}m`));
     const rel = reliabilityScores[item.routeId];
     const relColor = rel ? (rel.onTimeRate > 85 ? '#34C759' : rel.onTimeRate >= 70 ? '#FFD60A' : '#FF3B30') : null;
     return (
@@ -3970,7 +4020,7 @@ function LiveScreenInner() {
         <View style={styles.arrivalRight}>
           <TouchableOpacity onPress={() => { if (!item.isScheduled) setTrackingBus({ routeId: item.routeId, headsign: item.headsign, minsAway: item.minsAway, isSTO: isStoStop(stopId) }); }} activeOpacity={item.isScheduled ? 1 : 0.6}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Text style={{ fontSize: fonts.xl, fontWeight: '700', color: ghostBus ? colours.muted : (item.minsAway <= 2 ? colours.red : colours.accent), textDecorationLine: ghostBus ? 'line-through' : 'none' }}>{timeDisplay}</Text>
+              <Text style={{ fontSize: fonts.xl, fontWeight: '700', color: ghostBus ? colours.muted : (countdown?.isArriving ? '#00A78D' : (countdown?.isUrgent || item.minsAway <= 2) ? colours.red : colours.accent), textDecorationLine: ghostBus ? 'line-through' : 'none' }}>{timeDisplay}</Text>
               {!item.isScheduled && <Ionicons name="locate-outline" size={14} color={colours.accent} />}
             </View>
           </TouchableOpacity>
@@ -4998,7 +5048,7 @@ function LiveScreenInner() {
                       {arrival ? (
                         <>
                           <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: arrival.minsAway <= 2 ? '#FF3B30' : colours.accent }}>
-                            {arrival.minsAway === 0 ? t('Due', 'Imminent') : `${arrival.minsAway}m`}
+                            {(() => { const cd = computeCountdown(arrival.minsAway, Date.now()); return t(cd.text, cd.textFr); })()}
                           </Text>
                           <Text style={{ fontSize: 10, color: colours.muted }}>{t('next', 'prochain')}</Text>
                         </>

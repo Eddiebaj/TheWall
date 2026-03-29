@@ -10,7 +10,7 @@ import { toTitleCase } from '../../lib/utils';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, Dimensions, FlatList, Image, Keyboard, KeyboardAvoidingView,
-  Linking, Modal, NativeScrollEvent, NativeSyntheticEvent, Platform, RefreshControl, ScrollView, Share,
+  Linking, Modal, NativeScrollEvent, NativeSyntheticEvent, PanResponder, Platform, RefreshControl, ScrollView, Share,
   Text,
   TextInput, TouchableOpacity, View
 } from 'react-native';
@@ -93,8 +93,8 @@ type Leg = {
   endTime: number;
   duration: number;
   distance: number;
-  from: { name: string; lat: number; lon: number };
-  to: { name: string; lat: number; lon: number };
+  from: { name: string; lat: number; lon: number; stopCode?: string | null; stopId?: string | null };
+  to: { name: string; lat: number; lon: number; stopCode?: string | null; stopId?: string | null };
   agencyId?: string;
   routeShortName: string | null;
   routeLongName: string | null;
@@ -415,6 +415,11 @@ function PlannerScreenInner() {
   const mainScrollRef = useRef<ScrollView>(null);
   const itinListYOffset = useRef(0);
 
+  // Route map state
+  const [showRouteMap, setShowRouteMap] = useState(false);
+  const [selectedRouteIdx, setSelectedRouteIdx] = useState(0);
+  const routeMapRef = useRef<any>(null);
+
   const isLight = colours.bg === '#f0f4f8';
   const cardShadow = isLight ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 } : { shadowColor: '#ffffff', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 };
 
@@ -677,7 +682,7 @@ function PlannerScreenInner() {
   // ── Plan core — accepts explicit places (used by auto-plan on deep-link) ──
   const planWithPlaces = async (resolvedFrom: PlaceResult, resolvedTo: PlaceResult) => {
     if (!resolvedFrom?.lat || !resolvedTo?.lat) return;
-    setLoading(true); setError(''); setSearched(true); setItineraries([]);
+    setLoading(true); setError(''); setSearched(true); setItineraries([]); setShowRouteMap(false); setSelectedRouteIdx(0);
 
     // Use override from schedule GO button if set, then clear it
     const override = timeOverride.current;
@@ -1374,7 +1379,7 @@ function PlannerScreenInner() {
     return (
       <TouchableOpacity
         key={idx}
-        onPress={() => setExpandedItinerary(itin)}
+        onPress={() => { setExpandedItinerary(itin); setSelectedRouteIdx(idx); }}
         style={[{
           backgroundColor: colours.surface,
           borderRadius: 16,
@@ -2766,6 +2771,130 @@ function PlannerScreenInner() {
                 </ScrollView>
               );
             })()}
+            {/* View on Map toggle */}
+            <TouchableOpacity
+              onPress={() => { setShowRouteMap(prev => !prev); setSelectedRouteIdx(0); }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: showRouteMap ? colours.accent + '15' : colours.surface, borderWidth: 1, borderColor: showRouteMap ? colours.accent : colours.border, marginBottom: 12 }}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={showRouteMap ? t('Hide map', 'Masquer la carte') : t('View on map', 'Voir sur la carte')}
+            >
+              <Ionicons name={showRouteMap ? 'map' : 'map-outline'} size={14} color={showRouteMap ? colours.accent : colours.muted} />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: showRouteMap ? colours.accent : colours.muted }}>
+                {showRouteMap ? t('Hide map', 'Masquer la carte') : t('View on map', 'Voir sur la carte')}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Route Map */}
+            {showRouteMap && MapView && itineraries.length > 0 && (() => {
+              const allCoords: { latitude: number; longitude: number }[] = [];
+              itineraries.forEach(itin => (itin.legs || []).forEach(leg => { allCoords.push(...legCoords(leg)); }));
+              if (allCoords.length === 0) return null;
+              const region = getBounds(allCoords);
+              const selectedItin = itineraries[selectedRouteIdx] || itineraries[0];
+              const origin = selectedItin.legs?.[0]?.from;
+              const dest = selectedItin.legs?.[selectedItin.legs.length - 1]?.to;
+              return (
+                <View style={{ marginBottom: 12, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: colours.border }}>
+                  <MapView
+                    ref={routeMapRef}
+                    provider={PROVIDER_DEFAULT}
+                    style={{ width: '100%', height: 280 }}
+                    initialRegion={region}
+                    scrollEnabled
+                    zoomEnabled
+                    pitchEnabled={false}
+                    onLayout={() => {
+                      if (allCoords.length > 1) {
+                        setTimeout(() => routeMapRef.current?.fitToCoordinates(allCoords, { edgePadding: { top: 40, right: 40, bottom: 40, left: 40 }, animated: false }), 200);
+                      }
+                    }}
+                  >
+                    {/* Polylines for all itineraries */}
+                    {itineraries.map((itin, itinIdx) => (itin.legs || []).map((leg, legIdx) => {
+                      const coords = legCoords(leg);
+                      if (coords.length < 2) return null;
+                      const isSelected = itinIdx === selectedRouteIdx;
+                      const isWalk = leg.mode === 'WALK';
+                      const isSTO = leg.agencyId?.includes('STO');
+                      const baseColor = isWalk ? '#9aaabb' : (isSTO ? '#00A78D' : '#CE1126');
+                      // Apply opacity via hex alpha suffix instead of style
+                      const color = isSelected ? baseColor : baseColor + '33';
+                      return (
+                        <Polyline
+                          key={`poly-${itinIdx}-${legIdx}`}
+                          coordinates={coords}
+                          strokeColor={color}
+                          strokeWidth={isSelected ? 4 : 2}
+                          lineDashPattern={isWalk ? [6, 4] : undefined}
+                        />
+                      );
+                    }))}
+                    {/* Origin marker */}
+                    {origin && Marker && (
+                      <Marker coordinate={{ latitude: origin.lat, longitude: origin.lon }} anchor={{ x: 0.5, y: 0.5 }}>
+                        <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: '#34c759', borderWidth: 2, borderColor: 'white' }} />
+                      </Marker>
+                    )}
+                    {/* Destination marker */}
+                    {dest && Marker && (
+                      <Marker coordinate={{ latitude: dest.lat, longitude: dest.lon }} anchor={{ x: 0.5, y: 0.5 }}>
+                        <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: colours.accent, borderWidth: 2, borderColor: 'white', alignItems: 'center', justifyContent: 'center' }}>
+                          <Ionicons name="flag" size={10} color="white" />
+                        </View>
+                      </Marker>
+                    )}
+                    {/* Boarding stops for selected route */}
+                    {(selectedItin.legs || []).map((leg, li) => {
+                      if (leg.mode === 'WALK' || !leg.from?.lat) return null;
+                      return Marker ? (
+                        <Marker key={`board-${li}`} coordinate={{ latitude: leg.from.lat, longitude: leg.from.lon }} anchor={{ x: 0.5, y: 0.5 }}>
+                          <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#00A78D', borderWidth: 2, borderColor: 'white' }} />
+                        </Marker>
+                      ) : null;
+                    })}
+                    {/* Alighting stops for selected route */}
+                    {(selectedItin.legs || []).map((leg, li) => {
+                      if (leg.mode === 'WALK' || !leg.to?.lat) return null;
+                      return Marker ? (
+                        <Marker key={`alight-${li}`} coordinate={{ latitude: leg.to.lat, longitude: leg.to.lon }} anchor={{ x: 0.5, y: 0.5 }}>
+                          <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: colours.accent, borderWidth: 2, borderColor: 'white' }} />
+                        </Marker>
+                      ) : null;
+                    })}
+                    {/* User location */}
+                    {userLocation && Marker && (
+                      <Marker coordinate={userLocation} anchor={{ x: 0.5, y: 0.5 }}>
+                        <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: '#007AFF', borderWidth: 2, borderColor: 'white' }} />
+                      </Marker>
+                    )}
+                  </MapView>
+                  {/* Route selector pills */}
+                  {itineraries.length > 1 && (
+                    <View style={{ flexDirection: 'row', gap: 6, padding: 10, backgroundColor: colours.surface }}>
+                      {itineraries.map((_, ri) => (
+                        <TouchableOpacity
+                          key={ri}
+                          onPress={() => {
+                            setSelectedRouteIdx(ri);
+                            const itin = itineraries[ri];
+                            const coords: { latitude: number; longitude: number }[] = [];
+                            (itin.legs || []).forEach(l => coords.push(...legCoords(l)));
+                            if (coords.length > 1) routeMapRef.current?.fitToCoordinates(coords, { edgePadding: { top: 40, right: 40, bottom: 40, left: 40 }, animated: true });
+                          }}
+                          style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, backgroundColor: ri === selectedRouteIdx ? colours.accent : colours.surface, borderWidth: 1, borderColor: ri === selectedRouteIdx ? colours.accent : colours.border }}
+                        >
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: ri === selectedRouteIdx ? 'white' : colours.muted }}>
+                            {t('Route', 'Trajet')} {ri + 1}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              );
+            })()}
+
             <View onLayout={(e) => { itinListYOffset.current = e.nativeEvent.layout.y; }}>
               {itineraries.map((itin, i) => (
                 <View key={i} onLayout={(e) => { itinLayoutMap.current[i] = e.nativeEvent.layout.y; }}>
