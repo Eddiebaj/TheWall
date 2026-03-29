@@ -2081,7 +2081,7 @@ export default function MapScreen() {
                 const depTime = new Date(itin.startTime);
                 const arrTime = new Date(itin.endTime);
                 const fmt = (d: Date) => `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
-                const durationMin = Math.round(itin.duration / 60000);
+                const durationMin = Math.round(itin.duration / 60);
                 const walkMin = Math.round(itin.walkDistance / 80);
                 const transitLegs = itin.legs.filter(l => l.mode !== 'WALK');
                 return (

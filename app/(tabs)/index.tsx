@@ -333,6 +333,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   const [previewLoading, setPreviewLoading] = useState(true);
   const [previewSource, setPreviewSource] = useState<'gtfs-rt' | 'gtfs-static' | 'sto-gtfs-rt' | null>(null);
   const [previewGhosts, setPreviewGhosts] = useState<GhostReports>({});
+  const [previewFetchedAt, setPreviewFetchedAt] = useState(Date.now());
   const [gasPrice, setGasPrice] = useState<string | null>(null);
   const [gasFailed, setGasFailed] = useState(false);
 
@@ -350,6 +351,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
         const data = await resp.json();
         if (!cancelled) {
           setPreview((data.arrivals || []).slice(0, 3).map((a: any) => ({ routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway })));
+          setPreviewFetchedAt(Date.now());
           setPreviewSource(data.source === 'sto-gtfs-rt' ? 'sto-gtfs-rt' as any : data.source === 'gtfs-rt' ? 'gtfs-rt' : 'gtfs-static');
           if (data.ghostReports) setPreviewGhosts(data.ghostReports);
         }
@@ -717,7 +719,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
                 <Text style={{ fontSize: 10, fontWeight: '800', color: badgeColor }}>{(a.routeId || '').split('-')[0]}</Text>
               </View>
               <Text style={{ fontSize: 12, fontWeight: '800', color: a.minsAway <= 2 ? colours.red : badgeColor }}>
-                {(() => { const cd = computeCountdown(a.minsAway, Date.now()); return timeFormat === 'absolute'
+                {(() => { const cd = computeCountdown(a.minsAway, previewFetchedAt); return timeFormat === 'absolute'
                   ? fmtAbsTime(a.minsAway)
                   : t(cd.text, cd.textFr); })()}
               </Text>
@@ -735,6 +737,7 @@ function SavedStopCard({ fav, isActive, colours, fonts, t, onPress, onLongPress,
   const [preview, setPreview] = useState<{ routeId: string; headsign: string; minsAway: number }[]>([]);
   const [previewLoading, setPreviewLoading] = useState(true);
   const [previewSource, setPreviewSource] = useState<'gtfs-rt' | 'gtfs-static' | 'sto-gtfs-rt' | null>(null);
+  const [previewFetchedAt, setPreviewFetchedAt] = useState(Date.now());
   const isSTO = isStoStop(fav.id);
   const stopColor = isSTO ? '#0072bc' : colours.accent;
   useEffect(() => {
@@ -746,6 +749,7 @@ function SavedStopCard({ fav, isActive, colours, fonts, t, onPress, onLongPress,
         const data = await resp.json();
         if (!cancelled) {
           setPreview((data.arrivals || []).slice(0, 2).map((a: any) => ({ routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway })));
+          setPreviewFetchedAt(Date.now());
           setPreviewSource(data.source === 'sto-gtfs-rt' ? 'sto-gtfs-rt' : data.source === 'gtfs-rt' ? 'gtfs-rt' : 'gtfs-static');
         }
       } catch { if (!cancelled) setPreview([]); }
@@ -779,7 +783,7 @@ function SavedStopCard({ fav, isActive, colours, fonts, t, onPress, onLongPress,
                 <Text style={{ fontSize: 10, fontWeight: '800', color: isActive ? 'white' : stopColor }}>{(a.routeId || '').split('-')[0]}</Text>
               </View>
               <Text style={{ fontSize: 11, color: isActive ? 'rgba(255,255,255,0.7)' : colours.muted, flex: 1 }} numberOfLines={1}>{a.headsign ? `→ ${a.headsign}` : ''}</Text>
-              <Text style={{ fontSize: 12, fontWeight: '800', color: isActive ? 'white' : (a.minsAway <= 2 ? colours.red : stopColor) }}>{(() => { const cd = computeCountdown(a.minsAway, Date.now()); return t(cd.text, cd.textFr); })()}</Text>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: isActive ? 'white' : (a.minsAway <= 2 ? colours.red : stopColor) }}>{(() => { const cd = computeCountdown(a.minsAway, previewFetchedAt); return t(cd.text, cd.textFr); })()}</Text>
             </View>
           ))
         )}
@@ -1383,6 +1387,7 @@ function LiveScreenInner() {
   const [crowdingToast, setCrowdingToast] = useState(false);
   const [frequentRoutes, setFrequentRoutes] = useState<FrequentRoute[]>([]);
   const [frequentArrivals, setFrequentArrivals] = useState<Record<string, { minsAway: number; delay: number; headsign: string } | null>>({});
+  const [frequentFetchedAt, setFrequentFetchedAt] = useState(Date.now());
   const [frequentCardDismissed, setFrequentCardDismissed] = useState(true);
   const [timeFormat, setTimeFormat] = useState<'relative' | 'absolute'>('relative');
 
@@ -2443,6 +2448,7 @@ function LiveScreenInner() {
           const { data, ts } = JSON.parse(cached);
           if (Date.now() - ts < 60000 && data) {
             setFrequentArrivals(data);
+            setFrequentFetchedAt(ts);
           }
         }
       } catch { /* ignore */ }
@@ -2475,6 +2481,7 @@ function LiveScreenInner() {
       } catch { /* network error */ }
     }));
     setFrequentArrivals(results);
+    setFrequentFetchedAt(Date.now());
     // Cache successful results
     if (Object.keys(results).length > 0) {
       AsyncStorage.setItem(SK_FREQUENT_ARRIVALS_CACHE, JSON.stringify({ data: results, ts: Date.now() })).catch(() => {});
@@ -2497,16 +2504,31 @@ function LiveScreenInner() {
   }, [stopId, fetchArrivals, frequentRoutes, frequentCardDismissed]);
 
   // Live countdown tick — 1s when any arrival < 2min, 15s otherwise
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownUrgentRef = useRef(false);
   useEffect(() => {
-    if (!arrivalsFetchedAt || arrivals.length === 0) return;
-    const anyUrgent = arrivals.some(a => {
-      const remaining = a.minsAway * 60 - Math.floor((Date.now() - arrivalsFetchedAt) / 1000);
-      return remaining < 120 && remaining > 0;
-    });
-    const ms = anyUrgent ? 1000 : 15000;
-    const id = setInterval(() => setCountdownTick(t => t + 1), ms);
-    return () => clearInterval(id);
-  }, [arrivalsFetchedAt, arrivals.length, countdownTick]);
+    if (!arrivalsFetchedAt || arrivals.length === 0) {
+      if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
+      return;
+    }
+    const tick = () => {
+      const anyUrgent = arrivals.some(a => {
+        const remaining = a.minsAway * 60 - Math.floor((Date.now() - arrivalsFetchedAt) / 1000);
+        return remaining < 120 && remaining > 0;
+      });
+      // Switch interval rate if urgency changed
+      if (anyUrgent !== countdownUrgentRef.current) {
+        countdownUrgentRef.current = anyUrgent;
+        if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = setInterval(tick, anyUrgent ? 1000 : 15000);
+      }
+      setCountdownTick(t => t + 1);
+    };
+    // Start with 1s interval, will adjust on first tick
+    countdownUrgentRef.current = true;
+    countdownIntervalRef.current = setInterval(tick, 1000);
+    return () => { if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; } };
+  }, [arrivalsFetchedAt, arrivals.length]);
 
   useEffect(() => {
     if (arrivals.length > 0 && arrivals[0].minsAway > 15) {
@@ -5048,7 +5070,7 @@ function LiveScreenInner() {
                       {arrival ? (
                         <>
                           <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: arrival.minsAway <= 2 ? '#FF3B30' : colours.accent }}>
-                            {(() => { const cd = computeCountdown(arrival.minsAway, Date.now()); return t(cd.text, cd.textFr); })()}
+                            {(() => { const cd = computeCountdown(arrival.minsAway, frequentFetchedAt); return t(cd.text, cd.textFr); })()}
                           </Text>
                           <Text style={{ fontSize: 10, color: colours.muted }}>{t('next', 'prochain')}</Text>
                         </>

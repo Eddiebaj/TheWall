@@ -735,16 +735,18 @@ function PlannerScreenInner() {
             const getRouteKey = (itin: any) => (itin.legs || [])
               .map((l: any) => l.mode === 'WALK' ? 'WALK' : (l.routeShortName || l.mode))
               .join('→');
-            const seenRouteKeys = new Set<string>();
+            // Track route keys with their latest kept departure time
+            const seenRouteKeys = new Map<string, number>();
             const deduped = pool.filter((itin: any, idx: number) => {
-              // Time-based dedup
+              // Time-based dedup: skip if within 2 min of an earlier itinerary
               for (let j = 0; j < idx; j++) {
                 if (Math.abs((itin.startTime ?? 0) - (pool[j].startTime ?? 0)) < 120000) return false;
               }
-              // Route-sequence dedup: keep first (earliest) with this route combo
+              // Route-sequence dedup: only deduplicate if departures are within 5 min
               const rk = getRouteKey(itin);
-              if (seenRouteKeys.has(rk)) return false;
-              seenRouteKeys.add(rk);
+              const prevTime = seenRouteKeys.get(rk);
+              if (prevTime !== undefined && Math.abs((itin.startTime ?? 0) - prevTime) < 300000) return false;
+              seenRouteKeys.set(rk, itin.startTime ?? 0);
               return true;
             });
 
