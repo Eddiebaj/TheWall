@@ -6,7 +6,7 @@ try { Haptics = require('expo-haptics'); } catch {}
 let Notifications: typeof import('expo-notifications') | null = null;
 try { Notifications = require('expo-notifications'); } catch {}
 import { useLocalSearchParams } from 'expo-router';
-import { toTitleCase } from '../../lib/utils';
+import { toTitleCase, decodePolyline } from '../../lib/utils';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, Dimensions, FlatList, Image, Keyboard, KeyboardAvoidingView,
@@ -287,21 +287,6 @@ function shortenLabel(label: string): string {
   // Keep only first two parts to stay concise
   if (deduped.length > 2) return deduped.slice(0, 2).join(', ');
   return deduped.join(', ');
-}
-
-function decodePolyline(encoded: string): { latitude: number; longitude: number }[] {
-  const coords: { latitude: number; longitude: number }[] = [];
-  let index = 0, lat = 0, lng = 0;
-  while (index < encoded.length) {
-    let b, shift = 0, result = 0;
-    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-    lat += (result & 1) ? ~(result >> 1) : result >> 1;
-    shift = 0; result = 0;
-    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-    lng += (result & 1) ? ~(result >> 1) : result >> 1;
-    coords.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
-  }
-  return coords;
 }
 
 function legCoords(leg: Leg): { latitude: number; longitude: number }[] {
@@ -744,11 +729,22 @@ function PlannerScreenInner() {
             });
             const pool = sane.length > 0 ? sane : allItins;
 
-            // Deduplicate by start time (within 2 min)
+            // Deduplicate: by start time (within 2 min) AND by route sequence
+            // Two itineraries using the same sequence of routes (e.g., both "WALK→Line 1→WALK")
+            // at different departure times are near-duplicates — keep only earliest departure
+            const getRouteKey = (itin: any) => (itin.legs || [])
+              .map((l: any) => l.mode === 'WALK' ? 'WALK' : (l.routeShortName || l.mode))
+              .join('→');
+            const seenRouteKeys = new Set<string>();
             const deduped = pool.filter((itin: any, idx: number) => {
+              // Time-based dedup
               for (let j = 0; j < idx; j++) {
                 if (Math.abs((itin.startTime ?? 0) - (pool[j].startTime ?? 0)) < 120000) return false;
               }
+              // Route-sequence dedup: keep first (earliest) with this route combo
+              const rk = getRouteKey(itin);
+              if (seenRouteKeys.has(rk)) return false;
+              seenRouteKeys.add(rk);
               return true;
             });
 

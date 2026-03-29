@@ -4,7 +4,7 @@ import {
   Alert, Animated, Dimensions, Modal, Platform, ScrollView, Text, TouchableOpacity, View,
 } from 'react-native';
 import { fetchWithTimeout } from '../lib/fetchWithTimeout';
-import { toTitleCase } from '../lib/utils';
+import { toTitleCase, decodePolyline } from '../lib/utils';
 
 // ── Types ──────────────────────────────────────────────────────
 type WalkStep = { distance: number; relativeDirection: string; streetName: string; instruction?: string | null };
@@ -64,22 +64,6 @@ function distMetres(lat1: number, lon1: number, lat2: number, lon2: number) {
     Math.pow((lat1 - lat2) * 111000, 2) +
     Math.pow((lon1 - lon2) * 111000 * Math.cos(lat2 * Math.PI / 180), 2)
   );
-}
-
-// Decode Google-encoded polyline to coordinate array
-function decodePolyline(encoded: string): { latitude: number; longitude: number }[] {
-  const coords: { latitude: number; longitude: number }[] = [];
-  let idx = 0, lat = 0, lng = 0;
-  while (idx < encoded.length) {
-    let b, shift = 0, result = 0;
-    do { b = encoded.charCodeAt(idx++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
-    shift = 0; result = 0;
-    do { b = encoded.charCodeAt(idx++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
-    coords.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
-  }
-  return coords;
 }
 
 // Lazy-load optional modules
