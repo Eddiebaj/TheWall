@@ -259,10 +259,14 @@ function ExploreScreenInner() {
     if (!hasKeyword && q.length < 3) return;
     // Debounce 600ms then search Google Places by keyword
     keywordTimer.current = setTimeout(async () => {
+      setLoading(true);
       try {
         const url = `https://routeo-backend.vercel.app/api/places?action=nearby&location=${location.lat},${location.lng}&radius=${FETCH_RADIUS}&keyword=${encodeURIComponent(searchQuery)}`;
         const resp = await fetchWithTimeout(url);
-        if (!resp.ok) return;
+        if (!resp.ok) {
+          setFilteredPlaces([]);
+          return;
+        }
         const data = await resp.json();
         const results: Place[] = (data.results || []).map((p: any) => {
           const loc = p.geometry?.location;
@@ -277,7 +281,12 @@ function ExploreScreenInner() {
         }).filter(Boolean) as Place[];
         results.sort((a, b) => a.distance - b.distance);
         if (results.length > 0) setFilteredPlaces(results);
-      } catch { /* silent */ }
+        else setFilteredPlaces([]);
+      } catch {
+        setFilteredPlaces([]);
+      } finally {
+        setLoading(false);
+      }
     }, 600);
     return () => { if (keywordTimer.current) clearTimeout(keywordTimer.current); };
   }, [searchQuery, filteredPlaces.length, location]);

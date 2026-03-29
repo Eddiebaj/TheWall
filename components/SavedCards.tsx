@@ -93,7 +93,10 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
             </View>
           </>
         ) : (
-          <Text style={{ fontSize: 11, color: colours.muted }}>Set address to see schedule</Text>
+          <View style={{ gap: 4 }}>
+            <Ionicons name="location-outline" size={14} color={colours.accent} />
+            <Text style={{ fontSize: 11, color: colours.muted }}>{t('Tap to set your address', 'Appuyez pour entrer votre adresse')}</Text>
+          </View>
         )}
       </TouchableOpacity>
       </ScaleDecorator>
@@ -346,7 +349,7 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
   const alertRouteSet = [...new Set(matchingAlertRoutes)];
   return (
     <ScaleDecorator>
-    <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
+    <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={`${isLRT ? t('LRT station', 'Station du TLR') : t('Bus stop', 'Arrêt de bus')} ${toTitleCase(item.name)}`}>
       {alertRouteSet.length > 0 && (
         <View style={{ backgroundColor: '#e8a020' + '20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, marginBottom: 2 }}>
           <Text style={{ fontSize: 9, fontWeight: '700', color: '#e8a020' }} numberOfLines={1}>
@@ -370,7 +373,7 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
           <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: (isLRT ? colours.lrt : isSTO ? '#0072bc' : colours.accent) + '18', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name={isLRT ? 'train' : 'bus-outline'} size={12} color={isLRT ? colours.lrt : isSTO ? '#0072bc' : colours.accent} />
           </View>
-          <Text style={{ fontSize: 15, fontWeight: '800', color: colours.text, flex: 1, lineHeight: 18 }} numberOfLines={2}>{toTitleCase(item.name)}</Text>
+          <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text, flex: 1, lineHeight: 16 }} numberOfLines={2}>{toTitleCase(item.name)}</Text>
           {!previewLoading && preview.length > 0 && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
               <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: isLive ? (isSTO ? stoBlue : '#22c55e') : colours.muted }} />

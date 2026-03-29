@@ -279,7 +279,12 @@ export default function AccountScreen() {
       enabled: updated[key],
       ...(key === 'arrivalAlerts' ? { metadata: { stop_ids: stopIds } } : {}),
     }));
-    registerPushToken(language).then(() => syncSubscriptions(subs)).catch(() => {});
+    registerPushToken(language).then(() => syncSubscriptions(subs)).catch(() => {
+      // Retry once after 2s
+      setTimeout(() => {
+        registerPushToken(language).then(() => syncSubscriptions(subs)).catch(() => {});
+      }, 2000);
+    });
   };
 
   const handleNotifToggle = async (key: keyof NotifSettings, value: boolean): Promise<boolean> => {

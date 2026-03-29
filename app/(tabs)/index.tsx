@@ -457,10 +457,12 @@ function LiveScreenInner() {
   const [crowdingReportItem, setCrowdingReportItem] = useState<Arrival | null>(null);
   const [crowdingSubmitting, setCrowdingSubmitting] = useState(false);
   const [crowdingToast, setCrowdingToast] = useState(false);
+  const [busConfirmToast, setBusConfirmToast] = useState(false);
   const [frequentRoutes, setFrequentRoutes] = useState<FrequentRoute[]>([]);
   const [frequentArrivals, setFrequentArrivals] = useState<Record<string, { minsAway: number; delay: number; headsign: string } | null>>({});
   const [frequentFetchedAt, setFrequentFetchedAt] = useState(Date.now());
   const [frequentCardDismissed, setFrequentCardDismissed] = useState(true);
+  const [frequentRefreshing, setFrequentRefreshing] = useState(false);
   const [timeFormat, setTimeFormat] = useState<'relative' | 'absolute'>('relative');
 
   const [helpBannerDismissed, setHelpBannerDismissed] = useState(false);
@@ -1512,6 +1514,7 @@ function LiveScreenInner() {
 
   // ── Frequent rider card arrivals polling ──────────────────────
   const fetchFrequentArrivals = async (routes: FrequentRoute[], skipCache = false) => {
+    setFrequentRefreshing(true);
     // Show cached data instantly while fetching fresh
     if (!skipCache) {
       try {
@@ -1554,6 +1557,7 @@ function LiveScreenInner() {
     }));
     setFrequentArrivals(results);
     setFrequentFetchedAt(Date.now());
+    setFrequentRefreshing(false);
     // Cache successful results
     if (Object.keys(results).length > 0) {
       AsyncStorage.setItem(SK_FREQUENT_ARRIVALS_CACHE, JSON.stringify({ data: results, ts: Date.now() })).catch(() => {});
@@ -1850,6 +1854,8 @@ function LiveScreenInner() {
         body: JSON.stringify({ stop_id: stopId, route_id: routeId, report_type: 'confirmed_arrived', notes: '', device_id: deviceId }),
       });
       Haptics?.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setBusConfirmToast(true);
+      setTimeout(() => setBusConfirmToast(false), 2000);
     } catch (e) { if (__DEV__) console.warn('confirm arrived failed:', e); }
   };
 
@@ -3091,10 +3097,10 @@ function LiveScreenInner() {
             return (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
                 <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{t('Did this bus come?', 'Ce bus est-il pass\u00e9?')}</Text>
-                <TouchableOpacity onPress={() => openGhostSheet(item.routeId, item.headsign)} style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#FF3B30' + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Report as missed', 'Signaler comme manqu\u00e9')}>
+                <TouchableOpacity onPress={() => openGhostSheet(item.routeId, item.headsign)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#FF3B30' + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Report as missed', 'Signaler comme manqu\u00e9')}>
                   <Ionicons name="close" size={12} color="#FF3B30" />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => confirmBusArrived(item.routeId)} style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#34C759' + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Confirm it came', 'Confirmer son passage')}>
+                <TouchableOpacity onPress={() => confirmBusArrived(item.routeId)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#34C759' + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Confirm it came', 'Confirmer son passage')}>
                   <Ionicons name="checkmark" size={12} color="#34C759" />
                 </TouchableOpacity>
               </View>
@@ -3120,7 +3126,7 @@ function LiveScreenInner() {
           </TouchableOpacity>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
             {!item.isScheduled && (
-              <TouchableOpacity onPress={() => openGhostSheet(item.routeId, item.headsign)} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.muted + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Report ghost bus', 'Signaler bus fant\u00f4me')}>
+              <TouchableOpacity onPress={() => openGhostSheet(item.routeId, item.headsign)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.muted + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Report ghost bus', 'Signaler bus fant\u00f4me')}>
                 <Ionicons name="hand-left-outline" size={14} color={colours.orange} />
               </TouchableOpacity>
             )}
@@ -3384,12 +3390,12 @@ function LiveScreenInner() {
               <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }} numberOfLines={2}>{toTitleCase(expandedName)}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
                 <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{lastUpdated ? `${t('Updated', 'Mis \u00E0 jour')} ${lastUpdated}` : t('All arrivals', 'Toutes les arriv\u00E9es')}</Text>
-                <TouchableOpacity onPress={toggleTimeFormat} style={{ flexDirection: 'row', borderRadius: 8, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }} accessibilityRole="button" accessibilityLabel={t('Toggle time format', 'Changer le format de l\'heure')}>
-                  <View style={{ paddingHorizontal: 8, paddingVertical: 3, backgroundColor: timeFormat === 'relative' ? colours.accent : 'transparent' }}>
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: timeFormat === 'relative' ? 'white' : colours.muted }}>8 min</Text>
+                <TouchableOpacity onPress={toggleTimeFormat} style={{ flexDirection: 'row', borderRadius: 8, borderWidth: 1, borderColor: colours.accent + '40', overflow: 'hidden' }} accessibilityRole="button" accessibilityLabel={t('Toggle time format', 'Changer le format de l\'heure')}>
+                  <View style={{ paddingHorizontal: 10, paddingVertical: 4, backgroundColor: timeFormat === 'relative' ? colours.accent : 'transparent' }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: timeFormat === 'relative' ? 'white' : colours.muted }}>8 min</Text>
                   </View>
-                  <View style={{ paddingHorizontal: 8, paddingVertical: 3, backgroundColor: timeFormat === 'absolute' ? colours.accent : 'transparent' }}>
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: timeFormat === 'absolute' ? 'white' : colours.muted }}>4:32 PM</Text>
+                  <View style={{ paddingHorizontal: 10, paddingVertical: 4, backgroundColor: timeFormat === 'absolute' ? colours.accent : 'transparent' }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: timeFormat === 'absolute' ? 'white' : colours.muted }}>4:32 PM</Text>
                   </View>
                 </TouchableOpacity>
               </View>
@@ -4040,6 +4046,12 @@ function LiveScreenInner() {
             <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>{t('Thanks! Helping Ottawa riders', 'Merci! Vous aidez les usagers')}</Text>
           </View>
         )}
+        {busConfirmToast && (
+          <View style={{ position: 'absolute', top: 60, left: 20, right: 20, backgroundColor: '#34C759', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, zIndex: 9999, alignItems: 'center', flexDirection: 'row', gap: 8 }}>
+            <Ionicons name="checkmark-circle" size={20} color="white" />
+            <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>{t('Confirmed! Thanks', 'Confirm\u00e9! Merci')}</Text>
+          </View>
+        )}
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true} contentContainerStyle={{ paddingBottom: 20 }} onScrollBeginDrag={() => { Keyboard.dismiss(); setSearchResults([]); }}>
           {/* Header */}
           <View style={styles.header}>
@@ -4099,6 +4111,7 @@ function LiveScreenInner() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Ionicons name="flash" size={16} color={colours.accent} />
                   <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text }}>{t('Your Routes', 'Vos lignes')}</Text>
+                  {frequentRefreshing && <ActivityIndicator size="small" color={colours.accent} style={{ marginLeft: 4 }} />}
                 </View>
                 <TouchableOpacity
                   onPress={() => { setFrequentCardDismissed(true); AsyncStorage.setItem(SK_FREQUENT_CARD_DISMISSED, String(Date.now())); }}
