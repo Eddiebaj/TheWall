@@ -3020,17 +3020,17 @@ function LiveScreenInner() {
       ? fmtAbsTime(item.minsAway)
       : (countdown ? t(countdown.text, countdown.textFr) : (item.minsAway === 0 ? t('Due', 'Imminent') : `${item.minsAway}m`));
     const rel = reliabilityScores[item.routeId];
-    const relColor = rel ? (rel.onTimeRate > 85 ? '#34C759' : rel.onTimeRate >= 70 ? '#FFD60A' : '#FF3B30') : null;
+    const relColor = rel ? (rel.onTimeRate > 85 ? colours.green : rel.onTimeRate >= 70 ? colours.orange : colours.red) : null;
     return (
       <View key={item.id} style={[styles.arrivalRow, { borderBottomColor: colours.border, backgroundColor: colours.surface }, ghostBus && styles.ghostRow]}>
-        <View style={{ alignItems: 'center', gap: 3 }}>
+        <View style={{ alignItems: 'center', gap: 4 }}>
           <TouchableOpacity onPress={() => fetchFullSchedule(item.routeId, item.headsign)} style={[styles.badge, { backgroundColor: isLRT ? colours.accentAlt + '18' : colours.accent + '18' }]}>
             <Text style={{ fontWeight: '800', fontSize: fonts.md, color: isLRT ? colours.lrt : colours.accent }}>{isLRT ? '\ud83d\ude8a' : item.routeId}</Text>
           </TouchableOpacity>
           {rel && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
               <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: relColor! }} />
-              <Text style={{ fontSize: 9, fontWeight: '700', color: relColor! }}>{rel.onTimeRate}%</Text>
+              <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: relColor! }}>{rel.onTimeRate}%</Text>
             </View>
           )}
         </View>
@@ -3041,18 +3041,18 @@ function LiveScreenInner() {
               {item.delay > 0 ? <Text style={{ color: colours.orange, fontSize: fonts.sm }}> (+{item.delay}m {t('late', 'retard')})</Text> : null}
             </Text>
           </TouchableOpacity>
-          {item.headsign ? <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }} numberOfLines={1}>{'\u2192'} {item.headsign}</Text> : null}
+          {item.headsign ? <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 4 }} numberOfLines={1}>{'\u2192'} {item.headsign}</Text> : null}
           {item.isScheduled && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
               <Ionicons name="warning" size={11} color={colours.orange} />
-              <Text style={{ fontSize: 10, color: colours.orange, fontWeight: '600' }}>{t('Scheduled only', 'Horaire seulement')}</Text>
+              <Text style={{ fontSize: fonts.sm, color: colours.orange, fontWeight: '600' }}>{t('Scheduled only', 'Horaire seulement')}</Text>
             </View>
           )}
           {/* Ghost bus status from server */}
           {ghostBus && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
               <Text style={{ fontSize: 11 }}>{'\u26A0\uFE0F'}</Text>
-              <Text style={{ fontSize: 10, fontWeight: '700', color: '#FF3B30' }}>
+              <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.red }}>
                 {ghostDevices >= 2
                   ? t(`${ghostDevices} riders reporting ghost buses`, `${ghostDevices} usagers signalent des bus fant\u00f4mes`)
                   : t('Ghost bus reported', 'Bus fant\u00f4me signal\u00e9')}
@@ -3060,48 +3060,48 @@ function LiveScreenInner() {
             </View>
           )}
           {!ghostBus && ghostTotal > 0 && ghostConfirmed > 0 && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
               <Ionicons name="information-circle-outline" size={11} color={colours.orange} />
-              <Text style={{ fontSize: 10, fontWeight: '600', color: colours.orange }}>
+              <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.orange }}>
                 {t(`${ghostTotal} ghost report${ghostTotal > 1 ? 's' : ''}, ${ghostConfirmed} confirmed arrival${ghostConfirmed > 1 ? 's' : ''} \u2014 use caution`,
                    `${ghostTotal} signalement${ghostTotal > 1 ? 's' : ''}, ${ghostConfirmed} confirmation${ghostConfirmed > 1 ? 's' : ''} \u2014 prudence`)}
               </Text>
             </View>
           )}
           {!ghostBus && ghostTotal > 0 && ghostConfirmed === 0 && ghostDevices >= 2 && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
               <Text style={{ fontSize: 11 }}>{'\u26A0\uFE0F'}</Text>
-              <Text style={{ fontSize: 10, fontWeight: '700', color: colours.orange }}>
+              <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.orange }}>
                 {t(`${ghostTotal} reports from ${ghostDevices} rider${ghostDevices > 1 ? 's' : ''}`, `${ghostTotal} signalements de ${ghostDevices} usager${ghostDevices > 1 ? 's' : ''}`)}
               </Text>
             </View>
           )}
           {!ghostBus && ghostTotal > 0 && ghostConfirmed === 0 && ghostDevices < 2 && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
-              <Text style={{ fontSize: 10, color: colours.muted }}>{'\ud83d\udc7b'} {t(`${ghostTotal} report`, `${ghostTotal} signalement`)}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+              <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{'\ud83d\udc7b'} {t(`${ghostTotal} report`, `${ghostTotal} signalement`)}</Text>
             </View>
           )}
           {ghostTotal === 0 && !ghostBus && (() => {
             const c = crowdingData[item.routeId];
             if (c) {
               const label = c.avg <= 0.8 ? t('Usually empty', 'Habituellement vide') : c.avg <= 1.7 ? t('Some seats', 'Quelques places') : c.avg <= 2.4 ? t('Gets crowded', 'Souvent bond\u00e9') : t('Usually packed', 'Habituellement plein');
-              const color = c.avg <= 0.8 ? '#34C759' : c.avg <= 1.7 ? '#FFD60A' : c.avg <= 2.4 ? '#FF9500' : '#FF3B30';
+              const color = c.avg <= 0.8 ? colours.green : c.avg <= 1.7 ? colours.orange : c.avg <= 2.4 ? colours.orange : colours.red;
               return (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
-                  <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: color }} />
-                  <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{label}</Text>
-                  {c.confidence === 'low' && <Text style={{ fontSize: 9, color: colours.muted, fontStyle: 'italic' }}>{t('(few reports)', '(peu de donn\u00e9es)')}</Text>}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
+                  <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted }}>{label}</Text>
+                  {c.confidence === 'low' && <Text style={{ fontSize: fonts.sm, color: colours.muted, fontStyle: 'italic' }}>{t('(few reports)', '(peu de donn\u00e9es)')}</Text>}
                 </View>
               );
             }
             return (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{t('Did this bus come?', 'Ce bus est-il pass\u00e9?')}</Text>
-                <TouchableOpacity onPress={() => openGhostSheet(item.routeId, item.headsign)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#FF3B30' + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Report as missed', 'Signaler comme manqu\u00e9')}>
-                  <Ionicons name="close" size={12} color="#FF3B30" />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted }}>{t('Did this bus come?', 'Ce bus est-il pass\u00e9?')}</Text>
+                <TouchableOpacity onPress={() => openGhostSheet(item.routeId, item.headsign)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colours.red + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Report as missed', 'Signaler comme manqu\u00e9')}>
+                  <Ionicons name="close" size={12} color={colours.red} />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => confirmBusArrived(item.routeId)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#34C759' + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Confirm it came', 'Confirmer son passage')}>
-                  <Ionicons name="checkmark" size={12} color="#34C759" />
+                <TouchableOpacity onPress={() => confirmBusArrived(item.routeId)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colours.green + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Confirm it came', 'Confirmer son passage')}>
+                  <Ionicons name="checkmark" size={12} color={colours.green} />
                 </TouchableOpacity>
               </View>
             );
@@ -3110,9 +3110,9 @@ function LiveScreenInner() {
             const ctx = getDelayContext(item.routeId, item.delay, alerts, weather, forecast);
             if (!ctx) return null;
             return (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
-                <Ionicons name={ctx.icon as any} size={11} color={ctx.colour} />
-                <Text style={{ fontSize: 11, fontWeight: '600', color: ctx.colour }}>{t(ctx.label, ctx.labelFr)}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                <Ionicons name={ctx.icon as any} size={12} color={ctx.colour} />
+                <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: ctx.colour }}>{t(ctx.label, ctx.labelFr)}</Text>
               </View>
             );
           })()}
@@ -3120,13 +3120,13 @@ function LiveScreenInner() {
         <View style={styles.arrivalRight}>
           <TouchableOpacity onPress={() => { if (!item.isScheduled) setTrackingBus({ routeId: item.routeId, headsign: item.headsign, minsAway: item.minsAway, isSTO: isStoStop(stopId) }); }} activeOpacity={item.isScheduled ? 1 : 0.6}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Text style={{ fontSize: fonts.xl, fontWeight: '700', color: ghostBus ? colours.muted : (countdown?.isArriving ? '#00A78D' : (countdown?.isUrgent || item.minsAway <= 2) ? colours.red : colours.accent), textDecorationLine: ghostBus ? 'line-through' : 'none' }}>{timeDisplay}</Text>
+              <Text style={{ fontSize: fonts.xl, fontWeight: '600', color: ghostBus ? colours.muted : (countdown?.isArriving ? colours.green : (countdown?.isUrgent || item.minsAway <= 2) ? colours.red : colours.accent), textDecorationLine: ghostBus ? 'line-through' : 'none' }}>{timeDisplay}</Text>
               {!item.isScheduled && <Ionicons name="locate-outline" size={14} color={colours.accent} />}
             </View>
           </TouchableOpacity>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             {!item.isScheduled && (
-              <TouchableOpacity onPress={() => openGhostSheet(item.routeId, item.headsign)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.muted + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Report ghost bus', 'Signaler bus fant\u00f4me')}>
+              <TouchableOpacity onPress={() => openGhostSheet(item.routeId, item.headsign)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.muted + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Report ghost bus', 'Signaler bus fant\u00f4me')}>
                 <Ionicons name="hand-left-outline" size={14} color={colours.orange} />
               </TouchableOpacity>
             )}
@@ -3134,10 +3134,10 @@ function LiveScreenInner() {
               <TouchableOpacity
                 onPress={() => { setReportSheetStopId(stopId); setShowReportSheet(true); }}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
               >
                 <Ionicons name="flag" size={14} color={colours.orange} />
-                <Text style={{ fontSize: 10, fontWeight: '700', color: colours.orange }}>{stopReports[stopId].count}</Text>
+                <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.orange }}>{stopReports[stopId].count}</Text>
               </TouchableOpacity>
             )}
           </View>
