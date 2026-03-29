@@ -240,7 +240,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
           const delay = arrMs - scheduledDep;
           setLiveEta(itinerary.endTime + delay);
           if (nextLeg && nextLeg.mode !== 'WALK') {
-            const buffer = arrMs + currentLeg.duration - nextLeg.startTime;
+            const buffer = arrMs + (currentLeg.duration * 1000) - nextLeg.startTime;
             const bufferMin = Math.round(buffer / 60000);
             if (bufferMin > -5 && bufferMin < 3) {
               setTransferWarning(t(
