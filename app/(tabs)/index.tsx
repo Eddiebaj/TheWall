@@ -289,8 +289,9 @@ async function ensureNotifPermission(): Promise<boolean> {
 }
 
 /**
- * Schedule (or re-schedule) an 8 pm local notification the evening before
- * the next garbage collection. Cancels any previous garbage reminder first.
+ * Schedule 8 pm local notifications the evening before EACH upcoming
+ * garbage collection day. Cancels all previous garbage reminders first.
+ * Only fires once per collection — the night before.
  */
 async function scheduleGarbageNotification(
   events: { date: string; flags: string[] }[],
@@ -299,23 +300,21 @@ async function scheduleGarbageNotification(
   if (!(await ensureNotifPermission())) return;
 
   if (!Notifications) return;
-  // Cancel any existing garbage reminder
-  const existingId = await AsyncStorage.getItem(SK_GARBAGE_NOTIF_ID);
-  if (existingId) {
-    await Notifications.cancelScheduledNotificationAsync(existingId).catch(() => {});
-    await AsyncStorage.removeItem(SK_GARBAGE_NOTIF_ID);
+  // Cancel all existing garbage reminders
+  try {
+    const raw = await AsyncStorage.getItem(SK_GARBAGE_NOTIF_ID);
+    if (raw) {
+      const ids: string[] = JSON.parse(raw);
+      await Promise.all(ids.map(id => Notifications.cancelScheduledNotificationAsync(id).catch(() => {})));
+    }
+  } catch {
+    // Old format was a single string — cancel it
+    const existingId = await AsyncStorage.getItem(SK_GARBAGE_NOTIF_ID);
+    if (existingId) await Notifications.cancelScheduledNotificationAsync(existingId).catch(() => {});
   }
+  await AsyncStorage.removeItem(SK_GARBAGE_NOTIF_ID);
 
-  const next = events[0];
-  if (!next) return;
-
-  const collectionDate = new Date(next.date + 'T08:00:00');
-  // Remind the evening before at 8 pm
-  const reminderDate = new Date(collectionDate);
-  reminderDate.setDate(reminderDate.getDate() - 1);
-  reminderDate.setHours(20, 0, 0, 0);
-
-  if (reminderDate <= new Date()) return; // already past
+  if (!events || events.length === 0) return;
 
   const BIN_LABELS_EN: Record<string, string> = {
     'garbage': 'Garbage', 'recycling-blue': 'Blue Bin',
@@ -326,24 +325,40 @@ async function scheduleGarbageNotification(
     'recycling-black': 'Bac noir', 'green-bin': 'Bac vert', 'yard-waste': 'Déchets de jardin',
   };
   const labels = lang === 'fr' ? BIN_LABELS_FR : BIN_LABELS_EN;
-  const binNames = next.flags.map(f => labels[f] || f).join(' · ');
-  const dayLabel = collectionDate.toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'long' });
+  const now = new Date();
+  const scheduledIds: string[] = [];
 
-  try {
-    const id = await Notifications.scheduleNotificationAsync({
-      content: {
-        title: lang === 'fr' ? '🗑️ Collecte demain' : '🗑️ Garbage Day tomorrow',
-        body: lang === 'fr' ? `Sortir : ${binNames} (${dayLabel})` : `Put out: ${binNames} (${dayLabel})`,
-        data: { type: 'garbage_reminder' },
-        sound: false,
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DATE,
-        date: reminderDate,
-      },
-    });
-    await AsyncStorage.setItem(SK_GARBAGE_NOTIF_ID, id);
-  } catch (e) { if (__DEV__) console.warn('schedule garbage notification failed:', e); }
+  for (const event of events) {
+    const collectionDate = new Date(event.date + 'T08:00:00');
+    const reminderDate = new Date(collectionDate);
+    reminderDate.setDate(reminderDate.getDate() - 1);
+    reminderDate.setHours(20, 0, 0, 0);
+
+    if (reminderDate <= now) continue; // already past
+
+    const binNames = event.flags.map(f => labels[f] || f).join(' \u00b7 ');
+    const dayLabel = collectionDate.toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'long' });
+
+    try {
+      const id = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: lang === 'fr' ? '\ud83d\uddd1\ufe0f Collecte demain' : '\ud83d\uddd1\ufe0f Garbage Day tomorrow',
+          body: lang === 'fr' ? `Sortir : ${binNames} (${dayLabel})` : `Put out: ${binNames} (${dayLabel})`,
+          data: { type: 'garbage_reminder' },
+          sound: false,
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: reminderDate,
+        },
+      });
+      scheduledIds.push(id);
+    } catch (e) { if (__DEV__) console.warn('schedule garbage notification failed:', e); }
+  }
+
+  if (scheduledIds.length > 0) {
+    await AsyncStorage.setItem(SK_GARBAGE_NOTIF_ID, JSON.stringify(scheduledIds));
+  }
 }
 
 /**
