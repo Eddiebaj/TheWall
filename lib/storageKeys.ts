@@ -128,3 +128,6 @@ export const SK_CRASH_LOG = 'routeo_crash_log';
 // Class schedule
 export const SK_CLASS_SCHEDULE = 'routeo_class_schedule';
 export const SK_COMMUTE_DURATION = 'routeo_commute_duration';
+
+// Home address (commute origin)
+export const SK_HOME_ADDRESS = 'routeo_home_address';
