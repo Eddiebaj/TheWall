@@ -371,6 +371,7 @@ function PlannerScreenInner() {
   const [tripHistory, setTripHistory] = useState<TripRecord[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [accessibleRouting, setAccessibleRouting] = useState(false);
+  const [accessibilityWarning, setAccessibilityWarning] = useState(false);
   const [sensGameTonight, setSensGameTonight] = useState(false);
   const [autoLoading, setAutoLoading] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -667,7 +668,7 @@ function PlannerScreenInner() {
   // ── Plan core — accepts explicit places (used by auto-plan on deep-link) ──
   const planWithPlaces = async (resolvedFrom: PlaceResult, resolvedTo: PlaceResult) => {
     if (!resolvedFrom?.lat || !resolvedTo?.lat) return;
-    setLoading(true); setError(''); setSearched(true); setItineraries([]); setShowRouteMap(false); setSelectedRouteIdx(0);
+    setLoading(true); setError(''); setSearched(true); setItineraries([]); setShowRouteMap(false); setSelectedRouteIdx(0); setAccessibilityWarning(false);
 
     // Use override from schedule GO button if set, then clear it
     const override = timeOverride.current;
@@ -690,6 +691,7 @@ function PlannerScreenInner() {
       const resp = await fetchWithTimeout(url);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
+      if (data.accessibilityWarning) setAccessibilityWarning(true);
 
       // For arriveBy schedule trips, also fetch earlier options (30min earlier)
       let earlierItins: any[] = [];
@@ -880,7 +882,7 @@ function PlannerScreenInner() {
     // Multi-stop: chain OTP requests through waypoints
     if (resolvedWaypoints.length > 0) {
       const stops = [resolvedFrom, ...resolvedWaypoints, resolvedTo];
-      setLoading(true); setError(''); setSearched(true); setItineraries([]);
+      setLoading(true); setError(''); setSearched(true); setItineraries([]); setAccessibilityWarning(false);
       try {
         const allLegs: Leg[] = [];
         let totalDuration = 0;
@@ -2705,6 +2707,14 @@ function PlannerScreenInner() {
           </View>
         ) : !loading && itineraries.length > 0 ? (
           <View style={{ paddingHorizontal: 20 }}>
+            {accessibilityWarning && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, marginBottom: 10, borderRadius: 12, backgroundColor: '#FF9500' + '18', borderWidth: 1, borderColor: '#FF9500' + '40' }}>
+                <Ionicons name="warning-outline" size={18} color="#FF9500" />
+                <Text style={{ flex: 1, fontSize: 13, color: colours.text, lineHeight: 18 }}>
+                  {t('Accessible transit routes not available for this trip. Showing standard routes.', 'Trajets accessibles en transport non disponibles. Affichage des trajets standards.')}
+                </Text>
+              </View>
+            )}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                 {itineraries.length} {t(itineraries.length !== 1 ? 'routes found' : 'route found', itineraries.length !== 1 ? 'trajets trouv\u00e9s' : 'trajet trouv\u00e9')}
