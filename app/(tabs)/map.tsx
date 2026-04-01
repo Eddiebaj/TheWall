@@ -21,6 +21,7 @@ import { NEIGHBOURHOODS } from '../../lib/neighbourhoodData';
 import ActiveTrip from '../../components/ActiveTrip';
 import BottomSheet from '@gorhom/bottom-sheet';
 import NearbyTransitSheet, { NearbyStop } from '../../components/NearbyTransitSheet';
+import type { ServiceTile } from '../../components/ServicesGrid';
 
 // Error boundary to catch AIRMap native crashes and show a recoverable fallback
 class MapErrorBoundary extends React.Component<
@@ -61,6 +62,32 @@ import { TICKETMASTER_API_KEY } from '../../lib/keys';
 
 const VEHICLES_URL    = 'https://routeo-backend.vercel.app/api/vehicles';
 const BACKEND_URL     = 'https://routeo-backend.vercel.app/api/arrivals';
+
+function weatherCodeToText(code: number): string {
+  if (code === 0) return 'Clear';
+  if (code <= 3) return 'Partly cloudy';
+  if (code <= 49) return 'Fog';
+  if (code <= 59) return 'Drizzle';
+  if (code <= 69) return 'Rain';
+  if (code <= 79) return 'Snow';
+  if (code <= 82) return 'Rain showers';
+  if (code <= 86) return 'Snow showers';
+  if (code >= 95) return 'Thunderstorm';
+  return 'Cloudy';
+}
+
+function weatherCodeToIcon(code: number): string {
+  if (code === 0) return 'sunny';
+  if (code <= 3) return 'partly-sunny';
+  if (code <= 49) return 'cloudy';
+  if (code <= 59) return 'rainy';
+  if (code <= 69) return 'rainy';
+  if (code <= 79) return 'snow';
+  if (code <= 82) return 'rainy';
+  if (code <= 86) return 'snow';
+  if (code >= 95) return 'thunderstorm';
+  return 'cloudy';
+}
 
 type SavedRoute = { id: string; fromLabel: string; toLabel: string; fromLat: number; fromLng: number; toLat: number; toLng: number };
 type SavedFav = { id: string; name: string; icon: string };
@@ -524,7 +551,7 @@ const fetchAllEvents = async (): Promise<MapEvent[]> => {
 
 
 export default function MapScreen() {
-  const { colours, theme, resolvedTheme, t, fonts } = useApp();
+  const { colours, theme, resolvedTheme, t, fonts, language } = useApp();
   const isLight = resolvedTheme === 'light';
   const mapRef = useRef<any>(null);
   const deepLinkParams = useLocalSearchParams();
@@ -587,6 +614,13 @@ export default function MapScreen() {
   const [expandedStopId, setExpandedStopId] = useState<string | null>(null);
   const [expandedArrivals, setExpandedArrivals] = useState<{ routeId: string; headsign: string; minsAway: number; source?: string }[]>([]);
   const [expandedArrivalsLoading, setExpandedArrivalsLoading] = useState(false);
+
+  // Sheet data: saved board, alerts, weather, events
+  const [sheetBoard, setSheetBoard] = useState<import('../../lib/homeConstants').SavedBoardItem[]>([]);
+  const [sheetAlerts, setSheetAlerts] = useState<any[]>([]);
+  const [sheetWeather, setSheetWeather] = useState<{ temp: number; condition: string; icon: string } | null>(null);
+  const [sheetEvents, setSheetEvents] = useState<{ name: string; date: string; time?: string; venue: string }[]>([]);
+  const [sheetSensGame, setSheetSensGame] = useState<any>(null);
 
   // Discovery mode — Google Places nearby search
   const [discoveryCategory, setDiscoveryCategory] = useState<string | null>(null);
@@ -815,6 +849,63 @@ export default function MapScreen() {
 
   // Initial nearby stops fetch
   useEffect(() => { fetchNearbyStops(); }, [fetchNearbyStops]);
+
+  // ── Sheet data fetching ───────────────────────────────────────
+  useEffect(() => {
+    // Saved board
+    AsyncStorage.getItem(SK_SAVED_BOARD).then(val => {
+      try {
+        if (val) setSheetBoard(JSON.parse(val));
+      } catch (e) { if (__DEV__) console.warn('Sheet board parse:', e); }
+    }).catch(() => {});
+
+    // Alerts
+    fetchWithTimeout('https://routeo-backend.vercel.app/api/alerts', { timeout: 8000 })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => { if (Array.isArray(data)) setSheetAlerts(data); })
+      .catch(() => {});
+
+    // Weather
+    fetchWithTimeout('https://api.open-meteo.com/v1/forecast?latitude=45.4215&longitude=-75.6972&current=temperature_2m,weather_code&timezone=America/Toronto', { timeout: 6000 })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.current) {
+          const code = data.current.weather_code ?? 0;
+          const temp = Math.round(data.current.temperature_2m ?? 0);
+          const condition = weatherCodeToText(code);
+          const icon = weatherCodeToIcon(code);
+          setSheetWeather({ temp, condition, icon });
+        }
+      })
+      .catch(() => {});
+
+    // Sens game
+    fetchWithTimeout('https://api-web.nhle.com/v1/schedule/now', { timeout: 6000 })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data?.gameWeek) return;
+        const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
+        for (const day of data.gameWeek) {
+          if (day.date !== todayStr) continue;
+          for (const g of day.games || []) {
+            if (g.homeTeam?.abbrev === 'OTT' || g.awayTeam?.abbrev === 'OTT') {
+              const state = g.gameState === 'LIVE' || g.gameState === 'CRIT' ? 'live' : g.gameState === 'FUT' || g.gameState === 'PRE' ? 'pre' : 'none';
+              setSheetSensGame({
+                state,
+                homeAbbr: g.homeTeam?.abbrev,
+                awayAbbr: g.awayTeam?.abbrev,
+                homeScore: g.homeTeam?.score,
+                awayScore: g.awayTeam?.score,
+                opponentAbbr: g.homeTeam?.abbrev === 'OTT' ? g.awayTeam?.abbrev : g.homeTeam?.abbrev,
+                startTime: g.startTimeUTC,
+              });
+              return;
+            }
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const routeToTapped = useCallback(() => {
     if (!tappedLocation) return;
@@ -2282,19 +2373,37 @@ export default function MapScreen() {
         colours={colours}
         fonts={fonts}
         t={t}
+        language={language}
         nearbyStops={nearbyStops}
         nearbyLoading={nearbyLoading}
         onRefreshLocation={fetchNearbyStops}
-        savedBoard={[]}
-        onBoardReorder={() => {}}
+        savedBoard={sheetBoard}
         onBoardCardPress={() => {}}
-        boardCardProps={{ cardShadow: {}, garbageEvents: [], alerts: [], sensGame: null, timeFormat: 'relative', campusData: null }}
+        boardCardProps={{
+          cardShadow: {},
+          garbageEvents: [],
+          alerts: sheetAlerts,
+          sensGame: sheetSensGame,
+          timeFormat: 'relative',
+          campusData: null,
+        }}
         expandedStopId={expandedStopId}
         onExpandStop={handleExpandStop}
         expandedArrivals={expandedArrivals}
         expandedArrivalsLoading={expandedArrivalsLoading}
-        activeAlertCount={0}
-        hasDisruption={false}
+        activeAlertCount={sheetAlerts.length}
+        hasDisruption={sheetAlerts.some((a: any) => a.category === 'lrt' || (a.title || '').toLowerCase().includes('o-train'))}
+        alerts={sheetAlerts}
+        weather={sheetWeather}
+        sensGame={sheetSensGame}
+        events={sheetEvents}
+        onServiceTileTap={(tile: ServiceTile) => {
+          if (tile.action === 'navigate' && tile.target) {
+            router.push(tile.target as any);
+          } else if (tile.action === 'link' && tile.target) {
+            Linking.openURL(tile.target).catch(() => {});
+          }
+        }}
         onPlanTrip={() => router.push('/(tabs)/planner' as any)}
       />
 
