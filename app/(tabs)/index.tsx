@@ -3122,7 +3122,7 @@ function LiveScreenInner() {
             );
           })()}
           {item.delay > 5 && (() => {
-            const ctx = getDelayContext(item.routeId, item.delay, alerts, weather, forecast);
+            const ctx = getDelayContext(item.routeId, item.delay, alerts, weather, forecast, sensGame?.state !== 'none' && sensGame?.homeAbbr === 'OTT');
             if (!ctx) return null;
             return (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
