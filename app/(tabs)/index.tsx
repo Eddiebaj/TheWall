@@ -24,7 +24,7 @@ import { ArrivalRowSkeleton } from '../../components/Shimmer';
 import BusTrackingModal from '../../components/BusTrackingModal';
 import { supabase } from '../../lib/supabase';
 import { computeCountdown } from '../../lib/useLiveCountdown';
-import { SavedBoardCard } from '../../components/SavedCards';
+import { BoardSection } from '../../components/BoardSection';
 import { SavedStopCard } from '../../components/SavedCards';
 import { SavedPlaceCard } from '../../components/SavedCards';
 import { GasPricesWidget, GasPricesExpanded } from '../../components/GasPricesWidget';
@@ -856,6 +856,33 @@ function LiveScreenInner() {
     if (item.type === 'saved_team') return savedBoard.some(i => i.type === 'saved_team' && i.id === item.id);
     if (item.type === 'external_link') return savedBoard.some(i => i.type === 'external_link' && i.id === item.id);
     return savedBoard.some(i => (i.type === 'bus_stop' || i.type === 'lrt_station') && i.id === item.id);
+  };
+
+  const handleBoardReorder = (from: number, to: number) => {
+    setSavedBoard(prev => {
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      AsyncStorage.setItem(SK_SAVED_BOARD, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const handleBoardCardPress = (item: SavedBoardItem) => {
+    if (item.type === 'service_alert') { setAlertsModalVisible(true); return; }
+    if (item.type === 'external_link') { Linking.openURL(item.url).catch(() => {}); return; }
+    if (item.type === 'garbage') { setGarbageModalVisible(true); return; }
+    if (item.type === 'bus_stop' || item.type === 'lrt_station') {
+      loadStop(item.id, item.name);
+      setBoardExpandItem(item);
+    }
+    if (item.type === 'gas_prices') { setBoardExpandItem(item); }
+    if (item.type === 'saved_team') {
+      setSportsInitialTab('scores');
+      setSportsModal(true);
+    }
+    if (item.type === 'campus') { if (!selectedCampus) setCampusPicker(true); else setCampusModal(true); return; }
+    if (item.type === 'neighbourhood') { router.push('/(tabs)/discover' as any); return; }
   };
 
   const tileToBoard = (tile: ServiceTile): SavedBoardItem | null => {
@@ -4260,83 +4287,20 @@ function LiveScreenInner() {
             )}
             </>
           ) : (
-            <>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 8 }}>
-                <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, letterSpacing: 1 }}>{t('My Board', 'Mon tableau')}</Text>
-                <Ionicons name="reorder-three-outline" size={16} color={colours.muted} />
-              </View>
-              <FlatList
-                horizontal
-                data={savedBoard}
-                keyExtractor={(item, i) => {
-                  if (item.type === 'garbage') return 'garbage';
-                  if (item.type === 'service_alert') return 'service_alert';
-                  if (item.type === 'gas_prices') return 'gas_prices';
-                  if (item.type === 'otrain') return 'otrain';
-                  if (item.type === 'services') return 'services';
-                  if (item.type === 'discover') return 'discover';
-                  if (item.type === 'news') return 'news';
-                  if (item.type === 'neighbourhood') return `neighbourhood-${item.id}`;
-                  if (item.type === 'campus') return 'campus';
-                  if (item.type === 'saved_team') return `team-${item.id}`;
-                  if (item.type === 'external_link') return `ext-${item.id}`;
-                  return `${item.type}-${(item as any).id}-${i}`;
-                }}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingHorizontal: 20, gap: 10, paddingBottom: 4 }}
-                style={{ marginBottom: 16 }}
-                renderItem={({ item, index: idx }) => {
-                  const moveBoard = (from: number, to: number) => {
-                    setSavedBoard(prev => {
-                      const next = [...prev];
-                      const [moved] = next.splice(from, 1);
-                      next.splice(to, 0, moved);
-                      AsyncStorage.setItem(SK_SAVED_BOARD, JSON.stringify(next));
-                      return next;
-                    });
-                  };
-                  return (
-                  <SavedBoardCard
-                    item={item}
-                    drag={() => {}}
-                    isActive={false}
-                    colours={colours}
-                    fonts={fonts}
-                    t={t}
-                    cardShadow={cardShadow}
-                    garbageEvents={garbageEvents}
-                    alerts={alerts}
-                    sensGame={sensGame}
-                    timeFormat={timeFormat}
-                    campusData={selectedCampus}
-                    onMoveLeft={idx > 0 ? () => moveBoard(idx, idx - 1) : undefined}
-                    onMoveRight={idx < savedBoard.length - 1 ? () => moveBoard(idx, idx + 1) : undefined}
-                    onPress={() => {
-                      if (item.type === 'service_alert') { setAlertsModalVisible(true); return; }
-                      if (item.type === 'external_link') { Linking.openURL(item.url).catch(() => {}); return; }
-                      if (item.type === 'garbage') { setGarbageModalVisible(true); return; }
-                      if (item.type === 'bus_stop' || item.type === 'lrt_station') {
-                        loadStop(item.id, item.name);
-                        setBoardExpandItem(item);
-                      }
-                      if (item.type === 'gas_prices') { setBoardExpandItem(item); }
-                      if (item.type === 'saved_team') {
-                        setSportsInitialTab('scores');
-                        setSportsModal(true);
-                      }
-                      if (item.type === 'campus') { if (!selectedCampus) setCampusPicker(true); else setCampusModal(true); return; }
-                      if (item.type === 'news') { /* scroll handled by section visibility */ }
-                      if (item.type === 'neighbourhood') {
-                        router.push('/(tabs)/discover' as any);
-                        return;
-                      }
-                      if (item.type === 'otrain' || item.type === 'services') { /* scroll handled by section visibility */ }
-                    }}
-                  />
-                  );
-                }}
-              />
-            </>
+            <BoardSection
+              savedBoard={savedBoard}
+              onReorder={handleBoardReorder}
+              onCardPress={handleBoardCardPress}
+              colours={colours}
+              fonts={fonts}
+              t={t}
+              cardShadow={cardShadow}
+              garbageEvents={garbageEvents}
+              alerts={alerts}
+              sensGame={sensGame}
+              timeFormat={timeFormat}
+              campusData={selectedCampus}
+            />
           )}
 
           <TonightCard
