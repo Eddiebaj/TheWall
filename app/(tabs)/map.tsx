@@ -19,6 +19,8 @@ import { SK_SAVED_ROUTES, SK_FAVS, SK_SAVED_BOARD, SK_SAVED_NEIGHBOURHOODS, SK_S
 import { supabase } from '../../lib/supabase';
 import { NEIGHBOURHOODS } from '../../lib/neighbourhoodData';
 import ActiveTrip from '../../components/ActiveTrip';
+import BottomSheet from '@gorhom/bottom-sheet';
+import NearbyTransitSheet, { NearbyStop } from '../../components/NearbyTransitSheet';
 
 // Error boundary to catch AIRMap native crashes and show a recoverable fallback
 class MapErrorBoundary extends React.Component<
@@ -578,6 +580,14 @@ export default function MapScreen() {
   const [tripDest, setTripDest] = useState<{ lat: number; lng: number } | null>(null);
   const [activeTripItinerary, setActiveTripItinerary] = useState<TripItinerary | null>(null);
 
+  // Nearby transit sheet
+  const nearbySheetRef = useRef<BottomSheet>(null);
+  const [nearbyStops, setNearbyStops] = useState<NearbyStop[]>([]);
+  const [nearbyLoading, setNearbyLoading] = useState(false);
+  const [expandedStopId, setExpandedStopId] = useState<string | null>(null);
+  const [expandedArrivals, setExpandedArrivals] = useState<{ routeId: string; headsign: string; minsAway: number; source?: string }[]>([]);
+  const [expandedArrivalsLoading, setExpandedArrivalsLoading] = useState(false);
+
   // Discovery mode — Google Places nearby search
   const [discoveryCategory, setDiscoveryCategory] = useState<string | null>(null);
   const [discoveryResults, setDiscoveryResults] = useState<DiscoveryResult[]>([]);
@@ -704,6 +714,107 @@ export default function MapScreen() {
     setTripDest(null);
     setTripDestLabel('');
   }, []);
+
+  // ── Nearby stops fetch ──────────────────────────────────────────
+  const fetchNearbyStops = useCallback(async () => {
+    setNearbyLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') { setNearbyLoading(false); return; }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const uLat = loc.coords.latitude;
+      const uLng = loc.coords.longitude;
+
+      const delta = 0.015; // ~1.5km bounding box
+      const { data: stops } = await supabase
+        .from('stops')
+        .select('stop_id,stop_name,stop_lat,stop_lon')
+        .gte('stop_lat', uLat - delta)
+        .lte('stop_lat', uLat + delta)
+        .gte('stop_lon', uLng - delta)
+        .lte('stop_lon', uLng + delta)
+        .limit(100);
+
+      if (!stops || stops.length === 0) { setNearbyStops([]); setNearbyLoading(false); return; }
+
+      // Sort by distance
+      const sorted = stops
+        .map(s => ({ ...s, dist: haversineKm(uLat, uLng, s.stop_lat, s.stop_lon) * 1000 }))
+        .sort((a, b) => a.dist - b.dist)
+        .slice(0, 10);
+
+      // Build initial stops with loading arrivals
+      const initial: NearbyStop[] = sorted.map(s => ({
+        stopId: s.stop_id,
+        stopName: s.stop_name || `Stop #${s.stop_id}`,
+        walkMeters: Math.round(s.dist),
+        arrivals: [],
+        arrivalsLoading: true,
+      }));
+      setNearbyStops(initial);
+      setNearbyLoading(false);
+
+      // Fetch arrivals for each stop in parallel
+      const results = await Promise.allSettled(
+        sorted.map(async s => {
+          const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${s.stop_id}`, { timeout: 8000 });
+          if (!resp.ok) return { stopId: s.stop_id, arrivals: [] };
+          const data = await resp.json();
+          const now = Date.now();
+          const arrivals = (data.trips || [])
+            .filter((tr: any) => tr.adjustedTime > now)
+            .slice(0, 4)
+            .map((tr: any) => ({
+              routeId: tr.routeId || tr.route || '',
+              headsign: tr.headsign || tr.destination || '',
+              minsAway: Math.max(0, Math.round((tr.adjustedTime - now) / 60000)),
+            }));
+          return { stopId: s.stop_id, arrivals };
+        })
+      );
+
+      setNearbyStops(prev => prev.map(stop => {
+        const result = results.find((r, i) => r.status === 'fulfilled' && sorted[i].stop_id === stop.stopId);
+        if (result?.status === 'fulfilled') {
+          return { ...stop, arrivals: result.value.arrivals, arrivalsLoading: false };
+        }
+        return { ...stop, arrivalsLoading: false };
+      }));
+    } catch (e) {
+      if (__DEV__) console.warn('Nearby stops fetch failed:', e);
+      setNearbyLoading(false);
+    }
+  }, []);
+
+  // Fetch expanded stop arrivals
+  const handleExpandStop = useCallback(async (stopId: string | null) => {
+    setExpandedStopId(stopId);
+    if (!stopId) { setExpandedArrivals([]); return; }
+    setExpandedArrivalsLoading(true);
+    try {
+      const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${stopId}`, { timeout: 8000 });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      const now = Date.now();
+      const arrivals = (data.trips || [])
+        .filter((tr: any) => tr.adjustedTime > now)
+        .slice(0, 10)
+        .map((tr: any) => ({
+          routeId: tr.routeId || tr.route || '',
+          headsign: tr.headsign || tr.destination || '',
+          minsAway: Math.max(0, Math.round((tr.adjustedTime - now) / 60000)),
+          source: tr.source,
+        }));
+      setExpandedArrivals(arrivals);
+    } catch (e) {
+      if (__DEV__) console.warn('Expanded arrivals fetch failed:', e);
+      setExpandedArrivals([]);
+    }
+    setExpandedArrivalsLoading(false);
+  }, []);
+
+  // Initial nearby stops fetch
+  useEffect(() => { fetchNearbyStops(); }, [fetchNearbyStops]);
 
   const routeToTapped = useCallback(() => {
     if (!tappedLocation) return;
@@ -2164,6 +2275,28 @@ export default function MapScreen() {
           )}
         </View>
       )}
+
+      {/* Nearby transit bottom sheet */}
+      <NearbyTransitSheet
+        ref={nearbySheetRef}
+        colours={colours}
+        fonts={fonts}
+        t={t}
+        nearbyStops={nearbyStops}
+        nearbyLoading={nearbyLoading}
+        onRefreshLocation={fetchNearbyStops}
+        savedBoard={[]}
+        onBoardReorder={() => {}}
+        onBoardCardPress={() => {}}
+        boardCardProps={{ cardShadow: {}, garbageEvents: [], alerts: [], sensGame: null, timeFormat: 'relative', campusData: null }}
+        expandedStopId={expandedStopId}
+        onExpandStop={handleExpandStop}
+        expandedArrivals={expandedArrivals}
+        expandedArrivalsLoading={expandedArrivalsLoading}
+        activeAlertCount={0}
+        hasDisruption={false}
+        onPlanTrip={() => router.push('/(tabs)/planner' as any)}
+      />
 
       {/* ActiveTrip overlay */}
       {activeTripItinerary && (

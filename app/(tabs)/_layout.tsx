@@ -30,6 +30,15 @@ function TabLayout() {
       }}
     >
       <Tabs.Screen
+        name="map"
+        options={{
+          tabBarLabel: fr ? 'Carte' : 'Live Map',
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={focused ? 'map' : 'map-outline'} size={22} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="index"
         options={{
           tabBarLabel: fr ? 'Accueil' : 'Home',
@@ -44,15 +53,6 @@ function TabLayout() {
           tabBarLabel: fr ? 'Explorer' : 'Explore',
           tabBarIcon: ({ focused, color }) => (
             <Ionicons name={focused ? 'location' : 'location-outline'} size={22} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="map"
-        options={{
-          tabBarLabel: fr ? 'Carte' : 'Live Map',
-          tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? 'map' : 'map-outline'} size={22} color={color} />
           ),
         }}
       />
