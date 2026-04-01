@@ -721,7 +721,7 @@ export default function MapScreen() {
       const existing = raw ? JSON.parse(raw) : [];
       existing.push({ id: newPin.id, name: label, lat: tappedLocation.lat, lng: tappedLocation.lng, categoryId: 'pin', categoryLabel_en: 'Dropped Pin', categoryLabel_fr: 'Epingle' });
       await AsyncStorage.setItem(SK_SAVED_PLACES, JSON.stringify(existing));
-    } catch {}
+    } catch (e) { if (__DEV__) console.warn(e); }
     dismissTapped();
   }, [tappedLocation, dismissTapped]);
 
@@ -780,7 +780,7 @@ export default function MapScreen() {
           const cleanName = bestStop.stop_name.replace(/\s*\(\d+\)$/, '');
           setBusEtaInfo({ mins: etaMins, stopName: cleanName });
         }
-      } catch { /* silently fail */ }
+      } catch (e) { if (__DEV__) console.warn(e); }
     })();
     return () => { cancelled = true; };
   }, [selectedBus?.id, selectedRouteShape.length]);
@@ -892,7 +892,7 @@ export default function MapScreen() {
                 }
               }
             }
-          } catch { /* invalid JSON */ }
+          } catch (e) { if (__DEV__) console.warn(e); }
         }
         if (favsRaw) {
           try {
@@ -903,7 +903,7 @@ export default function MapScreen() {
                 stopIds.push({ id: fav.id, name: fav.name || `Stop #${fav.id}` });
               }
             }
-          } catch { /* invalid JSON */ }
+          } catch (e) { if (__DEV__) console.warn(e); }
         }
         // Fetch coordinates and route IDs for all saved stops (parallel)
         const stopResults = await Promise.allSettled(stopIds.map(async (stop) => {
@@ -933,7 +933,7 @@ export default function MapScreen() {
                 pins.push({ id: `place_${sp.id}`, name: sp.name, lat: sp.lat, lng: sp.lng, kind: 'place', vicinity: sp.vicinity });
               }
             }
-          } catch { /* invalid JSON */ }
+          } catch (e) { if (__DEV__) console.warn(e); }
         }
         // Saved neighbourhoods
         const nbRaw = await AsyncStorage.getItem(SK_SAVED_NEIGHBOURHOODS);
@@ -946,7 +946,7 @@ export default function MapScreen() {
                 pins.push({ id: `nb_${nb.id}`, name: nb.name_en, lat: nb.lat, lng: nb.lng, kind: 'neighbourhood' });
               }
             }
-          } catch { /* invalid JSON */ }
+          } catch (e) { if (__DEV__) console.warn(e); }
         }
       } catch (e) { if (__DEV__) console.warn('load saved pins failed:', e); }
       setSavedPins(pins);
@@ -1010,6 +1010,7 @@ export default function MapScreen() {
   // Incrementally render buses in batches of 5 to prevent AIRMap crash on mount.
   // Only batch on initial load; subsequent updates show all markers immediately.
   const initialBatchDone = useRef(false);
+  const batchIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     if (!mapReady || filteredBuses.length === 0) { setVisibleBusCount(0); initialBatchDone.current = false; return; }
     // After initial batch, just show all markers immediately on updates
@@ -1018,21 +1019,20 @@ export default function MapScreen() {
       return;
     }
     setVisibleBusCount(0);
-    let intervalId: ReturnType<typeof setInterval> | null = null;
     const timeoutId = setTimeout(() => {
       let count = 0;
-      intervalId = setInterval(() => {
+      batchIntervalRef.current = setInterval(() => {
         count += 5;
         if (count >= filteredBuses.length) {
           setVisibleBusCount(filteredBuses.length);
           initialBatchDone.current = true;
-          if (intervalId) clearInterval(intervalId);
+          if (batchIntervalRef.current) { clearInterval(batchIntervalRef.current); batchIntervalRef.current = null; }
         } else {
           setVisibleBusCount(count);
         }
       }, 100);
     }, 500);
-    return () => { clearTimeout(timeoutId); if (intervalId) clearInterval(intervalId); };
+    return () => { clearTimeout(timeoutId); if (batchIntervalRef.current) { clearInterval(batchIntervalRef.current); batchIntervalRef.current = null; } };
   }, [mapReady, filteredBuses.length]);
 
   const visibleBuses = useMemo(() => filteredBuses.slice(0, visibleBusCount), [filteredBuses, visibleBusCount]);
@@ -2181,7 +2181,7 @@ export default function MapScreen() {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ stop_id: stopName, route_id: routeId, report_type: 'confirmed_arrived', notes: '', device_id: deviceId }),
               }).catch(() => {});
-            } catch {}
+            } catch (e) { if (__DEV__) console.warn(e); }
           }}
         />
       )}

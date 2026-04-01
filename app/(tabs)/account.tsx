@@ -128,7 +128,7 @@ export default function AccountScreen() {
 
   useEffect(() => {
     AsyncStorage.getItem(SK_CAMPUS).then(val => { if (val) { const c = CAMPUSES.find(x => x.id === val); if (c) setAcctCampus(c); } }).catch(() => {});
-    AsyncStorage.getItem(SK_CLASS_SCHEDULE).then(val => { try { if (val) setAcctSchedule(JSON.parse(val)); } catch {} }).catch(() => {});
+    AsyncStorage.getItem(SK_CLASS_SCHEDULE).then(val => { try { if (val) setAcctSchedule(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn(e); } }).catch(() => {});
     // Fetch ghost bus stats
     (async () => {
       try {
@@ -136,7 +136,7 @@ export default function AccountScreen() {
         const deviceId = await getDeviceId();
         const resp = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/community?action=ghost.device_stats&device_id=${deviceId}`);
         if (resp.ok) { const data = await resp.json(); setGhostStats(data); }
-      } catch {}
+      } catch (e) { if (__DEV__) console.warn(e); }
     })();
   }, []);
 
@@ -162,7 +162,7 @@ export default function AccountScreen() {
           avgDuration: weekTrips.length > 0 ? Math.round(totalMins / weekTrips.length) : 0,
           topRoute,
         });
-      } catch {}
+      } catch (e) { if (__DEV__) console.warn(e); }
     });
   }, []);
 
@@ -206,7 +206,7 @@ export default function AccountScreen() {
           costWeek: Math.min(tripsWeek * FARE, 7 * DAILY_CAP),
           costMonth: Math.min(tripsMonth * FARE, MONTHLY_CAP),
         });
-      } catch {}
+      } catch (e) { if (__DEV__) console.warn(e); }
     });
   }, [prestoSaved]);
 
@@ -1251,7 +1251,7 @@ export default function AccountScreen() {
                       setBugSending(true);
                       try {
                         let deviceId: string | null = null;
-                        try { deviceId = await AsyncStorage.getItem('routeo_device_id'); } catch {}
+                        try { deviceId = await AsyncStorage.getItem('routeo_device_id'); } catch (e) { if (__DEV__) console.warn(e); }
                         const appVersion = `RouteO ${Platform.OS} ${Platform.Version}`;
                         await supabase.from('bug_reports').insert({
                           message: bugMessage.trim(),

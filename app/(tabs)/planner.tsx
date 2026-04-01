@@ -454,7 +454,7 @@ function PlannerScreenInner() {
       if (val) { const c = CAMPUSES.find(x => x.id === val); if (c) setPlannerCampus(c); }
     }).catch(() => {});
     AsyncStorage.getItem(SK_CLASS_SCHEDULE).then(val => {
-      try { if (val) setPlannerSchedule(JSON.parse(val)); } catch {}
+      try { if (val) setPlannerSchedule(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn(e); }
     }).catch(() => {});
     // Check for Sens game tonight
     fetchWithTimeout('https://api-web.nhle.com/v1/schedule/now').then(async r => {
@@ -708,7 +708,7 @@ function PlannerScreenInner() {
             const earlyData = await earlyResp.json();
             earlierItins = earlyData.itineraries || [];
           }
-        } catch { /* ignore earlier fetch failure */ }
+        } catch (e) { if (__DEV__) console.warn(e); }
       }
 
       if (data.error) { setError(data.error); }
@@ -872,7 +872,7 @@ function PlannerScreenInner() {
             const result = d.results?.[0];
             if (result?.lat) resolved = { placeId: 'geo', label: result.label, lat: result.lat, lng: result.lng };
           }
-        } catch { /* skip */ }
+        } catch (e) { if (__DEV__) console.warn(e); }
       }
       if (resolved?.lat) resolvedWaypoints.push(resolved);
     }
@@ -1060,7 +1060,7 @@ function PlannerScreenInner() {
             const code = wData?.current?.weathercode ?? 0;
             precip = [51,53,55,56,57,61,63,65,66,67,71,73,75,77,80,81,82,85,86,95,96,99].includes(code);
           }
-        } catch { /* silent */ }
+        } catch (e) { if (__DEV__) console.warn(e); }
 
         setWalkAlt({ walkMins, transitMins, transitWait, temp, precip });
       } catch { setWalkAlt(null); }
@@ -1210,7 +1210,7 @@ function PlannerScreenInner() {
         });
         const allResults = await Promise.all(placePromises);
         setIsoPlaces(allResults.flat());
-      } catch {}
+      } catch (e) { if (__DEV__) console.warn(e); }
       setIsoPlacesLoading(false);
     } catch (e) {
       Alert.alert(t('Error', 'Erreur'), t('Could not fetch reachable stops.', 'Impossible de trouver les arr\u00eats accessibles.'));
@@ -1307,7 +1307,7 @@ function PlannerScreenInner() {
       try {
         const data = await shapeRes.value.json();
         if (data.shape?.length) setRouteDetailShape(data.shape);
-      } catch {}
+      } catch (e) { if (__DEV__) console.warn(e); }
     }
 
     // Process live bus
@@ -1321,7 +1321,7 @@ function PlannerScreenInner() {
         if (buses.length > 0) {
           setRouteDetailBus({ lat: buses[0].lat, lng: buses[0].lng, routeId: buses[0].routeId });
         }
-      } catch {}
+      } catch (e) { if (__DEV__) console.warn(e); }
     }
 
     setRouteDetailLoading(false);
@@ -2198,7 +2198,7 @@ function PlannerScreenInner() {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ stop_id: stopName, route_id: routeId, report_type: 'confirmed_arrived', notes: '', device_id: deviceId }),
               }).catch(() => {});
-            } catch {}
+            } catch (e) { if (__DEV__) console.warn(e); }
           }}
         />
       )}

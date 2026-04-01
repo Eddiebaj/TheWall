@@ -23,7 +23,7 @@ export async function detectFrequentRoutes(): Promise<FrequentRoute[]> {
         .filter((b: any) => b.type === 'bus_stop' || b.type === 'lrt_station')
         .map((b: any) => ({ id: b.id, name: b.name }));
     }
-  } catch { /* no board */ }
+  } catch (e) { if (__DEV__) console.warn(e); }
 
   // Try trip history first
   try {
@@ -66,7 +66,7 @@ export async function detectFrequentRoutes(): Promise<FrequentRoute[]> {
 
       if (frequent.length > 0) return frequent;
     }
-  } catch { /* no history */ }
+  } catch (e) { if (__DEV__) console.warn(e); }
 
   // Fallback: first 2 saved board stops
   if (boardStops.length > 0) {

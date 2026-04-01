@@ -768,7 +768,7 @@ function LiveScreenInner() {
           const avg = Math.round(commute.durations.reduce((a, b) => a + b, 0) / commute.durations.length);
           setCommuteInsight({ fromLabel: commute.fromLabel, toLabel: commute.toLabel, avgDuration: avg, count: commute.count });
         }
-      } catch {}
+      } catch (e) { if (__DEV__) console.warn(e); }
     }).catch(() => {});
   }, []);
 
@@ -930,7 +930,7 @@ function LiveScreenInner() {
       setWeatherFetchFailed(true);
       // Load from cache if available
       if (!weather) {
-        AsyncStorage.getItem(SK_CACHE_WEATHER).then(val => { if (val) try { setWeather(JSON.parse(val)); } catch {} }).catch(() => {});
+        AsyncStorage.getItem(SK_CACHE_WEATHER).then(val => { if (val) try { setWeather(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn(e); } }).catch(() => {});
       }
     }
   };
@@ -1033,7 +1033,7 @@ function LiveScreenInner() {
       const items: NewsArticle[] = data.articles || [];
       setNewsArticles(items);
       AsyncStorage.setItem(SK_NEWS_CACHE, JSON.stringify({ articles: items, ts: Date.now() }));
-    } catch {} finally { setNewsLoading(false); }
+    } catch (e) { if (__DEV__) console.warn(e); } finally { setNewsLoading(false); }
   };
 
   // Cross-reference commute with active alerts
@@ -1355,7 +1355,7 @@ function LiveScreenInner() {
             return;
           }
         }
-      } catch {}
+      } catch (e) { if (__DEV__) console.warn(e); }
       setError(e instanceof Error ? e.message : 'Unknown error');
       setArrivalsFetchFailed(true);
     }
@@ -1411,7 +1411,7 @@ function LiveScreenInner() {
     try {
       const { data } = await supabase.from('stops').select('has_shelter,has_bench,has_bin').eq('stop_id', sid).single();
       if (data && (data.has_shelter || data.has_bench || data.has_bin)) setStopAmenities(data);
-    } catch { /* no amenity data for this stop */ }
+    } catch (e) { if (__DEV__) console.warn(e); }
   };
 
   // ── Bus crowding predictions ─────────────────────────────────────
@@ -1430,7 +1430,7 @@ function LiveScreenInner() {
             return;
           }
         }
-      } catch { /* no cache */ }
+      } catch (e) { if (__DEV__) console.warn(e); }
       try {
         const resp = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/community?action=crowding.predict&route_id=${routeId}&stop_id=${sid}`);
         if (resp.ok) {
@@ -1440,7 +1440,7 @@ function LiveScreenInner() {
             AsyncStorage.setItem(`${SK_CROWDING_CACHE}_${routeId}_${sid}`, JSON.stringify({ ...results[routeId], ts: Date.now() }));
           }
         }
-      } catch { /* network error */ }
+      } catch (e) { if (__DEV__) console.warn(e); }
     }));
     setCrowdingData(results);
   };
@@ -1471,7 +1471,7 @@ function LiveScreenInner() {
       }
       setReliabilityScores(scores);
       reliabilityCacheRef.current = { data: scores, ts: Date.now() };
-    } catch { /* silent */ }
+    } catch (e) { if (__DEV__) console.warn(e); }
   };
 
   // ── Crowding hourly breakdown ───────────────────────────────────
@@ -1490,7 +1490,7 @@ function LiveScreenInner() {
       if (!error && data) {
         setCrowdingHourly(data.map(d => ({ hour: d.hour_of_day, avg: Number(d.avg_crowding), count: Number(d.report_count) })));
       }
-    } catch { /* silent */ }
+    } catch (e) { if (__DEV__) console.warn(e); }
     setCrowdingHourlyLoading(false);
   };
 
@@ -1541,7 +1541,7 @@ function LiveScreenInner() {
             setFrequentFetchedAt(ts);
           }
         }
-      } catch { /* ignore */ }
+      } catch (e) { if (__DEV__) console.warn(e); }
     }
 
     const stopIds = [...new Set(routes.filter(r => r.stopId).map(r => r.stopId))];
@@ -1568,7 +1568,7 @@ function LiveScreenInner() {
             }
           }
         }
-      } catch { /* network error */ }
+      } catch (e) { if (__DEV__) console.warn(e); }
     }));
     setFrequentArrivals(results);
     setFrequentFetchedAt(Date.now());
@@ -1656,7 +1656,7 @@ function LiveScreenInner() {
         recorded_at: new Date().toISOString(),
       }));
       await supabase.from('route_reliability').insert(rows).then(() => {}, () => {});
-    } catch { /* silent */ }
+    } catch (e) { if (__DEV__) console.warn(e); }
   };
 
   useEffect(() => {
@@ -1715,15 +1715,15 @@ function LiveScreenInner() {
               trigger: null,
             });
           }
-        } catch { /* skip stop on error */ }
+        } catch (e) { if (__DEV__) console.warn(e); }
       }
 
       // Prune old keys (keep only last 5 min window)
       const currentWindow = Math.floor(Date.now() / 300000);
       for (const key of notifiedArrivalsRef.current) {
         const parts = key.split('-');
-        const window = parseInt(parts[parts.length - 1]);
-        if (window < currentWindow - 1) notifiedArrivalsRef.current.delete(key);
+        const w = parseInt(parts?.[parts.length - 1] ?? '', 10);
+        if (!isNaN(w) && w < currentWindow - 1) notifiedArrivalsRef.current.delete(key);
       }
     };
 
@@ -2473,7 +2473,7 @@ function LiveScreenInner() {
           <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setRoadEventsModal(false)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
             <Ionicons name="close" size={18} color={colours.text} />
           </TouchableOpacity>
-        </View>2
+        </View>
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
           {roadEventsLoading ? (
             <View style={styles.modalCenter}><ActivityIndicator color={colours.accent} size="large" /><Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('Loading road closures...', 'Chargement...')}</Text></View>

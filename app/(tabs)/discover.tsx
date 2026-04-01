@@ -69,10 +69,10 @@ export default function DiscoverScreen() {
 
   useEffect(() => {
     AsyncStorage.getItem(SK_SAVED_NEIGHBOURHOODS).then(val => {
-      if (val) { try { setSavedIds(JSON.parse(val)); } catch {} }
+      if (val) { try { setSavedIds(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn(e); } }
     });
     AsyncStorage.getItem(SK_NEWS_CACHE).then(val => {
-      if (val) { try { setNewsArticles(JSON.parse(val).articles || []); } catch {} }
+      if (val) { try { setNewsArticles(JSON.parse(val).articles || []); } catch (e) { if (__DEV__) console.warn(e); } }
     });
     // Get user location
     Location.requestForegroundPermissionsAsync().then(async ({ status }) => {
@@ -127,7 +127,7 @@ export default function DiscoverScreen() {
           .then(({ data }) => { if (data) setCommunityDeals(data); return null; }),
         fetchWeekendEvents(),
         AsyncStorage.getItem(SK_NEWS_CACHE).then(val => {
-          if (val) { try { setNewsArticles(JSON.parse(val).articles || []); } catch {} }
+          if (val) { try { setNewsArticles(JSON.parse(val).articles || []); } catch (e) { if (__DEV__) console.warn(e); } }
         }),
         Location.requestForegroundPermissionsAsync().then(async ({ status }) => {
           if (status === 'granted') {

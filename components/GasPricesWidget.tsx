@@ -78,7 +78,7 @@ export function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, t
 
   useEffect(() => {
     AsyncStorage.getItem(SK_GAS_VOTED_IDS).then(val => {
-      if (val) try { setVotedIds(new Set(JSON.parse(val))); } catch {}
+      if (val) try { setVotedIds(new Set(JSON.parse(val))); } catch (e) { if (__DEV__) console.warn(e); }
     }).catch(() => {});
   }, []);
 

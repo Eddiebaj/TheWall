@@ -106,7 +106,7 @@ export default function BusTrackingModal({
           };
           setUserRegion(region);
         }
-      } catch {}
+      } catch (e) { if (__DEV__) console.warn(e); }
     })();
   }, [visible]);
 
@@ -171,7 +171,8 @@ export default function BusTrackingModal({
 
       busLat.current = found.lat;
       busLng.current = found.lng;
-    } catch {
+    } catch (e) {
+      if (__DEV__) console.warn(e);
       setBusLoading(false);
     }
   }, [routeId, cardTranslateY]);
@@ -187,7 +188,7 @@ export default function BusTrackingModal({
       if (data?.shape?.length) {
         setFullPolyline(data.shape);
       }
-    } catch {}
+    } catch (e) { if (__DEV__) console.warn(e); }
   }, [routeId, isSTO]);
 
   // Progressive polyline reveal

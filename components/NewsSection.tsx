@@ -56,7 +56,7 @@ function NewsSection({ colours, fonts, cardShadow, onArticlesLoaded, sortMode = 
 
   useEffect(() => {
     AsyncStorage.getItem(SK_SAVED_ARTICLES).then(val => {
-      if (val) try { setSavedIds(new Set(JSON.parse(val))); } catch {}
+      if (val) try { setSavedIds(new Set(JSON.parse(val))); } catch (e) { if (__DEV__) console.warn(e); }
     });
   }, []);
 
@@ -95,7 +95,7 @@ function NewsSection({ colours, fonts, cardShadow, onArticlesLoaded, sortMode = 
             setArticles(parsed.articles || []);
             onArticlesLoaded?.(parsed.articles || []);
           }
-        } catch {}
+        } catch (e) { if (__DEV__) console.warn(e); }
       }
     } finally {
       setLoading(false);
@@ -124,7 +124,7 @@ function NewsSection({ colours, fonts, cardShadow, onArticlesLoaded, sortMode = 
             // If cache is fresh enough, skip immediate fetch
             if (parsed.ts && Date.now() - parsed.ts < REFRESH_MS) return;
           }
-        } catch {}
+        } catch (e) { if (__DEV__) console.warn(e); }
       }
       fetchNews();
     });

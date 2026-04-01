@@ -46,7 +46,7 @@ function NeighbourhoodSection({ colours, fonts, cardShadow, events, onPress }: P
 
   useEffect(() => {
     AsyncStorage.getItem(SK_SAVED_NEIGHBOURHOODS).then(val => {
-      if (val) { try { setSavedIds(JSON.parse(val)); } catch {} }
+      if (val) { try { setSavedIds(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn(e); } }
     });
   }, []);
 

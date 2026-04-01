@@ -163,7 +163,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
           }
         );
         locationSubRef.current = sub;
-      } catch {}
+      } catch (e) { if (__DEV__) console.warn(e); }
     })();
     return () => { sub?.remove(); locationSubRef.current = null; };
   }, [visible]);
@@ -304,9 +304,10 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
               setBusPosition(null);
             }
           }
-        } catch {}
+        } catch (e) { if (__DEV__) console.warn(e); }
       }
-    } catch {
+    } catch (e) {
+      if (__DEV__) console.warn(e);
       setPollFailCount(prev => prev + 1);
     }
   }, [currentLeg, nextLeg, activeLeg, switchedRoute, busDisappearedAt, itinerary.endTime]);
@@ -328,7 +329,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
           const { status: s2 } = await Notifications.requestPermissionsAsync();
           if (s2 !== 'granted') return;
         }
-      } catch { return; }
+      } catch (e) { if (__DEV__) console.warn(e); return; }
 
       const ids: string[] = [];
       const nowMs = Date.now();
@@ -347,7 +348,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
               trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(warnAt) },
             });
             ids.push(id);
-          } catch {}
+          } catch (e) { if (__DEV__) console.warn(e); }
         }
       }
       notifIds.current = ids;
@@ -395,7 +396,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
         content: { title, body, sound: true },
         trigger: null,
       });
-    } catch {}
+    } catch (e) { if (__DEV__) console.warn(e); }
   };
 
   // ── Pulse animation for countdown <5 min ────────────────────

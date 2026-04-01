@@ -21,9 +21,9 @@ export async function shouldShowTonightCard(): Promise<boolean> {
     const dismissed = await AsyncStorage.getItem(SK_TONIGHT_DISMISSED);
     if (dismissed) {
       const ts = parseInt(dismissed, 10);
-      if (Date.now() - ts < 24 * 60 * 60 * 1000) return false;
+      if (!isNaN(ts) && Date.now() - ts < 24 * 60 * 60 * 1000) return false;
     }
-  } catch {}
+  } catch (e) { if (__DEV__) console.warn(e); }
   return true;
 }
 

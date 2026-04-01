@@ -155,7 +155,7 @@ function ExploreScreenInner() {
           const places: any[] = JSON.parse(val);
           setSavedPlaceIds(new Set(places.map(p => p.id)));
         }
-      } catch { /* ignore */ }
+      } catch (e) { if (__DEV__) console.warn(e); }
     });
   }, []);
 

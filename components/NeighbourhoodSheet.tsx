@@ -150,13 +150,13 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
           const vData = await vResp.json();
           if (vData.votes) setDealVotes(vData.votes);
         }
-      } catch (_) {}
+      } catch (e) { if (__DEV__) console.warn(e); }
 
       // Load my votes from local storage
       try {
         const stored = await AsyncStorage.getItem('routeo_my_deal_votes');
         if (stored) setMyVotes(JSON.parse(stored));
-      } catch (_) {}
+      } catch (e) { if (__DEV__) console.warn(e); }
     } catch (e) { if (__DEV__) console.warn('fetch community deals failed:', e); }
   };
 
