@@ -1052,7 +1052,12 @@ export default function MapScreen() {
   useEffect(() => {
     if (!showEvents) return;
     setEventsLoading(true);
-    fetchAllEvents().then(evs => { setEvents(evs); setEventsLoading(false); });
+    fetchAllEvents().then(evs => {
+      setEvents(evs);
+      setEventsLoading(false);
+      // Feed events to bottom sheet TonightCard
+      setSheetEvents(evs.map(e => ({ name: e.name, date: e.date, time: e.time, venue: e.venue })));
+    });
   }, [showEvents]);
 
   // Load saved stops, routes, places when "saved" filter first activated
@@ -2393,7 +2398,6 @@ export default function MapScreen() {
         expandedArrivalsLoading={expandedArrivalsLoading}
         activeAlertCount={sheetAlerts.length}
         hasDisruption={sheetAlerts.some((a: any) => a.category === 'lrt' || (a.title || '').toLowerCase().includes('o-train'))}
-        alerts={sheetAlerts}
         weather={sheetWeather}
         sensGame={sheetSensGame}
         events={sheetEvents}

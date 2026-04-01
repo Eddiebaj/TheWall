@@ -48,11 +48,11 @@ function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="nearby"
+        name="saved"
         options={{
-          tabBarLabel: fr ? 'Explorer' : 'Explore',
+          tabBarLabel: fr ? 'Sauvegard\u00E9s' : 'Saved',
           tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? 'location' : 'location-outline'} size={22} color={color} />
+            <Ionicons name={focused ? 'bookmark' : 'bookmark-outline'} size={22} color={color} />
           ),
         }}
       />
@@ -74,7 +74,7 @@ function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen name="saved" options={{ href: null }} />
+      <Tabs.Screen name="nearby" options={{ href: null }} />
       <Tabs.Screen name="discover" options={{ href: null }} />
       <Tabs.Screen name="alerts" options={{ href: null }} />
     </Tabs>

@@ -58,7 +58,6 @@ interface NearbyTransitSheetProps {
   // Alerts
   activeAlertCount: number;
   hasDisruption: boolean;
-  alerts: any[];
 
   // Weather (State 3)
   weather: { temp: number; condition: string; icon: string } | null;
@@ -363,6 +362,22 @@ function RecentTripsSection({ colours, t }: { colours: any; t: (en: string, fr: 
   );
 }
 
+// ── Shared layout helpers (stable references) ───────────────────
+
+function SheetSeparator({ colours }: { colours: any }) {
+  return <View style={{ height: 1, backgroundColor: colours.border, marginHorizontal: 16 }} />;
+}
+
+function SheetSectionHeader({ label, colours }: { label: string; colours: any }) {
+  return (
+    <View style={{ paddingHorizontal: 16, paddingTop: 18, paddingBottom: 8 }}>
+      <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
 // ── Main component ───────────────────────────────────────────────
 
 const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
@@ -384,7 +399,6 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
       expandedArrivalsLoading,
       activeAlertCount,
       hasDisruption,
-      alerts,
       weather,
       onWeatherPress,
       sensGame,
@@ -411,17 +425,8 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
       [savedBoard],
     );
 
-    const Separator = () => (
-      <View style={{ height: 1, backgroundColor: colours.border, marginHorizontal: 16 }} />
-    );
-
-    const SectionHeader = ({ label }: { label: string }) => (
-      <View style={{ paddingHorizontal: 16, paddingTop: 18, paddingBottom: 8 }}>
-        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, letterSpacing: 0.5, textTransform: 'uppercase' }}>
-          {label}
-        </Text>
-      </View>
-    );
+    const Separator = useCallback(() => <SheetSeparator colours={colours} />, [colours]);
+    const SectionHeader = useCallback(({ label }: { label: string }) => <SheetSectionHeader label={label} colours={colours} />, [colours]);
 
     return (
       <BottomSheet
