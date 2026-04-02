@@ -62,7 +62,7 @@ class MapErrorBoundary extends React.Component<
 }
 
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
-import { TICKETMASTER_API_KEY } from '../../lib/keys';
+import { haversineKm } from '../../lib/geo';
 
 const VEHICLES_URL    = 'https://routeo-backend.vercel.app/api/vehicles';
 const BACKEND_URL     = 'https://routeo-backend.vercel.app/api/arrivals';
@@ -225,14 +225,6 @@ type VenuePin = {
   lat: number; lng: number;
   deals: { days: number[]; start: string; end: string; description: string }[];
 };
-
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 function distAlongShape(shape: {latitude: number; longitude: number}[], lat: number, lng: number): { index: number; cumDist: number } {
   let bestIdx = 0, bestDist = Infinity;
@@ -480,6 +472,7 @@ const getVenueTodayDeals = (venue: VenuePin): { active: string[]; upcoming: stri
   return { active, upcoming };
 };
 
+// TODO: Add French translations for venue deal descriptions
 const venueHasActiveOrUpcomingToday = (venue: VenuePin): boolean => {
   const { active, upcoming } = getVenueTodayDeals(venue);
   return active.length > 0 || upcoming.length > 0;
@@ -528,7 +521,7 @@ const fetchAllEvents = async (): Promise<MapEvent[]> => {
 
   let events: MapEvent[] = [];
   try {
-    const tmResp = await fetchWithTimeout(`https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TICKETMASTER_API_KEY}&city=Ottawa&countryCode=CA&size=20&sort=date,asc`);
+    const tmResp = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/ebevents?action=ticketmaster&city=Ottawa&radius=50&size=50`);
     if (tmResp.ok) {
       const d = await tmResp.json();
       const tmEvents: MapEvent[] = (d._embedded?.events || []).map((e: any) => ({
@@ -591,6 +584,9 @@ export default function MapScreen() {
 
   // Tapped location ("Route here" feature)
   const [tappedLocation, setTappedLocation] = useState<{ lat: number; lng: number; address: string } | null>(null);
+  const tappedLocationRef = useRef<{ lat: number; lng: number; address: string } | null>(null);
+  // Keep ref in sync with state so stable callbacks can read latest value
+  useEffect(() => { tappedLocationRef.current = tappedLocation; }, [tappedLocation]);
   const tappedAnim = useRef(new Animated.Value(0)).current;
   const router = useRouter();
 
@@ -663,7 +659,7 @@ export default function MapScreen() {
 
   const openSheet = useCallback((bus?: Bus, event?: MapEvent, clusterEvs?: MapEvent[], venue?: VenuePin) => {
     // Dismiss tapped location card if open
-    if (tappedLocation) { setTappedLocation(null); tappedAnim.setValue(0); }
+    if (tappedLocationRef.current) { setTappedLocation(null); tappedAnim.setValue(0); }
     setSelectedBus(bus || null); setSelectedEvent(event || null); setSelectedCluster(clusterEvs || null); setSelectedVenue(venue || null);
     if (!bus && !event && !clusterEvs && !venue) {
       // saved pin — selectedSavedPin is already set
@@ -677,7 +673,7 @@ export default function MapScreen() {
       setSelectedRouteShape([]);
     }
     Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
-  }, [sheetAnim, fetchRouteShape, tappedLocation, tappedAnim]);
+  }, [sheetAnim, fetchRouteShape, tappedAnim]);
 
   const hideSheet = useCallback(() => {
     Animated.spring(sheetAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start(() => {
@@ -1007,7 +1003,7 @@ export default function MapScreen() {
       } catch (e) { if (__DEV__) console.warn(e); }
     })();
     return () => { cancelled = true; };
-  }, [selectedBus?.id, selectedRouteShape.length]);
+  }, [selectedBus?.id, selectedBus?.lat, selectedBus?.lng, selectedRouteShape.length]);
 
   const fetchBuses = async () => {
     try {
@@ -1771,7 +1767,8 @@ export default function MapScreen() {
                   placeholder={t('e.g. The Clocktower Brew Pub', 'ex. The Clocktower Brew Pub')}
                   placeholderTextColor={colours.muted}
                   value={contribName}
-                  onChangeText={setContribName}
+                  maxLength={50}
+                  onChangeText={(v) => setContribName(v.replace(/<[^>]*>/g, ''))}
                 />
 
                 <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Deal Type', 'Type d\'offre')} *</Text>
@@ -1798,7 +1795,8 @@ export default function MapScreen() {
                   placeholder={t('e.g. $5 pints Mon-Fri 3-6pm', 'ex. Pintes a 5$ lun-ven 15h-18h')}
                   placeholderTextColor={colours.muted}
                   value={contribInfo}
-                  onChangeText={setContribInfo}
+                  maxLength={200}
+                  onChangeText={(v) => setContribInfo(v.replace(/<[^>]*>/g, ''))}
                   multiline
                 />
 

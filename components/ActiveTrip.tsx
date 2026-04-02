@@ -40,7 +40,7 @@ const LEG_ICONS: Record<string, string> = {
   WALK: 'walk', BUS: 'bus', TRAM: 'train', RAIL: 'train', SUBWAY: 'train', FERRY: 'boat', CAR: 'car', BICYCLE: 'bicycle',
 };
 
-function fmtTime(ms: number) {
+function fmtTimeFromMs(ms: number) {
   const d = new Date(ms);
   const h = d.getHours();
   const m = String(d.getMinutes()).padStart(2, '0');
@@ -557,7 +557,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
             <View>
               <Text style={{ fontSize: 18, fontWeight: '900', color: colours.text }}>{t('Active Trip', 'Trajet actif')}</Text>
               <Text style={{ fontSize: 12, color: colours.muted }}>
-                {t('Arrives', 'Arrivee')} {fmtTime(liveEta || itinerary.endTime)} · {fmtDuration((liveEta || itinerary.endTime) - now)}
+                {t('Arrives', 'Arrivee')} {fmtTimeFromMs(liveEta || itinerary.endTime)} · {fmtDuration((liveEta || itinerary.endTime) - now)}
               </Text>
             </View>
           </View>
@@ -669,7 +669,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
               )}
               {!isTransit && (
                 <Text style={{ fontSize: 12, fontWeight: '700', color: legColor }}>
-                  {fmtTime(currentLeg.startTime)} → {fmtTime(currentLeg.endTime)}
+                  {fmtTimeFromMs(currentLeg.startTime)} → {fmtTimeFromMs(currentLeg.endTime)}
                 </Text>
               )}
             </View>
@@ -826,7 +826,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
                 <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }} numberOfLines={1}>{nextStepTitle}</Text>
               </View>
               {nextLeg && (
-                <Text style={{ fontSize: 11, fontWeight: '600', color: colours.muted }}>{fmtTime(nextLeg.startTime)}</Text>
+                <Text style={{ fontSize: 11, fontWeight: '600', color: colours.muted }}>{fmtTimeFromMs(nextLeg.startTime)}</Text>
               )}
             </View>
           </View>

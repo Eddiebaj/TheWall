@@ -8,7 +8,8 @@ import {
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
-import { TICKETMASTER_API_KEY } from '../../lib/keys';
+import { haversineKm } from '../../lib/geo';
+import { cardShadow as sharedCardShadow } from '../../lib/styles';
 import { Neighbourhood, NEIGHBOURHOODS } from '../../lib/neighbourhoodData';
 import { NewsArticle, timeAgo } from '../../lib/newsData';
 import { SK_NEWS_CACHE, SK_SAVED_NEIGHBOURHOODS } from '../../lib/storageKeys';
@@ -34,25 +35,42 @@ type WeekendEvent = {
   image?: string;
 };
 
-const haversineKm = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-};
+// ── Error Boundary ───────────────────────────────────────────────
+class DiscoverErrorBoundary extends React.Component<
+  { children: React.ReactNode; colours: any; fonts: any; t: (en: string, fr: string) => string },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error: Error) { if (__DEV__) console.warn('DiscoverErrorBoundary caught:', error); }
+  render() {
+    if (this.state.hasError) {
+      const { colours, fonts, t } = this.props;
+      return (
+        <View style={{ flex: 1, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+          <Ionicons name="alert-circle-outline" size={48} color={colours.muted} />
+          <Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
+            {t('Something went wrong', 'Une erreur s\'est produite')}
+          </Text>
+          <TouchableOpacity
+            onPress={() => this.setState({ hasError: false })}
+            style={{ marginTop: 20, backgroundColor: colours.accent, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }}
+            accessibilityRole="button"
+          >
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: fonts.md }}>{t('Tap to retry', 'Appuyez pour r\u00e9essayer')}</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
 
-export default function DiscoverScreen() {
+function DiscoverScreenInner() {
   const { colours, theme, resolvedTheme, t, fonts, language } = useApp();
   const isLight = resolvedTheme === 'light';
 
-  const cardShadow = isLight ? {
-    shadowColor: '#004890',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
-    elevation: 2,
-  } : {};
+  const cardShadow = isLight ? sharedCardShadow : {};
 
   const [search, setSearch] = useState('');
   const [savedIds, setSavedIds] = useState<string[]>([]);
@@ -71,8 +89,21 @@ export default function DiscoverScreen() {
     AsyncStorage.getItem(SK_SAVED_NEIGHBOURHOODS).then(val => {
       if (val) { try { setSavedIds(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn(e); } }
     });
-    AsyncStorage.getItem(SK_NEWS_CACHE).then(val => {
-      if (val) { try { setNewsArticles(JSON.parse(val).articles || []); } catch (e) { if (__DEV__) console.warn(e); } }
+    // Direct news fetch instead of relying on SK_NEWS_CACHE (M14)
+    fetchWithTimeout('https://routeo-backend.vercel.app/api/news').then(async resp => {
+      if (resp.ok) {
+        const data = await resp.json();
+        const articles = data.articles || [];
+        setNewsArticles(articles);
+        AsyncStorage.setItem(SK_NEWS_CACHE, JSON.stringify({ articles })).catch(() => {});
+      } else {
+        // Fall back to cache
+        const cached = await AsyncStorage.getItem(SK_NEWS_CACHE);
+        if (cached) { try { setNewsArticles(JSON.parse(cached).articles || []); } catch (e) { if (__DEV__) console.warn(e); } }
+      }
+    }).catch(async () => {
+      const cached = await AsyncStorage.getItem(SK_NEWS_CACHE);
+      if (cached) { try { setNewsArticles(JSON.parse(cached).articles || []); } catch (e) { if (__DEV__) console.warn(e); } }
     });
     // Get user location
     Location.requestForegroundPermissionsAsync().then(async ({ status }) => {
@@ -101,7 +132,7 @@ export default function DiscoverScreen() {
       sunday.setDate(friday.getDate() + 2);
       const startDate = friday.toISOString().split('T')[0] + 'T00:00:00Z';
       const endDate = sunday.toISOString().split('T')[0] + 'T23:59:59Z';
-      const resp = await fetchWithTimeout(`https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TICKETMASTER_API_KEY}&city=Ottawa&countryCode=CA&size=10&sort=date,asc&startDateTime=${startDate}&endDateTime=${endDate}`);
+      const resp = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/ebevents?action=ticketmaster&city=Ottawa&radius=50&size=50`);
       if (resp.ok) {
         const d = await resp.json();
         const evs: WeekendEvent[] = (d._embedded?.events || []).map((e: any) => ({
@@ -126,9 +157,13 @@ export default function DiscoverScreen() {
         supabase.from('community_deals').select('*').order('submitted_at', { ascending: false }).limit(10)
           .then(({ data }) => { if (data) setCommunityDeals(data); return null; }),
         fetchWeekendEvents(),
-        AsyncStorage.getItem(SK_NEWS_CACHE).then(val => {
-          if (val) { try { setNewsArticles(JSON.parse(val).articles || []); } catch (e) { if (__DEV__) console.warn(e); } }
-        }),
+        fetchWithTimeout('https://routeo-backend.vercel.app/api/news').then(async resp => {
+          if (resp.ok) {
+            const data = await resp.json();
+            setNewsArticles(data.articles || []);
+            AsyncStorage.setItem(SK_NEWS_CACHE, JSON.stringify({ articles: data.articles || [] })).catch(() => {});
+          }
+        }).catch(() => {}),
         Location.requestForegroundPermissionsAsync().then(async ({ status }) => {
           if (status === 'granted') {
             const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
@@ -450,5 +485,14 @@ export default function DiscoverScreen() {
         newsArticles={newsArticles}
       />
     </View>
+  );
+}
+
+export default function DiscoverScreen() {
+  const { colours, fonts, t } = useApp();
+  return (
+    <DiscoverErrorBoundary colours={colours} fonts={fonts} t={t}>
+      <DiscoverScreenInner />
+    </DiscoverErrorBoundary>
   );
 }

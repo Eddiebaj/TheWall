@@ -260,12 +260,7 @@ export function isLibraryOpen(lib: LibraryHours): { open: boolean; closesAt?: st
   return { open: false };
 }
 
-/** Format 24h time string to 12h display */
-export function fmt12h(time: string): string {
-  const [h, m] = time.split(':').map(Number);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ampm}`;
-}
+export { fmt12h } from './utils';
 
 /** Get day name for hours display */
 export function getDayLabel(day: number, lang: string): string {

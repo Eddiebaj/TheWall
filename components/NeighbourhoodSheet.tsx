@@ -2,17 +2,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Linking, Modal, ScrollView,
+  ActivityIndicator, Alert, Linking, Modal, ScrollView,
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
 import { ContentSkeleton } from '../components/Shimmer';
 import { fetchWithTimeout } from '../lib/fetchWithTimeout';
+import { haversineKm } from '../lib/geo';
 import { HAPPY_HOUR_VENUES } from '../lib/happyHourData';
 import { Neighbourhood } from '../lib/neighbourhoodData';
 import { NewsArticle, SOURCE_COLOURS, timeAgo } from '../lib/newsData';
 import { getDeviceId } from '../lib/pushNotifications';
+import { SK_MY_DEAL_VOTES } from '../lib/storageKeys';
 import { supabase } from '../lib/supabase';
 import { toTitleCase } from '../lib/utils';
 
@@ -27,14 +29,6 @@ type Props = {
 };
 
 type Tab = 'places' | 'events' | 'deals' | 'transit' | 'news';
-
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 const TABS: { id: Tab; icon: string; label_en: string; label_fr: string }[] = [
   { id: 'places', icon: 'location', label_en: 'Places', label_fr: 'Lieux' },
@@ -157,7 +151,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
 
       // Load my votes from local storage
       try {
-        const stored = await AsyncStorage.getItem('routeo_my_deal_votes');
+        const stored = await AsyncStorage.getItem(SK_MY_DEAL_VOTES);
         if (stored) setMyVotes(JSON.parse(stored));
       } catch (e) { if (__DEV__) console.warn(e); }
     } catch (e) { if (__DEV__) console.warn('fetch community deals failed:', e); }
@@ -168,15 +162,38 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
     setDealSubmitting(true);
     setDealError('');
     try {
-      await supabase.from('community_deals').insert({
+      // M17: device_id + 24hr cooldown check
+      const deviceId = await getDeviceId();
+      if (deviceId) {
+        const lastSubmitKey = `routeo_deal_submit_${deviceId}`;
+        const lastSubmit = await AsyncStorage.getItem(lastSubmitKey);
+        if (lastSubmit) {
+          const elapsed = Date.now() - parseInt(lastSubmit, 10);
+          if (elapsed < 24 * 60 * 60 * 1000) {
+            setDealError(t('You can only submit one deal per day.', 'Vous ne pouvez soumettre qu\'une offre par jour.'));
+            setDealSubmitting(false);
+            return;
+          }
+        }
+      }
+
+      const { error } = await supabase.from('community_deals').insert({
         neighbourhood_id: n.id,
         venue_name: dealVenueName.trim(),
         deal_description: dealDescription.trim(),
         approved: false,
       });
-      setDealSubmitted(true);
-      setDealVenueName('');
-      setDealDescription('');
+      if (error) {
+        Alert.alert(t('Submission Error', 'Erreur de soumission'), error.message || t('Unknown error', 'Erreur inconnue'));
+      } else {
+        setDealSubmitted(true);
+        setDealVenueName('');
+        setDealDescription('');
+        // Save submission time for cooldown
+        if (deviceId) {
+          await AsyncStorage.setItem(`routeo_deal_submit_${deviceId}`, String(Date.now()));
+        }
+      }
     } catch (e) {
       if (__DEV__) console.warn('submit deal failed:', e);
       setDealError(t('Could not submit deal. Check your connection.', 'Impossible de soumettre. V\u00e9rifiez votre connexion.'));
@@ -211,7 +228,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
     // Save locally — use ref to avoid stale closure
     const updated = { ...myVotesRef.current };
     if (newVote) updated[dealId] = newVote; else delete updated[dealId];
-    await AsyncStorage.setItem('routeo_my_deal_votes', JSON.stringify(updated));
+    await AsyncStorage.setItem(SK_MY_DEAL_VOTES, JSON.stringify(updated));
     // Send to backend
     if (newVote) {
       try {
@@ -225,7 +242,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
         // Rollback on failure
         setDealVotes(prevDealVotes);
         setMyVotes(prevMyVotes);
-        await AsyncStorage.setItem('routeo_my_deal_votes', JSON.stringify(prevMyVotes));
+        await AsyncStorage.setItem(SK_MY_DEAL_VOTES, JSON.stringify(prevMyVotes));
         setDealVoteError(t('Vote failed. Try again.', 'Le vote a \u00e9chou\u00e9. R\u00e9essayez.'));
         setTimeout(() => setDealVoteError(''), 3000);
       }
@@ -431,15 +448,15 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
                 <View style={{ flexDirection: 'row', justifyContent: 'space-around', width: '100%', marginTop: 14 }}>
                   <View style={{ alignItems: 'center' }}>
                     <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>{transitScore.stop_count}</Text>
-                    <Text style={{ fontSize: fonts.xs || 10, color: colours.muted, fontWeight: '600', marginTop: 2 }}>{t('stops', 'arr\u00eats')}</Text>
+                    <Text style={{ fontSize: 10, color: colours.muted, fontWeight: '600', marginTop: 2 }}>{t('stops', 'arr\u00eats')}</Text>
                   </View>
                   <View style={{ alignItems: 'center' }}>
                     <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>{transitScore.route_count}</Text>
-                    <Text style={{ fontSize: fonts.xs || 10, color: colours.muted, fontWeight: '600', marginTop: 2 }}>{t('routes', 'lignes')}</Text>
+                    <Text style={{ fontSize: 10, color: colours.muted, fontWeight: '600', marginTop: 2 }}>{t('routes', 'lignes')}</Text>
                   </View>
                   <View style={{ alignItems: 'center' }}>
                     <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>{transitScore.avg_frequency}</Text>
-                    <Text style={{ fontSize: fonts.xs || 10, color: colours.muted, fontWeight: '600', marginTop: 2 }}>{t('min avg frequency', 'min freq. moy.')}</Text>
+                    <Text style={{ fontSize: 10, color: colours.muted, fontWeight: '600', marginTop: 2 }}>{t('min avg frequency', 'min freq. moy.')}</Text>
                   </View>
                 </View>
               </View>

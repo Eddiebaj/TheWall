@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import {
   ALL_DAYS, ClassDay, ClassEntry, ClassSchedule, DAY_LABELS_FR,
-  classesForDay, fmt12h, genClassId, nextClassColour, parseTime,
+  classesForDay, fmt12h, genClassId, getClassColour, parseTime,
 } from '../lib/scheduleData';
 import { SK_CLASS_SCHEDULE, SK_COMMUTE_DURATION, SK_CAMPUS } from '../lib/storageKeys';
 import { CAMPUSES } from '../lib/campusData';
@@ -270,7 +270,7 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
     setSelectedDays([]);
     setStartTime('09:00');
     setEndTime('10:30');
-    setColour(nextClassColour());
+    setColour(getClassColour(schedule?.classes?.length ?? 0));
     setEditingId(null);
   };
 

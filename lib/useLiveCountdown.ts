@@ -80,7 +80,7 @@ export function useLiveCountdown(
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [fetchedAt, arrivals.length]);
+  }, [fetchedAt, arrivals]);
 
   // Compute displays (tick is in deps to trigger re-render)
   void tick;

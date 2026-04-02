@@ -19,3 +19,24 @@ export function decodePolyline(encoded: string): { latitude: number; longitude: 
   }
   return coords;
 }
+
+/** Bilingual relative time display */
+export function timeAgo(dateStr: string, lang: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  if (isNaN(then)) return '';
+  const mins = Math.floor((now - then) / 60000);
+  if (mins < 1) return lang === 'fr' ? 'maintenant' : 'just now';
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  return `${days}${lang === 'fr' ? 'j' : 'd'}`;
+}
+
+/** Format 'HH:MM' 24h to 12h display */
+export function fmt12h(time: string): string {
+  const [h, m] = time.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ampm}`;
+}

@@ -1,18 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { haversineKm } from './geo';
 import { SK_TONIGHT_DISMISSED } from './storageKeys';
 
 const CTC_LAT = 45.2969;
 const CTC_LNG = -75.9270;
 const TD_PLACE_LAT = 45.3998;
 const TD_PLACE_LNG = -75.6844;
-
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 export async function shouldShowTonightCard(): Promise<boolean> {
   const hour = new Date().getHours();

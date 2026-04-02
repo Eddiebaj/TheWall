@@ -42,6 +42,11 @@ export async function setPremium(active: boolean, expiresAt?: number): Promise<v
 
 /** Mock purchase — replace with RevenueCat / expo-in-app-purchases */
 export async function handlePurchase(plan: 'monthly' | 'yearly'): Promise<boolean> {
+  // TODO: Replace with RevenueCat before App Store submission
+  if (typeof __DEV__ === 'undefined' || !__DEV__) {
+    console.warn('handlePurchase called in production — purchases are disabled until RevenueCat is integrated');
+    return false;
+  }
   const now = Date.now();
   const duration = plan === 'monthly' ? 30 * 24 * 60 * 60 * 1000 : 365 * 24 * 60 * 60 * 1000;
   await setPremium(true, now + duration);

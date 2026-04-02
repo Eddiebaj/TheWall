@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useApp } from '../context/AppContext';
 import { handlePurchase, PremiumFeature, PREMIUM_FEATURES } from '../lib/premium';
 
@@ -33,13 +34,17 @@ const FEATURES: { key: PremiumFeature; icon: keyof typeof Ionicons.glyphMap; en:
 
 export default function PaywallSheet({ visible, onDismiss, onSuccess, highlightFeature }: PaywallSheetProps) {
   const { colours, fonts, t } = useApp();
+  const router = useRouter();
   const [purchasing, setPurchasing] = useState<'monthly' | 'yearly' | null>(null);
 
   const doPurchase = async (plan: 'monthly' | 'yearly') => {
     setPurchasing(plan);
     try {
       const ok = await handlePurchase(plan);
-      if (ok) onSuccess();
+      if (ok) {
+        onSuccess();
+        router.push('/premium-success' as any);
+      }
     } finally {
       setPurchasing(null);
     }
@@ -59,6 +64,12 @@ export default function PaywallSheet({ visible, onDismiss, onSuccess, highlightF
           <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12 }} />
 
           <ScrollView bounces={false} contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 20, paddingBottom: 16 }}>
+            {/* Test mode banner */}
+            {__DEV__ && (
+              <View style={{ backgroundColor: '#e8a020', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginBottom: 12, alignItems: 'center' }}>
+                <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>TEST MODE — payments not real</Text>
+              </View>
+            )}
             {/* Logo / Badge */}
             <View style={{ alignItems: 'center', marginBottom: 20 }}>
               <View style={{

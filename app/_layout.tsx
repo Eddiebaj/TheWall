@@ -1,10 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, router } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Image, View, Text, ScrollView, StyleSheet } from 'react-native';
 import { AppProvider } from '../context/AppContext';
 import { BoardProvider } from '../context/BoardContext';
 import { SK_ONBOARDED, SK_CRASH_LOG } from '../lib/storageKeys';
+
+// Prevent the native splash screen from auto-hiding until our animated splash starts
+SplashScreen.preventAutoHideAsync();
 
 // Log startup errors to AsyncStorage for diagnostics
 function logCrash(error: unknown) {
@@ -72,7 +76,9 @@ function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Fade in 400ms → hold 600ms → fade out 300ms
+    // Hide the native splash now that our animated splash is showing
+    SplashScreen.hideAsync();
+    // Fade in 400ms -> hold 600ms -> fade out 300ms
     Animated.sequence([
       Animated.timing(opacity, { toValue: 1, duration: 400, useNativeDriver: true }),
       Animated.delay(600),
@@ -95,26 +101,37 @@ function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
 
 function RootNav() {
   const [showSplash, setShowSplash] = useState(true);
-  const destinationRef = useRef<'onboarding' | 'tabs'>('tabs');
+  const [destination, setDestination] = useState<'onboarding' | 'tabs' | null>(null);
 
   useEffect(() => {
-    AsyncStorage.getItem(SK_ONBOARDED)
-      .then(val => {
-        if (!val) destinationRef.current = 'onboarding';
-      })
-      .catch(() => {
-        destinationRef.current = 'onboarding';
-      });
+    // Promise-based coordination: wait for both AsyncStorage check and animation
+    const storagePromise = AsyncStorage.getItem(SK_ONBOARDED)
+      .then(val => (val ? 'tabs' : 'onboarding') as 'onboarding' | 'tabs')
+      .catch(() => 'onboarding' as const);
+
+    const animationPromise = new Promise<void>(resolve => {
+      (animationResolveRef as React.MutableRefObject<(() => void) | null>).current = resolve;
+    });
+
+    Promise.all([storagePromise, animationPromise]).then(([dest]) => {
+      setShowSplash(false);
+      setDestination(dest);
+    });
   }, []);
 
+  const animationResolveRef = useRef<(() => void) | null>(null);
+
   const handleSplashFinish = () => {
-    setShowSplash(false);
-    setTimeout(() => {
-      if (destinationRef.current === 'onboarding') {
-        router.replace('/onboarding' as any);
-      }
-    }, 0);
+    if (animationResolveRef.current) animationResolveRef.current();
   };
+
+  useEffect(() => {
+    if (!showSplash && destination === 'onboarding') {
+      setTimeout(() => {
+        router.replace('/onboarding');
+      }, 0);
+    }
+  }, [showSplash, destination]);
 
   if (showSplash) {
     return <AnimatedSplash onFinish={handleSplashFinish} />;
@@ -127,6 +144,8 @@ function RootNav() {
       <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       <Stack.Screen name="stop/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="route/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="insights" options={{ headerShown: false }} />
+      <Stack.Screen name="premium-success" options={{ headerShown: false }} />
     </Stack>
   );
 }

@@ -17,6 +17,7 @@ export interface WidgetData {
   updatedAt: number;
 }
 
+// TODO: Requires App Groups bridge (e.g. expo-shared-preferences) for native widget access. Current AsyncStorage write is a data prep step only.
 export async function writeWidgetData(data: WidgetData): Promise<void> {
   try {
     await AsyncStorage.setItem(SK_WIDGET_DATA, JSON.stringify(data));

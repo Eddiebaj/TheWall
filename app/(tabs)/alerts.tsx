@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Linking, RefreshControl,
   ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View,
@@ -70,6 +70,47 @@ type LrtData = {
   incidents: LrtIncident[]; fetchedAt: string;
 };
 
+// ── Standalone components (outside main component to avoid re-creation) ──
+
+function StationPill({ station, lineColor }: { station: LrtStation; lineColor: string }) {
+  return (
+    <View style={{
+      paddingHorizontal: 6, paddingVertical: 4, borderRadius: 4,
+      backgroundColor: station.ok ? lineColor + '20' : '#cc3b2a20',
+      borderWidth: 1,
+      borderColor: station.ok ? lineColor + '40' : '#cc3b2a60',
+      minWidth: 36, alignItems: 'center',
+    }}>
+      <Text style={{ fontSize: 9, fontWeight: '800', color: station.ok ? lineColor : '#cc3b2a' }}>
+        {station.code}
+      </Text>
+    </View>
+  );
+}
+
+function LineRow({ label, line, color, fonts, colours, t }: {
+  label: string; line: LrtLine; color: string;
+  fonts: any; colours: any; t: (en: string, fr: string) => string;
+}) {
+  const disrupted = line.status === 'disrupted';
+  return (
+    <View style={{ marginBottom: 12 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: disrupted ? '#cc3b2a' : '#34c759' }} />
+        <Text style={{ fontSize: fonts.sm, fontWeight: '800', color: colours.text }}>{label}</Text>
+        <Text style={{ fontSize: 10, color: disrupted ? '#cc3b2a' : '#34c759', fontWeight: '700' }}>
+          {disrupted ? t('DISRUPTED', 'PERTURBE') : t('RUNNING', 'EN SERVICE')}
+        </Text>
+      </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+        {line.stations.map((s, i) => (
+          <StationPill key={`${label}_${i}`} station={s} lineColor={color} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
 // ── Main Screen ───────────────────────────────────────────────────
 function AlertsScreenInner() {
   const { colours, fonts, t, theme, resolvedTheme } = useApp();
@@ -125,57 +166,33 @@ function AlertsScreenInner() {
     return () => { if (lrtInterval.current) clearInterval(lrtInterval.current); };
   }, []));
 
-  // ── Derived data ──────────────────────────────────────────────
-  const activeAlerts = alerts.filter(a => a.category !== 'accessibility');
-  const accessibilityAlerts = alerts.filter(a => a.category === 'accessibility');
-  const hasStoAlerts = alerts.some(a => a.agency === 'STO');
-  const elevatorKeywords = /elevator|escalator|ascenseur|escalier roulant|hors service|out of service/i;
-  const elevatorAlerts = alerts.filter(a => elevatorKeywords.test(a.title) || elevatorKeywords.test(a.description || ''));
-  const categories = [...new Set(alerts.map(a => a.category))].filter(Boolean);
-  if (hasStoAlerts && !categories.includes('sto')) categories.push('sto');
-  if (elevatorAlerts.length > 0 && !categories.includes('elevators')) categories.push('elevators');
-  const filtered = activeFilter === 'sto' ? alerts.filter(a => a.agency === 'STO')
-    : activeFilter === 'elevators' ? elevatorAlerts
-    : activeFilter ? alerts.filter(a => a.category === activeFilter) : alerts;
-  const criticalCount = alerts.filter(a => a.category === 'cancellation' || a.category === 'lrt').length;
-  const hasAlerts = activeAlerts.length > 0;
-  const statusColor = !hasAlerts ? '#34c759' : CATEGORY_COLOUR[activeAlerts[0]?.category] || '#e8a020';
-
-  // ── Station pill component ─────────────────────────────────────
-  const StationPill = ({ station, lineColor }: { station: LrtStation; lineColor: string }) => (
-    <View style={{
-      paddingHorizontal: 6, paddingVertical: 4, borderRadius: 4,
-      backgroundColor: station.ok ? lineColor + '20' : '#cc3b2a20',
-      borderWidth: 1,
-      borderColor: station.ok ? lineColor + '40' : '#cc3b2a60',
-      minWidth: 36, alignItems: 'center',
-    }}>
-      <Text style={{ fontSize: 9, fontWeight: '800', color: station.ok ? lineColor : '#cc3b2a' }}>
-        {station.code}
-      </Text>
-    </View>
-  );
-
-  // ── LRT line row ───────────────────────────────────────────────
-  const LineRow = ({ label, line, color }: { label: string; line: LrtLine; color: string }) => {
-    const disrupted = line.status === 'disrupted';
-    return (
-      <View style={{ marginBottom: 12 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: disrupted ? '#cc3b2a' : '#34c759' }} />
-          <Text style={{ fontSize: fonts.sm, fontWeight: '800', color: colours.text }}>{label}</Text>
-          <Text style={{ fontSize: 10, color: disrupted ? '#cc3b2a' : '#34c759', fontWeight: '700' }}>
-            {disrupted ? t('DISRUPTED', 'PERTURBE') : t('RUNNING', 'EN SERVICE')}
-          </Text>
-        </View>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
-          {line.stations.map((s, i) => (
-            <StationPill key={`${label}_${i}`} station={s} lineColor={color} />
-          ))}
-        </View>
-      </View>
-    );
-  };
+  // ── Derived data (memoized) ──────────────────────────────────
+  const { activeAlerts, accessibilityAlerts, elevatorAlerts, categories, filtered, criticalCount, hasAlerts, statusColor } = useMemo(() => {
+    const _activeAlerts = alerts.filter(a => a.category !== 'accessibility');
+    const _accessibilityAlerts = alerts.filter(a => a.category === 'accessibility');
+    const _hasStoAlerts = alerts.some(a => a.agency === 'STO');
+    const _elevatorKeywords = /elevator|escalator|ascenseur|escalier roulant|hors service|out of service/i;
+    const _elevatorAlerts = alerts.filter(a => _elevatorKeywords.test(a.title) || _elevatorKeywords.test(a.description || ''));
+    const _categories = [...new Set(alerts.map(a => a.category))].filter(Boolean);
+    if (_hasStoAlerts && !_categories.includes('sto')) _categories.push('sto');
+    if (_elevatorAlerts.length > 0 && !_categories.includes('elevators')) _categories.push('elevators');
+    const _filtered = activeFilter === 'sto' ? alerts.filter(a => a.agency === 'STO')
+      : activeFilter === 'elevators' ? _elevatorAlerts
+      : activeFilter ? alerts.filter(a => a.category === activeFilter) : alerts;
+    const _criticalCount = alerts.filter(a => a.category === 'cancellation' || a.category === 'lrt').length;
+    const _hasAlerts = _activeAlerts.length > 0;
+    const _statusColor = !_hasAlerts ? '#34c759' : CATEGORY_COLOUR[_activeAlerts[0]?.category] || '#e8a020';
+    return {
+      activeAlerts: _activeAlerts,
+      accessibilityAlerts: _accessibilityAlerts,
+      elevatorAlerts: _elevatorAlerts,
+      categories: _categories,
+      filtered: _filtered,
+      criticalCount: _criticalCount,
+      hasAlerts: _hasAlerts,
+      statusColor: _statusColor,
+    };
+  }, [alerts, activeFilter]);
 
   // ── Render alert card ──────────────────────────────────────────
   const renderAlertCard = (alert: ServiceAlert) => {
@@ -331,9 +348,9 @@ function AlertsScreenInner() {
             </View>
           ) : lrt ? (
             <>
-              <LineRow label={t('Line 1 Confederation', 'Ligne 1 Confederation')} line={lrt.line1} color={LINE_COLOURS.line1} />
-              <LineRow label={t('Line 2 Trillium', 'Ligne 2 Trillium')} line={lrt.line2} color={LINE_COLOURS.line2} />
-              <LineRow label={t('Line 4 Airport', 'Ligne 4 Aeroport')} line={lrt.line4} color={LINE_COLOURS.line4} />
+              <LineRow label={t('Line 1 Confederation', 'Ligne 1 Confederation')} line={lrt.line1} color={LINE_COLOURS.line1} fonts={fonts} colours={colours} t={t} />
+              <LineRow label={t('Line 2 Trillium', 'Ligne 2 Trillium')} line={lrt.line2} color={LINE_COLOURS.line2} fonts={fonts} colours={colours} t={t} />
+              <LineRow label={t('Line 4 Airport', 'Ligne 4 Aeroport')} line={lrt.line4} color={LINE_COLOURS.line4} fonts={fonts} colours={colours} t={t} />
 
               {/* Recent incidents (last 24h) */}
               {lrt.incidents.filter(inc => inc.hoursAgo <= 24).length > 0 && (

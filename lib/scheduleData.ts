@@ -1,6 +1,8 @@
 /**
  * Class schedule data model and helpers.
  */
+import { fmt12h } from './utils';
+export { fmt12h };
 
 export type ClassDay = 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat' | 'Sun';
 
@@ -30,28 +32,14 @@ const CLASS_COLOURS = [
   '#d4531a', '#00838f', '#c2185b', '#4a148c', '#006064',
 ];
 
-let colourIndex = 0;
-export function nextClassColour(): string {
-  const c = CLASS_COLOURS[colourIndex % CLASS_COLOURS.length];
-  colourIndex++;
-  return c;
-}
-
-export function resetColourIndex(): void {
-  colourIndex = 0;
+export function getClassColour(index: number): string {
+  return CLASS_COLOURS[index % CLASS_COLOURS.length];
 }
 
 /** Parse 'HH:MM' to minutes since midnight */
 export function parseTime(t: string): number {
   const [h, m] = t.split(':').map(Number);
   return h * 60 + m;
-}
-
-/** Format 'HH:MM' 24h to 12h display */
-export function fmt12h(time: string): string {
-  const [h, m] = time.split(':').map(Number);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
 /** Get JS day index (0=Sun) from ClassDay */

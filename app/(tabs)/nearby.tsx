@@ -1,15 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, ImageBackground, Linking, Platform,
-  ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
+  RefreshControl, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../context/AppContext';
 import { PlaceCardSkeleton } from '../../components/Shimmer';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
+import { haversineKm } from '../../lib/geo';
 import { SK_SAVED_PLACES } from '../../lib/storageKeys';
 import { supabase } from '../../lib/supabase';
 import { toTitleCase } from '../../lib/utils';
@@ -17,10 +18,10 @@ const ARRIVALS_URL = 'https://routeo-backend.vercel.app/api/arrivals';
 
 const CATEGORIES = [
   { id: 'restaurant', label_en: 'Eats', label_fr: 'Restos', icon: 'restaurant', color: '#cc3b2a' },
-  { id: 'cafe', label_en: 'Coffee', label_fr: 'Café', icon: 'cafe', color: '#c0852a' },
+  { id: 'cafe', label_en: 'Coffee', label_fr: 'Caf\u00e9', icon: 'cafe', color: '#c0852a' },
   { id: 'shopping', label_en: 'Shopping', label_fr: 'Magasins', icon: 'bag-handle', color: '#004890' },
   { id: 'gym', label_en: 'Gyms', label_fr: 'Gyms', icon: 'barbell', color: '#00A78D' },
-  { id: 'supermarket', label_en: 'Grocery', label_fr: 'Épicerie', icon: 'cart', color: '#004890' },
+  { id: 'supermarket', label_en: 'Grocery', label_fr: '\u00c9picerie', icon: 'cart', color: '#004890' },
   { id: 'pharmacy', label_en: 'Pharmacy', label_fr: 'Pharmacie', icon: 'medical', color: '#7b5ea7' },
   { id: 'hardware_store', label_en: 'Hardware', label_fr: 'Quincaillerie', icon: 'construct', color: '#e8a020' },
   { id: 'bank', label_en: 'Services', label_fr: 'Services', icon: 'business', color: '#6b7f99' },
@@ -28,11 +29,11 @@ const CATEGORIES = [
 
 const SORT_OPTIONS = [
   { id: 'distance', label_en: 'Nearest', label_fr: 'Plus proche', icon: 'walk' },
-  { id: 'rating', label_en: 'Top Rated', label_fr: 'Mieux noté', icon: 'star' },
+  { id: 'rating', label_en: 'Top Rated', label_fr: 'Mieux not\u00e9', icon: 'star' },
   { id: 'open', label_en: 'Open Now', label_fr: 'Ouvert', icon: 'time' },
 ] as const;
 
-// Distance filter options in metres — 0 means "show all"
+// Distance filter options in metres -- 0 means "show all"
 const DISTANCE_OPTIONS = [
   { label: 'All', label_fr: 'Tout', value: 0 },
   { label: '1 km', label_fr: '1 km', value: 1000 },
@@ -41,7 +42,7 @@ const DISTANCE_OPTIONS = [
   { label: '5 km', label_fr: '5 km', value: 5000 },
 ];
 
-// Keyword categories — when search matches a key, expand to match related terms
+// Keyword categories -- when search matches a key, expand to match related terms
 const KEYWORD_CATEGORIES: { [key: string]: string[] } = {
   'happy hour': ['bar', 'pub', 'brewery', 'lounge'],
   'cheap': ['fast food', 'food court', 'cafe'],
@@ -60,7 +61,7 @@ const KEYWORD_CATEGORIES: { [key: string]: string[] } = {
   'dessert': ['dessert', 'ice cream', 'bakery', 'donut', 'cake'],
 };
 
-// Fetch radius — large enough to capture the whole downtown core
+// Fetch radius -- large enough to capture the whole downtown core
 const FETCH_RADIUS = 5000;
 
 type SortId = typeof SORT_OPTIONS[number]['id'];
@@ -140,6 +141,7 @@ function ExploreScreenInner() {
   const [filteredPlaces, setFilteredPlaces] = useState<Place[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [nearbyStops, setNearbyStops] = useState<StopCoord[]>([]);
   const [transitMap, setTransitMap] = useState<{ [placeId: string]: NearbyTransit }>({});
@@ -182,7 +184,33 @@ function ExploreScreenInner() {
   };
 
   useEffect(() => { getLocation(); }, []);
-  useEffect(() => { if (location) fetchPlaces(); }, [location, selectedCategory, sortBy]);
+
+  // Fetch when location or category changes (NOT sortBy)
+  useEffect(() => { if (location) fetchPlaces(); }, [location, selectedCategory]);
+
+  // Re-sort in memory when sortBy changes
+  const sortedAllPlaces = useMemo(() => {
+    if (allPlaces.length === 0) return allPlaces;
+    const sorted = [...allPlaces];
+    if (sortBy === 'rating') {
+      const C = 200;
+      const GLOBAL_MEAN = 4.0;
+      const score = (p: Place) => {
+        const n = p.reviewCount ?? 0;
+        const s = p.rating ?? GLOBAL_MEAN;
+        return (n / (n + C)) * s + (C / (n + C)) * GLOBAL_MEAN;
+      };
+      sorted.sort((a, b) => score(b) - score(a));
+    } else if (sortBy === 'open') {
+      sorted.sort((a, b) => {
+        if (a.open === b.open) return a.distance - b.distance;
+        return a.open ? -1 : 1;
+      });
+    } else {
+      sorted.sort((a, b) => a.distance - b.distance);
+    }
+    return sorted;
+  }, [allPlaces, sortBy]);
 
   // Load stops from Supabase when location is available
   useEffect(() => {
@@ -217,7 +245,7 @@ function ExploreScreenInner() {
         let nearest: StopCoord | null = null;
         let nearestDist = Infinity;
         for (const stop of nearbyStops) {
-          const d = getDistance(place.lat, place.lng, stop.stop_lat, stop.stop_lon);
+          const d = haversineKm(place.lat, place.lng, stop.stop_lat, stop.stop_lon) * 1000;
           if (d < nearestDist) { nearestDist = d; nearest = stop; }
         }
         if (!nearest || nearestDist > 2000) return; // skip if > 2km
@@ -225,7 +253,7 @@ function ExploreScreenInner() {
           const resp = await fetchWithTimeout(`${ARRIVALS_URL}?stop=${nearest.stop_id}`);
           if (!resp.ok) throw new Error('HTTP ' + resp.status);
           const data = await resp.json();
-          const first = (data.arrivals || [])[0];
+          const first = (data.trips || [])[0];
           if (first) {
             updates[place.id] = {
               stopName: nearest.stop_name,
@@ -244,10 +272,10 @@ function ExploreScreenInner() {
     fetchTransit();
   }, [nearbyStops, filteredPlaces]);
 
-  // Re-filter client-side when distance cap or search query changes — no extra API call needed
+  // Re-filter client-side when distance cap, search query, or sorted places change
   useEffect(() => {
-    applyFilters(allPlaces, searchQuery, maxDistance);
-  }, [searchQuery, maxDistance, allPlaces]);
+    applyFilters(sortedAllPlaces, searchQuery, maxDistance);
+  }, [searchQuery, maxDistance, sortedAllPlaces]);
 
   // Keyword-triggered Google Places search when local filter returns no results
   const keywordTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -274,7 +302,7 @@ function ExploreScreenInner() {
           return {
             id: p.place_id, name: p.name, vicinity: p.vicinity,
             lat: loc.lat, lng: loc.lng,
-            distance: getDistance(location.lat, location.lng, loc.lat, loc.lng),
+            distance: Math.round(haversineKm(location.lat, location.lng, loc.lat, loc.lng) * 1000),
             rating: p.rating, reviewCount: p.user_ratings_total,
             open: p.opening_hours?.open_now, photoRef: p.photos?.[0]?.photo_reference ?? null,
           };
@@ -289,7 +317,7 @@ function ExploreScreenInner() {
       }
     }, 600);
     return () => { if (keywordTimer.current) clearTimeout(keywordTimer.current); };
-  }, [searchQuery, location]);
+  }, [searchQuery, location, filteredPlaces]);
 
   const applyFilters = (places: Place[], query: string, distCap: number) => {
     let result = places;
@@ -304,7 +332,7 @@ function ExploreScreenInner() {
       result = result.filter(p => {
         const name = p.name.toLowerCase();
         const addr = p.vicinity.toLowerCase();
-        return searchTerms.some(t => name.includes(t) || addr.includes(t));
+        return searchTerms.some(term => name.includes(term) || addr.includes(term));
       });
     }
     setFilteredPlaces(result);
@@ -315,8 +343,8 @@ function ExploreScreenInner() {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         setLocationError(t(
-          'Location permission denied — enable it in Settings to use Explore.',
-          'Permission de localisation refusée — activez-la dans les paramètres.'
+          'Location permission denied -- enable it in Settings to use Explore.',
+          'Permission de localisation refus\u00e9e -- activez-la dans les param\u00e8tres.'
         ));
         return;
       }
@@ -325,18 +353,14 @@ function ExploreScreenInner() {
     } catch {
       setLocationError(t(
         'Could not get your location. Please try again.',
-        'Impossible d\'obtenir votre position. Veuillez réessayer.'
+        'Impossible d\'obtenir votre position. Veuillez r\u00e9essayer.'
       ));
     }
   };
 
-  const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => {
-    const R = 6371000;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-    return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-  };
+  // getDistance returns metres (haversineKm returns km)
+  const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) =>
+    Math.round(haversineKm(lat1, lng1, lat2, lng2) * 1000);
 
   const fetchPlaces = async () => {
     if (!location) return;
@@ -346,13 +370,17 @@ function ExploreScreenInner() {
         ? ['shopping_mall', 'clothing_store', 'shoe_store', 'jewelry_store', 'department_store']
         : [selectedCategory.id];
 
+      // Fetch all types in parallel (H8)
+      const allResponses = await Promise.all(
+        types.map(type => {
+          const url = `https://routeo-backend.vercel.app/api/places?action=nearby&location=${location.lat},${location.lng}&radius=${FETCH_RADIUS}&type=${type}`;
+          return fetchWithTimeout(url).then(resp => resp.ok ? resp.json() : null);
+        })
+      );
+
       const results: Place[] = [];
-      for (const type of types) {
-        // Use radius instead of rankby=distance so we capture everything within the area
-        const url = `https://routeo-backend.vercel.app/api/places?action=nearby&location=${location.lat},${location.lng}&radius=${FETCH_RADIUS}&type=${type}`;
-        const resp = await fetchWithTimeout(url);
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const data = await resp.json();
+      for (const data of allResponses) {
+        if (!data) continue;
         (data.results || []).forEach((p: any) => {
           if (results.find(r => r.id === p.place_id)) return;
           const loc = p.geometry?.location;
@@ -372,31 +400,12 @@ function ExploreScreenInner() {
         });
       }
 
-      // Sort the full unfiltered set
-      if (sortBy === 'rating') {
-        // Bayesian popularity score — blends stars with review volume so a 4.8★ with
-        // 3 reviews does not beat a 4.5★ with 2,000. C = damping constant (reviews needed
-        // before rating is trusted at face value). globalMean = prior for unknown places.
-        const C = 200;
-        const GLOBAL_MEAN = 4.0;
-        const score = (p: Place) => {
-          const n = p.reviewCount ?? 0;
-          const s = p.rating ?? GLOBAL_MEAN;
-          return (n / (n + C)) * s + (C / (n + C)) * GLOBAL_MEAN;
-        };
-        results.sort((a, b) => score(b) - score(a));
-      } else if (sortBy === 'open') {
-        results.sort((a, b) => {
-          if (a.open === b.open) return a.distance - b.distance;
-          return a.open ? -1 : 1;
-        });
-      } else {
-        results.sort((a, b) => a.distance - b.distance);
-      }
+      // Sort by default (distance); useMemo sortedAllPlaces handles re-sort
+      results.sort((a, b) => a.distance - b.distance);
 
       setAllPlaces(results);
       applyFilters(results, searchQuery, maxDistance);
-      setSearchQuery('');
+      // Don't reset searchQuery when fetching (M10 partially: only reset on category change)
       // Reset transit cache for new category
       transitFetchedRef.current.clear();
       setTransitMap({});
@@ -408,11 +417,17 @@ function ExploreScreenInner() {
     }
   };
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchPlaces();
+    setRefreshing(false);
+  };
+
   const getPhotoUrl = (ref: string) =>
     `https://routeo-backend.vercel.app/api/places?action=photo&photo_reference=${ref}&maxwidth=600`;
 
   const navigateToPlanner = (place: Place) =>
-    router.push({ pathname: '/(tabs)/planner', params: { toLabel: place.name, toLat: String(place.lat), toLng: String(place.lng) } } as any);
+    router.push({ pathname: '/(tabs)/planner', params: { toLabel: place.name, toLat: String(place.lat), toLng: String(place.lng) } });
 
   const formatDistance = (m: number) => m < 1000 ? `${m}m` : `${(m / 1000).toFixed(1)}km`;
   const catLabel = (cat: Category) => language === 'fr' ? cat.label_fr : cat.label_en;
@@ -483,7 +498,7 @@ function ExploreScreenInner() {
               borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3,
             }}>
               <Text style={{ color: 'white', fontSize: fonts.sm, fontWeight: '700' }}>
-                {place.open ? t('Open', 'Ouvert') : t('Closed', 'Fermé')}
+                {place.open ? t('Open', 'Ouvert') : t('Closed', 'Ferm\u00e9')}
               </Text>
             </View>
           )}
@@ -532,11 +547,11 @@ function ExploreScreenInner() {
             )}
             <Text style={{ fontSize: fonts.sm, color: colours.muted }}>·</Text>
             <Text style={{ fontSize: fonts.sm, color: colours.muted }}>
-              {Math.ceil(place.distance / 80)} {t('min walk', 'min à pied')}
+              {Math.ceil(place.distance / 80)} {t('min walk', 'min \u00e0 pied')}
             </Text>
           </View>
           <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>
-            {t('Plan trip →', 'Planifier →')}
+            {t('Plan trip \u2192', 'Planifier \u2192')}
           </Text>
         </View>
 
@@ -560,7 +575,7 @@ function ExploreScreenInner() {
                 {toTitleCase(transit.stopName)}
               </Text>
               <Text style={{ fontSize: 10, color: colours.muted }}>
-                {transit.walkMin} {t('min walk', 'min à pied')}
+                {transit.walkMin} {t('min walk', 'min \u00e0 pied')}
               </Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 8 }}>
@@ -585,7 +600,7 @@ function ExploreScreenInner() {
         <TouchableOpacity
           style={{ marginTop: 16, backgroundColor: colours.accent, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 10 }}
           onPress={() => Linking.openSettings()}>
-          <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>{t('Open Settings', 'Ouvrir les paramètres')}</Text>
+          <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>{t('Open Settings', 'Ouvrir les param\u00e8tres')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -607,8 +622,8 @@ function ExploreScreenInner() {
         <Ionicons name={selectedCategory.icon as any} size={40} color={colours.muted} style={{ marginBottom: 12 }} />
         <Text style={{ color: colours.muted, fontSize: fonts.md, textAlign: 'center' }}>
           {searchQuery
-            ? t(`No results for "${searchQuery}"`, `Aucun résultat pour "${searchQuery}"`)
-            : t(`No ${catLabel(selectedCategory).toLowerCase()} found nearby`, `Aucun(e) ${catLabel(selectedCategory).toLowerCase()} trouvé(e) à proximité`)
+            ? t(`No results for "${searchQuery}"`, `Aucun r\u00e9sultat pour "${searchQuery}"`)
+            : t(`No ${catLabel(selectedCategory).toLowerCase()} found nearby`, `Aucun(e) ${catLabel(selectedCategory).toLowerCase()} trouv\u00e9(e) \u00e0 proximit\u00e9`)
           }
         </Text>
         {maxDistance > 0 && (
@@ -622,11 +637,11 @@ function ExploreScreenInner() {
         {!searchQuery && maxDistance === 0 && (
           <TouchableOpacity
             accessibilityRole="button"
-            accessibilityLabel={t('Retry search', 'Réessayer la recherche')}
+            accessibilityLabel={t('Retry search', 'R\u00e9essayer la recherche')}
             style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}
             onPress={fetchPlaces}
           >
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Retry', 'Réessayer')}</Text>
+            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Retry', 'R\u00e9essayer')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -635,10 +650,11 @@ function ExploreScreenInner() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100, paddingTop: 8 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colours.accent} />}
       >
         <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
           {filteredPlaces.length} {catLabel(selectedCategory).toLowerCase()} · {sortLabel()}
-          {maxDistance > 0 ? ` · within ${formatDistance(maxDistance)}` : ''}
+          {maxDistance > 0 ? ` · ${t(`within ${formatDistance(maxDistance)}`, `dans ${formatDistance(maxDistance)}`)}` : ''}
         </Text>
         {filteredPlaces.map((place, index) => renderPlaceCard(place, index))}
       </ScrollView>

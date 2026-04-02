@@ -40,15 +40,4 @@ export const SOURCE_LOGOS: { [key: string]: { image: any; size: number } } = {
   'Kitchissippi Times': { image: require('../assets/news/kitchissippi-times.png'), size: 100 },
 };
 
-export function timeAgo(dateStr: string, lang: string): string {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  if (isNaN(then)) return '';
-  const mins = Math.floor((now - then) / 60000);
-  if (mins < 1) return lang === 'fr' ? 'maintenant' : 'just now';
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h`;
-  const days = Math.floor(hrs / 24);
-  return `${days}${lang === 'fr' ? 'j' : 'd'}`;
-}
+export { timeAgo } from './utils';

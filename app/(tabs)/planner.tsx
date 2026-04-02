@@ -7,12 +7,13 @@ let Notifications: typeof import('expo-notifications') | null = null;
 try { Notifications = require('expo-notifications'); } catch {}
 import { useLocalSearchParams } from 'expo-router';
 import { toTitleCase, decodePolyline } from '../../lib/utils';
+import { haversineKm } from '../../lib/geo';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, Dimensions, FlatList, Image, Keyboard, KeyboardAvoidingView,
-  Linking, Modal, NativeScrollEvent, NativeSyntheticEvent, PanResponder, Platform, RefreshControl, ScrollView, Share,
+  Linking, Modal, NativeScrollEvent, NativeSyntheticEvent, Platform, RefreshControl, ScrollView, Share,
   Text,
-  TextInput, TouchableOpacity, View
+  TextInput, TouchableOpacity, useWindowDimensions, View
 } from 'react-native';
 let RNMaps: typeof import('react-native-maps') | null = null;
 try { RNMaps = require('react-native-maps'); } catch {}
@@ -79,14 +80,6 @@ const PLACES_URL = 'https://routeo-backend.vercel.app/api/places';
 // Canadian Tire Centre coords (Sens home)
 const CTC_LAT = 45.2973;
 const CTC_LNG = -75.9267;
-
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 type PlaceResult = { placeId: string; label: string; lat?: number; lng?: number };
 type WalkStep = { distance: number; relativeDirection: string; streetName: string; instruction?: string | null };
@@ -319,8 +312,6 @@ function getBounds(coords: { latitude: number; longitude: number }[]) {
   };
 }
 
-const SCREEN_H = Dimensions.get('window').height;
-
 function directionIcon(dir: string): string {
   const map: Record<string, string> = {
     LEFT: 'arrow-back', SLIGHTLY_LEFT: 'arrow-back',
@@ -334,6 +325,7 @@ function directionIcon(dir: string): string {
 
 function PlannerScreenInner() {
   const { colours, fonts, t, language } = useApp();
+  const { height: SCREEN_H } = useWindowDimensions();
   const params = useLocalSearchParams();
 
   const [fromText, setFromText] = useState('');
@@ -675,7 +667,7 @@ function PlannerScreenInner() {
   };
 
   // ── Plan core — accepts explicit places (used by auto-plan on deep-link) ──
-  const planWithPlaces = async (resolvedFrom: PlaceResult, resolvedTo: PlaceResult) => {
+  const planWithPlaces = useCallback(async (resolvedFrom: PlaceResult, resolvedTo: PlaceResult) => {
     if (!resolvedFrom?.lat || !resolvedTo?.lat) return;
     setLoading(true); setError(''); setSearched(true); setItineraries([]); setShowRouteMap(false); setSelectedRouteIdx(0); setAccessibilityWarning(false);
 
@@ -835,7 +827,8 @@ function PlannerScreenInner() {
       setError(t('Could not connect to trip planner. Check your connection.', 'Connexion au planificateur impossible. V\u00e9rifiez votre connexion.'));
     }
     setLoading(false);
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arriveBy, departTime, accessibleRouting, walkPreference, walkPace, travelMode]);
 
   // ── Plan — called by button, resolves text inputs first ───────
   const plan = async () => {
@@ -1045,6 +1038,7 @@ function PlannerScreenInner() {
     const firstTransitIdx = legs.findIndex(l => l.mode !== 'WALK');
     const transitWait = firstTransitIdx > 0 ? Math.round(legs[0].duration / 60) : 0;
 
+    let cancelled = false;
     (async () => {
       try {
         // Fetch walk-only route
@@ -1055,8 +1049,10 @@ function PlannerScreenInner() {
         const dateStr = `${month}-${day}-${now.getFullYear()}`;
         const walkUrl = `${PLAN_URL}?fromLat=${fromPlace.lat}&fromLng=${fromPlace.lng}&fromLabel=${encodeURIComponent(fromPlace.label)}&toLat=${toPlace.lat}&toLng=${toPlace.lng}&toLabel=${encodeURIComponent(toPlace.label)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=false&mode=walking`;
         const walkResp = await fetchWithTimeout(walkUrl, { timeout: 6000 });
+        if (cancelled) return;
         if (!walkResp.ok) { setWalkAlt(null); return; }
         const walkData = await walkResp.json();
+        if (cancelled) return;
         const walkItin = walkData?.itineraries?.[0];
         if (!walkItin) { setWalkAlt(null); return; }
         const walkMins = Math.round((walkItin.duration || 0) / 60);
@@ -1067,6 +1063,7 @@ function PlannerScreenInner() {
         let precip = false;
         try {
           const wResp = await fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?latitude=${fromPlace.lat}&longitude=${fromPlace.lng}&current=temperature_2m,weathercode&timezone=auto`, { timeout: 4000 });
+          if (cancelled) return;
           if (wResp.ok) {
             const wData = await wResp.json();
             temp = wData?.current?.temperature_2m ?? null;
@@ -1075,24 +1072,25 @@ function PlannerScreenInner() {
           }
         } catch (e) { if (__DEV__) console.warn(e); }
 
-        setWalkAlt({ walkMins, transitMins, transitWait, temp, precip });
-      } catch { setWalkAlt(null); }
+        if (!cancelled) setWalkAlt({ walkMins, transitMins, transitWait, temp, precip });
+      } catch { if (!cancelled) setWalkAlt(null); }
     })();
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itineraries, travelMode]);
 
   // ── Save / unsave route ───────────────────────────────────────
-  const isRouteSaved = () => {
+  const isRouteSaved = useMemo(() => {
     if (!fromPlace || !toPlace) return false;
     return savedRoutes.some(r =>
       Math.abs(r.fromLat - (fromPlace.lat ?? 0)) < 0.0001 &&
       Math.abs(r.toLat - (toPlace.lat ?? 0)) < 0.0001
     );
-  };
+  }, [fromPlace, toPlace, savedRoutes]);
 
   const toggleSaveRoute = async () => {
     if (!fromPlace?.lat || !toPlace?.lat) return;
-    const already = isRouteSaved();
+    const already = isRouteSaved;
     let updated: SavedRoute[];
     if (already) {
       updated = savedRoutes.filter(r =>
@@ -1241,6 +1239,7 @@ function PlannerScreenInner() {
     setRouteDetailBus(null);
     setRouteDetailShape([]);
 
+    try {
     const routeNum = leg.routeShortName;
     const isSTO = leg.agencyId?.includes('STO');
     const agencyParam = isSTO ? '&agency=STO' : '';
@@ -1337,7 +1336,11 @@ function PlannerScreenInner() {
       } catch (e) { if (__DEV__) console.warn(e); }
     }
 
-    setRouteDetailLoading(false);
+    } catch (e) {
+      if (__DEV__) console.warn('openRouteDetail failed:', e);
+    } finally {
+      setRouteDetailLoading(false);
+    }
   }, []);
 
   const closeRouteDetail = useCallback(() => {
@@ -2754,15 +2757,15 @@ function PlannerScreenInner() {
               </Text>
               <TouchableOpacity
                 onPress={toggleSaveRoute}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: isRouteSaved() ? colours.accent : colours.border, backgroundColor: isRouteSaved() ? colours.accent + '15' : colours.surface }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: isRouteSaved ? colours.accent : colours.border, backgroundColor: isRouteSaved ? colours.accent + '15' : colours.surface }}
                 activeOpacity={0.8}
                 accessibilityRole="button"
-                accessibilityLabel={isRouteSaved() ? t('Remove saved route', 'Retirer le trajet enregistre') : t('Save route', 'Enregistrer le trajet')}
-                accessibilityState={{ selected: isRouteSaved() }}
+                accessibilityLabel={isRouteSaved ? t('Remove saved route', 'Retirer le trajet enregistre') : t('Save route', 'Enregistrer le trajet')}
+                accessibilityState={{ selected: isRouteSaved }}
               >
-                <Ionicons name={isRouteSaved() ? 'bookmark' : 'bookmark-outline'} size={14} color={isRouteSaved() ? colours.accent : colours.muted} />
-                <Text style={{ fontSize: 12, fontWeight: '700', color: isRouteSaved() ? colours.accent : colours.muted }}>
-                  {isRouteSaved() ? t('Saved', 'Enregistre') : t('Save route', 'Enregistrer le trajet')}
+                <Ionicons name={isRouteSaved ? 'bookmark' : 'bookmark-outline'} size={14} color={isRouteSaved ? colours.accent : colours.muted} />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: isRouteSaved ? colours.accent : colours.muted }}>
+                  {isRouteSaved ? t('Saved', 'Enregistre') : t('Save route', 'Enregistrer le trajet')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -2833,8 +2836,10 @@ function PlannerScreenInner() {
               if (allCoords.length === 0) return null;
               const region = getBounds(allCoords);
               const selectedItin = itineraries[selectedRouteIdx] || itineraries[0];
-              const origin = selectedItin.legs?.[0]?.from;
-              const dest = selectedItin.legs?.[selectedItin.legs.length - 1]?.to;
+              const legs = selectedItin.legs;
+              if (!legs?.length) return null;
+              const origin = legs[0]?.from;
+              const dest = legs[legs.length - 1]?.to;
               return (
                 <View style={{ marginBottom: 12, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: colours.border }}>
                   <MapView

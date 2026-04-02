@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Dimensions, Image, Platform, RefreshControl,
   ScrollView, StatusBar, Text, TouchableOpacity, View
@@ -10,6 +10,8 @@ import {
 import { useApp } from '../../context/AppContext';
 import { useBoard } from '../../context/BoardContext';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
+import { haversineKm } from '../../lib/geo';
+import { cardShadow as sharedCardShadow } from '../../lib/styles';
 import { cacheArrivals, getCachedArrivals } from '../../lib/arrivalCache';
 import { SK_SAVED_PLACES, SK_TRIP_HISTORY } from '../../lib/storageKeys';
 
@@ -31,14 +33,6 @@ type SavedPlace = {
 type TripEntry = { fromLabel: string; toLabel: string; plannedAt: string; durationMins?: number; routes?: string[] };
 type StopArrival = { routeId: string; headsign: string; minsAway: number };
 
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
 function timeAgo(dateStr: string, t: (en: string, fr: string) => string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
@@ -49,7 +43,38 @@ function timeAgo(dateStr: string, t: (en: string, fr: string) => string): string
   return t(`${days}d ago`, `il y a ${days}j`);
 }
 
-export default function SavedScreen() {
+// ── Error Boundary ───────────────────────────────────────────────
+class SavedErrorBoundary extends React.Component<
+  { children: React.ReactNode; colours: any; fonts: any; t: (en: string, fr: string) => string },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error: Error) { if (__DEV__) console.warn('SavedErrorBoundary caught:', error); }
+  render() {
+    if (this.state.hasError) {
+      const { colours, fonts, t } = this.props;
+      return (
+        <View style={{ flex: 1, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+          <Ionicons name="alert-circle-outline" size={48} color={colours.muted} />
+          <Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
+            {t('Something went wrong', 'Une erreur s\'est produite')}
+          </Text>
+          <TouchableOpacity
+            onPress={() => this.setState({ hasError: false })}
+            style={{ marginTop: 20, backgroundColor: colours.accent, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }}
+            accessibilityRole="button"
+          >
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: fonts.md }}>{t('Tap to retry', 'Appuyez pour r\u00e9essayer')}</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function SavedScreenInner() {
   const { colours, resolvedTheme, t, fonts } = useApp();
   const { savedBoard: boardItems } = useBoard();
   const isLight = resolvedTheme === 'light';
@@ -67,15 +92,49 @@ export default function SavedScreen() {
   const [loaded, setLoaded] = useState(false);
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const stopsRef = useRef<SavedStop[]>(stops);
+  const isFetchingRef = useRef(false);
   useEffect(() => { stopsRef.current = stops; }, [stops]);
 
-  const cardShadow = isLight ? {
-    shadowColor: '#004890',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
-    elevation: 2,
-  } : {};
+  const cardShadow = isLight ? sharedCardShadow : {};
+
+  // Shared arrival-fetching helper (L1)
+  const fetchArrivalsForStops = async (savedStops: SavedStop[]): Promise<{ map: Record<string, StopArrival[]>; cached: Record<string, number> }> => {
+    const results = await Promise.allSettled(
+      savedStops.map(async s => {
+        const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${s.id}`, { timeout: 8000 });
+        if (!resp.ok) return { stopId: s.id, arrivals: [] as StopArrival[] };
+        const data = await resp.json();
+        const now = Date.now();
+        const arr: StopArrival[] = (data.trips || [])
+          .filter((tr: any) => tr.adjustedTime > now)
+          .slice(0, 4)
+          .map((tr: any) => ({
+            routeId: tr.routeId || tr.route || '',
+            headsign: tr.headsign || tr.destination || '',
+            minsAway: Math.max(0, Math.round((tr.adjustedTime - now) / 60000)),
+          }));
+        return { stopId: s.id, arrivals: arr };
+      })
+    );
+    const map: Record<string, StopArrival[]> = {};
+    const cached: Record<string, number> = {};
+    await Promise.all(results.map(async (r, i) => {
+      const stopId = savedStops[i].id;
+      if (r.status === 'fulfilled' && r.value.arrivals.length > 0) {
+        map[stopId] = r.value.arrivals;
+        cacheArrivals(stopId, { arrivals: r.value.arrivals, source: 'live', stopName: savedStops[i].name });
+      } else {
+        const cachedData = await getCachedArrivals(stopId);
+        if (cachedData && cachedData.arrivals.length > 0) {
+          map[stopId] = cachedData.arrivals;
+          cached[stopId] = cachedData.cachedAt;
+        } else {
+          map[stopId] = [];
+        }
+      }
+    }));
+    return { map, cached };
+  };
 
   // ── Load data ──────────────────────────────────────────────────
   const loadData = useCallback(async () => {
@@ -136,44 +195,10 @@ export default function SavedScreen() {
 
       setLoaded(true);
 
-      // Fetch arrivals
+      // Fetch arrivals using shared helper
       if (savedStops.length > 0) {
         setArrivalsLoading(true);
-        const results = await Promise.allSettled(
-          savedStops.map(async s => {
-            const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${s.id}`, { timeout: 8000 });
-            if (!resp.ok) return { stopId: s.id, arrivals: [] as StopArrival[] };
-            const data = await resp.json();
-            const now = Date.now();
-            const arr: StopArrival[] = (data.trips || [])
-              .filter((tr: any) => tr.adjustedTime > now)
-              .slice(0, 4)
-              .map((tr: any) => ({
-                routeId: tr.routeId || tr.route || '',
-                headsign: tr.headsign || tr.destination || '',
-                minsAway: Math.max(0, Math.round((tr.adjustedTime - now) / 60000)),
-              }));
-            return { stopId: s.id, arrivals: arr };
-          })
-        );
-        const map: Record<string, StopArrival[]> = {};
-        const cached: Record<string, number> = {};
-        await Promise.all(results.map(async (r, i) => {
-          const stopId = savedStops[i].id;
-          if (r.status === 'fulfilled' && r.value.arrivals.length > 0) {
-            map[stopId] = r.value.arrivals;
-            cacheArrivals(stopId, { arrivals: r.value.arrivals, source: 'live', stopName: savedStops[i].name });
-          } else {
-            // Fall back to cached arrivals
-            const cachedData = await getCachedArrivals(stopId);
-            if (cachedData && cachedData.arrivals.length > 0) {
-              map[stopId] = cachedData.arrivals;
-              cached[stopId] = cachedData.cachedAt;
-            } else {
-              map[stopId] = [];
-            }
-          }
-        }));
+        const { map, cached } = await fetchArrivalsForStops(savedStops);
         setArrivals(map);
         setCachedStops(cached);
         setArrivalsLoading(false);
@@ -198,49 +223,18 @@ export default function SavedScreen() {
     useCallback(() => {
       loadData();
 
-      // Auto-refresh arrivals every 30s while focused
-      refreshTimer.current = setInterval(() => {
+      // Auto-refresh arrivals every 30s while focused (with race guard)
+      refreshTimer.current = setInterval(async () => {
+        if (isFetchingRef.current) return;
         const currentStops = stopsRef.current;
-        if (currentStops.length > 0) {
-          Promise.allSettled(
-            currentStops.map(async s => {
-              const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${s.id}`, { timeout: 8000 });
-              if (!resp.ok) return { stopId: s.id, arrivals: [] as StopArrival[] };
-              const data = await resp.json();
-              const now = Date.now();
-              return {
-                stopId: s.id,
-                arrivals: (data.trips || [])
-                  .filter((tr: any) => tr.adjustedTime > now)
-                  .slice(0, 4)
-                  .map((tr: any) => ({
-                    routeId: tr.routeId || tr.route || '',
-                    headsign: tr.headsign || tr.destination || '',
-                    minsAway: Math.max(0, Math.round((tr.adjustedTime - now) / 60000)),
-                  })),
-              };
-            })
-          ).then(async results => {
-            const map: Record<string, StopArrival[]> = {};
-            const cached: Record<string, number> = {};
-            await Promise.all(results.map(async (r, i) => {
-              const stopId = currentStops[i].id;
-              if (r.status === 'fulfilled' && r.value.arrivals.length > 0) {
-                map[stopId] = r.value.arrivals;
-                cacheArrivals(stopId, { arrivals: r.value.arrivals, source: 'live', stopName: currentStops[i].name });
-              } else {
-                const cachedData = await getCachedArrivals(stopId);
-                if (cachedData && cachedData.arrivals.length > 0) {
-                  map[stopId] = cachedData.arrivals;
-                  cached[stopId] = cachedData.cachedAt;
-                } else {
-                  map[stopId] = [];
-                }
-              }
-            }));
-            setArrivals(map);
-            setCachedStops(cached);
-          });
+        if (currentStops.length === 0) return;
+        isFetchingRef.current = true;
+        try {
+          const { map, cached } = await fetchArrivalsForStops(currentStops);
+          setArrivals(map);
+          setCachedStops(cached);
+        } finally {
+          isFetchingRef.current = false;
         }
       }, 30000);
 
@@ -301,7 +295,7 @@ export default function SavedScreen() {
           {mostUsedStop && (
             <TouchableOpacity
               activeOpacity={0.75}
-              onPress={() => router.push({ pathname: '/(tabs)/map', params: { focusStop: mostUsedStop.id } } as any)}
+              onPress={() => router.push({ pathname: '/(tabs)/map', params: { focusStop: mostUsedStop.id } })}
               style={{
                 width: FULL_W,
                 height: 100,
@@ -367,7 +361,7 @@ export default function SavedScreen() {
               onPress={() => router.push({
                 pathname: '/(tabs)/planner',
                 params: { fromLabel: recentTrip.fromLabel, toLabel: recentTrip.toLabel },
-              } as any)}
+              })}
               style={{
                 width: FULL_W,
                 height: 80,
@@ -406,7 +400,7 @@ export default function SavedScreen() {
                     <TouchableOpacity
                       key={`stop-${stop.id}`}
                       activeOpacity={0.75}
-                      onPress={() => router.push({ pathname: '/(tabs)/map', params: { focusStop: stop.id } } as any)}
+                      onPress={() => router.push({ pathname: '/(tabs)/map', params: { focusStop: stop.id } })}
                       style={{
                         width: HALF_W,
                         height: 120,
@@ -478,7 +472,7 @@ export default function SavedScreen() {
                     onPress={() => router.push({
                       pathname: '/(tabs)/map',
                       params: { searchPlace: place.name, placeLat: String(place.lat || ''), placeLng: String(place.lng || '') },
-                    } as any)}
+                    })}
                     style={{
                       width: HALF_W,
                       height: 120,
@@ -534,5 +528,14 @@ export default function SavedScreen() {
         </ScrollView>
       )}
     </View>
+  );
+}
+
+export default function SavedScreen() {
+  const { colours, fonts, t } = useApp();
+  return (
+    <SavedErrorBoundary colours={colours} fonts={fonts} t={t}>
+      <SavedScreenInner />
+    </SavedErrorBoundary>
   );
 }

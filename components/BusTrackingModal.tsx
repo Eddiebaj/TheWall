@@ -38,6 +38,7 @@ type Props = {
   routeId: string;
   headsign: string;
   stopName: string;
+  stopId: string;
   minsAway: number;
   isSTO: boolean;
   colours: any;
@@ -46,7 +47,7 @@ type Props = {
 };
 
 export default function BusTrackingModal({
-  visible, onClose, routeId, headsign, stopName, minsAway, isSTO, colours, fonts, t,
+  visible, onClose, routeId, headsign, stopName, stopId, minsAway, isSTO, colours, fonts, t,
 }: Props) {
   const mapRef = useRef<any>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -211,9 +212,9 @@ export default function BusTrackingModal({
   // Fetch live ETA from arrivals endpoint
   const etaIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fetchLiveEta = useCallback(async () => {
-    if (!stopName) return;
+    if (!stopId) return;
     try {
-      const resp = await fetchWithTimeout(`${ARRIVALS_URL}?stop=${encodeURIComponent(stopName)}&t=${Date.now()}`);
+      const resp = await fetchWithTimeout(`${ARRIVALS_URL}?stop=${encodeURIComponent(stopId)}&t=${Date.now()}`);
       if (!resp.ok) return;
       const data = await resp.json();
       const arrivals = data.arrivals || [];
@@ -226,7 +227,7 @@ export default function BusTrackingModal({
         setLiveEta(match.minsAway);
       }
     } catch (e) { if (__DEV__) console.warn(e); }
-  }, [routeId, stopName]);
+  }, [routeId, stopId]);
 
   useEffect(() => {
     if (!visible) {

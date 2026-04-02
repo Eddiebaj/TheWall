@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "routeo",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.eddie.routeo",
@@ -17,7 +16,7 @@
       },
       "infoPlist": {
         "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true
+          "NSAllowsArbitraryLoads": false
         },
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -63,13 +62,6 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "RouteO needs your location to show nearby stops and transit options."
-        }
-      ],
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "RouteO needs access to your photos to attach images.",
-          "cameraPermission": "RouteO needs access to your camera to take photos."
         }
       ],
       "@react-native-community/datetimepicker",

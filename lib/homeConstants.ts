@@ -60,12 +60,14 @@ export const CAMPUS_LOGOS: Record<string, any> = {
 };
 
 // ── Time formatters ──────────────────────────────────────────────
-export const fmtTime = (date: Date): string => {
+export const fmtTimeFromDate = (date: Date): string => {
   const h = date.getHours();
   const m = String(date.getMinutes()).padStart(2, '0');
   return `${h % 12 || 12}:${m} ${h >= 12 ? 'PM' : 'AM'}`;
 };
-export const fmtAbsTime = (minsAway: number): string => fmtTime(new Date(Date.now() + minsAway * 60000));
+/** @deprecated Use fmtTimeFromDate */
+export const fmtTime = fmtTimeFromDate;
+export const fmtAbsTime = (minsAway: number): string => fmtTimeFromDate(new Date(Date.now() + minsAway * 60000));
 
 // ── Garbage bin info ─────────────────────────────────────────────
 export const BIN_INFO: Record<string, { dot: string; color: string; label: string; accepts: string[]; rejects: string[] }> = {
@@ -83,12 +85,4 @@ export const isStoStop = (id: string): boolean => {
   return num >= 15000 && num <= 59999;
 };
 
-export function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-}
+export { timeAgo } from './utils';

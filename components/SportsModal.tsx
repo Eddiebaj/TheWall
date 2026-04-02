@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Image, Linking, Modal, Pressable, ScrollView,
   Text, TouchableOpacity, View,
@@ -49,6 +49,7 @@ export default function SportsModal({ visible, onClose, colours, fonts, t, langu
   const [sportsScoresLoading, setSportsScoresLoading] = useState(false);
   const [sportsSchedule, setSportsSchedule] = useState<any[]>([]);
   const [sportsScheduleLoading, setSportsScheduleLoading] = useState(false);
+  const fetchedTabsRef = useRef(new Set<string>());
 
   // Handle initialTab prop when modal opens
   useEffect(() => {
@@ -61,6 +62,8 @@ export default function SportsModal({ visible, onClose, colours, fonts, t, langu
   }, [visible]);
 
   const fetchSportsScores = async () => {
+    if (fetchedTabsRef.current.has('scores')) return;
+    fetchedTabsRef.current.add('scores');
     setSportsScoresLoading(true);
     const teamsToFetch = OTTAWA_TEAMS.filter(team => team.nhl || team.espn);
     const settled = await Promise.allSettled(teamsToFetch.map(async (team) => {
@@ -127,6 +130,8 @@ export default function SportsModal({ visible, onClose, colours, fonts, t, langu
   };
 
   const fetchSportsSchedule = async () => {
+    if (fetchedTabsRef.current.has('schedule')) return;
+    fetchedTabsRef.current.add('schedule');
     setSportsScheduleLoading(true);
     const results: any[] = [];
     const teamsToFetch = OTTAWA_TEAMS.filter(team => team.nhl || team.espn);
@@ -234,6 +239,7 @@ export default function SportsModal({ visible, onClose, colours, fonts, t, langu
   const handleClose = () => {
     onClose();
     setSportsTab('teams');
+    fetchedTabsRef.current = new Set();
   };
 
   return (

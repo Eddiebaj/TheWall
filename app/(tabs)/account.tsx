@@ -3,7 +3,7 @@ let Notifications: typeof import('expo-notifications') | null = null;
 try { Notifications = require('expo-notifications'); } catch {}
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView,
     StatusBar, Switch, Text, TextInput,
@@ -17,6 +17,8 @@ import { supabase } from '../../lib/supabase';
 import { registerPushToken, syncSubscriptions } from '../../lib/pushNotifications';
 import { SK_FAVS, SK_SAVED_PLACES, SK_NOTIF_SETTINGS, SK_TRIP_SHARING, SK_TRIP_HISTORY, SK_PRESTO_BALANCE, SK_PRESTO_RESET_DATE, SK_BATTERY_SAVER, SK_CLASS_SCHEDULE, SK_CAMPUS, SK_PREMIUM_EXPIRES, SK_LEAVE_NOW_ALERTS } from '../../lib/storageKeys';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
+import { haversineKm } from '../../lib/geo';
+import { cardShadow as sharedCardShadow } from '../../lib/styles';
 import { toTitleCase } from '../../lib/utils';
 import { CAMPUSES, CampusConfig } from '../../lib/campusData';
 import { ClassSchedule } from '../../lib/scheduleData';
@@ -26,6 +28,30 @@ import PremiumBadge from '../../components/PremiumBadge';
 import PaywallSheet from '../../components/PaywallSheet';
 
 const isNightTime = () => { const h = new Date().getHours(); return h >= 21 || h < 4; };
+
+// Module-scope Card and Divider components (H6)
+function Card({ children, borderColor, colours, cardShadow }: {
+  children: React.ReactNode; borderColor?: string;
+  colours: any; cardShadow: any;
+}) {
+  return (
+    <View style={[{
+      borderWidth: 1,
+      borderColor: borderColor || colours.border,
+      borderRadius: 16,
+      marginHorizontal: 20,
+      marginBottom: 20,
+      overflow: 'hidden',
+      backgroundColor: colours.surface,
+    }, cardShadow]}>
+      {children}
+    </View>
+  );
+}
+
+function Divider({ colours }: { colours: any }) {
+  return <View style={{ height: 1, backgroundColor: colours.border, marginHorizontal: 16 }} />;
+}
 
 type NotifSettings = {
   // Trip Notifications
@@ -92,13 +118,7 @@ export default function AccountScreen() {
 
   const isLight = resolvedTheme === 'light';
 
-  const cardShadow = isLight ? {
-    shadowColor: '#004890',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
-    elevation: 2,
-  } : {};
+  const cardShadow = isLight ? sharedCardShadow : {};
 
   const [tripSharing, setTripSharing] = useState(false);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -160,21 +180,28 @@ export default function AccountScreen() {
       try {
         const { getDeviceId } = require('../../lib/pushNotifications');
         const deviceId = await getDeviceId();
+        if (!deviceId) return;
         const resp = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/community?action=ghost.device_stats&device_id=${deviceId}`);
         if (resp.ok) { const data = await resp.json(); setGhostStats(data); }
       } catch (e) { if (__DEV__) console.warn(e); }
     })();
   }, []);
 
+  // Consolidated trip history + fare stats read (M6)
   useEffect(() => {
-    AsyncStorage.getItem(SK_TRIP_HISTORY).then(val => {
+    Promise.all([
+      AsyncStorage.getItem(SK_TRIP_HISTORY),
+      AsyncStorage.getItem(SK_PRESTO_RESET_DATE),
+    ]).then(([val, resetVal]) => {
       try {
         if (!val) return;
         const trips = JSON.parse(val);
         if (!Array.isArray(trips) || trips.length === 0) return;
         const now = new Date();
-        const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay()); weekStart.setHours(0, 0, 0, 0);
-        const weekTrips = trips.filter((tr: any) => new Date(tr.plannedAt).getTime() >= weekStart.getTime());
+
+        // Commute stats
+        const commuteWeekStart = new Date(now); commuteWeekStart.setDate(now.getDate() - now.getDay()); commuteWeekStart.setHours(0, 0, 0, 0);
+        const weekTrips = trips.filter((tr: any) => new Date(tr.plannedAt).getTime() >= commuteWeekStart.getTime());
         const totalMins = weekTrips.reduce((s: number, tr: any) => s + (tr.durationMins || 0), 0);
         const routeCounts: Record<string, number> = {};
         for (const tr of weekTrips) {
@@ -188,25 +215,12 @@ export default function AccountScreen() {
           avgDuration: weekTrips.length > 0 ? Math.round(totalMins / weekTrips.length) : 0,
           topRoute,
         });
-      } catch (e) { if (__DEV__) console.warn(e); }
-    });
-  }, []);
 
-  useEffect(() => {
-    Promise.all([
-      AsyncStorage.getItem(SK_TRIP_HISTORY),
-      AsyncStorage.getItem(SK_PRESTO_RESET_DATE),
-    ]).then(([val, resetVal]) => {
-      try {
-        if (!val) return;
-        const trips = JSON.parse(val);
-        if (!Array.isArray(trips) || trips.length === 0) return;
-        const now = new Date();
+        // Fare stats
         const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
         const day = now.getDay(); // 0=Sun
         const mondayOffset = day === 0 ? 6 : day - 1;
-        const weekStart = new Date(now); weekStart.setDate(now.getDate() - mondayOffset); weekStart.setHours(0, 0, 0, 0);
-        // Period start: use custom reset day if set, otherwise 1st of month
+        const fareWeekStart = new Date(now); fareWeekStart.setDate(now.getDate() - mondayOffset); fareWeekStart.setHours(0, 0, 0, 0);
         const resetDay = resetVal ? parseInt(resetVal, 10) : 0;
         let periodStart: Date;
         if (resetDay >= 1 && resetDay <= 28) {
@@ -220,7 +234,7 @@ export default function AccountScreen() {
         for (const tr of trips) {
           const d = new Date(tr.plannedAt);
           if (d.getTime() >= periodStart.getTime()) { tripsMonth++; }
-          if (d.getTime() >= weekStart.getTime()) { tripsWeek++; }
+          if (d.getTime() >= fareWeekStart.getTime()) { tripsWeek++; }
           if (d.getTime() >= todayStart.getTime()) { tripsToday++; }
         }
         const FARE = 4.10;
@@ -375,21 +389,13 @@ export default function AccountScreen() {
     system: { name: 'phone-portrait' as const, color: '#6b7f99' },
   };
 
-  const Card = ({ children, borderColor }: { children: React.ReactNode; borderColor?: string }) => (
-    <View style={[{
-      borderWidth: 1,
-      borderColor: borderColor || colours.border,
-      borderRadius: 16,
-      marginHorizontal: 20,
-      marginBottom: 20,
-      overflow: 'hidden',
-      backgroundColor: colours.surface,
-    }, cardShadow]}>
-      {children}
-    </View>
+  // These are thin wrappers over module-scope Card/Divider defined above
+  // eslint-disable-next-line react/no-unstable-nested-components
+  const CCard = ({ children, borderColor }: { children: React.ReactNode; borderColor?: string }) => (
+    <Card colours={colours} cardShadow={cardShadow} borderColor={borderColor}>{children}</Card>
   );
-
-  const Divider = () => <View style={{ height: 1, backgroundColor: colours.border, marginHorizontal: 16 }} />;
+  // eslint-disable-next-line react/no-unstable-nested-components
+  const CDivider = () => <Divider colours={colours} />;
 
   const LATE_NIGHT_TIPS = [
     { icon: 'bulb' as const, tip: t('Wait under lights — avoid dark shelters late at night', 'Attendez sous les lumières — évitez les abris sombres') },
@@ -566,7 +572,7 @@ export default function AccountScreen() {
           <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 8, letterSpacing: 1 }}>
             {t('MY COMMUTE', 'MON TRAJET')}
           </Text>
-          <Card>
+          <CCard>
             <View style={{ padding: 16 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginBottom: 12 }}>
                 <View style={{ alignItems: 'center' }}>
@@ -589,11 +595,11 @@ export default function AccountScreen() {
                 </View>
               )}
             </View>
-          </Card>
+          </CCard>
 
           {/* Ghost Bus Stats */}
           {ghostStats && ghostStats.totalThisWeek > 0 && (
-            <Card>
+            <CCard>
               <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#FF9500' + '18', alignItems: 'center', justifyContent: 'center' }}>
                   <Ionicons name="warning-outline" size={20} color="#FF9500" />
@@ -610,15 +616,15 @@ export default function AccountScreen() {
                   )}
                 </View>
               </View>
-            </Card>
+            </CCard>
           )}
 
           {/* Weekly Commute Insights — Premium */}
           <TouchableOpacity
             activeOpacity={0.85}
-            onPress={() => { premiumActive ? router.push('/insights' as any) : openPaywall(PREMIUM_FEATURES.COMMUTE_INSIGHTS); }}
+            onPress={() => { premiumActive ? router.push('/insights') : openPaywall(PREMIUM_FEATURES.COMMUTE_INSIGHTS); }}
           >
-            <Card>
+            <CCard>
               <View style={{ padding: 16, opacity: premiumActive ? 1 : 0.5 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                   <Ionicons name="stats-chart" size={18} color={colours.accent} />
@@ -637,12 +643,12 @@ export default function AccountScreen() {
               {!premiumActive && (
                 <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colours.surface + '80', borderRadius: 16 }} />
               )}
-            </Card>
+            </CCard>
           </TouchableOpacity>
 
           {/* Leave Now Alerts — Active */}
           {premiumActive && leaveNowAlerts.length > 0 && (
-            <Card>
+            <CCard>
               <View style={{ padding: 16 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                   <Ionicons name="notifications" size={16} color={colours.accent} />
@@ -672,7 +678,7 @@ export default function AccountScreen() {
                   </View>
                 ))}
               </View>
-            </Card>
+            </CCard>
           )}
         </>)}
 
@@ -681,7 +687,7 @@ export default function AccountScreen() {
           {t('SAFETY', 'SÉCURITÉ')}
         </Text>
 
-        <Card borderColor={tripSharing ? colours.accent : colours.border}>
+        <CCard borderColor={tripSharing ? colours.accent : colours.border}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text }}>{t('Trip Sharing', 'Partage de trajet')}</Text>
@@ -713,13 +719,13 @@ export default function AccountScreen() {
               </TouchableOpacity>
             </View>
           )}
-        </Card>
+        </CCard>
 
         {/* Emergency */}
-        <Card>
+        <CCard>
           {EMERGENCY_CONTACTS.map((item, i) => (
             <View key={i}>
-              {i > 0 && <Divider />}
+              {i > 0 && <CDivider />}
               <TouchableOpacity
                 style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}
                 onPress={() => {
@@ -747,10 +753,10 @@ export default function AccountScreen() {
               </TouchableOpacity>
             </View>
           ))}
-        </Card>
+        </CCard>
 
         {/* SAVED ITEMS */}
-        <Card>
+        <CCard>
           <TouchableOpacity
             onPress={async () => {
               const [f, p] = await Promise.all([
@@ -780,11 +786,11 @@ export default function AccountScreen() {
             </View>
             <Ionicons name="chevron-forward" size={16} color={colours.muted} />
           </TouchableOpacity>
-        </Card>
+        </CCard>
 
         {/* FARE TRACKER */}
         {fareStats && (
-          <Card>
+          <CCard>
             <View style={{ padding: 16 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 }}>
                 <View style={{
@@ -929,12 +935,12 @@ export default function AccountScreen() {
                 {t('Based on $4.10/tap with daily ($13.50) and monthly ($139) caps', 'Bas\u00E9 sur 4,10 $/tap avec plafonds quotidien (13,50 $) et mensuel (139 $)')}
               </Text>
             </View>
-          </Card>
+          </CCard>
         )}
 
         {/* MY SCHEDULE */}
         {acctCampus && (
-          <Card>
+          <CCard>
             <TouchableOpacity
               onPress={() => setAcctScheduleModal(true)}
               style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 }}
@@ -957,11 +963,11 @@ export default function AccountScreen() {
               </View>
               <Ionicons name="chevron-forward" size={16} color={colours.muted} />
             </TouchableOpacity>
-          </Card>
+          </CCard>
         )}
 
         {/* NOTIFICATIONS (collapsible) */}
-        <Card>
+        <CCard>
           <TouchableOpacity
             onPress={() => setShowNotifs(!showNotifs)}
             style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}
@@ -996,7 +1002,7 @@ export default function AccountScreen() {
                 const masterOn = group.items.some(item => notifSettings[item.key]);
                 return (
                   <View key={group.id}>
-                    {gi > 0 && <Divider />}
+                    {gi > 0 && <CDivider />}
                     {/* Group header with master toggle */}
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colours.bg + '80' }}>
                       <TouchableOpacity
@@ -1049,7 +1055,13 @@ export default function AccountScreen() {
                             value={notifSettings[item.key]}
                             disabled={!masterOn}
                             onValueChange={v => {
-                              saveNotifSettings({ ...notifSettings, [item.key]: v });
+                              if (v && notifPermission !== 'granted') {
+                                handleNotifToggle(item.key, true).then(granted => {
+                                  if (granted) saveNotifSettings({ ...notifSettings, [item.key]: true });
+                                });
+                              } else {
+                                saveNotifSettings({ ...notifSettings, [item.key]: v });
+                              }
                             }}
                             trackColor={{ false: NOTIF_RED + '40', true: NOTIF_GREEN }}
                             thumbColor="white"
@@ -1063,10 +1075,10 @@ export default function AccountScreen() {
               })}
             </>
           )}
-        </Card>
+        </CCard>
 
         {/* LATE NIGHT TIPS (collapsible) */}
-        <Card>
+        <CCard>
           <TouchableOpacity
             onPress={() => setShowTips(!showTips)}
             style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}
@@ -1079,7 +1091,7 @@ export default function AccountScreen() {
           </TouchableOpacity>
           {showTips && LATE_NIGHT_TIPS.map((item, i) => (
             <View key={i}>
-              {i > 0 && <Divider />}
+              {i > 0 && <CDivider />}
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 14 }}>
                 <View style={{ marginTop: 1 }}>
                   <Ionicons name={item.icon} size={18} color={colours.muted} />
@@ -1088,10 +1100,10 @@ export default function AccountScreen() {
               </View>
             </View>
           ))}
-        </Card>
+        </CCard>
 
         {/* ACCESSIBILITY (collapsible) */}
-        <Card>
+        <CCard>
           <TouchableOpacity
             onPress={() => setShowA11y(!showA11y)}
             style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}
@@ -1109,7 +1121,7 @@ export default function AccountScreen() {
             { label: t('Battery Saver', 'Économie de batterie'), desc: t('Reduce GPS accuracy & polling frequency', 'Réduire la précision GPS et la fréquence de mise à jour'), val: batterySaver, set: (v: boolean) => { setBatterySaver(v); AsyncStorage.setItem(SK_BATTERY_SAVER, String(v)); } },
           ].map((item, i) => (
             <View key={i}>
-              {i > 0 && <Divider />}
+              {i > 0 && <CDivider />}
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14 }}>
                 <View style={{ flex: 1, marginRight: 12 }}>
                   <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{item.label}</Text>
@@ -1124,13 +1136,13 @@ export default function AccountScreen() {
               </View>
             </View>
           ))}
-        </Card>
+        </CCard>
 
         {/* DISPLAY */}
         <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 8, letterSpacing: 1 }}>
           {t('DISPLAY', 'AFFICHAGE')}
         </Text>
-        <Card>
+        <CCard>
           <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 }}>{t('Theme', 'Thème')}</Text>
           <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 14 }}>
             {(['dark', 'light', 'system'] as const).map(th => (
@@ -1197,13 +1209,13 @@ export default function AccountScreen() {
               </View>
             )}
           </View>
-        </Card>
+        </CCard>
 
         {/* LANGUAGE */}
         <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 8, letterSpacing: 1 }}>
           {t('LANGUAGE', 'LANGUE')}
         </Text>
-        <Card>
+        <CCard>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14 }}>
             <View style={{ flex: 1, marginRight: 12 }}>
               <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>
@@ -1220,13 +1232,13 @@ export default function AccountScreen() {
               thumbColor="white"
             />
           </View>
-        </Card>
+        </CCard>
 
         {/* ABOUT */}
         <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 8, letterSpacing: 1 }}>
           {t('ABOUT', 'À PROPOS')}
         </Text>
-        <Card>
+        <CCard>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <View style={{
@@ -1242,7 +1254,7 @@ export default function AccountScreen() {
               </View>
             </View>
           </View>
-          <Divider />
+          <CDivider />
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
               <View style={{
@@ -1262,10 +1274,10 @@ export default function AccountScreen() {
               <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>LIVE</Text>
             </View>
           </View>
-        </Card>
+        </CCard>
 
         {/* Bug Report */}
-        <Card>
+        <CCard>
           <TouchableOpacity
             onPress={() => { setBugModalVisible(true); setBugSent(false); setBugMessage(''); setBugScreen(''); }}
             style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
@@ -1286,14 +1298,8 @@ export default function AccountScreen() {
             </View>
             <Ionicons name="chevron-forward" size={16} color={colours.muted} />
           </TouchableOpacity>
-        </Card>
+        </CCard>
 
-        {/* Free forever */}
-        <View style={{ alignItems: 'center', paddingVertical: 20, paddingHorizontal: 20 }}>
-          <Text style={{ fontSize: fonts.sm, color: colours.muted, textAlign: 'center' }}>
-            {t('RouteO is free. No subscriptions, no paywalled routes.', 'RouteO est gratuit. Aucun abonnement, aucune ligne payante.')}
-          </Text>
-        </View>
 
       </ScrollView>
 

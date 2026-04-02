@@ -185,7 +185,7 @@ export default function OnboardingScreen() {
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={handleScroll}
         scrollEventThrottle={16}
-        scrollEnabled={!isStopSlide || canAdvanceStop}
+        scrollEnabled={false}
         keyboardShouldPersistTaps="handled"
         style={{ flex: 1 }}
       >

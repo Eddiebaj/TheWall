@@ -144,3 +144,6 @@ export const SK_LEAVE_NOW_ALERTS = 'routeo_leave_now_alerts';
 
 // CO2 tracker
 export const SK_CO2_TOTAL = 'routeo_co2_total';
+
+// Community deal votes
+export const SK_MY_DEAL_VOTES = 'routeo_my_deal_votes';

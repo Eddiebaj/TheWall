@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Platform, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, BackHandler, Platform, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useApp } from '../context/AppContext';
@@ -25,7 +25,7 @@ const UNLOCKED_FR = [
 ];
 
 export default function PremiumSuccessScreen() {
-  const { colours, fonts, t } = useApp();
+  const { colours, fonts, t, language } = useApp();
   const router = useRouter();
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -37,7 +37,15 @@ export default function PremiumSuccessScreen() {
     ]).start();
   }, []);
 
-  const items = t('en', 'fr') === 'fr' ? UNLOCKED_FR : UNLOCKED_EN;
+  useEffect(() => {
+    const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+      router.replace('/(tabs)/map');
+      return true;
+    });
+    return () => handler.remove();
+  }, [router]);
+
+  const items = language === 'fr' ? UNLOCKED_FR : UNLOCKED_EN;
 
   return (
     <View style={{ flex: 1, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>

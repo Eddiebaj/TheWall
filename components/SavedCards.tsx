@@ -15,7 +15,6 @@ import {
   TEAM_LOGOS, CAMPUS_LOGOS, fmtTime, fmtAbsTime, isStoStop,
 } from '../lib/homeConstants';
 
-const ScaleDecorator = ({ children }: { children: React.ReactNode }) => <>{children}</>;
 
 // ── SavedBoardCard component ─────────────────────────────────────
 export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, cardShadow, garbageEvents, alerts, sensGame, onMoveLeft, onMoveRight, timeFormat, campusData }: {
@@ -78,7 +77,6 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
     const daysLabel = daysUntil === 0 ? t('TODAY', "AUJOURD'HUI") : daysUntil === 1 ? t('TOMORROW', 'DEMAIN') : daysUntil != null ? t(`IN ${daysUntil}d`, `DANS ${daysUntil}j`) : '\u2014';
     const BIN_COLOURS: Record<string, string> = { garbage: '#666', 'recycling-blue': '#1a6fbf', 'recycling-black': '#222', 'green-bin': '#2d7a3a', 'yard-waste': '#8b5a00' };
     return (
-      <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#6b7f9918', alignItems: 'center', justifyContent: 'center' }}>
@@ -105,7 +103,6 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
           </View>
         )}
       </TouchableOpacity>
-      </ScaleDecorator>
     );
   }
 
@@ -114,7 +111,6 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
     const hasAlerts = active.length > 0;
     const dotColor = hasAlerts ? (CATEGORY_COLOUR[active[0]?.category] || '#e8a020') : colours.accent;
     return (
-      <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#e8a02018', alignItems: 'center', justifyContent: 'center' }}>
@@ -134,7 +130,6 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
         </View>
         <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap to view all', 'Voir tout')} {'\u2192'}</Text>
       </TouchableOpacity>
-      </ScaleDecorator>
     );
   }
 
@@ -144,7 +139,6 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
   }, [gasPrice, gasFailed]);
   if (item.type === 'gas_prices') {
     return (
-      <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={() => { fetchGasPrice(); onPress(); }} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#6b7f9918', alignItems: 'center', justifyContent: 'center' }}>
@@ -158,19 +152,22 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
             <Text style={{ fontSize: 10, color: colours.muted }}>{t('Regular', 'Ordinaire')} {'\u00B7'} {t('Ottawa avg', 'Moy. Ottawa')}</Text>
           </>
         ) : gasFailed ? (
-          <Text style={{ fontSize: 11, color: colours.muted }}>{t('Gas prices unavailable', 'Prix d\'essence indisponible')}</Text>
+          <View>
+            <Text style={{ fontSize: 11, color: colours.muted }}>{t('Gas prices unavailable', 'Prix d\'essence indisponible')}</Text>
+            <TouchableOpacity onPress={() => setGasFailed(false)} style={{ marginTop: 4 }}>
+              <Text style={{ fontSize: 11, color: colours.accent, fontWeight: '700' }}>{t('Retry', 'Reessayer')}</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
           <Text style={{ fontSize: 11, color: colours.muted }}>{t('Tap to load prices', 'Appuyez pour charger')}</Text>
         )}
         <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap for nearby stations', 'Stations a proximite')} {'\u2192'}</Text>
       </TouchableOpacity>
-      </ScaleDecorator>
     );
   }
 
   if (item.type === 'otrain') {
     return (
-      <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: colours.lrt + '18', alignItems: 'center', justifyContent: 'center' }}>
@@ -184,13 +181,11 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
         </View>
         <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap to view stations', 'Voir les stations')} {'\u2192'}</Text>
       </TouchableOpacity>
-      </ScaleDecorator>
     );
   }
 
   if (item.type === 'services') {
     return (
-      <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
@@ -201,13 +196,11 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
         <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }}>{t('Ottawa Services', 'Services Ottawa')}</Text>
         <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap to view all', 'Voir tout')} {'\u2192'}</Text>
       </TouchableOpacity>
-      </ScaleDecorator>
     );
   }
 
   if (item.type === 'discover') {
     return (
-      <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#e8a02018', alignItems: 'center', justifyContent: 'center' }}>
@@ -218,13 +211,11 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
         <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }}>{t('Discover Ottawa', 'Decouvrir Ottawa')}</Text>
         <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap to explore', 'Appuyez pour explorer')} {'\u2192'}</Text>
       </TouchableOpacity>
-      </ScaleDecorator>
     );
   }
 
   if (item.type === 'news') {
     return (
-      <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#cc3b2a18', alignItems: 'center', justifyContent: 'center' }}>
@@ -235,13 +226,11 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
         <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }}>{t('Local News', 'Nouvelles locales')}</Text>
         <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap to read', 'Appuyez pour lire')} {'\u2192'}</Text>
       </TouchableOpacity>
-      </ScaleDecorator>
     );
   }
 
   if (item.type === 'neighbourhood') {
     return (
-      <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#7b5ea718', alignItems: 'center', justifyContent: 'center' }}>
@@ -252,7 +241,6 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
         <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }} numberOfLines={2}>{t(item.name_en, item.name_fr)}</Text>
         <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap to explore', 'Appuyez pour explorer')} {'\u2192'}</Text>
       </TouchableOpacity>
-      </ScaleDecorator>
     );
   }
 
@@ -261,7 +249,6 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
     const isSens = item.name === 'Senators';
     const sg = isSens ? sensGame : null;
     return (
-      <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           {sg?.state === 'live' && (
@@ -286,14 +273,12 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
           <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted, textAlign: 'center', marginTop: 2 }} numberOfLines={1}>{t('Tonight vs', 'Ce soir c.')} {sg.opponentAbbr} {'\u00B7'} {sg.startTime}</Text>
         )}
       </TouchableOpacity>
-      </ScaleDecorator>
     );
   }
 
   if (item.type === 'external_link') {
     const label = t(item.label_en, item.label_fr);
     return (
-      <ScaleDecorator>
       <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 16, padding: 14, backgroundColor: isActive ? item.accent + '22' : colours.surface, borderWidth: 1, borderTopWidth: 3, borderColor: isActive ? item.accent : colours.border, borderTopColor: item.accent, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: item.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
           <Ionicons name={item.icon as any} size={18} color={item.accent} />
@@ -306,7 +291,6 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
           </View>
         </View>
       </TouchableOpacity>
-      </ScaleDecorator>
     );
   }
 
@@ -316,7 +300,6 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
     const nextShuttle = campus?.shuttles?.[0] ? getNextDeparture(campus.shuttles[0].departures) : null;
     const lib = campus?.libraries?.[0] ? isLibraryOpen(campus.libraries[0]) : null;
     return (
-      <ScaleDecorator>
       <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 16, padding: 14, backgroundColor: isActive ? accent + '22' : colours.surface, borderWidth: 1, borderTopWidth: 3, borderColor: isActive ? accent : colours.border, borderTopColor: accent, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         {campus && CAMPUS_LOGOS[campus.id] ? (
           <Image source={CAMPUS_LOGOS[campus.id]} style={{ width: 44, height: 44, borderRadius: 8 }} resizeMode="contain" />
@@ -340,13 +323,11 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
           )}
         </View>
       </TouchableOpacity>
-      </ScaleDecorator>
     );
   }
 
   if (item.type === 'class_schedule') {
     return (
-      <ScaleDecorator>
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
@@ -357,7 +338,6 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
         <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }}>{t('Class Schedule', 'Horaire de cours')}</Text>
         <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap to view', 'Appuyez pour voir')} {'\u2192'}</Text>
       </TouchableOpacity>
-      </ScaleDecorator>
     );
   }
 
@@ -371,7 +351,6 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
   const matchingAlertRoutes = activeAlerts.flatMap(a => (a.routes || []).filter(r => stopRouteIds.includes(r)));
   const alertRouteSet = [...new Set(matchingAlertRoutes)];
   return (
-    <ScaleDecorator>
     <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={`${isLRT ? t('LRT station', 'Station du TLR') : t('Bus stop', 'Arrêt de bus')} ${toTitleCase(item.name)}`}>
       {alertRouteSet.length > 0 && (
         <View style={{ backgroundColor: '#e8a020' + '20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, marginBottom: 2 }}>
@@ -445,7 +424,6 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
         )}
       </View>
     </TouchableOpacity>
-    </ScaleDecorator>
   );
 });
 

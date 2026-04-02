@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Rect } from 'react-native-svg';
 import { useApp } from '../context/AppContext';
 import { SK_TRIP_HISTORY } from '../lib/storageKeys';
+import { haversineKm } from '../lib/geo';
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -27,14 +28,6 @@ type RouteStat = { route: string; count: number; avgMins: number; bestMins: numb
 
 const DAY_NAMES_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY_NAMES_FR = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
-
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 function getDistanceKm(trip: Trip): number {
   if (trip.distanceKm && trip.distanceKm > 0) return trip.distanceKm;
@@ -106,9 +99,9 @@ export default function InsightsScreen() {
   const lastWeekStart = new Date(thisWeekStart);
   lastWeekStart.setDate(lastWeekStart.getDate() - 7);
 
-  const thisWeekTrips = trips.filter(t => new Date(t.plannedAt) >= thisWeekStart);
-  const lastWeekTrips = trips.filter(t => {
-    const d = new Date(t.plannedAt);
+  const thisWeekTrips = trips.filter(trip => new Date(trip.plannedAt) >= thisWeekStart);
+  const lastWeekTrips = trips.filter(trip => {
+    const d = new Date(trip.plannedAt);
     return d >= lastWeekStart && d < thisWeekStart;
   });
 
