@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator, Dimensions, Image, Platform, RefreshControl,
   ScrollView, StatusBar, Text, TouchableOpacity, View
@@ -50,7 +50,7 @@ function timeAgo(dateStr: string, t: (en: string, fr: string) => string): string
 
 export default function SavedScreen() {
   const { colours, resolvedTheme, t, fonts } = useApp();
-  const { savedBoard: boardItems, refreshBoard } = useBoard();
+  const { savedBoard: boardItems } = useBoard();
   const isLight = resolvedTheme === 'light';
   const router = useRouter();
 
@@ -76,7 +76,6 @@ export default function SavedScreen() {
   // ── Load data ──────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     try {
-      await refreshBoard();
       const [placesRaw, tripRaw] = await Promise.all([
         AsyncStorage.getItem(SK_SAVED_PLACES),
         AsyncStorage.getItem(SK_TRIP_HISTORY),
@@ -85,8 +84,8 @@ export default function SavedScreen() {
       // Stops from board context
       const savedStops: SavedStop[] = [];
       for (const item of boardItems) {
-        if ((item.type === 'bus_stop' || item.type === 'lrt_station') && 'id' in item) {
-          savedStops.push({ id: item.id, name: item.name || `Stop #${item.id}`, agency: (item as any).agency });
+        if (item.type === 'bus_stop' || item.type === 'lrt_station') {
+          savedStops.push({ id: item.id, name: item.name || `Stop #${item.id}`, agency: item.agency });
         }
       }
       setStops(savedStops);
@@ -173,7 +172,7 @@ export default function SavedScreen() {
       if (__DEV__) console.warn('SavedScreen loadData error:', e);
       setLoaded(true);
     }
-  }, [boardItems, refreshBoard]);
+  }, []);
 
   // Reload data + restart interval when tab gains focus
   useFocusEffect(

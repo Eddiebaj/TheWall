@@ -106,7 +106,7 @@ export default function StopScreen() {
           headerTitle: toTitleCase(stopName) || `${t('Stop', 'Arret')} #${id}`,
           headerTitleStyle: { fontWeight: '700', fontSize: fonts.lg },
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/')} style={{ marginRight: 8 }}>
+            <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/map' as any)} style={{ marginRight: 8 }}>
               <Ionicons name="arrow-back" size={24} color={colours.text} />
             </TouchableOpacity>
           ),

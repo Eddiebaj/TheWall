@@ -19,7 +19,8 @@ export type SavedBoardItem =
   | { type: 'external_link'; id: string; label_en: string; label_fr: string; icon: string; accent: string; url: string }
   | { type: 'campus' }
   | { type: 'news' }
-  | { type: 'neighbourhood'; id: string; name_en: string; name_fr: string };
+  | { type: 'neighbourhood'; id: string; name_en: string; name_fr: string }
+  | { type: 'class_schedule' };
 
 export type ServiceAlert = { id: number; title: string; description: string; link: string; pubDate: string; routes: string[]; category: string; agency?: 'OC' | 'STO' };
 export type GhostReportData = { total: number; uniqueDevices: number; confirmedCount: number; netScore: number; likelyGhost: boolean };

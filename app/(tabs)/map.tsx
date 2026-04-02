@@ -565,7 +565,6 @@ export default function MapScreen() {
   const [selectedEvent, setSelectedEvent] = useState<MapEvent | null>(null);
   const [selectedVenue, setSelectedVenue] = useState<VenuePin | null>(null);
   const [filters, setFilters] = useState<Set<string>>(new Set(['all']));
-  const [highlightRoute, setHighlightRoute] = useState<string | null>(null);
   const [searchText, setSearchText] = useState('');
   const [placeSuggestions, setPlaceSuggestions] = useState<{ placeId: string; name: string; address: string }[]>([]);
   const [searchedPlace, setSearchedPlace] = useState<{ placeId: string; name: string; address: string; lat: number; lng: number } | null>(null);
@@ -578,7 +577,6 @@ export default function MapScreen() {
   const [debouncedDelta, setDebouncedDelta] = useState(OTTAWA_REGION.latitudeDelta);
   const appIsActive = useRef(true);
   const [error, setError] = useState('');
-  const [markersReady, setMarkersReady] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [visibleBusCount, setVisibleBusCount] = useState(0);
   const [savedPins, setSavedPins] = useState<SavedPin[]>([]);
@@ -1006,7 +1004,7 @@ export default function MapScreen() {
       setError('');
       const now = new Date();
       setLastUpdated(`${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`);
-      setTimeout(() => setMarkersReady(true), 500);    } catch (e) { setError(String(e)); }
+    } catch (e) { setError(String(e)); }
     finally { setBusLoading(false); }
   };
 
@@ -1037,7 +1035,6 @@ export default function MapScreen() {
   useEffect(() => {
     if (deepLinkParams.highlightRoute) {
       const routeId = deepLinkParams.highlightRoute as string;
-      setHighlightRoute(routeId);
       // Switch filter to bus so the route is visible
       setFilters(new Set(['bus']));
       setSearchText(routeId);
@@ -1154,7 +1151,7 @@ export default function MapScreen() {
       setSavedLoaded(true);
     };
     load();
-  }, [savedLoaded]);
+  }, [savedLoaded, boardItems]);
 
   const toggleFilter = (key: string) => {
     setFilters(prev => {
@@ -1375,7 +1372,7 @@ export default function MapScreen() {
       searchDiscovery(DISCOVER_PLACE_TYPES[discoveryCategory]);
     }, 500);
     return () => { if (discoveryDebounceRef.current) clearTimeout(discoveryDebounceRef.current); };
-  }, [region.latitude, region.longitude, region.latitudeDelta]);
+  }, [region.latitude, region.longitude, region.latitudeDelta, discoveryCategory, searchDiscovery]);
 
   const hasSheet = selectedBus || selectedEvent || selectedCluster || selectedVenue || selectedSavedPin || searchedPlace;
 

@@ -39,7 +39,7 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
   const [gasFailed, setGasFailed] = useState(false);
 
   useEffect(() => {
-    if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'saved_team' || item.type === 'campus' || item.type === 'news' || item.type === 'neighbourhood') { setPreviewLoading(false); return; }
+    if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'saved_team' || item.type === 'campus' || item.type === 'news' || item.type === 'neighbourhood' || item.type === 'class_schedule') { setPreviewLoading(false); return; }
     if (item.type === 'gas_prices') {
       setPreviewLoading(false);
       return;
@@ -333,6 +333,23 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
             <Text style={{ fontSize: 10, color: colours.muted }}>{t('Tap to set up', 'Appuyez pour configurer')}</Text>
           )}
         </View>
+      </TouchableOpacity>
+      </ScaleDecorator>
+    );
+  }
+
+  if (item.type === 'class_schedule') {
+    return (
+      <ScaleDecorator>
+      <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="school-outline" size={12} color={colours.accent} />
+          </View>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Schedule', 'Horaire')}</Text>
+        </View>
+        <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }}>{t('Class Schedule', 'Horaire de cours')}</Text>
+        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap to view', 'Appuyez pour voir')} {'\u2192'}</Text>
       </TouchableOpacity>
       </ScaleDecorator>
     );
