@@ -24,6 +24,8 @@ import BottomSheet from '@gorhom/bottom-sheet';
 import NearbyTransitSheet, { NearbyStop } from '../../components/NearbyTransitSheet';
 import { cacheArrivals, getCachedArrivals } from '../../lib/arrivalCache';
 import type { ServiceTile } from '../../components/ServicesGrid';
+import { usePremium, PREMIUM_FEATURES } from '../../lib/premium';
+import PaywallSheet from '../../components/PaywallSheet';
 
 // Error boundary to catch AIRMap native crashes and show a recoverable fallback
 class MapErrorBoundary extends React.Component<
@@ -622,6 +624,10 @@ export default function MapScreen() {
   const [sheetEvents, setSheetEvents] = useState<{ name: string; date: string; time?: string; venue: string }[]>([]);
   const [sheetSensGame, setSheetSensGame] = useState<any>(null);
   const [sheetDeals, setSheetDeals] = useState<{ id: string; venue_name: string; deal_text: string; day_of_week: number }[]>([]);
+
+  // Premium
+  const { isPremium: premiumActive } = usePremium();
+  const [mapPaywallVisible, setMapPaywallVisible] = useState(false);
 
   // Discovery mode — Google Places nearby search
   const [discoveryCategory, setDiscoveryCategory] = useState<string | null>(null);
@@ -2417,6 +2423,8 @@ export default function MapScreen() {
         }}
         communityDeals={sheetDeals}
         onPlanTrip={() => router.push('/(tabs)/planner' as any)}
+        premiumActive={premiumActive}
+        onLeaveNowPress={() => { if (!premiumActive) setMapPaywallVisible(true); }}
       />
 
       {/* ActiveTrip overlay */}
@@ -2439,6 +2447,13 @@ export default function MapScreen() {
           }}
         />
       )}
+
+      <PaywallSheet
+        visible={mapPaywallVisible}
+        onDismiss={() => setMapPaywallVisible(false)}
+        onSuccess={() => setMapPaywallVisible(false)}
+        highlightFeature={PREMIUM_FEATURES.LEAVE_NOW_ALERTS}
+      />
     </View>
     </MapErrorBoundary>
   );

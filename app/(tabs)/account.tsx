@@ -13,12 +13,15 @@ import { useApp } from '../../context/AppContext';
 import { useBoard } from '../../context/BoardContext';
 import { supabase } from '../../lib/supabase';
 import { registerPushToken, syncSubscriptions } from '../../lib/pushNotifications';
-import { SK_FAVS, SK_SAVED_PLACES, SK_NOTIF_SETTINGS, SK_TRIP_SHARING, SK_TRIP_HISTORY, SK_PRESTO_BALANCE, SK_PRESTO_RESET_DATE, SK_BATTERY_SAVER, SK_CLASS_SCHEDULE, SK_CAMPUS } from '../../lib/storageKeys';
+import { SK_FAVS, SK_SAVED_PLACES, SK_NOTIF_SETTINGS, SK_TRIP_SHARING, SK_TRIP_HISTORY, SK_PRESTO_BALANCE, SK_PRESTO_RESET_DATE, SK_BATTERY_SAVER, SK_CLASS_SCHEDULE, SK_CAMPUS, SK_PREMIUM_EXPIRES } from '../../lib/storageKeys';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { toTitleCase } from '../../lib/utils';
 import { CAMPUSES, CampusConfig } from '../../lib/campusData';
 import { ClassSchedule } from '../../lib/scheduleData';
 import ClassScheduleModal from '../../components/ClassScheduleModal';
+import { usePremium, PREMIUM_FEATURES, PremiumFeature } from '../../lib/premium';
+import PremiumBadge from '../../components/PremiumBadge';
+import PaywallSheet from '../../components/PaywallSheet';
 
 const isNightTime = () => { const h = new Date().getHours(); return h >= 21 || h < 4; };
 
@@ -119,6 +122,22 @@ export default function AccountScreen() {
   const [acctCampus, setAcctCampus] = useState<CampusConfig | null>(null);
   const [acctScheduleModal, setAcctScheduleModal] = useState(false);
   const [ghostStats, setGhostStats] = useState<{ totalThisWeek: number; mostAffectedRoute: string | null; mostAffectedCount: number } | null>(null);
+
+  // Premium
+  const { isPremium: premiumActive, loading: premiumLoading } = usePremium();
+  const [paywallVisible, setPaywallVisible] = useState(false);
+  const [paywallFeature, setPaywallFeature] = useState<PremiumFeature | undefined>(undefined);
+  const [renewDate, setRenewDate] = useState<string>('');
+
+  const openPaywall = (feature?: PremiumFeature) => { setPaywallFeature(feature); setPaywallVisible(true); };
+
+  useEffect(() => {
+    if (premiumActive) {
+      AsyncStorage.getItem(SK_PREMIUM_EXPIRES).then(v => {
+        if (v) { const d = new Date(parseInt(v, 10)); setRenewDate(d.toLocaleDateString(language === 'fr' ? 'fr-CA' : 'en-CA')); }
+      }).catch(() => {});
+    }
+  }, [premiumActive, language]);
 
   // Bug report modal
   const [bugModalVisible, setBugModalVisible] = useState(false);
@@ -469,6 +488,73 @@ export default function AccountScreen() {
           </View>
         </View>
 
+        {/* RouteO+ Card */}
+        {!premiumLoading && (
+          premiumActive ? (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => Linking.openURL(Platform.OS === 'ios' ? 'https://apps.apple.com/account/subscriptions' : 'https://play.google.com/store/account/subscriptions')}
+              style={[{
+                marginHorizontal: 20, marginBottom: 24, borderRadius: 16, overflow: 'hidden',
+                borderWidth: 1, borderColor: '#e8a020' + '50',
+              }, cardShadow]}
+            >
+              <View style={{
+                padding: 20,
+                backgroundColor: colours.surface,
+                borderLeftWidth: 4,
+                borderLeftColor: '#e8a020',
+              }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <Ionicons name="diamond" size={20} color="#e8a020" />
+                  <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>RouteO+ {t('Active', 'Actif')}</Text>
+                  <Ionicons name="checkmark-circle" size={18} color="#e8a020" />
+                </View>
+                {renewDate ? (
+                  <Text style={{ fontSize: fonts.sm, color: colours.muted }}>
+                    {t(`Your subscription renews on ${renewDate}`, `Votre abonnement se renouvelle le ${renewDate}`)}
+                  </Text>
+                ) : null}
+                <Text style={{ fontSize: fonts.sm, color: colours.accent, fontWeight: '600', marginTop: 8 }}>
+                  {t('Manage Subscription', 'Gerer l\'abonnement')} →
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => openPaywall()}
+              style={[{
+                marginHorizontal: 20, marginBottom: 24, borderRadius: 16, overflow: 'hidden',
+              }, cardShadow]}
+            >
+              <View style={{
+                padding: 20,
+                backgroundColor: '#0a2a3a',
+                borderWidth: 1,
+                borderColor: '#00A78D' + '40',
+                borderRadius: 16,
+              }}>
+                <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: '#fff', marginBottom: 6 }}>RouteO+</Text>
+                <Text style={{ fontSize: fonts.sm, color: '#ccd6e0', marginBottom: 12, lineHeight: 18 }}>
+                  {t(
+                    'Unlock AI trip planning, Leave Now alerts, commute insights and more',
+                    'Debloquez la planification IA, les alertes de depart, les statistiques et plus'
+                  )}
+                </Text>
+                <Text style={{ fontSize: fonts.sm, color: '#8899aa', marginBottom: 14 }}>
+                  {t('$2.99/month or $19.99/year', '2,99 $/mois ou 19,99 $/an')}
+                </Text>
+                <View style={{ backgroundColor: '#00A78D', borderRadius: 10, paddingVertical: 12, alignItems: 'center' }}>
+                  <Text style={{ color: '#fff', fontWeight: '800', fontSize: fonts.md }}>
+                    {t('Upgrade Now', 'Passer a RouteO+')}
+                  </Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          )
+        )}
+
         {/* MY COMMUTE */}
         {commuteStats && commuteStats.tripsThisWeek > 0 && (<>
           <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 8, letterSpacing: 1 }}>
@@ -520,6 +606,30 @@ export default function AccountScreen() {
               </View>
             </Card>
           )}
+
+          {/* Weekly Commute Insights — Premium */}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => { if (!premiumActive) openPaywall(PREMIUM_FEATURES.COMMUTE_INSIGHTS); }}
+          >
+            <Card>
+              <View style={{ padding: 16, opacity: premiumActive ? 1 : 0.5 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <Ionicons name="stats-chart" size={18} color={colours.accent} />
+                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, flex: 1 }}>
+                    {t('Weekly Commute Insights', 'Statistiques hebdomadaires')}
+                  </Text>
+                  {!premiumActive && <PremiumBadge />}
+                </View>
+                <Text style={{ fontSize: fonts.sm, color: colours.muted }}>
+                  {t('Trends, delays, best times to travel, and CO2 saved', 'Tendances, retards, meilleurs horaires et CO2 economise')}
+                </Text>
+              </View>
+              {!premiumActive && (
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colours.surface + '80', borderRadius: 16 }} />
+              )}
+            </Card>
+          </TouchableOpacity>
         </>)}
 
         {/* SAFETY */}
@@ -1000,6 +1110,24 @@ export default function AccountScreen() {
               </TouchableOpacity>
             ))}
           </View>
+
+          {/* Custom Themes — Premium */}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => { if (!premiumActive) openPaywall(PREMIUM_FEATURES.CUSTOM_THEMES); }}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colours.border }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="color-palette" size={18} color={premiumActive ? colours.accent : colours.muted} />
+              <Text style={{ fontSize: fonts.md, fontWeight: '600', color: premiumActive ? colours.text : colours.muted }}>
+                {t('Custom Themes', 'Themes personnalises')}
+              </Text>
+            </View>
+            {premiumActive
+              ? <Ionicons name="chevron-forward" size={16} color={colours.muted} />
+              : <PremiumBadge />
+            }
+          </TouchableOpacity>
         </Card>
 
         {/* LANGUAGE */}
@@ -1295,6 +1423,13 @@ export default function AccountScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <PaywallSheet
+        visible={paywallVisible}
+        onDismiss={() => setPaywallVisible(false)}
+        onSuccess={() => { setPaywallVisible(false); }}
+        highlightFeature={paywallFeature}
+      />
     </View>
   );
 }

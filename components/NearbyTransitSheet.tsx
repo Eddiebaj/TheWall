@@ -16,6 +16,7 @@ import TonightCard from './TonightCard';
 import NewsSection from './NewsSection';
 import ServicesGrid, { ServiceTile } from './ServicesGrid';
 import { CampusConfig } from '../lib/campusData';
+import PremiumBadge from './PremiumBadge';
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -81,6 +82,10 @@ interface NearbyTransitSheetProps {
 
   // Navigation
   onPlanTrip: () => void;
+
+  // Premium
+  premiumActive?: boolean;
+  onLeaveNowPress?: () => void;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -187,6 +192,8 @@ const StopCard = React.memo(function StopCard({
   expandedArrivals,
   expandedArrivalsLoading,
   t,
+  premiumActive,
+  onLeaveNowPress,
 }: {
   stop: NearbyStop;
   colours: any;
@@ -195,6 +202,8 @@ const StopCard = React.memo(function StopCard({
   expandedArrivals: { routeId: string; headsign: string; minsAway: number; source?: string; cached?: boolean; cachedAt?: number }[];
   expandedArrivalsLoading: boolean;
   t: (en: string, fr: string) => string;
+  premiumActive?: boolean;
+  onLeaveNowPress?: () => void;
 }) {
   const ghostSet = new Set(stop.ghostRoutes ?? []);
   const hasGhostWarning = stop.ghostRoutes && stop.ghostRoutes.length > 0;
@@ -299,6 +308,27 @@ const StopCard = React.memo(function StopCard({
                   </View>
                 </View>
               ))
+            )}
+
+            {/* Leave Now Alert — Premium */}
+            {expandedArrivals.length > 0 && (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={onLeaveNowPress}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  marginTop: 10, paddingVertical: 10, borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: premiumActive ? TEAL + '40' : colours.border,
+                  backgroundColor: premiumActive ? TEAL + '08' : colours.card,
+                }}
+              >
+                <Ionicons name="notifications-outline" size={14} color={premiumActive ? TEAL : colours.muted} />
+                <Text style={{ fontSize: 13, fontWeight: '700', color: premiumActive ? TEAL : colours.muted }}>
+                  {t('Leave Now Alert', 'Alerte de depart')}
+                </Text>
+                {!premiumActive && <PremiumBadge />}
+              </TouchableOpacity>
             )}
           </View>
         )}
@@ -439,6 +469,8 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
       onServiceTileTap,
       communityDeals,
       onPlanTrip,
+      premiumActive,
+      onLeaveNowPress,
     },
     ref,
   ) => {
@@ -598,6 +630,8 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                   expandedArrivals={expandedStopId === stop.stopId ? expandedArrivals : []}
                   expandedArrivalsLoading={expandedStopId === stop.stopId && expandedArrivalsLoading}
                   t={t}
+                  premiumActive={premiumActive}
+                  onLeaveNowPress={onLeaveNowPress}
                 />
                 {i < peekStops.length - 1 && <Separator />}
               </React.Fragment>
@@ -618,6 +652,8 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                     expandedArrivals={expandedStopId === stop.stopId ? expandedArrivals : []}
                     expandedArrivalsLoading={expandedStopId === stop.stopId && expandedArrivalsLoading}
                     t={t}
+                    premiumActive={premiumActive}
+                    onLeaveNowPress={onLeaveNowPress}
                   />
                 </React.Fragment>
               ))}
