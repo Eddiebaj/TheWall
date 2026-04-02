@@ -39,15 +39,6 @@ function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="index"
-        options={{
-          tabBarLabel: fr ? 'Accueil' : 'Home',
-          tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? 'bus' : 'bus-outline'} size={22} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="saved"
         options={{
           tabBarLabel: fr ? 'Sauvegard\u00E9s' : 'Saved',
