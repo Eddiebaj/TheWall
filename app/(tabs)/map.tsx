@@ -22,6 +22,7 @@ import { NEIGHBOURHOODS } from '../../lib/neighbourhoodData';
 import ActiveTrip from '../../components/ActiveTrip';
 import BottomSheet from '@gorhom/bottom-sheet';
 import NearbyTransitSheet, { NearbyStop } from '../../components/NearbyTransitSheet';
+import { cacheArrivals, getCachedArrivals } from '../../lib/arrivalCache';
 import type { ServiceTile } from '../../components/ServicesGrid';
 
 // Error boundary to catch AIRMap native crashes and show a recoverable fallback
@@ -807,13 +808,22 @@ export default function MapScreen() {
         })
       );
 
-      setNearbyStops(prev => prev.map(stop => {
-        const result = results.find((r, i) => r.status === 'fulfilled' && sorted[i].stop_id === stop.stopId);
-        if (result?.status === 'fulfilled') {
+      // Cache successful results & fall back to cache on failure
+      const updatedStops = await Promise.all(initial.map(async (stop) => {
+        const idx = sorted.findIndex(s => s.stop_id === stop.stopId);
+        const result = idx >= 0 ? results[idx] : undefined;
+        if (result?.status === 'fulfilled' && result.value.arrivals.length > 0) {
+          cacheArrivals(stop.stopId, { arrivals: result.value.arrivals, source: 'live', stopName: stop.stopName });
           return { ...stop, arrivals: result.value.arrivals, arrivalsLoading: false };
+        }
+        // Fetch failed or empty — try cache
+        const cached = await getCachedArrivals(stop.stopId);
+        if (cached && cached.arrivals.length > 0) {
+          return { ...stop, arrivals: cached.arrivals, arrivalsLoading: false, cached: true, cachedAt: cached.cachedAt };
         }
         return { ...stop, arrivalsLoading: false };
       }));
+      setNearbyStops(updatedStops);
     } catch (e) {
       if (__DEV__) console.warn('Nearby stops fetch failed:', e);
       setNearbyLoading(false);
@@ -840,9 +850,16 @@ export default function MapScreen() {
           source: tr.source,
         }));
       setExpandedArrivals(arrivals);
+      cacheArrivals(stopId, { arrivals, source: 'expanded', stopName: null });
     } catch (e) {
       if (__DEV__) console.warn('Expanded arrivals fetch failed:', e);
-      setExpandedArrivals([]);
+      // Fall back to cached arrivals
+      const cached = await getCachedArrivals(stopId);
+      if (cached && cached.arrivals.length > 0) {
+        setExpandedArrivals(cached.arrivals.map((a: any) => ({ ...a, cached: true, cachedAt: cached.cachedAt })));
+      } else {
+        setExpandedArrivals([]);
+      }
     }
     setExpandedArrivalsLoading(false);
   }, []);

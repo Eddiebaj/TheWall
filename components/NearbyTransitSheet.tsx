@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SavedBoardItem } from '../lib/homeConstants';
 import { SavedBoardCard } from './SavedCards';
 import { SK_TRIP_HISTORY } from '../lib/storageKeys';
+import { writeWidgetData, getTopSavedStopId } from '../lib/widgetData';
 import TonightCard from './TonightCard';
 import NewsSection from './NewsSection';
 import ServicesGrid, { ServiceTile } from './ServicesGrid';
@@ -25,6 +26,8 @@ export interface NearbyStop {
   arrivals: { routeId: string; headsign: string; minsAway: number }[];
   arrivalsLoading: boolean;
   ghostRoutes?: string[];
+  cached?: boolean;
+  cachedAt?: number;
 }
 
 type SensGame = { state: 'live' | 'pre' | 'none'; period?: string; homeAbbr?: string; awayAbbr?: string; homeScore?: number; awayScore?: number; startTime?: string; opponentAbbr?: string } | null;
@@ -55,7 +58,7 @@ interface NearbyTransitSheetProps {
   // Arrivals expansion
   expandedStopId: string | null;
   onExpandStop: (stopId: string | null) => void;
-  expandedArrivals: { routeId: string; headsign: string; minsAway: number; source?: string }[];
+  expandedArrivals: { routeId: string; headsign: string; minsAway: number; source?: string; cached?: boolean; cachedAt?: number }[];
   expandedArrivalsLoading: boolean;
 
   // Alerts
@@ -189,7 +192,7 @@ const StopCard = React.memo(function StopCard({
   colours: any;
   isExpanded: boolean;
   onPress: () => void;
-  expandedArrivals: { routeId: string; headsign: string; minsAway: number; source?: string }[];
+  expandedArrivals: { routeId: string; headsign: string; minsAway: number; source?: string; cached?: boolean; cachedAt?: number }[];
   expandedArrivalsLoading: boolean;
   t: (en: string, fr: string) => string;
 }) {
@@ -220,6 +223,13 @@ const StopCard = React.memo(function StopCard({
               />
             ))}
           </View>
+        )}
+
+        {/* Cached indicator */}
+        {stop.cached && stop.cachedAt && (
+          <Text style={{ fontSize: 11, color: colours.muted, fontStyle: 'italic', marginTop: 4 }}>
+            {t('Cached', 'En cache')} {'\u2022'} {Math.max(1, Math.round((Date.now() - stop.cachedAt) / 60000))}m {t('ago', 'pass.')}
+          </Text>
         )}
 
         {/* Ghost bus warning */}
@@ -271,6 +281,10 @@ const StopCard = React.memo(function StopCard({
                     ) : a.source === 'gtfs-static' ? (
                       <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>
                         {t('Sched', 'Horaire')}
+                      </Text>
+                    ) : (a as any).cached ? (
+                      <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted, fontStyle: 'italic' }}>
+                        {t('Cached', 'En cache')}
                       </Text>
                     ) : null}
                     <Text
@@ -434,6 +448,31 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
       },
       [expandedStopId, onExpandStop],
     );
+
+    // Write widget data when expanded arrivals load for the user's top saved stop
+    useEffect(() => {
+      if (!expandedStopId || expandedArrivalsLoading || expandedArrivals.length === 0) return;
+      (async () => {
+        try {
+          const topStop = await getTopSavedStopId();
+          if (topStop && expandedStopId === topStop.id) {
+            writeWidgetData({
+              stopId: topStop.id,
+              stopName: topStop.name,
+              arrivals: expandedArrivals.slice(0, 3).map(a => ({
+                routeId: a.routeId,
+                headsign: a.headsign || '',
+                minsAway: a.minsAway ?? 99,
+                source: (a.source as 'gtfs-rt' | 'sto-gtfs-rt' | 'gtfs-static') || 'gtfs-static',
+              })),
+              updatedAt: Date.now(),
+            });
+          }
+        } catch (e) {
+          if (__DEV__) console.warn('Widget data write failed:', e);
+        }
+      })();
+    }, [expandedStopId, expandedArrivals, expandedArrivalsLoading]);
 
     const [servicesTab, setServicesTab] = useState('entertainment');
 

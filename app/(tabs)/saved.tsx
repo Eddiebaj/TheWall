@@ -10,6 +10,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { useBoard } from '../../context/BoardContext';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
+import { cacheArrivals, getCachedArrivals } from '../../lib/arrivalCache';
 import { SK_SAVED_PLACES, SK_TRIP_HISTORY } from '../../lib/storageKeys';
 
 const BACKEND_URL = 'https://routeo-backend.vercel.app/api/arrivals';
@@ -58,6 +59,7 @@ export default function SavedScreen() {
   const [places, setPlaces] = useState<SavedPlace[]>([]);
   const [recentTrip, setRecentTrip] = useState<TripEntry | null>(null);
   const [arrivals, setArrivals] = useState<Record<string, StopArrival[]>>({});
+  const [cachedStops, setCachedStops] = useState<Record<string, number>>({});
   const [arrivalsLoading, setArrivalsLoading] = useState(false);
   const [mostUsedStop, setMostUsedStop] = useState<SavedStop | null>(null);
   const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
@@ -155,10 +157,25 @@ export default function SavedScreen() {
           })
         );
         const map: Record<string, StopArrival[]> = {};
-        results.forEach((r, i) => {
-          if (r.status === 'fulfilled') map[savedStops[i].id] = r.value.arrivals;
-        });
+        const cached: Record<string, number> = {};
+        await Promise.all(results.map(async (r, i) => {
+          const stopId = savedStops[i].id;
+          if (r.status === 'fulfilled' && r.value.arrivals.length > 0) {
+            map[stopId] = r.value.arrivals;
+            cacheArrivals(stopId, { arrivals: r.value.arrivals, source: 'live', stopName: savedStops[i].name });
+          } else {
+            // Fall back to cached arrivals
+            const cachedData = await getCachedArrivals(stopId);
+            if (cachedData && cachedData.arrivals.length > 0) {
+              map[stopId] = cachedData.arrivals;
+              cached[stopId] = cachedData.cachedAt;
+            } else {
+              map[stopId] = [];
+            }
+          }
+        }));
         setArrivals(map);
+        setCachedStops(cached);
         setArrivalsLoading(false);
       }
 
@@ -203,12 +220,26 @@ export default function SavedScreen() {
                   })),
               };
             })
-          ).then(results => {
+          ).then(async results => {
             const map: Record<string, StopArrival[]> = {};
-            results.forEach((r, i) => {
-              if (r.status === 'fulfilled') map[currentStops[i].id] = r.value.arrivals;
-            });
+            const cached: Record<string, number> = {};
+            await Promise.all(results.map(async (r, i) => {
+              const stopId = currentStops[i].id;
+              if (r.status === 'fulfilled' && r.value.arrivals.length > 0) {
+                map[stopId] = r.value.arrivals;
+                cacheArrivals(stopId, { arrivals: r.value.arrivals, source: 'live', stopName: currentStops[i].name });
+              } else {
+                const cachedData = await getCachedArrivals(stopId);
+                if (cachedData && cachedData.arrivals.length > 0) {
+                  map[stopId] = cachedData.arrivals;
+                  cached[stopId] = cachedData.cachedAt;
+                } else {
+                  map[stopId] = [];
+                }
+              }
+            }));
             setArrivals(map);
+            setCachedStops(cached);
           });
         }
       }, 30000);
@@ -288,13 +319,19 @@ export default function SavedScreen() {
                 <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text, flex: 1 }} numberOfLines={1}>
                   {mostUsedStop.name}
                 </Text>
-                <View style={{
-                  flexDirection: 'row', alignItems: 'center', gap: 4,
-                  backgroundColor: TEAL + '20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
-                }}>
-                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: TEAL }} />
-                  <Text style={{ fontSize: 10, fontWeight: '800', color: TEAL }}>LIVE</Text>
-                </View>
+                {cachedStops[mostUsedStop.id] ? (
+                  <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted, fontStyle: 'italic' }}>
+                    {t('Cached', 'En cache')} {'\u2022'} {Math.max(1, Math.round((Date.now() - cachedStops[mostUsedStop.id]) / 60000))}m {t('ago', 'pass.')}
+                  </Text>
+                ) : (
+                  <View style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 4,
+                    backgroundColor: TEAL + '20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
+                  }}>
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: TEAL }} />
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: TEAL }}>LIVE</Text>
+                  </View>
+                )}
               </View>
               {arrivalsLoading ? (
                 <ActivityIndicator size="small" color={TEAL} style={{ alignSelf: 'flex-start' }} />
@@ -391,20 +428,27 @@ export default function SavedScreen() {
                       {arrivalsLoading ? (
                         <ActivityIndicator size="small" color={TEAL} style={{ alignSelf: 'flex-start' }} />
                       ) : stopArrivals.length > 0 ? (
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                          {stopArrivals.slice(0, 2).map((a, i) => (
-                            <View key={`${a.routeId}-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                              <View style={{
-                                minWidth: 32, height: 22, borderRadius: 6, paddingHorizontal: 4,
-                                backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center',
-                              }}>
-                                <Text style={{ fontSize: 11, fontWeight: '800', color: colours.accent }}>{a.routeId}</Text>
+                        <View>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                            {stopArrivals.slice(0, 2).map((a, i) => (
+                              <View key={`${a.routeId}-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                                <View style={{
+                                  minWidth: 32, height: 22, borderRadius: 6, paddingHorizontal: 4,
+                                  backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center',
+                                }}>
+                                  <Text style={{ fontSize: 11, fontWeight: '800', color: colours.accent }}>{a.routeId}</Text>
+                                </View>
+                                <Text style={{ fontSize: 11, fontWeight: '700', color: a.minsAway < 2 ? TEAL : colours.text }}>
+                                  {a.minsAway <= 0 ? '<1' : `${a.minsAway}m`}
+                                </Text>
                               </View>
-                              <Text style={{ fontSize: 11, fontWeight: '700', color: a.minsAway < 2 ? TEAL : colours.text }}>
-                                {a.minsAway <= 0 ? '<1' : `${a.minsAway}m`}
-                              </Text>
-                            </View>
-                          ))}
+                            ))}
+                          </View>
+                          {cachedStops[stop.id] && (
+                            <Text style={{ fontSize: 9, color: colours.muted, fontStyle: 'italic', marginTop: 3 }}>
+                              {t('Cached', 'En cache')} {'\u2022'} {Math.max(1, Math.round((Date.now() - cachedStops[stop.id]) / 60000))}m {t('ago', 'pass.')}
+                            </Text>
+                          )}
                         </View>
                       ) : (
                         <Text style={{ fontSize: 11, color: colours.muted, fontStyle: 'italic' }}>
