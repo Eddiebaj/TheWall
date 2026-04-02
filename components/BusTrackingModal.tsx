@@ -130,11 +130,11 @@ export default function BusTrackingModal({
   // Fetch bus position
   const fetchBusPosition = useCallback(async () => {
     try {
-      const resp = await fetchWithTimeout(`${VEHICLES_URL}?t=${Date.now()}`);
+      const bareId = routeId.split('-')[0];
+      const resp = await fetchWithTimeout(`${VEHICLES_URL}?route=${encodeURIComponent(bareId)}&t=${Date.now()}`);
       if (!resp.ok) return;
       const data = await resp.json();
       const vehicles: Bus[] = data.vehicles || [];
-      const bareId = routeId.split('-')[0];
       // Find matching bus - prefer closest match by route
       const matches = vehicles.filter(v => {
         const vBare = v.routeId.split('-')[0];

@@ -43,6 +43,8 @@ function NewsSection({ colours, fonts, cardShadow, onArticlesLoaded, sortMode = 
   useEffect(() => { setVisibleCount(20); }, [sortMode, sourceFilter]);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const appStateRef = useRef(AppState.currentState);
+  const onArticlesLoadedRef = useRef(onArticlesLoaded);
+  useEffect(() => { onArticlesLoadedRef.current = onArticlesLoaded; }, [onArticlesLoaded]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
@@ -82,7 +84,7 @@ function NewsSection({ colours, fonts, cardShadow, onArticlesLoaded, sortMode = 
       const items: NewsArticle[] = data.articles || [];
       if (__DEV__) console.log('News fetched:', items.length, 'articles');
       setArticles(items);
-      onArticlesLoaded?.(items);
+      onArticlesLoadedRef.current?.(items);
       AsyncStorage.setItem(SK_NEWS_CACHE, JSON.stringify({ articles: items, ts: Date.now() }));
     } catch (e) {
       if (__DEV__) console.warn('fetch news failed:', e);
@@ -93,7 +95,7 @@ function NewsSection({ colours, fonts, cardShadow, onArticlesLoaded, sortMode = 
           if (cached) {
             const parsed = JSON.parse(cached);
             setArticles(parsed.articles || []);
-            onArticlesLoaded?.(parsed.articles || []);
+            onArticlesLoadedRef.current?.(parsed.articles || []);
           }
         } catch (e) { if (__DEV__) console.warn(e); }
       }

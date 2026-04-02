@@ -63,11 +63,7 @@ export async function registerPushToken(language: string): Promise<boolean> {
     const token = await getExpoPushToken();
     if (!token) return false;
 
-    const prevToken = await AsyncStorage.getItem(SK_PUSH_TOKEN);
     const deviceId = await getDeviceId();
-
-    // Skip if nothing changed
-    if (prevToken === token) return true;
 
     const resp = await fetchWithTimeout(
       `${COMMUNITY_URL}?action=push.register`,

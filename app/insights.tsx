@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Rect } from 'react-native-svg';
 import { useApp } from '../context/AppContext';
-import { SK_TRIP_HISTORY, SK_CO2_TOTAL } from '../lib/storageKeys';
+import { SK_TRIP_HISTORY } from '../lib/storageKeys';
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -94,14 +94,10 @@ export default function InsightsScreen() {
   const isLight = colours.bg === '#f0f4f8' || colours.bg === '#ffffff';
 
   const [trips, setTrips] = useState<Trip[]>([]);
-  const [co2Total, setCo2Total] = useState(0);
 
   useEffect(() => {
     AsyncStorage.getItem(SK_TRIP_HISTORY).then(raw => {
       if (raw) { try { setTrips(JSON.parse(raw)); } catch {} }
-    }).catch(() => {});
-    AsyncStorage.getItem(SK_CO2_TOTAL).then(raw => {
-      if (raw) setCo2Total(parseFloat(raw) || 0);
     }).catch(() => {});
   }, []);
 
@@ -162,7 +158,7 @@ export default function InsightsScreen() {
     const km = getDistanceKm(tr);
     return sum + (CO2_CAR_KG_PER_KM - CO2_TRANSIT_KG_PER_KM) * km;
   }, 0);
-  const allTimeCo2 = co2Total + trips.reduce((sum, tr) => sum + (CO2_CAR_KG_PER_KM - CO2_TRANSIT_KG_PER_KM) * getDistanceKm(tr), 0);
+  const allTimeCo2 = trips.reduce((sum, tr) => sum + (CO2_CAR_KG_PER_KM - CO2_TRANSIT_KG_PER_KM) * getDistanceKm(tr), 0);
   const treesEquiv = Math.max(0.1, allTimeCo2 / 21); // ~21 kg CO2 per tree per year
 
   const chartWidth = 320;

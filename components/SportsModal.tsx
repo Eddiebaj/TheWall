@@ -62,70 +62,66 @@ export default function SportsModal({ visible, onClose, colours, fonts, t, langu
 
   const fetchSportsScores = async () => {
     setSportsScoresLoading(true);
-    const results: any[] = [];
     const teamsToFetch = OTTAWA_TEAMS.filter(team => team.nhl || team.espn);
-    for (const team of teamsToFetch) {
-      try {
-        if (team.nhl) {
-          const resp = await fetchWithTimeout('https://api-web.nhle.com/v1/schedule/now');
-          if (!resp.ok) throw new Error('HTTP ' + resp.status);
-          const data = await resp.json();
-          const today = new Date().toLocaleDateString('en-CA');
-          const todayEntry = (data.gameWeek || []).find((d: any) => d.date === today);
-          const game = (todayEntry?.games || []).find((g: any) => g.awayTeam?.abbrev === team.nhl!.toUpperCase() || g.homeTeam?.abbrev === team.nhl!.toUpperCase());
-          if (game) {
-            const gs = game.gameState;
-            const state = (gs === 'LIVE' || gs === 'CRIT') ? 'in' : gs === 'FINAL' ? 'post' : 'pre';
-            const startTime = new Date(game.startTimeUTC).toLocaleTimeString(language === 'fr' ? 'fr-CA' : 'en-CA', { hour: 'numeric', minute: '2-digit' });
-            results.push({
-              team: team.name,
-              homeName: game.homeTeam?.placeName?.default || game.homeTeam?.abbrev || '?',
-              homeAbbr: game.homeTeam?.abbrev || '?',
-              homeScore: state === 'pre' ? '-' : String(game.homeTeam?.score ?? '0'),
-              awayName: game.awayTeam?.placeName?.default || game.awayTeam?.abbrev || '?',
-              awayAbbr: game.awayTeam?.abbrev || '?',
-              awayScore: state === 'pre' ? '-' : String(game.awayTeam?.score ?? '0'),
-              status: state === 'in' ? `P${game.period || '?'} \u00B7 ${game.clock || ''}` : state === 'post' ? (game.periodDescriptor?.periodType === 'OT' ? 'Final/OT' : game.periodDescriptor?.periodType === 'SO' ? 'Final/SO' : 'Final') : startTime,
-              state,
-            });
-          } else {
-            results.push({ team: team.name, noGame: true });
-          }
-        } else if (team.espn) {
-          const resp = await fetchWithTimeout(`https://site.api.espn.com/apis/site/v2/sports/${team.espn.sport}/${team.espn.league}/scoreboard`);
-          if (!resp.ok) throw new Error('HTTP ' + resp.status);
-          const data = await resp.json();
-          const game = (data.events || []).find((ev: any) =>
-            (ev.competitions?.[0]?.competitors || []).some((c: any) => c.team?.abbreviation === team.espn!.abbr)
-          );
-          if (game) {
-            const comp = game.competitions?.[0];
-            if (!comp?.competitors || comp.competitors.length < 2) {
-              results.push({ team: team.name, noGame: true });
-            } else {
-              const home = comp.competitors.find((c: any) => c.homeAway === 'home');
-              const away = comp.competitors.find((c: any) => c.homeAway === 'away');
-              const state = comp.status?.type?.state;
-              results.push({
-                team: team.name,
-                homeName: home?.team?.displayName || '?',
-                homeAbbr: home?.team?.abbreviation || '?',
-                homeScore: home?.score || '0',
-                awayName: away?.team?.displayName || '?',
-                awayAbbr: away?.team?.abbreviation || '?',
-                awayScore: away?.score || '0',
-                status: comp.status?.type?.shortDetail || comp.status?.type?.description || '',
-                state,
-              });
-            }
-          } else {
-            results.push({ team: team.name, noGame: true });
-          }
+    const settled = await Promise.allSettled(teamsToFetch.map(async (team) => {
+      if (team.nhl) {
+        const resp = await fetchWithTimeout('https://api-web.nhle.com/v1/schedule/now');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        const today = new Date().toLocaleDateString('en-CA');
+        const todayEntry = (data.gameWeek || []).find((d: any) => d.date === today);
+        const game = (todayEntry?.games || []).find((g: any) => g.awayTeam?.abbrev === team.nhl!.toUpperCase() || g.homeTeam?.abbrev === team.nhl!.toUpperCase());
+        if (game) {
+          const gs = game.gameState;
+          const state = (gs === 'LIVE' || gs === 'CRIT') ? 'in' : gs === 'FINAL' ? 'post' : 'pre';
+          const startTime = new Date(game.startTimeUTC).toLocaleTimeString(language === 'fr' ? 'fr-CA' : 'en-CA', { hour: 'numeric', minute: '2-digit' });
+          return {
+            team: team.name,
+            homeName: game.homeTeam?.placeName?.default || game.homeTeam?.abbrev || '?',
+            homeAbbr: game.homeTeam?.abbrev || '?',
+            homeScore: state === 'pre' ? '-' : String(game.homeTeam?.score ?? '0'),
+            awayName: game.awayTeam?.placeName?.default || game.awayTeam?.abbrev || '?',
+            awayAbbr: game.awayTeam?.abbrev || '?',
+            awayScore: state === 'pre' ? '-' : String(game.awayTeam?.score ?? '0'),
+            status: state === 'in' ? `P${game.period || '?'} \u00B7 ${game.clock || ''}` : state === 'post' ? (game.periodDescriptor?.periodType === 'OT' ? 'Final/OT' : game.periodDescriptor?.periodType === 'SO' ? 'Final/SO' : 'Final') : startTime,
+            state,
+          };
         }
-      } catch {
-        results.push({ team: team.name, noGame: true });
+        return { team: team.name, noGame: true };
+      } else if (team.espn) {
+        const resp = await fetchWithTimeout(`https://site.api.espn.com/apis/site/v2/sports/${team.espn.sport}/${team.espn.league}/scoreboard`);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        const game = (data.events || []).find((ev: any) =>
+          (ev.competitions?.[0]?.competitors || []).some((c: any) => c.team?.abbreviation === team.espn!.abbr)
+        );
+        if (game) {
+          const comp = game.competitions?.[0];
+          if (!comp?.competitors || comp.competitors.length < 2) {
+            return { team: team.name, noGame: true };
+          }
+          const home = comp.competitors.find((c: any) => c.homeAway === 'home');
+          const away = comp.competitors.find((c: any) => c.homeAway === 'away');
+          const state = comp.status?.type?.state;
+          return {
+            team: team.name,
+            homeName: home?.team?.displayName || '?',
+            homeAbbr: home?.team?.abbreviation || '?',
+            homeScore: home?.score || '0',
+            awayName: away?.team?.displayName || '?',
+            awayAbbr: away?.team?.abbreviation || '?',
+            awayScore: away?.score || '0',
+            status: comp.status?.type?.shortDetail || comp.status?.type?.description || '',
+            state,
+          };
+        }
+        return { team: team.name, noGame: true };
       }
-    }
+      return { team: team.name, noGame: true };
+    }));
+    const results = settled.map((r, i) =>
+      r.status === 'fulfilled' ? r.value : { team: teamsToFetch[i].name, noGame: true }
+    );
     setSportsScores(results);
     setSportsScoresLoading(false);
   };

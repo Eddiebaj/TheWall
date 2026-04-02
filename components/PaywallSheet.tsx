@@ -46,7 +46,7 @@ export default function PaywallSheet({ visible, onDismiss, onSuccess, highlightF
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent statusBarTranslucent>
+    <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={onDismiss}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}>
         <View style={{
           backgroundColor: colours.surface,

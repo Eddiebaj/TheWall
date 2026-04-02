@@ -188,19 +188,21 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
 
   const voteDeal = async (dealId: string, voteType: 'up' | 'down') => {
     const deviceId = await getDeviceId();
+    // Read from ref to avoid stale closure
+    const currentMyVotes = myVotesRef.current;
     // Save previous state for rollback
     const prevDealVotes = { ...dealVotes };
-    const prevMyVotes = { ...myVotes };
+    const prevMyVotes = { ...currentMyVotes };
     // Optimistic update
     setDealVotes(prev => {
       const current = prev[dealId] || { up: 0, down: 0 };
-      const oldVote = myVotes[dealId];
+      const oldVote = currentMyVotes[dealId];
       const updated = { ...current };
       if (oldVote) updated[oldVote]--;
       if (oldVote !== voteType) updated[voteType]++;
       return { ...prev, [dealId]: updated };
     });
-    const newVote = myVotes[dealId] === voteType ? undefined : voteType;
+    const newVote = currentMyVotes[dealId] === voteType ? undefined : voteType;
     setMyVotes(prev => {
       const next = { ...prev };
       if (newVote) next[dealId] = newVote; else delete next[dealId];

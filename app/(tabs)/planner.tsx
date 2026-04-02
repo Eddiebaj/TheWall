@@ -306,6 +306,7 @@ function legCoords(leg: Leg): { latitude: number; longitude: number }[] {
 }
 
 function getBounds(coords: { latitude: number; longitude: number }[]) {
+  if (coords.length === 0) return undefined;
   const lats = coords.map(c => c.latitude);
   const lngs = coords.map(c => c.longitude);
   const minLat = Math.min(...lats), maxLat = Math.max(...lats);
@@ -1779,7 +1780,7 @@ function PlannerScreenInner() {
   const renderExpandedItinerary = () => {
     if (!expandedItinerary) return null;
     const allCoords = (expandedItinerary.legs || []).flatMap(leg => legCoords(leg));
-    const initialRegion = getBounds(allCoords);
+    const initialRegion = getBounds(allCoords) ?? { latitude: 45.4215, longitude: -75.6972, latitudeDelta: 0.05, longitudeDelta: 0.05 };
 
     return (
       <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={closeExpandedModal}>

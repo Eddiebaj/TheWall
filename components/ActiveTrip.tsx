@@ -107,6 +107,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
   const [busDisappearedAt, setBusDisappearedAt] = useState<number | null>(null);
   const [switchedRoute, setSwitchedRoute] = useState<string | null>(null);
   const [pollFailCount, setPollFailCount] = useState(0);
+  const advancingRef = useRef(false);
   const [busPosition, setBusPosition] = useState<{ lat: number; lng: number; routeId: string; agency: string } | null>(null);
   const [stopsExpanded, setStopsExpanded] = useState(false);
   const [liveEta, setLiveEta] = useState<number | null>(null);
@@ -193,13 +194,15 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
       fireNotification(t('Get off soon', 'Descendez bient\u00f4t'), t('Your stop is approaching', 'Votre arr\u00eat approche'));
     }
 
-    if (destDist < 50 && activeLeg < legs.length - 1) {
+    if (destDist < 50 && activeLeg < legs.length - 1 && !advancingRef.current) {
+      advancingRef.current = true;
       setActiveLeg(prev => prev + 1);
       setGetOffAlert(false);
       setLiveArrival(null);
       setTransferWarning(null);
       setAltRoutes([]);
       Haptics?.impactAsync?.(Haptics.ImpactFeedbackStyle.Medium);
+      setTimeout(() => { advancingRef.current = false; }, 1000);
     }
 
     if (isLastLeg && destDist < 60 && !tripEnded) {

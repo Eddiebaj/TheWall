@@ -18,7 +18,7 @@ import {
 const ScaleDecorator = ({ children }: { children: React.ReactNode }) => <>{children}</>;
 
 // ── SavedBoardCard component ─────────────────────────────────────
-export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, cardShadow, garbageEvents, alerts, sensGame, onMoveLeft, onMoveRight, timeFormat, campusData }: {
+export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, cardShadow, garbageEvents, alerts, sensGame, onMoveLeft, onMoveRight, timeFormat, campusData }: {
   item: SavedBoardItem;
   colours: { bg: string; text: string; muted: string; accent: string; surface: string; border: string; lrt: string; red: string; [key: string]: string };
   fonts: { sm: number; md: number; lg: number; xl: number; xxl: number };
@@ -447,7 +447,7 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
     </TouchableOpacity>
     </ScaleDecorator>
   );
-}
+});
 
 // ── SavedStopCard component ──────────────────────────────────��───
 export const SavedStopCard = React.memo(function SavedStopCard({ fav, isActive, colours, fonts, t, onPress, onLongPress, cardShadow }: any) {
