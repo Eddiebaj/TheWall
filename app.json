@@ -11,6 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.eddie.routeo",
+      "appleTeamId": "9556L24Y4A",
       "entitlements": {
         "com.apple.security.application-groups": ["group.com.routeo.app"]
       },
