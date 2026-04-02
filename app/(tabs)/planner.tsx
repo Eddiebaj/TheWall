@@ -129,6 +129,7 @@ type TripRecord = {
   fromLabel: string; fromLat: number; fromLng: number;
   toLabel: string; toLat: number; toLng: number;
   durationMins: number;
+  distanceKm?: number;
   plannedAt: string; // ISO string
 };
 
@@ -804,11 +805,13 @@ function PlannerScreenInner() {
       // Auto-save to trip history
       if (data.itineraries?.length) {
         const bestItin = data.itineraries[0];
+        const totalDistM = (bestItin.legs || []).reduce((sum: number, l: Leg) => sum + (l.distance || 0), 0);
         const record: TripRecord = {
           id: `trip_${Date.now()}`,
           fromLabel: resolvedFrom.label, fromLat: resolvedFrom.lat!, fromLng: resolvedFrom.lng!,
           toLabel: resolvedTo.label, toLat: resolvedTo.lat!, toLng: resolvedTo.lng!,
           durationMins: Math.round((bestItin.duration || 0) / 60),
+          distanceKm: Math.round(totalDistM / 100) / 10,
           plannedAt: new Date().toISOString(),
         };
         setTripHistory(prev => {
@@ -926,11 +929,13 @@ function PlannerScreenInner() {
         const combined: Itinerary = { duration: totalDuration, startTime, endTime, transfers: totalTransfers, walkDistance: totalWalkDistance, legs: allLegs };
         setItineraries([combined]);
         // Save to trip history
+        const multiDistM = allLegs.reduce((sum: number, l: Leg) => sum + (l.distance || 0), 0);
         const record: TripRecord = {
           id: `trip_${Date.now()}`,
           fromLabel: resolvedFrom.label, fromLat: resolvedFrom.lat!, fromLng: resolvedFrom.lng!,
           toLabel: resolvedTo.label, toLat: resolvedTo.lat!, toLng: resolvedTo.lng!,
           durationMins: Math.round(totalDuration / 60),
+          distanceKm: Math.round(multiDistM / 100) / 10,
           plannedAt: new Date().toISOString(),
         };
         setTripHistory(prev => {

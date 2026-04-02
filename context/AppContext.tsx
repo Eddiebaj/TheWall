@@ -1,15 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useColorScheme } from 'react-native';
-import { SK_THEME, SK_LARGE_TEXT, SK_CONTRAST, SK_MOTION, SK_LANGUAGE } from '../lib/storageKeys';
+import { SK_THEME, SK_LARGE_TEXT, SK_CONTRAST, SK_MOTION, SK_LANGUAGE, SK_PALETTE } from '../lib/storageKeys';
 
 type Theme = 'dark' | 'light' | 'system';
 type Language = 'en' | 'fr';
+export type PaletteId = 'default' | 'senators' | 'midnight' | 'forest' | 'sand';
 
 type AppContextType = {
   theme: Theme;
   setTheme: (t: Theme) => void;
   resolvedTheme: 'dark' | 'light';
+  palette: PaletteId;
+  setPalette: (p: PaletteId) => void;
   largeText: boolean;
   setLargeText: (v: boolean) => void;
   highContrast: boolean;
@@ -71,6 +74,23 @@ const HIGH_CONTRAST_LIGHT = {
   surface: '#ffffff',
 };
 
+// Palette accent overrides (applied on top of dark/light base)
+const PALETTE_OVERRIDES: Record<PaletteId, { accent: string; accentAlt: string; green: string }> = {
+  default:   { accent: '#00A78D', accentAlt: '#004890', green: '#00A78D' },
+  senators:  { accent: '#C8102E', accentAlt: '#C69214', green: '#C8102E' },
+  midnight:  { accent: '#3B82F6', accentAlt: '#1E3A5F', green: '#3B82F6' },
+  forest:    { accent: '#2D8659', accentAlt: '#6B8F71', green: '#2D8659' },
+  sand:      { accent: '#B8860B', accentAlt: '#8B6914', green: '#B8860B' },
+};
+
+export const PALETTE_LABELS: Record<PaletteId, { en: string; fr: string; swatch: string }> = {
+  default:  { en: 'Default', fr: 'Defaut', swatch: '#00A78D' },
+  senators: { en: 'Senators', fr: 'Senateurs', swatch: '#C8102E' },
+  midnight: { en: 'Midnight', fr: 'Minuit', swatch: '#3B82F6' },
+  forest:   { en: 'Forest', fr: 'Foret', swatch: '#2D8659' },
+  sand:     { en: 'Sand', fr: 'Sable', swatch: '#B8860B' },
+};
+
 const BASE_FONTS = { sm: 11, md: 13, lg: 15, xl: 18, xxl: 28 };
 const LARGE_FONTS = { sm: 13, md: 15, lg: 17, xl: 21, xxl: 32 };
 
@@ -84,11 +104,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [highContrast, setHighContrastState] = useState(false);
   const [reducedMotion, setReducedMotionState] = useState(false);
   const [language, setLanguageState] = useState<Language>('en');
+  const [palette, setPaletteState] = useState<PaletteId>('default');
 
   useEffect(() => {
     AsyncStorage.multiGet([
       SK_THEME, SK_LARGE_TEXT, SK_CONTRAST,
-      SK_MOTION, SK_LANGUAGE
+      SK_MOTION, SK_LANGUAGE, SK_PALETTE
     ]).then(vals => {
       try {
         const themeVal = vals[0][1];
@@ -98,6 +119,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (vals[3][1]) setReducedMotionState(vals[3][1] === 'true');
         const langVal = vals[4][1];
         if (langVal === 'en' || langVal === 'fr') setLanguageState(langVal);
+        const palVal = vals[5]?.[1];
+        if (palVal && palVal in PALETTE_OVERRIDES) setPaletteState(palVal as PaletteId);
       } catch {
         // Corrupted storage — keep defaults
       }
@@ -124,14 +147,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLanguageState(l);
     AsyncStorage.setItem(SK_LANGUAGE, l);
   };
+  const setPalette = (p: PaletteId) => {
+    setPaletteState(p);
+    AsyncStorage.setItem(SK_PALETTE, p);
+  };
 
   const resolvedTheme = theme === 'system'
     ? (systemScheme === 'light' ? 'light' : 'dark')
     : theme;
 
-  const colours = useMemo(() => resolvedTheme === 'light'
-    ? (highContrast ? HIGH_CONTRAST_LIGHT : LIGHT_COLOURS)
-    : (highContrast ? HIGH_CONTRAST_DARK : DARK_COLOURS), [resolvedTheme, highContrast]);
+  const colours = useMemo(() => {
+    const base = resolvedTheme === 'light'
+      ? (highContrast ? HIGH_CONTRAST_LIGHT : LIGHT_COLOURS)
+      : (highContrast ? HIGH_CONTRAST_DARK : DARK_COLOURS);
+    if (palette === 'default') return base;
+    const ov = PALETTE_OVERRIDES[palette];
+    return { ...base, accent: ov.accent, accentAlt: ov.accentAlt, green: ov.green };
+  }, [resolvedTheme, highContrast, palette]);
 
   const fonts = useMemo(() => largeText ? LARGE_FONTS : BASE_FONTS, [largeText]);
 
@@ -140,6 +172,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   return (
     <AppContext.Provider value={{
       theme, setTheme, resolvedTheme,
+      palette, setPalette,
       largeText, setLargeText,
       highContrast, setHighContrast,
       reducedMotion, setReducedMotion,

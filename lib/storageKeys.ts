@@ -135,3 +135,12 @@ export const SK_HOME_ADDRESS = 'routeo_home_address';
 // Premium subscription
 export const SK_PREMIUM = 'routeo_premium';
 export const SK_PREMIUM_EXPIRES = 'routeo_premium_expires';
+
+// Custom palette
+export const SK_PALETTE = 'routeo_palette';
+
+// Leave Now alerts
+export const SK_LEAVE_NOW_ALERTS = 'routeo_leave_now_alerts';
+
+// CO2 tracker
+export const SK_CO2_TOTAL = 'routeo_co2_total';

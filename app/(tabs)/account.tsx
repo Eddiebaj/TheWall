@@ -9,11 +9,13 @@ import {
     StatusBar, Switch, Text, TextInput,
     TouchableOpacity, View
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useApp } from '../../context/AppContext';
+import { PALETTE_LABELS, PaletteId } from '../../context/AppContext';
 import { useBoard } from '../../context/BoardContext';
 import { supabase } from '../../lib/supabase';
 import { registerPushToken, syncSubscriptions } from '../../lib/pushNotifications';
-import { SK_FAVS, SK_SAVED_PLACES, SK_NOTIF_SETTINGS, SK_TRIP_SHARING, SK_TRIP_HISTORY, SK_PRESTO_BALANCE, SK_PRESTO_RESET_DATE, SK_BATTERY_SAVER, SK_CLASS_SCHEDULE, SK_CAMPUS, SK_PREMIUM_EXPIRES } from '../../lib/storageKeys';
+import { SK_FAVS, SK_SAVED_PLACES, SK_NOTIF_SETTINGS, SK_TRIP_SHARING, SK_TRIP_HISTORY, SK_PRESTO_BALANCE, SK_PRESTO_RESET_DATE, SK_BATTERY_SAVER, SK_CLASS_SCHEDULE, SK_CAMPUS, SK_PREMIUM_EXPIRES, SK_LEAVE_NOW_ALERTS } from '../../lib/storageKeys';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { toTitleCase } from '../../lib/utils';
 import { CAMPUSES, CampusConfig } from '../../lib/campusData';
@@ -79,11 +81,13 @@ const NOTIF_SETTINGS_KEY = SK_NOTIF_SETTINGS;
 export default function AccountScreen() {
   const {
     theme, setTheme, resolvedTheme, colours, fonts,
+    palette, setPalette,
     largeText, setLargeText,
     highContrast, setHighContrast,
     reducedMotion, setReducedMotion,
     language, setLanguage, t,
   } = useApp();
+  const router = useRouter();
   const { savedBoard, removeFromBoard, refreshBoard } = useBoard();
 
   const isLight = resolvedTheme === 'light';
@@ -130,6 +134,7 @@ export default function AccountScreen() {
   const [renewDate, setRenewDate] = useState<string>('');
 
   const openPaywall = (feature?: PremiumFeature) => { setPaywallFeature(feature); setPaywallVisible(true); };
+  const [leaveNowAlerts, setLeaveNowAlerts] = useState<{ id: string; stopName: string; routeId: string; leaveAt: number }[]>([]);
 
   useEffect(() => {
     if (premiumActive) {
@@ -149,6 +154,7 @@ export default function AccountScreen() {
   useEffect(() => {
     AsyncStorage.getItem(SK_CAMPUS).then(val => { if (val) { const c = CAMPUSES.find(x => x.id === val); if (c) setAcctCampus(c); } }).catch(() => {});
     AsyncStorage.getItem(SK_CLASS_SCHEDULE).then(val => { try { if (val) setAcctSchedule(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn(e); } }).catch(() => {});
+    AsyncStorage.getItem(SK_LEAVE_NOW_ALERTS).then(val => { try { if (val) { const arr = JSON.parse(val).filter((a: any) => a.leaveAt > Date.now()); setLeaveNowAlerts(arr); } } catch {} }).catch(() => {});
     // Fetch ghost bus stats
     (async () => {
       try {
@@ -610,7 +616,7 @@ export default function AccountScreen() {
           {/* Weekly Commute Insights — Premium */}
           <TouchableOpacity
             activeOpacity={0.85}
-            onPress={() => { if (!premiumActive) openPaywall(PREMIUM_FEATURES.COMMUTE_INSIGHTS); }}
+            onPress={() => { premiumActive ? router.push('/insights' as any) : openPaywall(PREMIUM_FEATURES.COMMUTE_INSIGHTS); }}
           >
             <Card>
               <View style={{ padding: 16, opacity: premiumActive ? 1 : 0.5 }}>
@@ -619,7 +625,10 @@ export default function AccountScreen() {
                   <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, flex: 1 }}>
                     {t('Weekly Commute Insights', 'Statistiques hebdomadaires')}
                   </Text>
-                  {!premiumActive && <PremiumBadge />}
+                  {premiumActive
+                    ? <Ionicons name="chevron-forward" size={16} color={colours.muted} />
+                    : <PremiumBadge />
+                  }
                 </View>
                 <Text style={{ fontSize: fonts.sm, color: colours.muted }}>
                   {t('Trends, delays, best times to travel, and CO2 saved', 'Tendances, retards, meilleurs horaires et CO2 economise')}
@@ -630,6 +639,41 @@ export default function AccountScreen() {
               )}
             </Card>
           </TouchableOpacity>
+
+          {/* Leave Now Alerts — Active */}
+          {premiumActive && leaveNowAlerts.length > 0 && (
+            <Card>
+              <View style={{ padding: 16 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <Ionicons name="notifications" size={16} color={colours.accent} />
+                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
+                    {t('Leave Now Alerts', 'Alertes de depart')}
+                  </Text>
+                </View>
+                {leaveNowAlerts.map((a, i) => (
+                  <View key={a.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: colours.border }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.text }}>{a.stopName}</Text>
+                      <Text style={{ fontSize: 10, color: colours.muted }}>
+                        {t('Route', 'Route')} {a.routeId} · {new Date(a.leaveAt).toLocaleTimeString(language === 'fr' ? 'fr-CA' : 'en-CA', { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={async () => {
+                        try { if (Notifications) await Notifications.cancelScheduledNotificationAsync(a.id); } catch {}
+                        const updated = leaveNowAlerts.filter(x => x.id !== a.id);
+                        setLeaveNowAlerts(updated);
+                        AsyncStorage.setItem(SK_LEAVE_NOW_ALERTS, JSON.stringify(updated)).catch(() => {});
+                      }}
+                      hitSlop={8}
+                    >
+                      <Ionicons name="close-circle" size={20} color={colours.red} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            </Card>
+          )}
         </>)}
 
         {/* SAFETY */}
@@ -1112,22 +1156,47 @@ export default function AccountScreen() {
           </View>
 
           {/* Custom Themes — Premium */}
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={() => { if (!premiumActive) openPaywall(PREMIUM_FEATURES.CUSTOM_THEMES); }}
-            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colours.border }}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Ionicons name="color-palette" size={18} color={premiumActive ? colours.accent : colours.muted} />
-              <Text style={{ fontSize: fonts.md, fontWeight: '600', color: premiumActive ? colours.text : colours.muted }}>
-                {t('Custom Themes', 'Themes personnalises')}
-              </Text>
-            </View>
-            {premiumActive
-              ? <Ionicons name="chevron-forward" size={16} color={colours.muted} />
-              : <PremiumBadge />
-            }
-          </TouchableOpacity>
+          <View style={{ borderTopWidth: 1, borderTopColor: colours.border, paddingHorizontal: 16, paddingVertical: 12 }}>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => { if (!premiumActive) openPaywall(PREMIUM_FEATURES.CUSTOM_THEMES); }}
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: premiumActive ? 10 : 0 }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="color-palette" size={18} color={premiumActive ? colours.accent : colours.muted} />
+                <Text style={{ fontSize: fonts.md, fontWeight: '600', color: premiumActive ? colours.text : colours.muted }}>
+                  {t('Custom Themes', 'Themes personnalises')}
+                </Text>
+              </View>
+              {!premiumActive && <PremiumBadge />}
+            </TouchableOpacity>
+            {premiumActive && (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {(Object.keys(PALETTE_LABELS) as PaletteId[]).map(pid => {
+                  const pl = PALETTE_LABELS[pid];
+                  const isActive = palette === pid;
+                  return (
+                    <TouchableOpacity
+                      key={pid}
+                      onPress={() => setPalette(pid)}
+                      style={{
+                        flexDirection: 'row', alignItems: 'center', gap: 6,
+                        paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10,
+                        borderWidth: 1.5,
+                        borderColor: isActive ? pl.swatch : colours.border,
+                        backgroundColor: isActive ? pl.swatch + '15' : colours.bg,
+                      }}
+                    >
+                      <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: pl.swatch }} />
+                      <Text style={{ fontSize: fonts.sm, fontWeight: isActive ? '700' : '500', color: isActive ? pl.swatch : colours.muted }}>
+                        {t(pl.en, pl.fr)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </View>
         </Card>
 
         {/* LANGUAGE */}

@@ -1,5 +1,6 @@
 import React, { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   View,
   Text,
   TouchableOpacity,
@@ -10,13 +11,15 @@ import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { SavedBoardItem } from '../lib/homeConstants';
 import { SavedBoardCard } from './SavedCards';
-import { SK_TRIP_HISTORY } from '../lib/storageKeys';
+import { SK_TRIP_HISTORY, SK_LEAVE_NOW_ALERTS } from '../lib/storageKeys';
 import { writeWidgetData, getTopSavedStopId } from '../lib/widgetData';
 import TonightCard from './TonightCard';
 import NewsSection from './NewsSection';
 import ServicesGrid, { ServiceTile } from './ServicesGrid';
 import { CampusConfig } from '../lib/campusData';
 import PremiumBadge from './PremiumBadge';
+let Notifications: typeof import('expo-notifications') | null = null;
+try { Notifications = require('expo-notifications'); } catch {}
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -314,7 +317,37 @@ const StopCard = React.memo(function StopCard({
             {expandedArrivals.length > 0 && (
               <TouchableOpacity
                 activeOpacity={0.85}
-                onPress={onLeaveNowPress}
+                onPress={async () => {
+                  if (!premiumActive) { onLeaveNowPress?.(); return; }
+                  if (!Notifications) return;
+                  const nextArr = expandedArrivals[0];
+                  const walkSec = stop.walkMeters / 1.4;
+                  const bufferSec = 120;
+                  const arrivalMs = Date.now() + nextArr.minsAway * 60 * 1000;
+                  const leaveAtMs = arrivalMs - (walkSec + bufferSec) * 1000;
+                  const secsUntil = Math.max(1, Math.round((leaveAtMs - Date.now()) / 1000));
+                  try {
+                    const notifId = await Notifications.scheduleNotificationAsync({
+                      content: {
+                        title: t('Leave now!', 'Partez maintenant!'),
+                        body: t(
+                          `${nextArr.routeId} to ${nextArr.headsign} arrives at ${stop.stopName} in ${Math.ceil((walkSec + bufferSec) / 60)} min`,
+                          `${nextArr.routeId} vers ${nextArr.headsign} arrive a ${stop.stopName} dans ${Math.ceil((walkSec + bufferSec) / 60)} min`
+                        ),
+                        sound: 'default',
+                      },
+                      trigger: { type: 'timeInterval' as any, seconds: secsUntil, repeats: false } as any,
+                    });
+                    // Persist alert
+                    const alert = { id: notifId, stopName: stop.stopName, routeId: nextArr.routeId, leaveAt: leaveAtMs };
+                    try {
+                      const raw = await AsyncStorage.getItem(SK_LEAVE_NOW_ALERTS);
+                      const existing = raw ? JSON.parse(raw) : [];
+                      existing.push(alert);
+                      await AsyncStorage.setItem(SK_LEAVE_NOW_ALERTS, JSON.stringify(existing));
+                    } catch {}
+                  } catch (e) { if (__DEV__) console.warn('Leave now schedule failed:', e); }
+                }}
                 style={{
                   flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
                   marginTop: 10, paddingVertical: 10, borderRadius: 10,
@@ -325,7 +358,10 @@ const StopCard = React.memo(function StopCard({
               >
                 <Ionicons name="notifications-outline" size={14} color={premiumActive ? TEAL : colours.muted} />
                 <Text style={{ fontSize: 13, fontWeight: '700', color: premiumActive ? TEAL : colours.muted }}>
-                  {t('Leave Now Alert', 'Alerte de depart')}
+                  {premiumActive
+                    ? t('Set Leave Alert', 'Definir alerte de depart')
+                    : t('Leave Now Alert', 'Alerte de depart')
+                  }
                 </Text>
                 {!premiumActive && <PremiumBadge />}
               </TouchableOpacity>
