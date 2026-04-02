@@ -42,6 +42,8 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
   const [gasPrice, setGasPrice] = useState<string | null>(null);
   const [gasFailed, setGasFailed] = useState(false);
 
+  const itemId = 'id' in item ? item.id : item.type;
+
   useEffect(() => {
     if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'saved_team' || item.type === 'campus' || item.type === 'news' || item.type === 'neighbourhood' || item.type === 'class_schedule') { setPreviewLoading(false); return; }
     if (item.type === 'gas_prices') {
@@ -65,7 +67,7 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
     };
     fetchPreview();
     return () => { cancelled = true; };
-  }, [item.type, 'id' in item ? item.id : undefined]);
+  }, [item.type, itemId]);
 
   const cardBase = [{ width: 152, height: 148, borderRadius: 14, padding: 12, backgroundColor: isActive ? colours.accent + '22' : colours.surface, borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, justifyContent: 'space-between' as const }, cardShadow];
 

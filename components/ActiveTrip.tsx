@@ -209,7 +209,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
       Haptics?.notificationAsync?.(Haptics.NotificationFeedbackType.Success);
       fireNotification(t('You have arrived', 'Vous etes arrive'), cleanStopName(currentLeg.to.name));
     }
-  }, [userCoords, activeLeg, currentLeg]);
+  }, [userCoords, activeLeg, currentLeg, getOffAlert, tripEnded]);
 
   // ── Poll arrivals for current transit leg ────────────────────
   const pollArrivals = useCallback(async () => {

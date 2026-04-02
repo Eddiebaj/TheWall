@@ -52,6 +52,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
   const [placesLoading, setPlacesLoading] = useState(false);
   const [stops, setStops] = useState<any[]>([]);
   const [stopsLoading, setStopsLoading] = useState(false);
+  const fetchedTabs = useRef<Set<string>>(new Set());
 
   // Transit score state
   const [transitScore, setTransitScore] = useState<{ transit_score: number; stop_count: number; route_count: number; avg_frequency: number } | null>(null);
@@ -82,14 +83,14 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
     setDealVotes({});
     setMyVotes({});
     setTransitScore(null);
+    fetchedTabs.current = new Set();
   }, [visible, n?.id]);
 
   useEffect(() => {
     if (!visible || !n) return;
-    if (activeTab === 'places' && places.length === 0) fetchPlaces();
-    if (activeTab === 'transit' && stops.length === 0) fetchStops();
-    if (activeTab === 'transit' && !transitScore) fetchTransitScore();
-    if (activeTab === 'deals' && communityDeals.length === 0) fetchCommunityDeals();
+    if (activeTab === 'places' && !fetchedTabs.current.has('places')) { fetchedTabs.current.add('places'); fetchPlaces(); }
+    if (activeTab === 'transit' && !fetchedTabs.current.has('transit')) { fetchedTabs.current.add('transit'); fetchStops(); fetchTransitScore(); }
+    if (activeTab === 'deals' && !fetchedTabs.current.has('deals')) { fetchedTabs.current.add('deals'); fetchCommunityDeals(); }
   }, [activeTab, visible]);
 
   const fetchPlaces = async () => {

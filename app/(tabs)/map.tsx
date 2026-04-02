@@ -854,8 +854,8 @@ export default function MapScreen() {
   useEffect(() => {
     // Alerts
     fetchWithTimeout('https://routeo-backend.vercel.app/api/alerts', { timeout: 8000 })
-      .then(r => r.ok ? r.json() : [])
-      .then(data => { if (Array.isArray(data)) setSheetAlerts(data); })
+      .then(r => r.ok ? r.json() : { alerts: [] })
+      .then(data => { setSheetAlerts(data?.alerts || []); })
       .catch(() => {});
 
     // Weather
@@ -1802,7 +1802,7 @@ export default function MapScreen() {
                         await supabase.from('community_deals').insert({
                           venue_name: contribName.trim(),
                           deal_text: `[${contribType}] ${contribInfo.trim()}${contribAddress.trim() ? ` | ${contribAddress.trim()}` : ''}`,
-                          approved: true, // TODO: revert to false and add admin approval before public launch
+                          approved: false,
                         });
                         // Notify backend about new submission
                         fetchWithTimeout('https://routeo-backend.vercel.app/api/community?action=deal.notify', {

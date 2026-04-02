@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Dimensions, Image, Platform, RefreshControl,
   ScrollView, StatusBar, Text, TouchableOpacity, View
@@ -64,6 +64,8 @@ export default function SavedScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopsRef = useRef<SavedStop[]>(stops);
+  useEffect(() => { stopsRef.current = stops; }, [stops]);
 
   const cardShadow = isLight ? {
     shadowColor: '#004890',
@@ -181,9 +183,10 @@ export default function SavedScreen() {
 
       // Auto-refresh arrivals every 30s while focused
       refreshTimer.current = setInterval(() => {
-        if (stops.length > 0) {
+        const currentStops = stopsRef.current;
+        if (currentStops.length > 0) {
           Promise.allSettled(
-            stops.map(async s => {
+            currentStops.map(async s => {
               const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${s.id}`, { timeout: 8000 });
               if (!resp.ok) return { stopId: s.id, arrivals: [] as StopArrival[] };
               const data = await resp.json();
@@ -203,7 +206,7 @@ export default function SavedScreen() {
           ).then(results => {
             const map: Record<string, StopArrival[]> = {};
             results.forEach((r, i) => {
-              if (r.status === 'fulfilled') map[stops[i].id] = r.value.arrivals;
+              if (r.status === 'fulfilled') map[currentStops[i].id] = r.value.arrivals;
             });
             setArrivals(map);
           });
@@ -211,7 +214,7 @@ export default function SavedScreen() {
       }, 30000);
 
       return () => { if (refreshTimer.current) clearInterval(refreshTimer.current); };
-    }, [loadData, stops])
+    }, [loadData])
   );
 
   const onRefresh = useCallback(async () => {

@@ -53,6 +53,7 @@ export default function RouteScreen() {
 
   useEffect(() => {
     if (!id) return;
+    setSelectedDir(0);
     setLoading(true);
     setError('');
     fetchWithTimeout(`${ROUTE_URL}?id=${id}`)

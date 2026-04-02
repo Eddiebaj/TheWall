@@ -32,11 +32,14 @@ export function getDelayContext(
 ): DelayContext | null {
   if (delayMinutes <= 5) return null;
 
-  // 1. ALERT — active alert mentioning this route
-  const routeAlert = alerts.find(a =>
-    a.routes?.includes(routeId) &&
-    a.category !== 'accessibility'
-  );
+  // 1. ALERT — active alert mentioning this route (exclude construction — handled in step 4)
+  const routeAlert = alerts.find(a => {
+    if (!a.routes?.includes(routeId)) return false;
+    if (a.category === 'accessibility') return false;
+    const text = `${a.title || ''} ${a.description || ''}`;
+    if (CONSTRUCTION_KEYWORDS.test(text)) return false;
+    return true;
+  });
   if (routeAlert) {
     return {
       reason: 'alert',
