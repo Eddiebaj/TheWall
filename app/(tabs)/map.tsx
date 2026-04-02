@@ -621,6 +621,7 @@ export default function MapScreen() {
   const [sheetWeather, setSheetWeather] = useState<{ temp: number; condition: string; icon: string } | null>(null);
   const [sheetEvents, setSheetEvents] = useState<{ name: string; date: string; time?: string; venue: string }[]>([]);
   const [sheetSensGame, setSheetSensGame] = useState<any>(null);
+  const [sheetDeals, setSheetDeals] = useState<{ id: string; venue_name: string; deal_text: string; day_of_week: number }[]>([]);
 
   // Discovery mode — Google Places nearby search
   const [discoveryCategory, setDiscoveryCategory] = useState<string | null>(null);
@@ -905,6 +906,12 @@ export default function MapScreen() {
         }
       })
       .catch(() => {});
+
+    // Community deals
+    supabase.from('community_deals').select('id, venue_name, deal_text, day_of_week')
+      .order('submitted_at', { ascending: false }).limit(10)
+      .then(({ data }: { data: any }) => { if (data) setSheetDeals(data); })
+      .then(() => {}, () => {});
   }, []);
 
   const routeToTapped = useCallback(() => {
@@ -2408,6 +2415,7 @@ export default function MapScreen() {
             Linking.openURL(tile.target).catch(() => {});
           }
         }}
+        communityDeals={sheetDeals}
         onPlanTrip={() => router.push('/(tabs)/planner' as any)}
       />
 

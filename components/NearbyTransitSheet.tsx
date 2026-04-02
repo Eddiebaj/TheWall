@@ -70,6 +70,9 @@ interface NearbyTransitSheetProps {
   // Services (State 3)
   onServiceTileTap: (tile: ServiceTile) => void;
 
+  // Community deals (State 3)
+  communityDeals: { id: string; venue_name: string; deal_text: string; day_of_week: number }[];
+
   // Navigation
   onPlanTrip: () => void;
 }
@@ -254,16 +257,29 @@ function StopCard({
                       {a.headsign}
                     </Text>
                   </View>
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      fontWeight: '700',
-                      color: a.minsAway < 2 ? TEAL : colours.text,
-                      marginLeft: 8,
-                    }}
-                  >
-                    {formatCountdown(a.minsAway)}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 8 }}>
+                    {a.source === 'gtfs-rt' || a.source === 'sto-gtfs-rt' ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: TEAL }} />
+                        <Text style={{ fontSize: 10, fontWeight: '600', color: TEAL }}>
+                          {t('Live', 'Direct')}
+                        </Text>
+                      </View>
+                    ) : a.source === 'gtfs-static' ? (
+                      <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>
+                        {t('Sched', 'Horaire')}
+                      </Text>
+                    ) : null}
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontWeight: '700',
+                        color: a.minsAway < 2 ? TEAL : colours.text,
+                      }}
+                    >
+                      {formatCountdown(a.minsAway)}
+                    </Text>
+                  </View>
                 </View>
               ))
             )}
@@ -404,6 +420,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
       sensGame,
       events,
       onServiceTileTap,
+      communityDeals,
       onPlanTrip,
     },
     ref,
@@ -431,7 +448,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
     return (
       <BottomSheet
         ref={ref}
-        index={0}
+        index={1}
         snapPoints={SNAP_POINTS}
         backgroundStyle={{
           backgroundColor: colours.card,
@@ -661,6 +678,51 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
             fonts={fonts}
             cardShadow={boardCardProps.cardShadow}
           />
+
+          {/* Community deals */}
+          {communityDeals.length > 0 && (
+            <>
+              <Separator />
+              <SectionHeader label={t('Deals', 'Offres')} />
+              <View style={{ paddingHorizontal: 16, paddingBottom: 4 }}>
+                {communityDeals.slice(0, 5).map(deal => {
+                  const dayNames = language === 'fr'
+                    ? ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
+                    : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                  const isToday = deal.day_of_week === new Date().getDay();
+                  return (
+                    <View
+                      key={deal.id}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: 12,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: isToday ? '#2ecc7140' : colours.border,
+                        backgroundColor: isToday ? '#2ecc7108' : colours.surface,
+                        marginBottom: 8,
+                      }}
+                    >
+                      <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: isToday ? '#2ecc7118' : colours.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="pricetag" size={16} color={isToday ? '#2ecc71' : colours.accent} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }} numberOfLines={1}>{deal.venue_name}</Text>
+                        <Text style={{ fontSize: 12, color: colours.muted, marginTop: 1 }} numberOfLines={1}>{deal.deal_text}</Text>
+                      </View>
+                      <View style={{ backgroundColor: isToday ? '#2ecc7118' : colours.bg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: isToday ? '#2ecc7140' : colours.border }}>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: isToday ? '#2ecc71' : colours.muted }}>
+                          {isToday ? t('TODAY', "AUJOURD'HUI") : dayNames[deal.day_of_week]}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </>
+          )}
 
           {/* Recent trips */}
           <Separator />
