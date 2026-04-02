@@ -336,7 +336,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
 
       for (const leg of legs) {
         if (leg.mode === 'WALK') continue;
-        const route = leg.routeShortName ? `Route ${leg.routeShortName}` : leg.mode === 'TRAM' || leg.mode === 'RAIL' ? 'O-Train' : 'Bus';
+        const route = leg.routeShortName ? t(`Route ${leg.routeShortName}`, `Ligne ${leg.routeShortName}`) : leg.mode === 'TRAM' || leg.mode === 'RAIL' ? 'O-Train' : t('Bus', 'Bus');
         const stop = cleanStopName(leg.from.name);
         const headsign = leg.headsign ? ` → ${leg.headsign}` : '';
 
@@ -545,7 +545,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
 
         {/* Progress bar */}
         <View style={{ marginHorizontal: 20, height: 4, borderRadius: 2, backgroundColor: colours.border, marginBottom: 0 }}>
-          <View style={{ height: 4, borderRadius: 2, backgroundColor: colours.green, width: `${Math.round(progressFraction * 100)}%` as any }} />
+          <View style={{ height: 4, borderRadius: 2, backgroundColor: colours.green, width: `${Math.round(progressFraction * 100)}%` as `${number}%` }} />
         </View>
 
         {/* Map section — 50% screen height */}

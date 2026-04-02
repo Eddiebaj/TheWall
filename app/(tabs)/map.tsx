@@ -1999,7 +1999,7 @@ export default function MapScreen() {
                   <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Stop', 'Arrêt')} #{selectedBus.toStop}</Text>
                 </View>
                 <View style={{ height: 6, backgroundColor: colours.border, borderRadius: 3 }}>
-                  <View style={{ height: 6, borderRadius: 3, backgroundColor: busIsSTO ? '#00A78D' : '#CE1126', width: `${Math.min(100, selectedBus.progress ?? 0)}%` as any }} />
+                  <View style={{ height: 6, borderRadius: 3, backgroundColor: busIsSTO ? '#00A78D' : '#CE1126', width: `${Math.min(100, selectedBus.progress ?? 0)}%` as `${number}%` }} />
                 </View>
                 {busEtaInfo && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, backgroundColor: colours.accent + '12', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 }}>

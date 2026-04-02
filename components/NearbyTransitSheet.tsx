@@ -14,6 +14,7 @@ import { SK_TRIP_HISTORY } from '../lib/storageKeys';
 import TonightCard from './TonightCard';
 import NewsSection from './NewsSection';
 import ServicesGrid, { ServiceTile } from './ServicesGrid';
+import { CampusConfig } from '../lib/campusData';
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -26,9 +27,11 @@ export interface NearbyStop {
   ghostRoutes?: string[];
 }
 
+type SensGame = { state: 'live' | 'pre' | 'none'; period?: string; homeAbbr?: string; awayAbbr?: string; homeScore?: number; awayScore?: number; startTime?: string; opponentAbbr?: string } | null;
+
 interface NearbyTransitSheetProps {
-  colours: any;
-  fonts: any;
+  colours: { bg: string; text: string; muted: string; accent: string; surface: string; border: string; lrt: string; red: string; [key: string]: string };
+  fonts: { sm: number; md: number; lg: number; xl: number; xxl: number };
   t: (en: string, fr: string) => string;
   language: string;
 
@@ -41,12 +44,12 @@ interface NearbyTransitSheetProps {
   savedBoard: SavedBoardItem[];
   onBoardCardPress: (item: SavedBoardItem) => void;
   boardCardProps: {
-    cardShadow: any;
-    garbageEvents: any[];
-    alerts: any[];
-    sensGame: any;
-    timeFormat: any;
-    campusData: any;
+    cardShadow: Record<string, unknown>;
+    garbageEvents: { date: string; flags: string[] }[];
+    alerts: { id: number; title: string; description: string; routes: string[]; category: string }[];
+    sensGame: SensGame;
+    timeFormat: 'relative' | 'absolute';
+    campusData: CampusConfig | null;
   };
 
   // Arrivals expansion
@@ -64,7 +67,7 @@ interface NearbyTransitSheetProps {
   onWeatherPress?: () => void;
 
   // Tonight card (State 3)
-  sensGame: any;
+  sensGame: SensGame;
   events: { name: string; date: string; time?: string; venue: string }[];
 
   // Services (State 3)
@@ -122,7 +125,7 @@ function SkeletonCard({ colours }: { colours: any }) {
 
 // ── Route badge ──────────────────────────────────────────────────
 
-function RouteBadge({
+const RouteBadge = React.memo(function RouteBadge({
   routeId,
   minsAway,
   isGhost,
@@ -169,11 +172,11 @@ function RouteBadge({
       </Text>
     </View>
   );
-}
+});
 
 // ── Stop card ────────────────────────────────────────────────────
 
-function StopCard({
+const StopCard = React.memo(function StopCard({
   stop,
   colours,
   isExpanded,
@@ -288,11 +291,11 @@ function StopCard({
       </View>
     </TouchableOpacity>
   );
-}
+});
 
 // ── Weather row ──────────────────────────────────────────────────
 
-function WeatherRow({ weather, colours, t, onPress }: {
+const WeatherRow = React.memo(function WeatherRow({ weather, colours, t, onPress }: {
   weather: { temp: number; condition: string; icon: string };
   colours: any;
   t: (en: string, fr: string) => string;
@@ -324,7 +327,7 @@ function WeatherRow({ weather, colours, t, onPress }: {
       <Ionicons name="chevron-forward" size={16} color={colours.muted} />
     </TouchableOpacity>
   );
-}
+});
 
 // ── Recent trips ─────────────────────────────────────────────────
 

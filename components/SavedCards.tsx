@@ -19,10 +19,14 @@ const ScaleDecorator = ({ children }: { children: React.ReactNode }) => <>{child
 
 // ── SavedBoardCard component ─────────────────────────────────────
 export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, cardShadow, garbageEvents, alerts, sensGame, onMoveLeft, onMoveRight, timeFormat, campusData }: {
-  item: SavedBoardItem; colours: any; fonts: any; t: any;
-  onPress: () => void; drag: () => void; isActive: boolean; cardShadow: any;
+  item: SavedBoardItem;
+  colours: { bg: string; text: string; muted: string; accent: string; surface: string; border: string; lrt: string; red: string; [key: string]: string };
+  fonts: { sm: number; md: number; lg: number; xl: number; xxl: number };
+  t: (en: string, fr: string) => string;
+  onPress: () => void; drag: () => void; isActive: boolean;
+  cardShadow: Record<string, unknown>;
   garbageEvents: { date: string; flags: string[] }[];
-  alerts: any[];
+  alerts: { id: number; title: string; description: string; routes: string[]; category: string }[];
   sensGame?: { state: 'live' | 'pre' | 'none'; period?: string; homeAbbr?: string; awayAbbr?: string; homeScore?: number; awayScore?: number; startTime?: string; opponentAbbr?: string } | null;
   onMoveLeft?: () => void;
   onMoveRight?: () => void;
@@ -53,7 +57,7 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
         if (!cancelled) {
           setPreview((data.arrivals || []).slice(0, 3).map((a: any) => ({ routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway })));
           setPreviewFetchedAt(Date.now());
-          setPreviewSource(data.source === 'sto-gtfs-rt' ? 'sto-gtfs-rt' as any : data.source === 'gtfs-rt' ? 'gtfs-rt' : 'gtfs-static');
+          setPreviewSource(data.source === 'sto-gtfs-rt' ? 'sto-gtfs-rt' : data.source === 'gtfs-rt' ? 'gtfs-rt' : 'gtfs-static');
           if (data.ghostReports) setPreviewGhosts(data.ghostReports);
         }
       } catch { if (!cancelled) setPreview([]); }
@@ -61,15 +65,15 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
     };
     fetchPreview();
     return () => { cancelled = true; };
-  }, [item.type, (item as any).id]);
+  }, [item.type, 'id' in item ? item.id : undefined]);
 
-  const cardBase: any = [{ width: 152, height: 148, borderRadius: 14, padding: 12, backgroundColor: isActive ? colours.accent + '22' : colours.surface, borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, justifyContent: 'space-between' }, cardShadow];
+  const cardBase = [{ width: 152, height: 148, borderRadius: 14, padding: 12, backgroundColor: isActive ? colours.accent + '22' : colours.surface, borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, justifyContent: 'space-between' as const }, cardShadow];
 
   if (item.type === 'garbage') {
     const next = garbageEvents[0];
     const nextDate = next ? new Date(next.date + 'T12:00:00') : null;
     const daysUntil = nextDate ? Math.round((nextDate.getTime() - new Date().setHours(0,0,0,0)) / 86400000) : null;
-    const daysLabel = daysUntil === 0 ? 'TODAY' : daysUntil === 1 ? 'TOMORROW' : daysUntil != null ? `IN ${daysUntil}d` : '\u2014';
+    const daysLabel = daysUntil === 0 ? t('TODAY', "AUJOURD'HUI") : daysUntil === 1 ? t('TOMORROW', 'DEMAIN') : daysUntil != null ? t(`IN ${daysUntil}d`, `DANS ${daysUntil}j`) : '\u2014';
     const BIN_COLOURS: Record<string, string> = { garbage: '#666', 'recycling-blue': '#1a6fbf', 'recycling-black': '#222', 'green-bin': '#2d7a3a', 'yard-waste': '#8b5a00' };
     return (
       <ScaleDecorator>
@@ -78,7 +82,7 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
           <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#6b7f9918', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="trash" size={12} color="#6b7f99" />
           </View>
-          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Garbage Day</Text>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Garbage Day', 'Jour de collecte')}</Text>
         </View>
         {next ? (
           <>
@@ -114,19 +118,19 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
           <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#e8a02018', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="notifications" size={12} color="#e8a020" />
           </View>
-          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Alerts</Text>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Alerts', 'Alertes')}</Text>
         </View>
         <View style={{ gap: 4 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: dotColor }} />
             <Text style={{ fontSize: 13, fontWeight: '800', color: hasAlerts ? dotColor : colours.accent }}>
-              {hasAlerts ? `${active.length} active` : 'All clear'}
+              {hasAlerts ? `${active.length} ${t('active', 'active' + (active.length > 1 ? 's' : ''))}` : t('All clear', 'Aucune alerte')}
             </Text>
           </View>
           {hasAlerts && <Text style={{ fontSize: 10, color: colours.muted, lineHeight: 14 }} numberOfLines={3}>{active[0].title}</Text>}
-          {!hasAlerts && <Text style={{ fontSize: 10, color: colours.muted }}>No service alerts on OC Transpo</Text>}
+          {!hasAlerts && <Text style={{ fontSize: 10, color: colours.muted }}>{t('No service alerts on OC Transpo', 'Aucune alerte de service OC Transpo')}</Text>}
         </View>
-        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>Tap to view all \u2192</Text>
+        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap to view all', 'Voir tout')} {'\u2192'}</Text>
       </TouchableOpacity>
       </ScaleDecorator>
     );
@@ -144,19 +148,19 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
           <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#6b7f9918', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="speedometer" size={12} color="#6b7f99" />
           </View>
-          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Gas Prices</Text>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Gas Prices', "Prix d'essence")}</Text>
         </View>
         {gasPrice ? (
           <>
             <Text style={{ fontSize: 26, fontWeight: '900', color: colours.accent }}>{gasPrice}\u00A2</Text>
-            <Text style={{ fontSize: 10, color: colours.muted }}>Regular \u00B7 Ottawa avg</Text>
+            <Text style={{ fontSize: 10, color: colours.muted }}>{t('Regular', 'Ordinaire')} {'\u00B7'} {t('Ottawa avg', 'Moy. Ottawa')}</Text>
           </>
         ) : gasFailed ? (
           <Text style={{ fontSize: 11, color: colours.muted }}>{t('Gas prices unavailable', 'Prix d\'essence indisponible')}</Text>
         ) : (
           <Text style={{ fontSize: 11, color: colours.muted }}>{t('Tap to load prices', 'Appuyez pour charger')}</Text>
         )}
-        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>Tap for nearby stations \u2192</Text>
+        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap for nearby stations', 'Stations a proximite')} {'\u2192'}</Text>
       </TouchableOpacity>
       </ScaleDecorator>
     );
@@ -174,9 +178,9 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
         </View>
         <View style={{ gap: 4 }}>
           <Text style={{ fontSize: 13, fontWeight: '800', color: colours.lrt }}>Line 1 & 2</Text>
-          <Text style={{ fontSize: 10, color: colours.muted }}>Confederation & Trillium Lines</Text>
+          <Text style={{ fontSize: 10, color: colours.muted }}>{t('Confederation & Trillium Lines', 'Lignes Confederation & Trillium')}</Text>
         </View>
-        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>Tap to view stations \u2192</Text>
+        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap to view stations', 'Voir les stations')} {'\u2192'}</Text>
       </TouchableOpacity>
       </ScaleDecorator>
     );
@@ -192,8 +196,8 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
           </View>
           <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Services</Text>
         </View>
-        <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }}>Ottawa Services</Text>
-        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>Tap to view all \u2192</Text>
+        <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }}>{t('Ottawa Services', 'Services Ottawa')}</Text>
+        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap to view all', 'Voir tout')} {'\u2192'}</Text>
       </TouchableOpacity>
       </ScaleDecorator>
     );
@@ -207,10 +211,10 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
           <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#e8a02018', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="compass" size={12} color="#e8a020" />
           </View>
-          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Discover</Text>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Discover', 'Decouvrir')}</Text>
         </View>
-        <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }}>Discover Ottawa</Text>
-        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>Tap to explore \u2192</Text>
+        <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }}>{t('Discover Ottawa', 'Decouvrir Ottawa')}</Text>
+        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap to explore', 'Appuyez pour explorer')} {'\u2192'}</Text>
       </TouchableOpacity>
       </ScaleDecorator>
     );
@@ -224,10 +228,10 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
           <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#cc3b2a18', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="newspaper" size={12} color="#cc3b2a" />
           </View>
-          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>News</Text>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('News', 'Nouvelles')}</Text>
         </View>
-        <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }}>Local News</Text>
-        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>Tap to read \u2192</Text>
+        <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }}>{t('Local News', 'Nouvelles locales')}</Text>
+        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap to read', 'Appuyez pour lire')} {'\u2192'}</Text>
       </TouchableOpacity>
       </ScaleDecorator>
     );
@@ -241,10 +245,10 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
           <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#7b5ea718', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="map" size={12} color="#7b5ea7" />
           </View>
-          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Area</Text>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Area', 'Quartier')}</Text>
         </View>
         <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }} numberOfLines={2}>{t(item.name_en, item.name_fr)}</Text>
-        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>Tap to explore \u2192</Text>
+        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap to explore', 'Appuyez pour explorer')} {'\u2192'}</Text>
       </TouchableOpacity>
       </ScaleDecorator>
     );
@@ -261,7 +265,7 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
           {sg?.state === 'live' && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
               <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#cc3b2a' }} />
-              <Text style={{ fontSize: 9, fontWeight: '800', color: '#cc3b2a', letterSpacing: 0.5 }}>LIVE \u00B7 {sg.period}</Text>
+              <Text style={{ fontSize: 9, fontWeight: '800', color: '#cc3b2a', letterSpacing: 0.5 }}>{t('LIVE', 'EN DIRECT')} {'\u00B7'} {sg.period}</Text>
             </View>
           )}
           {teamLogo ? (
@@ -277,7 +281,7 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
           <Text style={{ fontSize: 11, fontWeight: '800', color: colours.text, textAlign: 'center', marginTop: 2 }}>{sg.homeAbbr} {sg.homeScore} \u00B7 {sg.awayAbbr} {sg.awayScore}</Text>
         )}
         {sg?.state === 'pre' && (
-          <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted, textAlign: 'center', marginTop: 2 }} numberOfLines={1}>Tonight vs {sg.opponentAbbr} \u00B7 {sg.startTime}</Text>
+          <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted, textAlign: 'center', marginTop: 2 }} numberOfLines={1}>{t('Tonight vs', 'Ce soir c.')} {sg.opponentAbbr} {'\u00B7'} {sg.startTime}</Text>
         )}
       </TouchableOpacity>
       </ScaleDecorator>
@@ -296,7 +300,7 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
           <Text style={{ fontSize: 14, fontWeight: '800', color: colours.text, marginBottom: 4 }}>{label}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <Ionicons name="open-outline" size={11} color={colours.muted} />
-            <Text style={{ fontSize: 10, color: colours.muted }}>Opens externally</Text>
+            <Text style={{ fontSize: 10, color: colours.muted }}>{t('Opens externally', 'Ouvre en externe')}</Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -358,11 +362,11 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
   // ── Bus Stop / LRT card ──
   const isLRT = item.type === 'lrt_station';
   const isLive = previewSource === 'gtfs-rt' || previewSource === 'sto-gtfs-rt';
-  const isSTO = (item as any).agency === 'STO' || isStoStop(item.id);
+  const isSTO = ('agency' in item && item.agency === 'STO') || isStoStop(item.id);
   const stoBlue = '#0072bc';
   const stopRouteIds = preview.map(a => (a.routeId || '').split('-')[0]);
-  const activeAlerts = alerts.filter((a: any) => a.category !== 'accessibility');
-  const matchingAlertRoutes = activeAlerts.flatMap((a: any) => (a.routes || []).filter((r: string) => stopRouteIds.includes(r)));
+  const activeAlerts = alerts.filter(a => a.category !== 'accessibility');
+  const matchingAlertRoutes = activeAlerts.flatMap(a => (a.routes || []).filter(r => stopRouteIds.includes(r)));
   const alertRouteSet = [...new Set(matchingAlertRoutes)];
   return (
     <ScaleDecorator>
@@ -394,7 +398,7 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
           {!previewLoading && preview.length > 0 && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
               <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: isLive ? (isSTO ? stoBlue : '#22c55e') : colours.muted }} />
-              <Text style={{ fontSize: 8, fontWeight: '700', color: isLive ? (isSTO ? stoBlue : '#22c55e') : colours.muted }}>{isLive ? 'LIVE' : 'SCHED'}</Text>
+              <Text style={{ fontSize: 8, fontWeight: '700', color: isLive ? (isSTO ? stoBlue : '#22c55e') : colours.muted }}>{isLive ? t('LIVE', 'DIRECT') : t('SCHED', 'HORAIRE')}</Text>
             </View>
           )}
         </View>
@@ -443,8 +447,8 @@ export function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActiv
   );
 }
 
-// ── SavedStopCard component ──────────────────────────────────────
-export function SavedStopCard({ fav, isActive, colours, fonts, t, onPress, onLongPress, cardShadow }: any) {
+// ── SavedStopCard component ──────────────────────────────────��───
+export const SavedStopCard = React.memo(function SavedStopCard({ fav, isActive, colours, fonts, t, onPress, onLongPress, cardShadow }: any) {
   const [preview, setPreview] = useState<{ routeId: string; headsign: string; minsAway: number }[]>([]);
   const [previewLoading, setPreviewLoading] = useState(true);
   const [previewSource, setPreviewSource] = useState<'gtfs-rt' | 'gtfs-static' | 'sto-gtfs-rt' | null>(null);
@@ -481,7 +485,7 @@ export function SavedStopCard({ fav, isActive, colours, fonts, t, onPress, onLon
         {!previewLoading && preview.length > 0 && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
             <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: isLive ? liveColor : (isActive ? 'rgba(255,255,255,0.5)' : colours.muted) }} />
-            <Text style={{ fontSize: 8, fontWeight: '700', color: isLive ? liveColor : (isActive ? 'rgba(255,255,255,0.5)' : colours.muted) }}>{isLive ? 'LIVE' : 'SCHED'}</Text>
+            <Text style={{ fontSize: 8, fontWeight: '700', color: isLive ? liveColor : (isActive ? 'rgba(255,255,255,0.5)' : colours.muted) }}>{isLive ? t('LIVE', 'DIRECT') : t('SCHED', 'HORAIRE')}</Text>
           </View>
         )}
       </View>
@@ -501,10 +505,10 @@ export function SavedStopCard({ fav, isActive, colours, fonts, t, onPress, onLon
       </View>
     </TouchableOpacity>
   );
-}
+});
 
 // ── SavedPlaceCard component ─────────────────────────────────────
-export function SavedPlaceCard({ place, colours, fonts, language, t, onPress, onLongPress, cardShadow }: any) {
+export const SavedPlaceCard = React.memo(function SavedPlaceCard({ place, colours, fonts, language, t, onPress, onLongPress, cardShadow }: any) {
   const photoUrl = place.photoRef ? `https://routeo-backend.vercel.app/api/places?action=photo&photo_reference=${place.photoRef}&maxwidth=400` : null;
   const label = language === 'fr' ? place.categoryLabel_fr : place.categoryLabel_en;
   return (
@@ -522,4 +526,4 @@ export function SavedPlaceCard({ place, colours, fonts, language, t, onPress, on
       </View>
     </TouchableOpacity>
   );
-}
+});

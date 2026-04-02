@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { Animated, View, ViewStyle } from 'react-native';
+import { Animated, DimensionValue, View, ViewStyle } from 'react-native';
 
 type ShimmerProps = {
-  width: number | string;
+  width: DimensionValue;
   height: number;
   borderRadius?: number;
   style?: ViewStyle;
@@ -26,7 +26,7 @@ function ShimmerBlock({ width, height, borderRadius = 8, style, baseColor = '#e0
   return (
     <Animated.View
       style={[
-        { width: width as any, height, borderRadius, backgroundColor: baseColor, opacity },
+        { width, height, borderRadius, backgroundColor: baseColor, opacity },
         style,
       ]}
     />
@@ -35,7 +35,7 @@ function ShimmerBlock({ width, height, borderRadius = 8, style, baseColor = '#e0
 
 type SkeletonCardProps = {
   colours: { surface: string; border: string; bg: string };
-  cardShadow?: any;
+  cardShadow?: Record<string, unknown>;
 };
 
 /** Board card skeleton */

@@ -400,7 +400,7 @@ export default function BusTrackingModal({
                   <View style={{ height: 6, backgroundColor: colours.border, borderRadius: 3 }}>
                     <View style={{
                       height: 6, borderRadius: 3, backgroundColor: accentColor,
-                      width: `${Math.min(100, bus.progress ?? 0)}%` as any,
+                      width: `${Math.min(100, bus.progress ?? 0)}%` as `${number}%`,
                     }} />
                   </View>
 

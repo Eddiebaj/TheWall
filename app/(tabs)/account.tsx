@@ -106,8 +106,8 @@ export default function AccountScreen() {
   const [showTips, setShowTips] = useState(false);
   const [showA11y, setShowA11y] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
-  const [savedFavs, setSavedFavs] = useState<any[]>([]);
-  const [savedPlaces, setSavedPlaces] = useState<any[]>([]);
+  const [savedFavs, setSavedFavs] = useState<{ id: string; name: string; agency?: string }[]>([]);
+  const [savedPlaces, setSavedPlaces] = useState<{ id: string; name: string; vicinity?: string; categoryIcon?: string; categoryColor?: string; lat?: number; lng?: number }[]>([]);
   const [commuteStats, setCommuteStats] = useState<{ tripsThisWeek: number; totalMinutes: number; avgDuration: number; topRoute: string | null } | null>(null);
   const [fareStats, setFareStats] = useState<{ tripsToday: number; tripsWeek: number; tripsMonth: number; costToday: number; costWeek: number; costMonth: number } | null>(null);
   const [prestoBalance, setPrestoBalance] = useState<string>('');
@@ -258,7 +258,7 @@ export default function AccountScreen() {
         catch (e) { if (__DEV__) console.warn('Failed to parse notif settings:', e); }
       }
     }).catch(e => { if (__DEV__) console.warn('AsyncStorage notif read error:', e); });
-    if (Notifications) Notifications.getPermissionsAsync().then(({ status }) => setNotifPermission(status as any)).catch(e => { if (__DEV__) console.warn('Notification permission check failed:', e); });
+    if (Notifications) Notifications.getPermissionsAsync().then(({ status }) => setNotifPermission(status as 'granted' | 'denied' | 'undetermined')).catch(e => { if (__DEV__) console.warn('Notification permission check failed:', e); });
   }, []);
 
   const saveNotifSettings = async (updated: NotifSettings) => {
@@ -272,8 +272,8 @@ export default function AccountScreen() {
     ];
     // Include saved stop IDs in arrivalAlerts metadata so server can check arrivals
     const stopIds = savedBoard
-      .filter((i: any) => i.type === 'bus_stop' || i.type === 'lrt_station')
-      .map((i: any) => i.id)
+      .filter((i) => i.type === 'bus_stop' || i.type === 'lrt_station')
+      .map((i) => 'id' in i ? i.id : '')
       .slice(0, 10); // Limit to 10 stops
     const subs = pushTypes.map(key => ({
       type: key,
@@ -295,7 +295,7 @@ export default function AccountScreen() {
       if (existing === 'granted') { setNotifPermission('granted'); }
       else {
         const { status } = await Notifications.requestPermissionsAsync();
-        setNotifPermission(status as any);
+        setNotifPermission(status as 'granted' | 'denied' | 'undetermined');
         if (status !== 'granted') {
           Alert.alert(
             t('Notifications disabled', 'Notifications désactivées'),
@@ -344,10 +344,10 @@ export default function AccountScreen() {
     system: t('System', 'Système'),
   };
 
-  const themeIcons: Record<string, { name: string; color: string }> = {
-    dark: { name: 'moon', color: '#7b8abf' },
-    light: { name: 'sunny', color: '#e8a020' },
-    system: { name: 'phone-portrait', color: '#6b7f99' },
+  const themeIcons = {
+    dark: { name: 'moon' as const, color: '#7b8abf' },
+    light: { name: 'sunny' as const, color: '#e8a020' },
+    system: { name: 'phone-portrait' as const, color: '#6b7f99' },
   };
 
   const Card = ({ children, borderColor }: { children: React.ReactNode; borderColor?: string }) => (
@@ -990,7 +990,7 @@ export default function AccountScreen() {
                 }}
                 onPress={() => setTheme(th)}>
                 <Ionicons
-                  name={themeIcons[th].name as any}
+                  name={themeIcons[th].name}
                   size={20}
                   color={theme === th ? colours.accent : themeIcons[th].color}
                 />
@@ -1142,7 +1142,7 @@ export default function AccountScreen() {
                   <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>
                     {t('PLACES', 'LIEUX')} ({savedPlaces.length})
                   </Text>
-                  {savedPlaces.map((place: any) => (
+                  {savedPlaces.map((place) => (
                     <View key={place.id} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 12 }}>
                       <View style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: (place.categoryColor || colours.accent) + '15', alignItems: 'center', justifyContent: 'center' }}>
                         <Ionicons name={(place.categoryIcon || 'location') as any} size={16} color={place.categoryColor || colours.accent} />
@@ -1151,7 +1151,7 @@ export default function AccountScreen() {
                         <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }} numberOfLines={1}>{place.name}</Text>
                         {place.vicinity && <Text style={{ fontSize: fonts.sm, color: colours.muted }} numberOfLines={1}>{place.vicinity}</Text>}
                       </View>
-                      <TouchableOpacity onPress={() => { const next = savedPlaces.filter((p: any) => p.id !== place.id); setSavedPlaces(next); AsyncStorage.setItem(SK_SAVED_PLACES, JSON.stringify(next)); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.border, alignItems: 'center', justifyContent: 'center' }}>
+                      <TouchableOpacity onPress={() => { const next = savedPlaces.filter(p => p.id !== place.id); setSavedPlaces(next); AsyncStorage.setItem(SK_SAVED_PLACES, JSON.stringify(next)); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.border, alignItems: 'center', justifyContent: 'center' }}>
                         <Ionicons name="close" size={14} color={colours.muted} />
                       </TouchableOpacity>
                     </View>
@@ -1163,14 +1163,20 @@ export default function AccountScreen() {
                   <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>
                     {t('BOARD ITEMS', 'ÉLÉMENTS DU TABLEAU')} ({savedBoard.length})
                   </Text>
-                  {savedBoard.map((item: any, idx: number) => (
-                    <View key={`${item.type}-${item.id || idx}`} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 12 }}>
+                  {savedBoard.map((item, idx) => {
+                    const BOARD_ICONS: Record<string, string> = { bus_stop: 'bus', lrt_station: 'train', garbage: 'trash', service_alert: 'alert-circle', gas_prices: 'speedometer', otrain: 'train', services: 'grid', discover: 'compass', saved_team: 'american-football', external_link: 'link', campus: 'school', news: 'newspaper', neighbourhood: 'map', class_schedule: 'school-outline' };
+                    const itemId = 'id' in item ? item.id : '';
+                    const itemLabel = ('name' in item ? item.name : undefined)
+                      || (language === 'fr' ? ('name_fr' in item ? item.name_fr : undefined) || ('label_fr' in item ? item.label_fr : undefined) : ('name_en' in item ? item.name_en : undefined) || ('label_en' in item ? item.label_en : undefined))
+                      || item.type.replace(/_/g, ' ');
+                    return (
+                    <View key={`${item.type}-${itemId || idx}`} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 12 }}>
                       <View style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
-                        <Ionicons name={({ bus_stop: 'bus', lrt_station: 'train', garbage: 'trash', service_alert: 'alert-circle', gas_prices: 'speedometer', otrain: 'train', services: 'grid', discover: 'compass', saved_team: 'american-football', external_link: 'link', campus: 'school', news: 'newspaper', neighbourhood: 'map', class_schedule: 'school-outline' } as Record<string, string>)[item.type] as any || 'cube'} size={16} color={colours.accent} />
+                        <Ionicons name={(BOARD_ICONS[item.type] || 'cube') as any} size={16} color={colours.accent} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }} numberOfLines={1}>
-                          {item.name || (language === 'fr' ? (item.name_fr || item.label_fr) : (item.name_en || item.label_en)) || item.type.replace(/_/g, ' ')}
+                          {itemLabel}
                         </Text>
                         <Text style={{ fontSize: fonts.sm, color: colours.muted, textTransform: 'capitalize' }}>{item.type.replace(/_/g, ' ')}</Text>
                       </View>
@@ -1178,7 +1184,7 @@ export default function AccountScreen() {
                         <Ionicons name="close" size={14} color={colours.muted} />
                       </TouchableOpacity>
                     </View>
-                  ))}
+                  ); })}
                 </View>
               )}
             </ScrollView>

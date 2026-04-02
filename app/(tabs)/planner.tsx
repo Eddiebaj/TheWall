@@ -28,7 +28,7 @@ import { supabase } from '../../lib/supabase';
 
 // ── Error Boundary ───────────────────────────────────────────────
 class PlannerErrorBoundary extends React.Component<
-  { children: React.ReactNode; colours: any; fonts: any; t: (en: string, fr: string) => string },
+  { children: React.ReactNode; colours: { bg: string; text: string; muted: string; accent: string }; fonts: { sm: number; md: number; lg: number; xl: number; xxl: number }; t: (en: string, fr: string) => string },
   { hasError: boolean }
 > {
   state = { hasError: false };
@@ -189,7 +189,7 @@ function WheelColumn({ items, selectedIndex, onSelect, width, colours }: {
   selectedIndex: number;
   onSelect: (index: number) => void;
   width: number;
-  colours: any;
+  colours: { text: string; muted: string; border: string; accent: string };
 }) {
   const flatRef = useRef<FlatList>(null);
   const mounted = useRef(false);
@@ -290,8 +290,8 @@ function shortenLabel(label: string): string {
 }
 
 function legCoords(leg: Leg): { latitude: number; longitude: number }[] {
-  if ((leg as any).legGeometry?.points) {
-    const decoded = decodePolyline((leg as any).legGeometry.points);
+  if (leg.legGeometry?.points) {
+    const decoded = decodePolyline(leg.legGeometry.points);
     if (decoded.length > 0) return decoded;
   }
   if (!leg.from?.lat || !leg.to?.lat) return [];
@@ -1647,7 +1647,7 @@ function PlannerScreenInner() {
       if (fireAt <= now) continue; // leg is imminent or past — skip
 
       const routeName = leg.routeShortName
-        ? (leg.mode === 'WALK' ? '' : `Route ${leg.routeShortName}`)
+        ? (leg.mode === 'WALK' ? '' : t(`Route ${leg.routeShortName}`, `Ligne ${leg.routeShortName}`))
         : leg.mode === 'TRAM' || leg.mode === 'RAIL' ? 'O-Train' : 'Bus';
       const fromStop = leg.from.name
         .replace(/ O-TRAIN (EAST|WEST|NORTH|SOUTH).*$/i, '')
@@ -1676,7 +1676,7 @@ function PlannerScreenInner() {
         const id2 = await Notifications.scheduleNotificationAsync({
           content: {
             title: t(`🟢 Board now — ${routeName}`, `🟢 Montez maintenant — ${routeName}`),
-            body: `${fromStop}${headsign} · ${fmtTime(boardingMs)}`,
+            body: t(`${fromStop}${headsign} · ${fmtTime(boardingMs)}`, `${fromStop}${headsign} · ${fmtTime(boardingMs)}`),
             data: { type: 'transit_board' },
             sound: true,
           },
@@ -2274,11 +2274,11 @@ function PlannerScreenInner() {
                   onChangeText={text => {
                     setWaypoints(prev => prev.map((w, i) => i === idx ? { text, place: null } : w));
                     if (autoCompleteTimer.current) clearTimeout(autoCompleteTimer.current);
-                    autoCompleteTimer.current = setTimeout(() => { autocomplete(text, `waypoint_${idx}` as any); }, 300);
+                    autoCompleteTimer.current = setTimeout(() => { autocomplete(text, `waypoint_${idx}`); }, 300);
                   }}
                   onFocus={() => {
                     if (blurTimer.current) { clearTimeout(blurTimer.current); blurTimer.current = null; }
-                    setActiveInput(`waypoint_${idx}` as any); setFromResults([]); setToResults([]);
+                    setActiveInput(`waypoint_${idx}`); setFromResults([]); setToResults([]);
                   }}
                   onBlur={() => {
                     if (blurTimer.current) clearTimeout(blurTimer.current);
