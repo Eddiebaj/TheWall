@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, router } from 'expo-router';
-import React, { useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Image, View, Text, ScrollView, StyleSheet } from 'react-native';
 import { AppProvider } from '../context/AppContext';
 import { BoardProvider } from '../context/BoardContext';
 import { SK_ONBOARDED, SK_CRASH_LOG } from '../lib/storageKeys';
@@ -68,17 +68,57 @@ class RootErrorBoundary extends React.Component<
   }
 }
 
-function RootNav() {
+function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
-    AsyncStorage.getItem(SK_ONBOARDED).then(val => {
-      if (!val) {
-        setTimeout(() => { router.replace('/onboarding' as any); }, 0);
-      }
-    }).catch(() => {
-      // Storage error — show onboarding as safe default
-      setTimeout(() => { router.replace('/onboarding' as any); }, 0);
-    });
+    // Fade in 400ms → hold 600ms → fade out 300ms
+    Animated.sequence([
+      Animated.timing(opacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.delay(600),
+      Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+    ]).start(() => onFinish());
   }, []);
+
+  return (
+    <View style={styles.splash}>
+      <Animated.View style={{ opacity }}>
+        <Image
+          source={require('../assets/images/icon.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+      </Animated.View>
+    </View>
+  );
+}
+
+function RootNav() {
+  const [showSplash, setShowSplash] = useState(true);
+  const destinationRef = useRef<'onboarding' | 'tabs'>('tabs');
+
+  useEffect(() => {
+    AsyncStorage.getItem(SK_ONBOARDED)
+      .then(val => {
+        if (!val) destinationRef.current = 'onboarding';
+      })
+      .catch(() => {
+        destinationRef.current = 'onboarding';
+      });
+  }, []);
+
+  const handleSplashFinish = () => {
+    setShowSplash(false);
+    setTimeout(() => {
+      if (destinationRef.current === 'onboarding') {
+        router.replace('/onboarding' as any);
+      }
+    }, 0);
+  };
+
+  if (showSplash) {
+    return <AnimatedSplash onFinish={handleSplashFinish} />;
+  }
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
@@ -104,6 +144,16 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
+  splash: {
+    flex: 1,
+    backgroundColor: '#000000',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logo: {
+    width: 120,
+    height: 120,
+  },
   container: {
     flex: 1,
     backgroundColor: '#1a1a2e',
