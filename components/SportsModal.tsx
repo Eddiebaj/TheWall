@@ -63,7 +63,7 @@ export default function SportsModal({ visible, onClose, colours, fonts, t, langu
   const fetchSportsScores = async () => {
     setSportsScoresLoading(true);
     const results: any[] = [];
-    const teamsToFetch = OTTAWA_TEAMS.filter(t => t.nhl || t.espn);
+    const teamsToFetch = OTTAWA_TEAMS.filter(team => team.nhl || team.espn);
     for (const team of teamsToFetch) {
       try {
         if (team.nhl) {
@@ -133,7 +133,7 @@ export default function SportsModal({ visible, onClose, colours, fonts, t, langu
   const fetchSportsSchedule = async () => {
     setSportsScheduleLoading(true);
     const results: any[] = [];
-    const teamsToFetch = OTTAWA_TEAMS.filter(t => t.nhl || t.espn);
+    const teamsToFetch = OTTAWA_TEAMS.filter(team => team.nhl || team.espn);
     for (const team of teamsToFetch) {
       try {
         if (team.nhl) {

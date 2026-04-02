@@ -90,7 +90,7 @@ export function buildTonightSummary(
   const hour = now.getHours();
   const mins = now.getMinutes();
   const timeStr = `${String(hour).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
-  const twoHoursLater = `${String(Math.min(hour + 2, 23)).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+  const twoHoursLater = hour + 2 >= 24 ? '23:59' : `${String(hour + 2).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
   const todayStr = now.toLocaleDateString('en-CA');
 
   // Sports — Sens (from live game state)

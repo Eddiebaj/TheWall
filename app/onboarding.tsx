@@ -64,8 +64,11 @@ export default function OnboardingScreen() {
     try {
       // Save added stops to board
       if (addedStops.length > 0) {
-        const board = addedStops.map(s => ({ type: 'bus_stop', id: s.id, name: s.name }));
-        await AsyncStorage.setItem(SK_SAVED_BOARD, JSON.stringify(board));
+        const existing = await AsyncStorage.getItem(SK_SAVED_BOARD);
+        const existingBoard = existing ? JSON.parse(existing) : [];
+        const newStops = addedStops.map(s => ({ type: 'bus_stop' as const, id: s.id, name: s.name }));
+        const merged = [...existingBoard, ...newStops.filter(ns => !existingBoard.some((e: any) => e.type === 'bus_stop' && e.id === ns.id))];
+        await AsyncStorage.setItem(SK_SAVED_BOARD, JSON.stringify(merged));
       }
       // Save home address
       if (selectedAddress) {

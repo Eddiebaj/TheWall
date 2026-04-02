@@ -94,7 +94,7 @@ export default function DiscoverScreen() {
     try {
       const now = new Date();
       const dayOfWeek = now.getDay();
-      const daysToFri = dayOfWeek === 6 ? 0 : dayOfWeek === 0 ? -2 : 5 - dayOfWeek;
+      const daysToFri = dayOfWeek === 6 ? -1 : dayOfWeek === 0 ? -2 : 5 - dayOfWeek;
       const friday = new Date(now);
       friday.setDate(now.getDate() + daysToFri);
       const sunday = new Date(friday);

@@ -114,6 +114,8 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
   const locationSubRef = useRef<any>(null);
   const arrivalPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const notifIds = useRef<string[]>([]);
+  const notificationFired = useRef(false);
+  const getOffAlertFired = useRef(false);
   const mapRef = useRef<any>(null);
 
   const legs = itinerary.legs;
@@ -137,8 +139,18 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
     setLiveArrival(null);
     setTransferWarning(null);
     setAltRoutes([]);
+    getOffAlertFired.current = false;
+    notificationFired.current = false;
     Haptics?.impactAsync?.(Haptics.ImpactFeedbackStyle.Medium);
   };
+
+  // ── Reset notification refs when a new trip starts ──────────
+  useEffect(() => {
+    if (visible) {
+      notificationFired.current = false;
+      getOffAlertFired.current = false;
+    }
+  }, [visible]);
 
   // ── Clock tick every second ──────────────────────────────────
   useEffect(() => {
@@ -174,6 +186,8 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
     const destDist = distMetres(userCoords.lat, userCoords.lon, currentLeg.to.lat, currentLeg.to.lon);
 
     if (currentLeg.mode !== 'WALK' && destDist < 200 && !getOffAlert) {
+      if (getOffAlertFired.current) return;
+      getOffAlertFired.current = true;
       setGetOffAlert(true);
       Haptics?.notificationAsync?.(Haptics.NotificationFeedbackType.Warning);
       fireNotification(t('Get off soon', 'Descendez bient\u00f4t'), t('Your stop is approaching', 'Votre arr\u00eat approche'));
@@ -189,6 +203,8 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
     }
 
     if (isLastLeg && destDist < 60 && !tripEnded) {
+      if (notificationFired.current) return;
+      notificationFired.current = true;
       setTripEnded(true);
       Haptics?.notificationAsync?.(Haptics.NotificationFeedbackType.Success);
       fireNotification(t('You have arrived', 'Vous etes arrive'), cleanStopName(currentLeg.to.name));
@@ -401,13 +417,17 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
 
   // ── Pulse animation for countdown <5 min ────────────────────
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    if (!currentLeg) return;
+  const shouldPulse = (() => {
+    if (!currentLeg) return false;
     const isTransitLeg = currentLeg.mode !== 'WALK' && currentLeg.mode !== 'CAR' && currentLeg.mode !== 'BICYCLE';
+    if (!isTransitLeg || reducedMotion) return false;
     const depMs = liveArrival || currentLeg.startTime;
     const hasDeparted = depMs <= now;
     const minLeft = Math.floor(Math.max(0, (depMs - now) / 1000) / 60);
-    if (!isTransitLeg || hasDeparted || minLeft >= 5 || reducedMotion) {
+    return !hasDeparted && minLeft < 5;
+  })();
+  useEffect(() => {
+    if (!shouldPulse) {
       pulseAnim.setValue(1);
       return;
     }
@@ -419,7 +439,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
     );
     pulse.start();
     return () => pulse.stop();
-  }, [currentLeg, liveArrival, now]);
+  }, [shouldPulse]);
 
   // ── Elevator/escalator alert for LRT legs ──────────────────
   const elevatorAlert = (() => {

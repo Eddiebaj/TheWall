@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Linking, Modal, ScrollView,
   Text, TextInput, TouchableOpacity, View,
@@ -66,6 +66,8 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
   const [communityDeals, setCommunityDeals] = useState<{ id: string; venue_name: string; deal_description: string; created_at: string }[]>([]);
   const [dealVotes, setDealVotes] = useState<Record<string, { up: number; down: number }>>({});
   const [myVotes, setMyVotes] = useState<Record<string, 'up' | 'down'>>({});
+  const myVotesRef = useRef(myVotes);
+  useEffect(() => { myVotesRef.current = myVotes; }, [myVotes]);
 
   const n = neighbourhood;
 
@@ -203,8 +205,8 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
       if (newVote) next[dealId] = newVote; else delete next[dealId];
       return next;
     });
-    // Save locally
-    const updated = { ...myVotes };
+    // Save locally — use ref to avoid stale closure
+    const updated = { ...myVotesRef.current };
     if (newVote) updated[dealId] = newVote; else delete updated[dealId];
     await AsyncStorage.setItem('routeo_my_deal_votes', JSON.stringify(updated));
     // Send to backend

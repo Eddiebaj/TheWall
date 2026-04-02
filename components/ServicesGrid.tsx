@@ -58,7 +58,7 @@ type ServicesGridProps = {
 };
 
 function ServicesGrid({ colours, fonts, t, language, activeTab, onTabChange, onTileTap, cardShadow }: ServicesGridProps) {
-  const currentTab = SERVICES_TABS.find(t => t.id === activeTab) || SERVICES_TABS[0];
+  const currentTab = SERVICES_TABS.find(tab => tab.id === activeTab) || SERVICES_TABS[0];
   return (
     <View>
       <View style={{ flexDirection: 'row', paddingHorizontal: 20, gap: 6, marginBottom: 10 }}>

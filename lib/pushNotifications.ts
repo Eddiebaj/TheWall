@@ -10,6 +10,8 @@ let Device: typeof import('expo-device') | null = null;
 try { Device = require('expo-device'); } catch {}
 let Notifications: typeof import('expo-notifications') | null = null;
 try { Notifications = require('expo-notifications'); } catch {}
+let Constants: typeof import('expo-constants').default | null = null;
+try { Constants = require('expo-constants').default; } catch {}
 import { fetchWithTimeout } from './fetchWithTimeout';
 import { SK_DEVICE_ID, SK_PUSH_TOKEN } from './storageKeys';
 
@@ -46,7 +48,9 @@ export async function getExpoPushToken(): Promise<string | null> {
 
   if (finalStatus !== 'granted') return null;
 
-  const tokenData = await Notifications.getExpoPushTokenAsync();
+  const tokenData = await Notifications.getExpoPushTokenAsync({
+    projectId: Constants?.expoConfig?.extra?.eas?.projectId,
+  });
   return tokenData.data;
 }
 

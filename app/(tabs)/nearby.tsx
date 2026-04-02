@@ -289,7 +289,7 @@ function ExploreScreenInner() {
       }
     }, 600);
     return () => { if (keywordTimer.current) clearTimeout(keywordTimer.current); };
-  }, [searchQuery, filteredPlaces.length, location]);
+  }, [searchQuery, location]);
 
   const applyFilters = (places: Place[], query: string, distCap: number) => {
     let result = places;

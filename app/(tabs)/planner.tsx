@@ -195,12 +195,12 @@ function WheelColumn({ items, selectedIndex, onSelect, width, colours }: {
   const mounted = useRef(false);
 
   useEffect(() => {
-    if (mounted.current) return;
+    const animated = mounted.current;
     mounted.current = true;
     setTimeout(() => {
-      flatRef.current?.scrollToOffset({ offset: selectedIndex * WHEEL_ITEM_H, animated: false });
+      flatRef.current?.scrollToOffset({ offset: selectedIndex * WHEEL_ITEM_H, animated });
     }, 50);
-  }, []);
+  }, [selectedIndex]);
 
   const onMomentumEnd = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const idx = Math.round(e.nativeEvent.contentOffset.y / WHEEL_ITEM_H);

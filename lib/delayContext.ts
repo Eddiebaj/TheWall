@@ -91,6 +91,7 @@ export function getDelayContext(
 
   // 4. CONSTRUCTION — keyword scan alerts for construction/detour
   const constructionAlert = alerts.find(a => {
+    if (!a.routes?.includes(routeId)) return false;
     const text = `${a.title || ''} ${a.description || ''}`;
     return CONSTRUCTION_KEYWORDS.test(text);
   });

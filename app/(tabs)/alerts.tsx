@@ -116,16 +116,14 @@ function AlertsScreenInner() {
     }
   };
 
-  // Fetch on focus
-  useFocusEffect(useCallback(() => { fetchAlerts(); }, []));
-
-  // Auto-refresh LRT every 5 minutes
-  useEffect(() => {
+  // Fetch on focus + auto-refresh LRT every 5 minutes (cleared on blur)
+  useFocusEffect(useCallback(() => {
+    fetchAlerts();
     lrtInterval.current = setInterval(() => {
       fetchWithTimeout(LRT_URL).then(r => r.ok ? r.json() : null).then(d => { if (d) setLrt(d); }).catch(e => { if (__DEV__) console.warn('LRT refresh failed:', e); });
     }, 5 * 60 * 1000);
     return () => { if (lrtInterval.current) clearInterval(lrtInterval.current); };
-  }, []);
+  }, []));
 
   // ── Derived data ──────────────────────────────────────────────
   const activeAlerts = alerts.filter(a => a.category !== 'accessibility');

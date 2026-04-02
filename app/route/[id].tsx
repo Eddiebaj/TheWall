@@ -36,9 +36,9 @@ const ROUTE_COLOURS: { [key: string]: string } = {
 
 export default function RouteScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { colours, fonts, t, theme } = useApp();
+  const { colours, fonts, t, resolvedTheme } = useApp();
   const router = useRouter();
-  const isLight = theme === 'light';
+  const isLight = resolvedTheme === 'light';
 
   const routeLabel = id || '';
   const routeColor = ROUTE_COLOURS[routeLabel] || colours.accent;

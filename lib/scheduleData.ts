@@ -134,16 +134,20 @@ export function nextClassDate(schedule: ClassSchedule): Date | null {
   const startMins = parseTime(nc.entry.startTime);
   const today = todayClassDay();
 
-  if (nc.day === today && startMins > nowMins) {
-    // Today — same date, just set time
-    const d = new Date(now);
-    d.setHours(Math.floor(startMins / 60), startMins % 60, 0, 0);
-    return d;
+  const jsToday = now.getDay();
+  const targetJs = nc.day === 'Sun' ? 0 : ALL_DAYS.indexOf(nc.day) + 1;
+
+  if (targetJs === jsToday && (startMins >= nowMins || nc.minsUntilLeave !== undefined)) {
+    // Today — class hasn't started yet, or is currently in session
+    const endMins = parseTime(nc.entry.endTime);
+    if (startMins >= nowMins || endMins > nowMins) {
+      const d = new Date(now);
+      d.setHours(Math.floor(startMins / 60), startMins % 60, 0, 0);
+      return d;
+    }
   }
 
   // Future day — calculate offset
-  const jsToday = now.getDay();
-  const targetJs = nc.day === 'Sun' ? 0 : ALL_DAYS.indexOf(nc.day) + 1;
   let offset = targetJs - jsToday;
   if (offset <= 0) offset += 7;
   const d = new Date(now);

@@ -21,6 +21,7 @@ let Location: any = null;
 try { Location = require('expo-location'); } catch {}
 
 const VEHICLES_URL = 'https://routeo-backend.vercel.app/api/vehicles';
+const ARRIVALS_URL = 'https://routeo-backend.vercel.app/api/arrivals';
 const ROUTE_URL = 'https://routeo-backend.vercel.app/api/route';
 
 const OTTAWA = { latitude: 45.4215, longitude: -75.6972, latitudeDelta: 0.05, longitudeDelta: 0.05 };
@@ -55,9 +56,12 @@ export default function BusTrackingModal({
   // State
   const [bus, setBus] = useState<Bus | null>(null);
   const [busLoading, setBusLoading] = useState(true);
+  const [tracksChanges, setTracksChanges] = useState(true);
+  const tracksTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [fullPolyline, setFullPolyline] = useState<{ latitude: number; longitude: number }[]>([]);
   const [visiblePolyline, setVisiblePolyline] = useState<{ latitude: number; longitude: number }[]>([]);
   const [userRegion, setUserRegion] = useState(OTTAWA);
+  const [liveEta, setLiveEta] = useState<number | null>(null);
 
   // Animated values
   const shimmerOpacity = useRef(new Animated.Value(0.4)).current;
@@ -65,6 +69,19 @@ export default function BusTrackingModal({
   const busScale = useRef(new Animated.Value(1.0)).current;
   const busLat = useRef<number | null>(null);
   const busLng = useRef<number | null>(null);
+
+  // tracksViewChanges: start true, disable after initial render, re-enable briefly on bus update
+  useEffect(() => {
+    const timer = setTimeout(() => setTracksChanges(false), 300);
+    return () => clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    if (!bus) return;
+    setTracksChanges(true);
+    if (tracksTimer.current) clearTimeout(tracksTimer.current);
+    tracksTimer.current = setTimeout(() => setTracksChanges(false), 300);
+    return () => { if (tracksTimer.current) clearTimeout(tracksTimer.current); };
+  }, [bus?.lat, bus?.lng]);
 
   // Shimmer loop
   useEffect(() => {
@@ -190,6 +207,37 @@ export default function BusTrackingModal({
       }
     } catch (e) { if (__DEV__) console.warn(e); }
   }, [routeId, isSTO]);
+
+  // Fetch live ETA from arrivals endpoint
+  const etaIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fetchLiveEta = useCallback(async () => {
+    if (!stopName) return;
+    try {
+      const resp = await fetchWithTimeout(`${ARRIVALS_URL}?stop=${encodeURIComponent(stopName)}&t=${Date.now()}`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const arrivals = data.arrivals || [];
+      const bareId = routeId.split('-')[0];
+      const match = arrivals.find((a: any) => {
+        const aRoute = String(a.routeId || a.route || '').split('-')[0];
+        return aRoute === bareId;
+      });
+      if (match && typeof match.minsAway === 'number') {
+        setLiveEta(match.minsAway);
+      }
+    } catch (e) { if (__DEV__) console.warn(e); }
+  }, [routeId, stopName]);
+
+  useEffect(() => {
+    if (!visible) {
+      setLiveEta(null);
+      if (etaIntervalRef.current) clearInterval(etaIntervalRef.current);
+      return;
+    }
+    fetchLiveEta();
+    etaIntervalRef.current = setInterval(fetchLiveEta, 30000);
+    return () => { if (etaIntervalRef.current) clearInterval(etaIntervalRef.current); };
+  }, [visible, fetchLiveEta]);
 
   // Progressive polyline reveal
   useEffect(() => {
@@ -323,7 +371,7 @@ export default function BusTrackingModal({
                 <Marker
                   coordinate={{ latitude: bus.lat, longitude: bus.lng }}
                   anchor={{ x: 0.5, y: 0.5 }}
-                  tracksViewChanges={false}
+                  tracksViewChanges={tracksChanges}
                 >
                   <Animated.View style={{
                     transform: [{ scale: busScale }],
@@ -384,8 +432,8 @@ export default function BusTrackingModal({
                     </View>
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={{ fontSize: 22, fontWeight: '800', color: minsAway <= 2 ? colours.red : accentColor }}>
-                      {(() => { const cd = computeCountdown(minsAway, Date.now()); return t(cd.text, cd.textFr); })()}
+                    <Text style={{ fontSize: 22, fontWeight: '800', color: (liveEta ?? minsAway) <= 2 ? colours.red : accentColor }}>
+                      {(() => { const cd = computeCountdown(liveEta ?? minsAway, Date.now()); return t(cd.text, cd.textFr); })()}
                     </Text>
                     <Text style={{ fontSize: 10, color: colours.muted }}>{t('to stop', 'à l\'arrêt')}</Text>
                   </View>

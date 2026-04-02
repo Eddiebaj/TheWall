@@ -13,7 +13,8 @@ import { fetchWithTimeout } from '../lib/fetchWithTimeout';
 import { Neighbourhood, NEIGHBOURHOODS } from '../lib/neighbourhoodData';
 import { SK_SAVED_NEIGHBOURHOODS } from '../lib/storageKeys';
 
-const LinearGradient: any = LinearGradientModule?.LinearGradient ?? View;
+const RealLinearGradient = LinearGradientModule?.LinearGradient ?? null;
+const GradientOverlay: any = RealLinearGradient ?? (({ colors, ...props }: any) => <View {...props} />);
 
 type TransitScore = {
   neighbourhood_id: string;
@@ -125,7 +126,7 @@ function NeighbourhoodSection({ colours, fonts, cardShadow, events, onPress }: P
                 style={{ position: 'absolute', width: '100%', height: '100%' }}
                 resizeMode="cover"
               />
-              <LinearGradient
+              <GradientOverlay
                 colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.55)']}
                 style={{ position: 'absolute', width: '100%', height: '100%' }}
                 pointerEvents="none"

@@ -32,6 +32,25 @@ export async function detectFrequentRoutes(): Promise<FrequentRoute[]> {
       const trips: any[] = JSON.parse(histRaw).slice(-15);
       // Count route frequency — trips may have a routes array or single route
       const routeCounts = new Map<string, { count: number; stopId: string; stopName: string }>();
+
+      // Score board stops by how often they appear in trip history labels
+      const stopScores = new Map<string, number>();
+      for (const stop of boardStops) {
+        let score = 0;
+        const nameLower = stop.name.toLowerCase();
+        for (const trip of trips) {
+          if ((trip.fromLabel || '').toLowerCase().includes(nameLower) ||
+              (trip.toLabel || '').toLowerCase().includes(nameLower)) {
+            score++;
+          }
+        }
+        stopScores.set(stop.id, score);
+      }
+      // Sort board stops by relevance (highest trip history match first)
+      const sortedBoardStops = [...boardStops].sort((a, b) =>
+        (stopScores.get(b.id) || 0) - (stopScores.get(a.id) || 0)
+      );
+
       for (const trip of trips) {
         const routes: string[] = trip.routes || (trip.route ? [trip.route] : []);
         for (const r of routes) {
@@ -40,9 +59,9 @@ export async function detectFrequentRoutes(): Promise<FrequentRoute[]> {
           if (existing) {
             existing.count++;
           } else {
-            // Distribute stops across routes instead of always using index 0
+            // Pick the best unused stop (sorted by trip history relevance)
             const usedStopIds = new Set([...routeCounts.values()].map(v => v.stopId));
-            const matchStop = boardStops.find(s => !usedStopIds.has(s.id)) || boardStops[0] || null;
+            const matchStop = sortedBoardStops.find(s => !usedStopIds.has(s.id)) || sortedBoardStops[0] || null;
             routeCounts.set(r, {
               count: 1,
               stopId: matchStop?.id || '',

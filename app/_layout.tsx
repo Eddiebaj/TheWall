@@ -72,11 +72,11 @@ function RootNav() {
   useEffect(() => {
     AsyncStorage.getItem(SK_ONBOARDED).then(val => {
       if (!val) {
-        router.replace('/onboarding' as any);
+        setTimeout(() => { router.replace('/onboarding' as any); }, 0);
       }
     }).catch(() => {
       // Storage error — show onboarding as safe default
-      router.replace('/onboarding' as any);
+      setTimeout(() => { router.replace('/onboarding' as any); }, 0);
     });
   }, []);
 

@@ -218,18 +218,18 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
     }
   }, [visible]);
 
-  const calcCommute = async () => {
+  const calcCommute = async (): Promise<number> => {
     setCommuteLoading(true);
     setCommuteLabel(t('Calculating...', 'Calcul en cours...'));
     try {
       const campusId = await AsyncStorage.getItem(SK_CAMPUS);
-      if (!campusId) { fallbackCommute(); return; }
+      if (!campusId) { fallbackCommute(); return 20; }
       const campus = CAMPUSES.find(c => c.id === campusId);
-      if (!campus) { fallbackCommute(); return; }
+      if (!campus) { fallbackCommute(); return 20; }
 
       // Get user location as origin
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') { fallbackCommute(); return; }
+      if (status !== 'granted') { fallbackCommute(); return 20; }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
 
       const now = new Date();
@@ -238,10 +238,10 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
       const url = `${PLAN_URL}?fromLat=${loc.coords.latitude}&fromLng=${loc.coords.longitude}&fromLabel=Home&toLat=${campus.lat}&toLng=${campus.lng}&toLabel=${encodeURIComponent(campus.name)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=false&mode=transit`;
 
       const resp = await fetchWithTimeout(url, { timeout: 10000 });
-      if (!resp.ok) { fallbackCommute(); return; }
+      if (!resp.ok) { fallbackCommute(); return 20; }
       const data = await resp.json();
       const itins = data.plan?.itineraries || [];
-      if (itins.length === 0) { fallbackCommute(); return; }
+      if (itins.length === 0) { fallbackCommute(); return 20; }
 
       const durationMins = Math.round(itins[0].duration / 60);
       // Add 5min buffer
@@ -249,8 +249,10 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
       setCommuteMins(padded);
       setCommuteLabel(`~${padded} ${t('min by transit', 'min en transport')}`);
       await AsyncStorage.setItem(SK_COMMUTE_DURATION, String(padded));
+      return padded;
     } catch {
       fallbackCommute();
+      return 20;
     } finally {
       setCommuteLoading(false);
     }
@@ -336,12 +338,13 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
 
   const handleSave = async () => {
     // Auto-calculate commute if not already done
+    let mins = commuteMins;
     if (!commuteLabel) {
-      await calcCommute();
+      mins = await calcCommute();
     }
-    const sched: ClassSchedule = { classes, commuteMins };
+    const sched: ClassSchedule = { classes, commuteMins: mins };
     await AsyncStorage.setItem(SK_CLASS_SCHEDULE, JSON.stringify(sched));
-    await AsyncStorage.setItem(SK_COMMUTE_DURATION, String(commuteMins));
+    await AsyncStorage.setItem(SK_COMMUTE_DURATION, String(mins));
     onSave(sched);
     onClose();
   };

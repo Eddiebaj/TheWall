@@ -172,7 +172,7 @@ export default function SavedScreen() {
       if (__DEV__) console.warn('SavedScreen loadData error:', e);
       setLoaded(true);
     }
-  }, []);
+  }, [boardItems]);
 
   // Reload data + restart interval when tab gains focus
   useFocusEffect(

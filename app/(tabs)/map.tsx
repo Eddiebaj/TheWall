@@ -670,14 +670,14 @@ export default function MapScreen() {
       setSelectedRouteShape([]);
     }
     Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
-  }, [sheetAnim, fetchRouteShape]);
+  }, [sheetAnim, fetchRouteShape, tappedLocation, tappedAnim]);
 
-  const hideSheet = () => {
+  const hideSheet = useCallback(() => {
     Animated.spring(sheetAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start(() => {
       setSelectedBus(null); setSelectedEvent(null); setSelectedCluster(null); setSelectedVenue(null); setSelectedSavedPin(null);
       setSelectedRouteShape([]); setBusEtaInfo(null);
     });
-  };
+  }, [sheetAnim]);
 
   const sheetTranslate = sheetAnim.interpolate({ inputRange: [0, 1], outputRange: [300, 0] });
   const tappedTranslate = tappedAnim.interpolate({ inputRange: [0, 1], outputRange: [200, 0] });
@@ -1801,7 +1801,7 @@ export default function MapScreen() {
                       try {
                         await supabase.from('community_deals').insert({
                           venue_name: contribName.trim(),
-                          deal_description: `[${contribType}] ${contribInfo.trim()}${contribAddress.trim() ? ` | ${contribAddress.trim()}` : ''}`,
+                          deal_text: `[${contribType}] ${contribInfo.trim()}${contribAddress.trim() ? ` | ${contribAddress.trim()}` : ''}`,
                           approved: true, // TODO: revert to false and add admin approval before public launch
                         });
                         // Notify backend about new submission
