@@ -3,6 +3,7 @@ import { Stack, router } from 'expo-router';
 import React, { useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { AppProvider } from '../context/AppContext';
+import { BoardProvider } from '../context/BoardContext';
 import { SK_ONBOARDED, SK_CRASH_LOG } from '../lib/storageKeys';
 
 // Log startup errors to AsyncStorage for diagnostics
@@ -94,7 +95,9 @@ export default function RootLayout() {
   return (
     <RootErrorBoundary>
       <AppProvider>
-        <RootNav />
+        <BoardProvider>
+          <RootNav />
+        </BoardProvider>
       </AppProvider>
     </RootErrorBoundary>
   );

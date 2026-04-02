@@ -15,7 +15,8 @@ const Marker = (RNMaps as any)?.Marker ?? null;
 const Polyline = (RNMaps as any)?.Polyline ?? null;
 type Region = import('react-native-maps').Region;
 import { useApp } from '../../context/AppContext';
-import { SK_SAVED_ROUTES, SK_FAVS, SK_SAVED_BOARD, SK_SAVED_NEIGHBOURHOODS, SK_SAVED_PLACES } from '../../lib/storageKeys';
+import { useBoard } from '../../context/BoardContext';
+import { SK_SAVED_ROUTES, SK_FAVS, SK_SAVED_NEIGHBOURHOODS, SK_SAVED_PLACES } from '../../lib/storageKeys';
 import { supabase } from '../../lib/supabase';
 import { NEIGHBOURHOODS } from '../../lib/neighbourhoodData';
 import ActiveTrip from '../../components/ActiveTrip';
@@ -552,6 +553,7 @@ const fetchAllEvents = async (): Promise<MapEvent[]> => {
 
 export default function MapScreen() {
   const { colours, theme, resolvedTheme, t, fonts, language } = useApp();
+  const { savedBoard: boardItems } = useBoard();
   const isLight = resolvedTheme === 'light';
   const mapRef = useRef<any>(null);
   const deepLinkParams = useLocalSearchParams();
@@ -616,7 +618,6 @@ export default function MapScreen() {
   const [expandedArrivalsLoading, setExpandedArrivalsLoading] = useState(false);
 
   // Sheet data: saved board, alerts, weather, events
-  const [sheetBoard, setSheetBoard] = useState<import('../../lib/homeConstants').SavedBoardItem[]>([]);
   const [sheetAlerts, setSheetAlerts] = useState<any[]>([]);
   const [sheetWeather, setSheetWeather] = useState<{ temp: number; condition: string; icon: string } | null>(null);
   const [sheetEvents, setSheetEvents] = useState<{ name: string; date: string; time?: string; venue: string }[]>([]);
@@ -853,13 +854,6 @@ export default function MapScreen() {
 
   // ── Sheet data fetching ───────────────────────────────────────
   useEffect(() => {
-    // Saved board
-    AsyncStorage.getItem(SK_SAVED_BOARD).then(val => {
-      try {
-        if (val) setSheetBoard(JSON.parse(val));
-      } catch (e) { if (__DEV__) console.warn('Sheet board parse:', e); }
-    }).catch(() => {});
-
     // Alerts
     fetchWithTimeout('https://routeo-backend.vercel.app/api/alerts', { timeout: 8000 })
       .then(r => r.ok ? r.json() : [])
@@ -1089,24 +1083,16 @@ export default function MapScreen() {
             }
           }
         }
-        // Saved board stops (current system) + legacy favs
-        const [boardRaw, favsRaw] = await Promise.all([
-          AsyncStorage.getItem(SK_SAVED_BOARD),
-          AsyncStorage.getItem(SK_FAVS),
-        ]);
+        // Saved board stops (from context) + legacy favs
+        const favsRaw = await AsyncStorage.getItem(SK_FAVS);
         const stopIds: { id: string; name: string }[] = [];
-        if (boardRaw) {
-          try {
-            const board: { type: string; id?: string; name?: string }[] = JSON.parse(boardRaw);
-            for (const item of board) {
-              if ((item.type === 'bus_stop' || item.type === 'lrt_station') && item.id) {
-                if (!seenStopIds.has(item.id)) {
-                  seenStopIds.add(item.id);
-                  stopIds.push({ id: item.id, name: item.name || `Stop #${item.id}` });
-                }
-              }
+        for (const item of boardItems) {
+          if ((item.type === 'bus_stop' || item.type === 'lrt_station') && 'id' in item) {
+            if (!seenStopIds.has(item.id)) {
+              seenStopIds.add(item.id);
+              stopIds.push({ id: item.id, name: item.name || `Stop #${item.id}` });
             }
-          } catch (e) { if (__DEV__) console.warn(e); }
+          }
         }
         if (favsRaw) {
           try {
@@ -2389,7 +2375,7 @@ export default function MapScreen() {
         nearbyStops={nearbyStops}
         nearbyLoading={nearbyLoading}
         onRefreshLocation={fetchNearbyStops}
-        savedBoard={sheetBoard}
+        savedBoard={boardItems}
         onBoardCardPress={() => {}}
         boardCardProps={{
           cardShadow: {},

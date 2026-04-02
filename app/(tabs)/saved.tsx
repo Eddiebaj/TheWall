@@ -8,8 +8,9 @@ import {
   ScrollView, StatusBar, Text, TouchableOpacity, View
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
+import { useBoard } from '../../context/BoardContext';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
-import { SK_SAVED_BOARD, SK_SAVED_PLACES, SK_TRIP_HISTORY } from '../../lib/storageKeys';
+import { SK_SAVED_PLACES, SK_TRIP_HISTORY } from '../../lib/storageKeys';
 
 const BACKEND_URL = 'https://routeo-backend.vercel.app/api/arrivals';
 const TEAL = '#00A78D';
@@ -49,6 +50,7 @@ function timeAgo(dateStr: string, t: (en: string, fr: string) => string): string
 
 export default function SavedScreen() {
   const { colours, resolvedTheme, t, fonts } = useApp();
+  const { savedBoard: boardItems, refreshBoard } = useBoard();
   const isLight = resolvedTheme === 'light';
   const router = useRouter();
 
@@ -74,23 +76,18 @@ export default function SavedScreen() {
   // ── Load data ──────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     try {
-      const [boardRaw, placesRaw, tripRaw] = await Promise.all([
-        AsyncStorage.getItem(SK_SAVED_BOARD),
+      await refreshBoard();
+      const [placesRaw, tripRaw] = await Promise.all([
         AsyncStorage.getItem(SK_SAVED_PLACES),
         AsyncStorage.getItem(SK_TRIP_HISTORY),
       ]);
 
-      // Stops from board
+      // Stops from board context
       const savedStops: SavedStop[] = [];
-      if (boardRaw) {
-        try {
-          const board: any[] = JSON.parse(boardRaw);
-          for (const item of board) {
-            if ((item.type === 'bus_stop' || item.type === 'lrt_station') && item.id) {
-              savedStops.push({ id: item.id, name: item.name || `Stop #${item.id}`, agency: item.agency });
-            }
-          }
-        } catch (e) { if (__DEV__) console.warn(e); }
+      for (const item of boardItems) {
+        if ((item.type === 'bus_stop' || item.type === 'lrt_station') && 'id' in item) {
+          savedStops.push({ id: item.id, name: item.name || `Stop #${item.id}`, agency: (item as any).agency });
+        }
       }
       setStops(savedStops);
 
@@ -176,7 +173,7 @@ export default function SavedScreen() {
       if (__DEV__) console.warn('SavedScreen loadData error:', e);
       setLoaded(true);
     }
-  }, []);
+  }, [boardItems, refreshBoard]);
 
   // Reload data + restart interval when tab gains focus
   useFocusEffect(

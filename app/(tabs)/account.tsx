@@ -10,9 +10,10 @@ import {
     TouchableOpacity, View
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
+import { useBoard } from '../../context/BoardContext';
 import { supabase } from '../../lib/supabase';
 import { registerPushToken, syncSubscriptions } from '../../lib/pushNotifications';
-import { SK_FAVS, SK_SAVED_PLACES, SK_SAVED_BOARD, SK_NOTIF_SETTINGS, SK_TRIP_SHARING, SK_TRIP_HISTORY, SK_PRESTO_BALANCE, SK_PRESTO_RESET_DATE, SK_BATTERY_SAVER, SK_CLASS_SCHEDULE, SK_CAMPUS } from '../../lib/storageKeys';
+import { SK_FAVS, SK_SAVED_PLACES, SK_NOTIF_SETTINGS, SK_TRIP_SHARING, SK_TRIP_HISTORY, SK_PRESTO_BALANCE, SK_PRESTO_RESET_DATE, SK_BATTERY_SAVER, SK_CLASS_SCHEDULE, SK_CAMPUS } from '../../lib/storageKeys';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { toTitleCase } from '../../lib/utils';
 import { CAMPUSES, CampusConfig } from '../../lib/campusData';
@@ -80,6 +81,7 @@ export default function AccountScreen() {
     reducedMotion, setReducedMotion,
     language, setLanguage, t,
   } = useApp();
+  const { savedBoard, removeFromBoard, refreshBoard } = useBoard();
 
   const isLight = resolvedTheme === 'light';
 
@@ -106,7 +108,6 @@ export default function AccountScreen() {
   const [showSaved, setShowSaved] = useState(false);
   const [savedFavs, setSavedFavs] = useState<any[]>([]);
   const [savedPlaces, setSavedPlaces] = useState<any[]>([]);
-  const [savedBoard, setSavedBoard] = useState<any[]>([]);
   const [commuteStats, setCommuteStats] = useState<{ tripsThisWeek: number; totalMinutes: number; avgDuration: number; topRoute: string | null } | null>(null);
   const [fareStats, setFareStats] = useState<{ tripsToday: number; tripsWeek: number; tripsMonth: number; costToday: number; costWeek: number; costMonth: number } | null>(null);
   const [prestoBalance, setPrestoBalance] = useState<string>('');
@@ -598,14 +599,13 @@ export default function AccountScreen() {
         <Card>
           <TouchableOpacity
             onPress={async () => {
-              const [f, p, b] = await Promise.all([
+              const [f, p] = await Promise.all([
                 AsyncStorage.getItem(SK_FAVS),
                 AsyncStorage.getItem(SK_SAVED_PLACES),
-                AsyncStorage.getItem(SK_SAVED_BOARD),
               ]);
               try { setSavedFavs(f ? JSON.parse(f) : []); } catch { setSavedFavs([]); }
               try { setSavedPlaces(p ? JSON.parse(p) : []); } catch { setSavedPlaces([]); }
-              try { setSavedBoard(b ? JSON.parse(b) : []); } catch { setSavedBoard([]); }
+              await refreshBoard();
               setShowSaved(true);
             }}
             style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}
@@ -1174,7 +1174,7 @@ export default function AccountScreen() {
                         </Text>
                         <Text style={{ fontSize: fonts.sm, color: colours.muted, textTransform: 'capitalize' }}>{item.type.replace(/_/g, ' ')}</Text>
                       </View>
-                      <TouchableOpacity onPress={() => { const next = savedBoard.filter((_: any, i: number) => i !== idx); setSavedBoard(next); AsyncStorage.setItem(SK_SAVED_BOARD, JSON.stringify(next)); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.border, alignItems: 'center', justifyContent: 'center' }}>
+                      <TouchableOpacity onPress={() => removeFromBoard(idx)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.border, alignItems: 'center', justifyContent: 'center' }}>
                         <Ionicons name="close" size={14} color={colours.muted} />
                       </TouchableOpacity>
                     </View>
