@@ -5,7 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { toTitleCase } from '../../lib/utils';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Animated, AppState, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform,
+  ActivityIndicator, Animated, AppState, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform,
   ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
 let RNMaps: typeof import('react-native-maps') | null = null;
@@ -1665,23 +1665,14 @@ export default function MapScreen() {
               onPress={() => setSelectedPin(pin)}
               tracksViewChanges={false}
             >
-              <View style={{ alignItems: 'center' }}>
-                <View style={{
-                  width: 28, height: 28, borderRadius: 14,
-                  backgroundColor: config.color,
-                  alignItems: 'center', justifyContent: 'center',
-                  shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.3, shadowRadius: 3, elevation: 4,
-                }}>
-                  <Ionicons name={config.icon as any} size={12} color="white" />
-                </View>
-                <View style={{
-                  width: 0, height: 0,
-                  borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 6,
-                  borderLeftColor: 'transparent', borderRightColor: 'transparent',
-                  borderTopColor: config.color, marginTop: -1,
-                }} />
-              </View>
+              <View style={{
+                width: 12, height: 12, borderRadius: 6,
+                backgroundColor: config.color,
+                borderWidth: 2, borderColor: 'white',
+                shadowColor: config.color,
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.4, shadowRadius: 2, elevation: 3,
+              }} />
             </Marker>
           ));
         })}
@@ -1823,6 +1814,61 @@ export default function MapScreen() {
 
         {error ? <Text style={{ fontSize: 11, color: 'red', marginTop: 6 }}>{error}</Text> : null}
       </View>
+
+      {/* Quick layer chips */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ position: 'absolute', top: Platform.OS === 'ios' ? 100 : 82, left: 0, right: 0, zIndex: 9 }}
+        contentContainerStyle={{ paddingHorizontal: 16, gap: 8, flexDirection: 'row', paddingVertical: 6 }}
+      >
+        {([
+          { key: 'restaurants', icon: 'restaurant' },
+          { key: 'coffee', icon: 'cafe' },
+          { key: 'bars', icon: 'wine' },
+          { key: 'parking', icon: 'car' },
+          { key: 'events', icon: 'musical-notes' },
+          { key: 'construction', icon: 'construct' },
+          { key: 'bike_share', icon: 'bicycle' },
+          { key: 'food_trucks', icon: 'fast-food' },
+        ] as { key: string; icon: string }[]).map(({ key, icon }) => {
+          const config = LAYER_CONFIG[key as LayerKey];
+          const isActive = activeLayers[key as LayerKey];
+          return (
+            <TouchableOpacity
+              key={key}
+              style={[{
+                flexDirection: 'row', alignItems: 'center', gap: 5,
+                paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1,
+                shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.15, shadowRadius: 2, elevation: 2,
+              }, isActive
+                ? { backgroundColor: config.color, borderColor: config.color }
+                : { backgroundColor: colours.card, borderColor: colours.border }
+              ]}
+              onPress={() => toggleLayer(key as LayerKey)}
+            >
+              <Ionicons name={icon as any} size={14} color={isActive ? 'white' : colours.muted} />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: isActive ? 'white' : colours.muted }}>
+                {language === 'fr' ? config.labelFr : config.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+        <TouchableOpacity
+          style={{
+            flexDirection: 'row', alignItems: 'center', gap: 5,
+            paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1,
+            backgroundColor: colours.card, borderColor: colours.border,
+            shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.15, shadowRadius: 2, elevation: 2,
+          }}
+          onPress={() => nearbySheetRef.current?.snapToIndex(2)}
+        >
+          <Ionicons name="layers-outline" size={14} color={colours.muted} />
+          <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted }}>
+            {language === 'fr' ? 'Plus' : 'More'}
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
 
       {/* Floating action buttons */}
       <View style={{ position: 'absolute', bottom: (tripResults.length > 0 || tripLoading) ? 380 : hasSheet ? 300 : (discoveryCategory && discoveryResults.length > 0) ? 320 : tappedLocation ? 160 : Platform.OS === 'ios' ? 24 : 16, right: 16, gap: 10, alignItems: 'center' }}>
@@ -2507,23 +2553,29 @@ export default function MapScreen() {
           shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8,
           opacity: pinCardAnim, transform: [{ translateY: pinCardAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }],
         }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <View style={{
-              flexDirection: 'row', alignItems: 'center', gap: 4,
-              backgroundColor: LAYER_CONFIG[selectedPin.category].color, borderRadius: 20,
-              paddingHorizontal: 8, paddingVertical: 4,
-            }}>
-              <Ionicons name={LAYER_CONFIG[selectedPin.category].icon as any} size={11} color="white" />
-              <Text style={{ color: 'white', fontSize: 11, fontWeight: '700' }}>
-                {language === 'fr' ? LAYER_CONFIG[selectedPin.category].labelFr : LAYER_CONFIG[selectedPin.category].label}
-              </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+            {selectedPin.photoUrl ? (
+              <Image
+                source={{ uri: selectedPin.photoUrl }}
+                style={{ width: 48, height: 48, borderRadius: 10 }}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={{
+                width: 48, height: 48, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+                backgroundColor: LAYER_CONFIG[selectedPin.category].color + '22',
+              }}>
+                <Ionicons name={LAYER_CONFIG[selectedPin.category].icon as any} size={20} color={LAYER_CONFIG[selectedPin.category].color} />
+              </View>
+            )}
+            <View style={{ flex: 1, marginHorizontal: 10 }}>
+              <Text style={{ fontSize: 16, fontWeight: '800', color: colours.text }} numberOfLines={1}>{selectedPin.name}</Text>
+              <Text style={{ fontSize: 13, color: colours.muted, marginTop: 2 }} numberOfLines={1}>{selectedPin.subtitle}</Text>
             </View>
             <TouchableOpacity onPress={() => setSelectedPin(null)} accessibilityLabel={t('Close', 'Fermer')} accessibilityRole="button">
               <Ionicons name="close-circle" size={22} color={colours.muted} />
             </TouchableOpacity>
           </View>
-          <Text style={{ fontSize: 16, fontWeight: '800', color: colours.text, marginBottom: 4 }}>{selectedPin.name}</Text>
-          <Text style={{ fontSize: 13, color: colours.muted, marginBottom: 6 }}>{selectedPin.subtitle}</Text>
           {selectedPin.category === 'parking' && (selectedPin as any).available != null && (
             <View style={{ marginVertical: 6 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>

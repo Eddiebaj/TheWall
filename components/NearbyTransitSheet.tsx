@@ -144,6 +144,15 @@ function SkeletonCard({ colours }: { colours: any }) {
   );
 }
 
+// ── Layer groups ─────────────────────────────────────────────────
+
+const LAYER_GROUPS = [
+  { key: 'transit', label: 'Transit', labelFr: 'Transit', icon: 'bus' as const, layers: ['ghost_buses', 'bike_share', 'parking', 'construction'] as LayerKey[] },
+  { key: 'food', label: 'Food & Drink', labelFr: 'Resto & Bar', icon: 'restaurant' as const, layers: ['restaurants', 'bars', 'coffee', 'food_trucks', 'breweries', 'markets'] as LayerKey[] },
+  { key: 'services', label: 'Services', labelFr: 'Services', icon: 'business' as const, layers: ['grocery', 'pharmacy', 'gyms', 'bike_repair', 'ev_chargers', 'wifi'] as LayerKey[] },
+  { key: 'discover', label: 'Discover', labelFr: 'Découvrir', icon: 'compass' as const, layers: ['events', 'sports', 'public_art', 'cultural'] as LayerKey[] },
+];
+
 // ── Route badge ──────────────────────────────────────────────────
 
 const RouteBadge = React.memo(function RouteBadge({
@@ -558,6 +567,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
     }, [expandedStopId, expandedArrivals, expandedArrivalsLoading]);
 
     const { width: screenWidth } = useWindowDimensions();
+    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
     const feedPins = useMemo(() => {
       if (!activeLayers || !layerPins) return [];
@@ -614,9 +624,19 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
               paddingBottom: 10,
             }}
           >
-            <Text style={{ fontSize: 17, fontWeight: '800', color: colours.text }}>
-              {t('Nearby Transit', 'Transport a proximite')}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={{ fontSize: 17, fontWeight: '800', color: colours.text }}>
+                {t('Nearby Transit', 'Transport a proximite')}
+              </Text>
+              {activeLayers && Object.values(activeLayers).filter(Boolean).length > 0 && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 8, backgroundColor: colours.accent + '20', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2 }}>
+                  <Ionicons name="layers" size={12} color={colours.accent} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent }}>
+                    {Object.values(activeLayers).filter(Boolean).length}
+                  </Text>
+                </View>
+              )}
+            </View>
             <TouchableOpacity
               onPress={onRefreshLocation}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -888,44 +908,71 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                 </View>
               )}
 
-              {/* Layer toggle grid */}
+              {/* Layer toggle grid — grouped */}
               <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {(Object.entries(LAYER_CONFIG) as [LayerKey, typeof LAYER_CONFIG[LayerKey]][]).map(([key, config]) => {
-                    const isActive = activeLayers[key];
-                    return (
+                {LAYER_GROUPS.map(group => {
+                  const activeCount = group.layers.filter(l => activeLayers[l]).length;
+                  const isExpanded = expandedGroups.has(group.key);
+                  return (
+                    <View key={group.key}>
                       <TouchableOpacity
-                        key={key}
-                        style={{
-                          width: (screenWidth - 32 - 16) / 3,
-                          paddingVertical: 10, paddingHorizontal: 8,
-                          borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: 4,
-                          backgroundColor: colours.surface,
-                          borderWidth: isActive ? 1.5 : 1,
-                          borderColor: isActive ? config.color : colours.border,
-                          opacity: isActive ? 1 : 0.55,
-                        }}
-                        onPress={() => onToggleLayer(key)}
-                        activeOpacity={0.7}
-                        accessibilityLabel={language === 'fr' ? config.labelFr : config.label}
+                        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colours.border }}
+                        onPress={() => setExpandedGroups(prev => { const s = new Set(prev); s.has(group.key) ? s.delete(group.key) : s.add(group.key); return s; })}
                         accessibilityRole="button"
-                        accessibilityState={{ checked: isActive }}
+                        accessibilityLabel={language === 'fr' ? group.labelFr : group.label}
                       >
-                        {loadingLayers?.has(key) ? (
-                          <ActivityIndicator size="small" color={config.color} />
-                        ) : (
-                          <Ionicons name={config.icon as any} size={22} color={isActive ? config.color : colours.muted} />
-                        )}
-                        <Text
-                          style={{ fontSize: 10, fontWeight: '600', textAlign: 'center', color: isActive ? colours.text : colours.muted }}
-                          numberOfLines={1}
-                        >
-                          {language === 'fr' ? config.labelFr : config.label}
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                          <Ionicons name={group.icon as any} size={18} color={activeCount > 0 ? colours.accent : colours.muted} />
+                          <Text style={{ fontSize: 14, fontWeight: '600', color: activeCount > 0 ? colours.text : colours.muted }}>
+                            {language === 'fr' ? group.labelFr : group.label}
+                          </Text>
+                          {activeCount > 0 && (
+                            <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: colours.accent, alignItems: 'center', justifyContent: 'center' }}>
+                              <Text style={{ color: 'white', fontSize: 10, fontWeight: '800' }}>{activeCount}</Text>
+                            </View>
+                          )}
+                        </View>
+                        <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={16} color={colours.muted} />
                       </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                      {isExpanded && (
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 10, paddingBottom: 6 }}>
+                          {group.layers.map(key => {
+                            const config = LAYER_CONFIG[key];
+                            const isActive = activeLayers[key];
+                            return (
+                              <TouchableOpacity
+                                key={key}
+                                style={{
+                                  width: (screenWidth - 32 - 16) / 3,
+                                  paddingVertical: 10, paddingHorizontal: 8,
+                                  borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: 4,
+                                  backgroundColor: colours.surface,
+                                  borderWidth: isActive ? 1.5 : 1,
+                                  borderColor: isActive ? config.color : colours.border,
+                                  opacity: isActive ? 1 : 0.55,
+                                }}
+                                onPress={() => onToggleLayer(key)}
+                                activeOpacity={0.7}
+                                accessibilityLabel={`${language === 'fr' ? config.labelFr : config.label} ${isActive ? 'on' : 'off'}`}
+                                accessibilityRole="button"
+                                accessibilityState={{ checked: isActive }}
+                              >
+                                {loadingLayers?.has(key) ? (
+                                  <ActivityIndicator size="small" color={config.color} />
+                                ) : (
+                                  <Ionicons name={config.icon as any} size={22} color={isActive ? config.color : colours.muted} />
+                                )}
+                                <Text style={{ fontSize: 10, fontWeight: '600', textAlign: 'center', color: isActive ? colours.text : colours.muted }} numberOfLines={1}>
+                                  {language === 'fr' ? config.labelFr : config.label}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
               </View>
             </>
           )}
