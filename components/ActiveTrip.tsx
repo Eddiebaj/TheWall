@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert, Animated, Dimensions, Modal, Platform, ScrollView, Text, TouchableOpacity, View,
+  Alert, Animated, Dimensions, Modal, Platform, ScrollView, Share, Text, TouchableOpacity, View,
 } from 'react-native';
 import { fetchWithTimeout } from '../lib/fetchWithTimeout';
 import { toTitleCase, decodePolyline } from '../lib/utils';
@@ -397,6 +397,21 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
     );
   };
 
+  const shareTrip = () => {
+    const transitLegs = itinerary.legs.filter(l => l.mode !== 'WALK');
+    const routes = transitLegs.map(l => l.routeShortName || l.mode).join(', ');
+    const from = itinerary.legs[0]?.from?.name || '';
+    const to = itinerary.legs[itinerary.legs.length - 1]?.to?.name || '';
+    const eta = fmtTimeFromMs(liveEta || itinerary.endTime);
+
+    const message = t(
+      `I'm on Route ${routes} from ${from} to ${to}. Arriving at ${eta}.\nTrack my trip on RouteO`,
+      `Je suis sur la route ${routes} de ${from} a ${to}. Arrivee a ${eta}.\nSuivez mon trajet sur RouteO`
+    );
+
+    Share.share({ message });
+  };
+
   const cleanup = () => {
     locationSubRef.current?.remove();
     locationSubRef.current = null;
@@ -561,9 +576,24 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
               </Text>
             </View>
           </View>
-          <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted }}>
-            {t('Leg', 'Etape')} {activeLeg + 1}/{legs.length}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted }}>
+              {t('Leg', 'Etape')} {activeLeg + 1}/{legs.length}
+            </Text>
+            <TouchableOpacity
+              onPress={shareTrip}
+              style={{
+                width: 36, height: 36, borderRadius: 18,
+                backgroundColor: colours.border,
+                alignItems: 'center', justifyContent: 'center',
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('Share trip', 'Partager le trajet')}
+            >
+              <Ionicons name="share-social-outline" size={18} color={colours.text} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Progress bar */}

@@ -282,6 +282,117 @@ export default function InsightsScreen() {
           </Card>
         )}
 
+        {/* Your Patterns */}
+        {trips.length >= 5 && (() => {
+          // Peak commute hour
+          const hourCounts = new Map<number, number>();
+          trips.forEach(tr => {
+            const h = new Date(tr.plannedAt).getHours();
+            hourCounts.set(h, (hourCounts.get(h) || 0) + 1);
+          });
+          const peakHour = Array.from(hourCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 8;
+          const peakLabel = `${peakHour % 12 || 12}${peakHour >= 12 ? 'pm' : 'am'}`;
+
+          // Top route this month
+          const monthTrips = trips.filter(tr => {
+            const d = new Date(tr.plannedAt);
+            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+          });
+          const monthRouteMap = new Map<string, number>();
+          monthTrips.forEach(tr => {
+            const key = `${tr.fromLabel} \u2192 ${tr.toLabel}`;
+            monthRouteMap.set(key, (monthRouteMap.get(key) || 0) + 1);
+          });
+          const topMonthRoute = Array.from(monthRouteMap.entries()).sort((a, b) => b[1] - a[1])[0];
+
+          // Weekday consistency
+          const weekdayCount = trips.filter(tr => {
+            const day = new Date(tr.plannedAt).getDay();
+            return day >= 1 && day <= 5;
+          }).length;
+          const weekdayPct = trips.length > 0 ? Math.round((weekdayCount / trips.length) * 100) : 0;
+
+          // Average trip time trend (this week vs last 4 weeks)
+          const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
+          const thisWeekPatternTrips = trips.filter(tr => new Date(tr.plannedAt) >= thisWeekStart);
+          const fourWeeksAgo = new Date(thisWeekStart.getTime() - 4 * oneWeekMs);
+          const prevWeeksTrips = trips.filter(tr => {
+            const d = new Date(tr.plannedAt);
+            return d >= fourWeeksAgo && d < thisWeekStart;
+          });
+          const thisWeekAvg = thisWeekPatternTrips.length > 0
+            ? Math.round(thisWeekPatternTrips.reduce((s, tr) => s + tr.durationMins, 0) / thisWeekPatternTrips.length)
+            : null;
+          const prevWeeksAvg = prevWeeksTrips.length > 0
+            ? Math.round(prevWeeksTrips.reduce((s, tr) => s + tr.durationMins, 0) / prevWeeksTrips.length)
+            : null;
+          const trendDiff = thisWeekAvg != null && prevWeeksAvg != null ? thisWeekAvg - prevWeeksAvg : null;
+
+          return (
+            <Card>
+              <View style={{ padding: 16 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <Ionicons name="bulb" size={18} color="#FF9500" />
+                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, letterSpacing: 1 }}>
+                    {t('YOUR PATTERNS', 'VOS HABITUDES')}
+                  </Text>
+                </View>
+
+                {/* Peak commute time */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 }}>
+                  <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#FF9500' + '18', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="time-outline" size={16} color="#FF9500" />
+                  </View>
+                  <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.text, flex: 1 }}>
+                    {t(`You usually commute around ${peakLabel}`, `Vous voyagez generalement vers ${peakLabel}`)}
+                  </Text>
+                </View>
+
+                {/* Top route this month */}
+                {topMonthRoute && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, borderTopWidth: 1, borderTopColor: colours.border }}>
+                    <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="trending-up" size={16} color={colours.accent} />
+                    </View>
+                    <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.text, flex: 1 }} numberOfLines={2}>
+                      {t(`${topMonthRoute[1]} trips this month on ${topMonthRoute[0]}`, `${topMonthRoute[1]} trajets ce mois sur ${topMonthRoute[0]}`)}
+                    </Text>
+                    <View style={{ backgroundColor: colours.accent + '18', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: colours.accent }}>{topMonthRoute[1]}x</Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Weekday consistency */}
+                {weekdayPct > 70 && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, borderTopWidth: 1, borderTopColor: colours.border }}>
+                    <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#5856D6' + '18', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="calendar-outline" size={16} color="#5856D6" />
+                    </View>
+                    <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.text, flex: 1 }}>
+                      {t(`Weekday commuter — ${weekdayPct}% of your trips are Mon-Fri`, `Navetteur de semaine — ${weekdayPct}% de vos trajets sont lun-ven`)}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Trip time trend */}
+                {trendDiff != null && thisWeekPatternTrips.length >= 2 && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, borderTopWidth: 1, borderTopColor: colours.border }}>
+                    <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: (trendDiff <= 0 ? '#34C759' : colours.orange) + '18', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name={trendDiff <= 0 ? 'arrow-down' : 'arrow-up'} size={16} color={trendDiff <= 0 ? '#34C759' : colours.orange} />
+                    </View>
+                    <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.text, flex: 1 }}>
+                      {trendDiff <= 0
+                        ? t(`Your commute is ${Math.abs(trendDiff)} min faster this week`, `Votre trajet est ${Math.abs(trendDiff)} min plus rapide cette semaine`)
+                        : t(`Your commute is ${trendDiff} min slower this week`, `Votre trajet est ${trendDiff} min plus lent cette semaine`)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </Card>
+          );
+        })()}
+
         {/* Best Departure Times */}
         {bestHours.length > 0 && (
           <Card>

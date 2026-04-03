@@ -13,7 +13,7 @@ import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { haversineKm } from '../../lib/geo';
 import { cardShadow as sharedCardShadow } from '../../lib/styles';
 import { cacheArrivals, getCachedArrivals } from '../../lib/arrivalCache';
-import { SK_SAVED_PLACES, SK_TRIP_HISTORY } from '../../lib/storageKeys';
+import { SK_SAVED_PLACES, SK_TRIP_HISTORY, SK_LEAVE_NOW_ALERTS } from '../../lib/storageKeys';
 
 const BACKEND_URL = 'https://routeo-backend.vercel.app/api/arrivals';
 const TEAL = '#00A78D';
@@ -90,10 +90,49 @@ function SavedScreenInner() {
   const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [leaveAlerts, setLeaveAlerts] = useState<Record<string, { route: string; stopId: string; time: string }>>({});
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const stopsRef = useRef<SavedStop[]>(stops);
   const isFetchingRef = useRef(false);
   useEffect(() => { stopsRef.current = stops; }, [stops]);
+
+  // Load saved leave-now alerts
+  useEffect(() => {
+    AsyncStorage.getItem(SK_LEAVE_NOW_ALERTS).then(raw => {
+      if (raw) try { setLeaveAlerts(JSON.parse(raw)); } catch {}
+    }).catch(() => {});
+  }, []);
+
+  const toggleLeaveAlert = async (stopId: string, routeId: string, minsAway: number) => {
+    const key = `${stopId}-${routeId}`;
+    const updated = { ...leaveAlerts };
+
+    if (updated[key]) {
+      delete updated[key];
+    } else {
+      const notifyInMs = Math.max(0, (minsAway - 3)) * 60000;
+
+      try {
+        const Notifs = require('expo-notifications');
+        await Notifs.scheduleNotificationAsync({
+          content: {
+            title: t(`Route ${routeId} arriving soon`, `Route ${routeId} arrive bientot`),
+            body: t(`Leave now to catch Route ${routeId}`, `Partez maintenant pour prendre la route ${routeId}`),
+            data: { type: 'leave_now', stopId, routeId },
+            sound: 'default',
+          },
+          trigger: { seconds: Math.max(30, Math.floor(notifyInMs / 1000)) },
+        });
+      } catch (e) {
+        if (__DEV__) console.warn('Notification scheduling failed:', e);
+      }
+
+      updated[key] = { route: routeId, stopId, time: new Date(Date.now() + notifyInMs).toISOString() };
+    }
+
+    setLeaveAlerts(updated);
+    await AsyncStorage.setItem(SK_LEAVE_NOW_ALERTS, JSON.stringify(updated));
+  };
 
   const cardShadow = isLight ? sharedCardShadow : {};
 
@@ -343,6 +382,19 @@ function SavedScreenInner() {
                       <Text style={{ fontSize: 13, fontWeight: '700', color: a.minsAway < 2 ? TEAL : colours.text }}>
                         {a.minsAway <= 0 ? '< 1' : `${a.minsAway}m`}
                       </Text>
+                      <TouchableOpacity
+                        onPress={() => toggleLeaveAlert(mostUsedStop.id, a.routeId, a.minsAway)}
+                        hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                        style={{ padding: 4 }}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('Set departure alert', 'Definir une alerte de depart')}
+                      >
+                        <Ionicons
+                          name={leaveAlerts[`${mostUsedStop.id}-${a.routeId}`] ? 'notifications' : 'notifications-outline'}
+                          size={16}
+                          color={leaveAlerts[`${mostUsedStop.id}-${a.routeId}`] ? '#FF9500' : colours.muted}
+                        />
+                      </TouchableOpacity>
                     </View>
                   ))}
                 </View>
@@ -435,6 +487,19 @@ function SavedScreenInner() {
                                 <Text style={{ fontSize: 11, fontWeight: '700', color: a.minsAway < 2 ? TEAL : colours.text }}>
                                   {a.minsAway <= 0 ? '<1' : `${a.minsAway}m`}
                                 </Text>
+                                <TouchableOpacity
+                                  onPress={() => toggleLeaveAlert(stop.id, a.routeId, a.minsAway)}
+                                  hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                                  style={{ padding: 2 }}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={t('Set departure alert', 'Definir une alerte de depart')}
+                                >
+                                  <Ionicons
+                                    name={leaveAlerts[`${stop.id}-${a.routeId}`] ? 'notifications' : 'notifications-outline'}
+                                    size={14}
+                                    color={leaveAlerts[`${stop.id}-${a.routeId}`] ? '#FF9500' : colours.muted}
+                                  />
+                                </TouchableOpacity>
                               </View>
                             ))}
                           </View>
