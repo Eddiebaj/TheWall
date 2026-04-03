@@ -2,9 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Linking, Modal, ScrollView,
+  ActivityIndicator, Alert, Image, Linking, Modal, ScrollView,
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
+let ImagePickerModule: typeof import('expo-image-picker') | null = null;
+try { ImagePickerModule = require('expo-image-picker'); } catch {}
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
 import { ContentSkeleton } from '../components/Shimmer';
@@ -58,7 +60,10 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
   const [dealSubmitting, setDealSubmitting] = useState(false);
   const [dealError, setDealError] = useState('');
   const [dealSubmitted, setDealSubmitted] = useState(false);
-  const [communityDeals, setCommunityDeals] = useState<{ id: string; venue_name: string; deal_description: string; created_at: string }[]>([]);
+  const [dealPhoto, setDealPhoto] = useState<{ uri: string; base64: string } | null>(null);
+  const [dealStatus, setDealStatus] = useState<'approved' | 'pending_review' | 'rejected' | null>(null);
+  const [dealModerationReason, setDealModerationReason] = useState('');
+  const [communityDeals, setCommunityDeals] = useState<{ id: string; venue_name: string; deal_description: string; photo_url?: string; created_at: string }[]>([]);
   const [dealVotes, setDealVotes] = useState<Record<string, { up: number; down: number }>>({});
   const [myVotes, setMyVotes] = useState<Record<string, 'up' | 'down'>>({});
   const myVotesRef = useRef(myVotes);
@@ -73,6 +78,9 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
     setStops([]);
     setShowDealForm(false);
     setDealSubmitted(false);
+    setDealPhoto(null);
+    setDealStatus(null);
+    setDealModerationReason('');
     setCommunityDeals([]);
     setDealVotes({});
     setMyVotes({});
@@ -133,7 +141,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
     try {
       const { data } = await supabase
         .from('community_deals')
-        .select('id, venue_name, deal_description, created_at')
+        .select('id, venue_name, deal_description, photo_url, created_at')
         .eq('neighbourhood_id', n.id)
         .eq('approved', true)
         .order('created_at', { ascending: false })
@@ -157,12 +165,54 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
     } catch (e) { if (__DEV__) console.warn('fetch community deals failed:', e); }
   };
 
+  const pickDealPhoto = async () => {
+    if (!ImagePickerModule) return;
+    try {
+      const { status } = await ImagePickerModule.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(t('Permission needed', 'Permission requise'), t('Allow photo access to attach a photo.', 'Autorisez l\'acc\u00e8s aux photos pour en joindre une.'));
+        return;
+      }
+      const result = await ImagePickerModule.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.7,
+        base64: true,
+      });
+      if (!result.canceled && result.assets[0]) {
+        setDealPhoto({ uri: result.assets[0].uri, base64: result.assets[0].base64 || '' });
+      }
+    } catch (e) { if (__DEV__) console.warn('Photo pick failed:', e); }
+  };
+
+  const takeDealPhoto = async () => {
+    if (!ImagePickerModule) return;
+    try {
+      const { status } = await ImagePickerModule.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(t('Permission needed', 'Permission requise'), t('Allow camera access to take a photo.', 'Autorisez l\'acc\u00e8s \u00e0 la cam\u00e9ra pour prendre une photo.'));
+        return;
+      }
+      const result = await ImagePickerModule.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.7,
+        base64: true,
+      });
+      if (!result.canceled && result.assets[0]) {
+        setDealPhoto({ uri: result.assets[0].uri, base64: result.assets[0].base64 || '' });
+      }
+    } catch (e) { if (__DEV__) console.warn('Camera failed:', e); }
+  };
+
   const submitDeal = async () => {
     if (!n || !dealVenueName.trim() || !dealDescription.trim()) return;
     setDealSubmitting(true);
     setDealError('');
+    setDealStatus(null);
+    setDealModerationReason('');
     try {
-      // M17: device_id + 24hr cooldown check
       const deviceId = await getDeviceId();
       if (deviceId) {
         const lastSubmitKey = `routeo_deal_submit_${deviceId}`;
@@ -177,22 +227,34 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
         }
       }
 
-      const { error } = await supabase.from('community_deals').insert({
-        neighbourhood_id: n.id,
-        venue_name: dealVenueName.trim(),
-        deal_description: dealDescription.trim(),
-        approved: false,
+      const resp = await fetchWithTimeout('https://routeo-backend.vercel.app/api/community?action=deal.submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          venue_name: dealVenueName.trim(),
+          deal_description: dealDescription.trim(),
+          neighbourhood_id: n.id,
+          device_id: deviceId || 'anonymous',
+          photo_base64: dealPhoto?.base64 || null,
+        }),
       });
-      if (error) {
-        Alert.alert(t('Submission Error', 'Erreur de soumission'), error.message || t('Unknown error', 'Erreur inconnue'));
-      } else {
-        setDealSubmitted(true);
-        setDealVenueName('');
-        setDealDescription('');
-        // Save submission time for cooldown
-        if (deviceId) {
-          await AsyncStorage.setItem(`routeo_deal_submit_${deviceId}`, String(Date.now()));
-        }
+
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => null);
+        setDealError(errData?.error || t('Submission failed', 'La soumission a \u00e9chou\u00e9'));
+        setDealSubmitting(false);
+        return;
+      }
+
+      const data = await resp.json();
+      setDealSubmitted(true);
+      setDealStatus(data.status || 'pending_review');
+      setDealModerationReason(data.moderation_reason || '');
+      setDealVenueName('');
+      setDealDescription('');
+      setDealPhoto(null);
+      if (deviceId) {
+        await AsyncStorage.setItem(`routeo_deal_submit_${deviceId}`, String(Date.now()));
       }
     } catch (e) {
       if (__DEV__) console.warn('submit deal failed:', e);
@@ -350,6 +412,9 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
                         )}
                       </View>
                       <Text style={{ fontSize: fonts.sm, color: colours.accent, marginTop: 2 }}>{d.deal_description}</Text>
+                      {d.photo_url && (
+                        <Image source={{ uri: d.photo_url }} style={{ width: '100%', height: 120, borderRadius: 8, marginTop: 6 }} resizeMode="cover" />
+                      )}
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 }}>
                         <TouchableOpacity onPress={() => voteDeal(d.id, 'up')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                           <Ionicons name={myVote === 'up' ? 'thumbs-up' : 'thumbs-up-outline'} size={14} color={myVote === 'up' ? '#00A78D' : colours.muted} />
@@ -374,13 +439,28 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
             <View style={{ marginTop: 16 }}>
               {dealSubmitted ? (
                 <View style={{ alignItems: 'center', paddingVertical: 12 }}>
-                  <Ionicons name="checkmark-circle" size={28} color="#00A78D" />
-                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, marginTop: 6 }}>{t('Thanks! Your deal will be reviewed.', 'Merci! Votre offre sera examin\u00e9e.')}</Text>
+                  <Ionicons
+                    name={dealStatus === 'approved' ? 'checkmark-circle' : dealStatus === 'rejected' ? 'close-circle' : 'time'}
+                    size={28}
+                    color={dealStatus === 'approved' ? '#00A78D' : dealStatus === 'rejected' ? '#cc3b2a' : colours.accent}
+                  />
+                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, marginTop: 6 }}>
+                    {dealStatus === 'approved'
+                      ? t('Deal approved and live!', 'Offre approuv\u00e9e et en ligne!')
+                      : dealStatus === 'rejected'
+                      ? t('Deal not approved.', 'Offre non approuv\u00e9e.')
+                      : t('Thanks! Your deal is being reviewed.', 'Merci! Votre offre est en cours de r\u00e9vision.')}
+                  </Text>
+                  {dealModerationReason !== '' && (
+                    <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 4, textAlign: 'center' }}>{dealModerationReason}</Text>
+                  )}
                   <TouchableOpacity
                     onPress={() => {
                       setDealSubmitted(false);
                       setDealVenueName('');
                       setDealDescription('');
+                      setDealStatus(null);
+                      setDealModerationReason('');
                     }}
                     style={{ marginTop: 12, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, backgroundColor: colours.accent + '15', borderWidth: 1, borderColor: colours.accent + '30' }}
                     accessibilityRole="button"
@@ -406,6 +486,26 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
                     onChangeText={setDealDescription}
                     multiline
                   />
+                  {/* Photo picker */}
+                  {dealPhoto ? (
+                    <View style={{ marginBottom: 10, alignItems: 'center' }}>
+                      <Image source={{ uri: dealPhoto.uri }} style={{ width: '100%', height: 160, borderRadius: 8 }} resizeMode="cover" />
+                      <TouchableOpacity onPress={() => setDealPhoto(null)} style={{ position: 'absolute', top: 6, right: 6, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="close" size={14} color="#fff" />
+                      </TouchableOpacity>
+                    </View>
+                  ) : ImagePickerModule ? (
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+                      <TouchableOpacity onPress={takeDealPhoto} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: colours.border, borderStyle: 'dashed' }}>
+                        <Ionicons name="camera-outline" size={16} color={colours.muted} />
+                        <Text style={{ fontSize: fonts.sm, color: colours.muted, fontWeight: '600' }}>{t('Camera', 'Cam\u00e9ra')}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={pickDealPhoto} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: colours.border, borderStyle: 'dashed' }}>
+                        <Ionicons name="image-outline" size={16} color={colours.muted} />
+                        <Text style={{ fontSize: fonts.sm, color: colours.muted, fontWeight: '600' }}>{t('Gallery', 'Galerie')}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
                   {dealError !== '' && (
                     <Text style={{ fontSize: 12, color: '#ff3b30', fontWeight: '600', marginBottom: 8 }}>{dealError}</Text>
                   )}
