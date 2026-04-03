@@ -26,8 +26,6 @@ import BottomSheet from '@gorhom/bottom-sheet';
 import NearbyTransitSheet, { NearbyStop } from '../../components/NearbyTransitSheet';
 import { cacheArrivals, getCachedArrivals } from '../../lib/arrivalCache';
 import type { ServiceTile } from '../../components/ServicesGrid';
-import { usePremium, PREMIUM_FEATURES } from '../../lib/premium';
-import PaywallSheet from '../../components/PaywallSheet';
 
 // Error boundary to catch AIRMap native crashes and show a recoverable fallback
 class MapErrorBoundary extends React.Component<
@@ -693,10 +691,6 @@ export default function MapScreen() {
   const [sheetSensGame, setSheetSensGame] = useState<any>(null);
   const [sheetDeals, setSheetDeals] = useState<{ id: string; venue_name: string; deal_text: string; day_of_week: number }[]>([]);
 
-  // Premium
-  const { isPremium: premiumActive } = usePremium();
-  const [mapPaywallVisible, setMapPaywallVisible] = useState(false);
-
   // Discovery mode — Google Places nearby search
   const [discoveryCategory, setDiscoveryCategory] = useState<string | null>(null);
   const [discoveryResults, setDiscoveryResults] = useState<DiscoveryResult[]>([]);
@@ -732,12 +726,6 @@ export default function MapScreen() {
         if (r.ok) pins = await r.json();
       } else if (layer === 'construction') {
         const r = await fetchWithTimeout(`${CITY}?type=construction`);
-        if (r.ok) pins = await r.json();
-      } else if (layer === 'parking') {
-        const r = await fetchWithTimeout(`${CITY}?type=parking`);
-        if (r.ok) pins = await r.json();
-      } else if (['food_trucks', 'breweries', 'public_art', 'cultural', 'wifi', 'bike_repair', 'ev_chargers', 'markets'].includes(layer)) {
-        const r = await fetchWithTimeout(`${CITY}?type=ottawa&layer=${layer}`);
         if (r.ok) pins = await r.json();
       } else if (layer === 'events') {
         const now = new Date().toISOString().replace(/\.\d+Z/, 'Z');
@@ -778,12 +766,6 @@ export default function MapScreen() {
           photoUrl: d.photo_url,
           source: 'community' as const,
         }));
-      } else if (layer === 'sports') {
-        pins = [
-          { id: 'sport_ctc', category: 'sports' as LayerKey, name: 'Canadian Tire Centre', subtitle: 'Ottawa Senators (NHL)', lat: 45.2969, lng: -75.9272, source: 'ottawa' as const },
-          { id: 'sport_td', category: 'sports' as LayerKey, name: 'TD Place Stadium', subtitle: 'Redblacks, Atletico Ottawa', lat: 45.3985, lng: -75.6838, source: 'ottawa' as const },
-          { id: 'sport_caa', category: 'sports' as LayerKey, name: 'CAA Arena', subtitle: 'Ottawa 67s (OHL)', lat: 45.3437, lng: -75.6092, source: 'ottawa' as const },
-        ];
       } else if (layer === 'ghost_buses') {
         // Fetch recent ghost bus reports grouped by stop, join with stops table for lat/lng
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -839,7 +821,7 @@ export default function MapScreen() {
     setActiveLayers(newLayers);
     saveLayerPrefs(newLayers).catch(e => { if (__DEV__) console.warn('Layer prefs save failed:', e); });
     if (!newLayers[key] && selectedPin?.category === key) setSelectedPin(null);
-    const DYNAMIC_TTL: Partial<Record<LayerKey, number>> = { parking: 5 * 60000, construction: 15 * 60000 };
+    const DYNAMIC_TTL: Partial<Record<LayerKey, number>> = { construction: 15 * 60000 };
     const ttl = DYNAMIC_TTL[key];
     const lastFetch = layerFetchedAt.current[key] || 0;
     const isStale = ttl ? Date.now() - lastFetch > ttl : !layerPins[key]?.length;
@@ -849,7 +831,7 @@ export default function MapScreen() {
   // Happening Now: time-sensitive pins within 500m
   const happeningNow = useMemo(() => {
     if (!layerPins) return [];
-    const timeLayers: LayerKey[] = ['events', 'deals', 'sports'];
+    const timeLayers: LayerKey[] = ['events', 'deals'];
     const allPins = timeLayers.flatMap(k => (activeLayers[k] ? (layerPins[k] || []) : []));
     // Filter to within ~500m of map center
     const R = 0.0045; // ~500m in degrees
@@ -2063,19 +2045,9 @@ export default function MapScreen() {
         style={{ position: 'absolute', top: Platform.OS === 'ios' ? 100 : 82, left: 0, right: 0, zIndex: 9 }}
         contentContainerStyle={{ paddingHorizontal: 16, gap: 8, flexDirection: 'row', paddingVertical: 6 }}
       >
-        {([
-          { key: 'restaurants', icon: 'restaurant' },
-          { key: 'coffee', icon: 'cafe' },
-          { key: 'bars', icon: 'wine' },
-          { key: 'parking', icon: 'car' },
-          { key: 'events', icon: 'musical-notes' },
-          { key: 'deals', icon: 'pricetag' },
-          { key: 'construction', icon: 'construct' },
-          { key: 'bike_share', icon: 'bicycle' },
-          { key: 'food_trucks', icon: 'fast-food' },
-        ] as { key: string; icon: string }[]).map(({ key, icon }) => {
-          const config = LAYER_CONFIG[key as LayerKey];
-          const isActive = activeLayers[key as LayerKey];
+        {(Object.entries(LAYER_CONFIG) as [LayerKey, typeof LAYER_CONFIG[LayerKey]][]).map(([key, config]) => {
+          const icon = config.icon;
+          const isActive = activeLayers[key];
           return (
             <TouchableOpacity
               key={key}
@@ -2087,7 +2059,7 @@ export default function MapScreen() {
                 ? { backgroundColor: config.color, borderColor: config.color }
                 : { backgroundColor: colours.card, borderColor: colours.border }
               ]}
-              onPress={() => toggleLayer(key as LayerKey)}
+              onPress={() => toggleLayer(key)}
             >
               <Ionicons name={icon as any} size={14} color={isActive ? 'white' : colours.muted} />
               <Text style={{ fontSize: 12, fontWeight: '600', color: isActive ? 'white' : colours.muted }}>
@@ -2101,20 +2073,6 @@ export default function MapScreen() {
             </TouchableOpacity>
           );
         })}
-        <TouchableOpacity
-          style={{
-            flexDirection: 'row', alignItems: 'center', gap: 5,
-            paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1,
-            backgroundColor: colours.card, borderColor: colours.border,
-            shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.15, shadowRadius: 2, elevation: 2,
-          }}
-          onPress={() => nearbySheetRef.current?.snapToIndex(2)}
-        >
-          <Ionicons name="layers-outline" size={14} color={colours.muted} />
-          <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted }}>
-            {language === 'fr' ? 'Plus' : 'More'}
-          </Text>
-        </TouchableOpacity>
       </ScrollView>
 
       {/* Floating action buttons */}
@@ -2861,22 +2819,6 @@ export default function MapScreen() {
               <Ionicons name="close-circle" size={22} color={colours.muted} />
             </TouchableOpacity>
           </View>
-          {selectedPin.category === 'parking' && (selectedPin as any).available != null && (
-            <View style={{ marginVertical: 6 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>
-                  {(selectedPin as any).available}/{(selectedPin as any).total} {t('spots available', 'places disponibles')}
-                </Text>
-              </View>
-              <View style={{ height: 6, borderRadius: 3, backgroundColor: colours.border }}>
-                <View style={{
-                  height: 6, borderRadius: 3,
-                  width: `${Math.min((selectedPin as any).percentFull || 0, 100)}%`,
-                  backgroundColor: (selectedPin as any).percentFull < 50 ? '#2ecc71' : (selectedPin as any).percentFull < 80 ? '#f39c12' : '#e74c3c',
-                }} />
-              </View>
-            </View>
-          )}
           {(selectedPin.rating || selectedPin.price || selectedPin.isOpenNow !== undefined) && (
             <Text style={{ fontSize: 12, color: colours.muted, marginBottom: 4 }}>
               {selectedPin.rating ? `\u2605 ${selectedPin.rating}` : ''}{selectedPin.price ? ` \u00b7 ${selectedPin.price}` : ''}{selectedPin.isOpenNow !== undefined ? (selectedPin.isOpenNow ? ` \u00b7 ${t('Open now', 'Ouvert')}` : ` \u00b7 ${t('Closed', 'Ferm\u00e9')}`) : ''}
@@ -2938,8 +2880,8 @@ export default function MapScreen() {
         }}
         communityDeals={sheetDeals}
         onPlanTrip={() => router.push('/(tabs)/planner' as any)}
-        premiumActive={premiumActive}
-        onLeaveNowPress={() => { if (!premiumActive) setMapPaywallVisible(true); }}
+        premiumActive={true}
+        onLeaveNowPress={() => {}}
         activeLayers={activeLayers}
         layerPins={layerPins}
         onToggleLayer={toggleLayer}
@@ -2974,12 +2916,6 @@ export default function MapScreen() {
         />
       )}
 
-      <PaywallSheet
-        visible={mapPaywallVisible}
-        onDismiss={() => setMapPaywallVisible(false)}
-        onSuccess={() => setMapPaywallVisible(false)}
-        highlightFeature={PREMIUM_FEATURES.LEAVE_NOW_ALERTS}
-      />
     </View>
     </MapErrorBoundary>
   );

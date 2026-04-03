@@ -1,4 +1,3 @@
-import * as Location from 'expo-location';
 let Notifications: typeof import('expo-notifications') | null = null;
 try { Notifications = require('expo-notifications'); } catch {}
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -9,25 +8,14 @@ import {
     StatusBar, Switch, Text, TextInput,
     TouchableOpacity, View
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useApp } from '../../context/AppContext';
-import { PALETTE_LABELS, PaletteId } from '../../context/AppContext';
 import { useBoard } from '../../context/BoardContext';
 import { supabase } from '../../lib/supabase';
 import { registerPushToken, syncSubscriptions } from '../../lib/pushNotifications';
-import { SK_FAVS, SK_SAVED_PLACES, SK_NOTIF_SETTINGS, SK_TRIP_SHARING, SK_TRIP_HISTORY, SK_PRESTO_BALANCE, SK_PRESTO_RESET_DATE, SK_BATTERY_SAVER, SK_CLASS_SCHEDULE, SK_CAMPUS, SK_PREMIUM_EXPIRES, SK_LEAVE_NOW_ALERTS } from '../../lib/storageKeys';
+import { SK_NOTIF_SETTINGS, SK_LEAVE_NOW_ALERTS } from '../../lib/storageKeys';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
-import { haversineKm } from '../../lib/geo';
 import { cardShadow as sharedCardShadow } from '../../lib/styles';
-import { toTitleCase } from '../../lib/utils';
-import { CAMPUSES, CampusConfig } from '../../lib/campusData';
-import { ClassSchedule } from '../../lib/scheduleData';
-import ClassScheduleModal from '../../components/ClassScheduleModal';
-import { usePremium, PREMIUM_FEATURES, PremiumFeature } from '../../lib/premium';
-import PremiumBadge from '../../components/PremiumBadge';
-import PaywallSheet from '../../components/PaywallSheet';
 
-const isNightTime = () => { const h = new Date().getHours(); return h >= 21 || h < 4; };
 
 // Module-scope Card and Divider components (H6)
 function Card({ children, borderColor, colours, cardShadow }: {
@@ -107,22 +95,14 @@ const NOTIF_SETTINGS_KEY = SK_NOTIF_SETTINGS;
 export default function AccountScreen() {
   const {
     theme, setTheme, resolvedTheme, colours, fonts,
-    palette, setPalette,
-    largeText, setLargeText,
-    highContrast, setHighContrast,
-    reducedMotion, setReducedMotion,
     language, setLanguage, t,
   } = useApp();
-  const router = useRouter();
-  const { savedBoard, removeFromBoard, refreshBoard } = useBoard();
+  const { savedBoard } = useBoard();
 
   const isLight = resolvedTheme === 'light';
 
   const cardShadow = isLight ? sharedCardShadow : {};
 
-  const [tripSharing, setTripSharing] = useState(false);
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [isNight, setIsNight] = useState(isNightTime());
   const [notifSettings, setNotifSettings] = useState<NotifSettings>(DEFAULT_NOTIF_SETTINGS);
   const [notifPermission, setNotifPermission] = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
   const [showNotifs, setShowNotifs] = useState(false);
@@ -130,39 +110,7 @@ export default function AccountScreen() {
   const [showTransitAlerts, setShowTransitAlerts] = useState(false);
   const [showCityReminders, setShowCityReminders] = useState(false);
   const [showEventsNotifs, setShowEventsNotifs] = useState(false);
-  const [showTips, setShowTips] = useState(false);
-  const [showA11y, setShowA11y] = useState(false);
-  const [showSaved, setShowSaved] = useState(false);
-  const [savedFavs, setSavedFavs] = useState<{ id: string; name: string; agency?: string }[]>([]);
-  const [savedPlaces, setSavedPlaces] = useState<{ id: string; name: string; vicinity?: string; categoryIcon?: string; categoryColor?: string; lat?: number; lng?: number }[]>([]);
-  const [commuteStats, setCommuteStats] = useState<{ tripsThisWeek: number; totalMinutes: number; avgDuration: number; topRoute: string | null } | null>(null);
-  const [fareStats, setFareStats] = useState<{ tripsToday: number; tripsWeek: number; tripsMonth: number; costToday: number; costWeek: number; costMonth: number } | null>(null);
-  const [prestoBalance, setPrestoBalance] = useState<string>('');
-  const [prestoResetDay, setPrestoResetDay] = useState<string>('');
-  const [prestoSaved, setPrestoSaved] = useState(false);
-  const [showPrestoEdit, setShowPrestoEdit] = useState(false);
-  const [batterySaver, setBatterySaver] = useState(false);
-  const [acctSchedule, setAcctSchedule] = useState<ClassSchedule | null>(null);
-  const [acctCampus, setAcctCampus] = useState<CampusConfig | null>(null);
-  const [acctScheduleModal, setAcctScheduleModal] = useState(false);
   const [ghostStats, setGhostStats] = useState<{ totalThisWeek: number; mostAffectedRoute: string | null; mostAffectedCount: number } | null>(null);
-
-  // Premium
-  const { isPremium: premiumActive, loading: premiumLoading } = usePremium();
-  const [paywallVisible, setPaywallVisible] = useState(false);
-  const [paywallFeature, setPaywallFeature] = useState<PremiumFeature | undefined>(undefined);
-  const [renewDate, setRenewDate] = useState<string>('');
-
-  const openPaywall = (feature?: PremiumFeature) => { setPaywallFeature(feature); setPaywallVisible(true); };
-  const [leaveNowAlerts, setLeaveNowAlerts] = useState<{ id: string; stopName: string; routeId: string; leaveAt: number }[]>([]);
-
-  useEffect(() => {
-    if (premiumActive) {
-      AsyncStorage.getItem(SK_PREMIUM_EXPIRES).then(v => {
-        if (v) { const d = new Date(parseInt(v, 10)); setRenewDate(d.toLocaleDateString(language === 'fr' ? 'fr-CA' : 'en-CA')); }
-      }).catch(() => {});
-    }
-  }, [premiumActive, language]);
 
   // Bug report modal
   const [bugModalVisible, setBugModalVisible] = useState(false);
@@ -172,9 +120,6 @@ export default function AccountScreen() {
   const [bugSent, setBugSent] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(SK_CAMPUS).then(val => { if (val) { const c = CAMPUSES.find(x => x.id === val); if (c) setAcctCampus(c); } }).catch(() => {});
-    AsyncStorage.getItem(SK_CLASS_SCHEDULE).then(val => { try { if (val) setAcctSchedule(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn(e); } }).catch(() => {});
-    AsyncStorage.getItem(SK_LEAVE_NOW_ALERTS).then(val => { try { if (val) { const arr = JSON.parse(val).filter((a: any) => a.leaveAt > Date.now()); setLeaveNowAlerts(arr); } } catch {} }).catch(() => {});
     // Fetch ghost bus stats
     (async () => {
       try {
@@ -185,109 +130,6 @@ export default function AccountScreen() {
         if (resp.ok) { const data = await resp.json(); setGhostStats(data); }
       } catch (e) { if (__DEV__) console.warn(e); }
     })();
-  }, []);
-
-  // Consolidated trip history + fare stats read (M6)
-  useEffect(() => {
-    Promise.all([
-      AsyncStorage.getItem(SK_TRIP_HISTORY),
-      AsyncStorage.getItem(SK_PRESTO_RESET_DATE),
-    ]).then(([val, resetVal]) => {
-      try {
-        if (!val) return;
-        const trips = JSON.parse(val);
-        if (!Array.isArray(trips) || trips.length === 0) return;
-        const now = new Date();
-
-        // Commute stats
-        const commuteWeekStart = new Date(now); commuteWeekStart.setDate(now.getDate() - now.getDay()); commuteWeekStart.setHours(0, 0, 0, 0);
-        const weekTrips = trips.filter((tr: any) => new Date(tr.plannedAt).getTime() >= commuteWeekStart.getTime());
-        const totalMins = weekTrips.reduce((s: number, tr: any) => s + (tr.durationMins || 0), 0);
-        const routeCounts: Record<string, number> = {};
-        for (const tr of weekTrips) {
-          const label = `${tr.fromLabel} → ${tr.toLabel}`;
-          routeCounts[label] = (routeCounts[label] || 0) + 1;
-        }
-        const topRoute = Object.entries(routeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
-        setCommuteStats({
-          tripsThisWeek: weekTrips.length,
-          totalMinutes: totalMins,
-          avgDuration: weekTrips.length > 0 ? Math.round(totalMins / weekTrips.length) : 0,
-          topRoute,
-        });
-
-        // Fare stats
-        const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
-        const day = now.getDay(); // 0=Sun
-        const mondayOffset = day === 0 ? 6 : day - 1;
-        const fareWeekStart = new Date(now); fareWeekStart.setDate(now.getDate() - mondayOffset); fareWeekStart.setHours(0, 0, 0, 0);
-        const resetDay = resetVal ? parseInt(resetVal, 10) : 0;
-        let periodStart: Date;
-        if (resetDay >= 1 && resetDay <= 28) {
-          periodStart = now.getDate() >= resetDay
-            ? new Date(now.getFullYear(), now.getMonth(), resetDay, 0, 0, 0, 0)
-            : new Date(now.getFullYear(), now.getMonth() - 1, resetDay, 0, 0, 0, 0);
-        } else {
-          periodStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-        }
-        let tripsToday = 0, tripsWeek = 0, tripsMonth = 0;
-        for (const tr of trips) {
-          const d = new Date(tr.plannedAt);
-          if (d.getTime() >= periodStart.getTime()) { tripsMonth++; }
-          if (d.getTime() >= fareWeekStart.getTime()) { tripsWeek++; }
-          if (d.getTime() >= todayStart.getTime()) { tripsToday++; }
-        }
-        const FARE = 4.10;
-        const DAILY_CAP = 13.50;
-        const MONTHLY_CAP = 139.00;
-        setFareStats({
-          tripsToday, tripsWeek, tripsMonth,
-          costToday: Math.min(tripsToday * FARE, DAILY_CAP),
-          costWeek: Math.min(tripsWeek * FARE, 7 * DAILY_CAP),
-          costMonth: Math.min(tripsMonth * FARE, MONTHLY_CAP),
-        });
-      } catch (e) { if (__DEV__) console.warn(e); }
-    });
-  }, [prestoSaved]);
-
-  useEffect(() => {
-    AsyncStorage.getItem(SK_PRESTO_BALANCE).then(v => { if (v) { setPrestoBalance(v); setPrestoSaved(true); } });
-    AsyncStorage.getItem(SK_PRESTO_RESET_DATE).then(v => { if (v) setPrestoResetDay(v); });
-    AsyncStorage.getItem(SK_BATTERY_SAVER).then(v => { if (v === 'true') setBatterySaver(true); });
-  }, []);
-
-  const savePresto = () => {
-    const bal = parseFloat(prestoBalance);
-    if (isNaN(bal) || bal < 0) { Alert.alert(t('Invalid balance', 'Solde invalide')); return; }
-    const dayNum = parseInt(prestoResetDay, 10);
-    if (prestoResetDay && (isNaN(dayNum) || dayNum < 1 || dayNum > 28)) { Alert.alert(t('Reset day must be 1-28', 'Le jour doit etre entre 1 et 28')); return; }
-    AsyncStorage.setItem(SK_PRESTO_BALANCE, String(bal));
-    if (prestoResetDay) AsyncStorage.setItem(SK_PRESTO_RESET_DATE, String(dayNum));
-    else AsyncStorage.removeItem(SK_PRESTO_RESET_DATE);
-    setPrestoSaved(true);
-    setShowPrestoEdit(false);
-  };
-
-  const clearPresto = () => {
-    AsyncStorage.removeItem(SK_PRESTO_BALANCE);
-    AsyncStorage.removeItem(SK_PRESTO_RESET_DATE);
-    setPrestoBalance('');
-    setPrestoResetDay('');
-    setPrestoSaved(false);
-    setShowPrestoEdit(false);
-  };
-
-  // Compute remaining Presto balance after this period's trips
-  const prestoRemaining = (() => {
-    if (!prestoSaved || !fareStats) return null;
-    const bal = parseFloat(prestoBalance);
-    if (isNaN(bal)) return null;
-    return Math.max(0, bal - fareStats.costMonth);
-  })();
-
-  useEffect(() => {
-    const interval = setInterval(() => setIsNight(isNightTime()), 60000);
-    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -337,10 +179,10 @@ export default function AccountScreen() {
         setNotifPermission(status as 'granted' | 'denied' | 'undetermined');
         if (status !== 'granted') {
           Alert.alert(
-            t('Notifications disabled', 'Notifications désactivées'),
-            t('Enable notifications for RouteO in your device Settings.', 'Activez les notifications pour RouteO dans les Paramètres.'),
+            t('Notifications disabled', 'Notifications desactivees'),
+            t('Enable notifications for RouteO in your device Settings.', 'Activez les notifications pour RouteO dans les Parametres.'),
             [
-              { text: t('Open Settings', 'Ouvrir les Paramètres'), onPress: () => Linking.openSettings() },
+              { text: t('Open Settings', 'Ouvrir les Parametres'), onPress: () => Linking.openSettings() },
               { text: t('Cancel', 'Annuler'), style: 'cancel' },
             ]
           );
@@ -352,35 +194,10 @@ export default function AccountScreen() {
     return true;
   };
 
-  const startTripSharing = async () => {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(t('Location needed', 'Localisation requise'), t('Enable location to share your trip.', 'Activez la localisation pour partager votre trajet.'));
-        return;
-      }
-      const loc = await Location.getCurrentPositionAsync({});
-      setLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
-      setTripSharing(true);
-      AsyncStorage.setItem(SK_TRIP_SHARING, 'true');
-      Alert.alert(t('Trip sharing on', 'Partage activé'), t('Your location is being shared. Stay safe!', 'Votre position est partagée. Soyez prudent!'));
-    } catch {
-      Alert.alert(t('Location unavailable', 'Position indisponible'), t('Could not get your location. Please try again.', 'Impossible d\'obtenir votre position. Veuillez réessayer.'));
-    }
-  };
-
-  const stopTripSharing = () => { setTripSharing(false); setLocation(null); AsyncStorage.removeItem(SK_TRIP_SHARING); };
-
-  const shareLocation = () => {
-    if (!location) return;
-    const url = `https://maps.google.com/?q=${location.lat},${location.lng}`;
-    Linking.openURL(`sms:?body=${encodeURIComponent(t(`I'm taking transit home. My location: ${url}`, `Je prends le transport en commun. Ma position: ${url}`))}`);
-  };
-
   const themeLabels: Record<string, string> = {
     dark: t('Dark', 'Sombre'),
     light: t('Light', 'Clair'),
-    system: t('System', 'Système'),
+    system: t('System', 'Systeme'),
   };
 
   const themeIcons = {
@@ -397,14 +214,6 @@ export default function AccountScreen() {
   // eslint-disable-next-line react/no-unstable-nested-components
   const CDivider = () => <Divider colours={colours} />;
 
-  const LATE_NIGHT_TIPS = [
-    { icon: 'bulb' as const, tip: t('Wait under lights — avoid dark shelters late at night', 'Attendez sous les lumières — évitez les abris sombres') },
-    { icon: 'people' as const, tip: t('Board the first or second car — closer to the operator', 'Montez dans le premier ou deuxième wagon') },
-    { icon: 'phone-portrait' as const, tip: t('Keep your phone charged and location services on', 'Gardez votre téléphone chargé et la localisation activée') },
-    { icon: 'train' as const, tip: t('Hurdman and Bayview have 24h security cameras', 'Hurdman et Bayview ont des caméras de sécurité 24h') },
-    { icon: 'notifications' as const, tip: t('Tell someone your route before boarding late night', "Dites à quelqu'un votre trajet avant de partir tard") },
-  ];
-
   const NOTIF_GREEN = '#34C759';
   const NOTIF_RED = '#FF3B30';
 
@@ -415,7 +224,7 @@ export default function AccountScreen() {
       expanded: showTripNotifs, setExpanded: setShowTripNotifs,
       items: [
         { key: 'leaveNow' as keyof NotifSettings, icon: 'alarm' as const, label: t('Leave Now Reminder', 'Rappel de depart'), desc: t('Alerts you when to leave for a saved trip', 'Vous alerte quand partir pour un trajet sauvegarde') },
-        { key: 'arrivalAlerts' as keyof NotifSettings, icon: 'notifications' as const, label: t('Arrival Alerts', "Alertes d'arrivée"), desc: t('Notifies when a bus at a saved stop is 3 min away', 'Notifie quand un bus à un arrêt sauvegardé est à 3 min') },
+        { key: 'arrivalAlerts' as keyof NotifSettings, icon: 'notifications' as const, label: t('Arrival Alerts', "Alertes d'arrivee"), desc: t('Notifies when a bus at a saved stop is 3 min away', 'Notifie quand un bus a un arret sauvegarde est a 3 min') },
         { key: 'transferAtRisk' as keyof NotifSettings, icon: 'swap-horizontal' as const, label: t('Transfer at Risk', 'Correspondance a risque'), desc: t('Warns if your connecting bus may be missed', 'Avertit si votre correspondance risque d\'etre manquee') },
         { key: 'tripDisruption' as keyof NotifSettings, icon: 'alert-circle' as const, label: t('Trip Disruption', 'Perturbation de trajet'), desc: t('Notifies if your active route is affected mid-journey', 'Notifie si votre trajet actif est perturbe en cours de route') },
         { key: 'lastBus' as keyof NotifSettings, icon: 'moon' as const, label: t('Last Bus Warning', 'Avertissement dernier bus'), desc: t('Alerts when the last bus of the night is approaching', 'Alerte quand le dernier bus de la nuit approche') },
@@ -456,28 +265,13 @@ export default function AccountScreen() {
     },
   ];
 
-  const EMERGENCY_CONTACTS = [
-    { icon: 'alert-circle' as const, iconColor: colours.red, title: t('Call 911', 'Appeler le 911'), desc: t('Police, ambulance, fire', 'Police, ambulance, pompiers'), tel: '911' },
-    { icon: 'bus' as const, iconColor: colours.accent, title: t('OC Transpo Info', 'Info OC Transpo'), desc: '613-560-1000', tel: '6135601000' },
-    { icon: 'medkit' as const, iconColor: '#cc3b2a', title: t('Ottawa Hospital', "Hôpital d'Ottawa"), desc: '613-828-1275', tel: '6138281275' },
-  ];
-
   return (
     <View style={{ flex: 1, backgroundColor: colours.bg }}>
       <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
 
-        {/* Top spacer + night badge */}
-        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 12 }}>
-          {isNight && (
-            <View style={{ backgroundColor: colours.accentAlt + '22', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: colours.accentAlt + '60' }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Ionicons name="moon" size={12} color={colours.accentAlt} />
-                <Text style={{ color: colours.accentAlt, fontSize: fonts.sm, fontWeight: '700' }}>{t('Night', 'Nuit')}</Text>
-              </View>
-            </View>
-          )}
-        </View>
+        {/* Top spacer */}
+        <View style={{ paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 12 }} />
 
         {/* Profile */}
         <View style={[{
@@ -496,473 +290,29 @@ export default function AccountScreen() {
           </View>
           <View>
             <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text }}>{t('Ottawa Rider', 'Usager Ottawa')}</Text>
-            <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Coming soon', 'Bientôt disponible')}</Text>
+            <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Coming soon', 'Bientot disponible')}</Text>
           </View>
         </View>
 
-        {/* RouteO+ Card */}
-        {!premiumLoading && (
-          premiumActive ? (
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => Linking.openURL(Platform.OS === 'ios' ? 'https://apps.apple.com/account/subscriptions' : 'https://play.google.com/store/account/subscriptions')}
-              style={[{
-                marginHorizontal: 20, marginBottom: 24, borderRadius: 16, overflow: 'hidden',
-                borderWidth: 1, borderColor: '#e8a020' + '50',
-              }, cardShadow]}
-            >
-              <View style={{
-                padding: 20,
-                backgroundColor: colours.surface,
-                borderLeftWidth: 4,
-                borderLeftColor: '#e8a020',
-              }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <Ionicons name="diamond" size={20} color="#e8a020" />
-                  <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>RouteO+ {t('Active', 'Actif')}</Text>
-                  <Ionicons name="checkmark-circle" size={18} color="#e8a020" />
-                </View>
-                {renewDate ? (
-                  <Text style={{ fontSize: fonts.sm, color: colours.muted }}>
-                    {t(`Your subscription renews on ${renewDate}`, `Votre abonnement se renouvelle le ${renewDate}`)}
-                  </Text>
-                ) : null}
-                <Text style={{ fontSize: fonts.sm, color: colours.accent, fontWeight: '600', marginTop: 8 }}>
-                  {t('Manage Subscription', 'Gerer l\'abonnement')} →
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => openPaywall()}
-              style={[{
-                marginHorizontal: 20, marginBottom: 24, borderRadius: 16, overflow: 'hidden',
-              }, cardShadow]}
-            >
-              <View style={{
-                padding: 20,
-                backgroundColor: '#0a2a3a',
-                borderWidth: 1,
-                borderColor: '#00A78D' + '40',
-                borderRadius: 16,
-              }}>
-                <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: '#fff', marginBottom: 6 }}>RouteO+</Text>
-                <Text style={{ fontSize: fonts.sm, color: '#ccd6e0', marginBottom: 12, lineHeight: 18 }}>
-                  {t(
-                    'Unlock AI trip planning, Leave Now alerts, commute insights and more',
-                    'Debloquez la planification IA, les alertes de depart, les statistiques et plus'
-                  )}
-                </Text>
-                <Text style={{ fontSize: fonts.sm, color: '#8899aa', marginBottom: 14 }}>
-                  {t('$2.99/month or $19.99/year', '2,99 $/mois ou 19,99 $/an')}
-                </Text>
-                <View style={{ backgroundColor: '#00A78D', borderRadius: 10, paddingVertical: 12, alignItems: 'center' }}>
-                  <Text style={{ color: '#fff', fontWeight: '800', fontSize: fonts.md }}>
-                    {t('Upgrade Now', 'Passer a RouteO+')}
-                  </Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          )
-        )}
-
-        {/* MY COMMUTE */}
-        {commuteStats && commuteStats.tripsThisWeek > 0 && (<>
-          <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 8, letterSpacing: 1 }}>
-            {t('MY COMMUTE', 'MON TRAJET')}
-          </Text>
+        {/* Ghost Bus Stats */}
+        {ghostStats && ghostStats.totalThisWeek > 0 && (
           <CCard>
-            <View style={{ padding: 16 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginBottom: 12 }}>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ fontSize: fonts.xxl, fontWeight: '800', color: colours.accent }}>{commuteStats.tripsThisWeek}</Text>
-                  <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted, marginTop: 2 }}>{t('trips', 'trajets')}</Text>
-                </View>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ fontSize: fonts.xxl, fontWeight: '800', color: colours.text }}>{commuteStats.totalMinutes}</Text>
-                  <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted, marginTop: 2 }}>{t('min total', 'min total')}</Text>
-                </View>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ fontSize: fonts.xxl, fontWeight: '800', color: colours.text }}>{commuteStats.avgDuration}</Text>
-                  <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted, marginTop: 2 }}>{t('min avg', 'min moy')}</Text>
-                </View>
+            <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#FF9500' + '18', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="warning-outline" size={20} color="#FF9500" />
               </View>
-              {commuteStats.topRoute && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 10, borderTopWidth: 1, borderTopColor: colours.border }}>
-                  <Ionicons name="navigate" size={14} color={colours.accent} />
-                  <Text style={{ fontSize: fonts.sm, color: colours.muted, flex: 1 }} numberOfLines={1}>{t('Top route', 'Trajet principal')}: <Text style={{ fontWeight: '700', color: colours.text }}>{(() => { const parts = commuteStats.topRoute.split(',').map(s => s.trim()).filter(s => !/^(Ottawa|ON|Canada)$/i.test(s)); const deduped = parts.filter((s, i) => i === 0 || s !== parts[i - 1]); const joined = deduped.join(', '); return joined.length > 35 ? joined.substring(0, 35).trim() + '...' : joined; })()}</Text></Text>
-                </View>
-              )}
-            </View>
-          </CCard>
-
-          {/* Ghost Bus Stats */}
-          {ghostStats && ghostStats.totalThisWeek > 0 && (
-            <CCard>
-              <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#FF9500' + '18', alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name="warning-outline" size={20} color="#FF9500" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
-                    {t(`Ghost buses reported this week: ${ghostStats.totalThisWeek}`, `Bus fant\u00f4mes signal\u00e9s cette semaine: ${ghostStats.totalThisWeek}`)}
-                  </Text>
-                  {ghostStats.mostAffectedRoute && (
-                    <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
-                      {t(`Most affected: Route ${ghostStats.mostAffectedRoute} (${ghostStats.mostAffectedCount} reports)`,
-                         `Plus touch\u00e9: Route ${ghostStats.mostAffectedRoute} (${ghostStats.mostAffectedCount} signalements)`)}
-                    </Text>
-                  )}
-                </View>
-              </View>
-            </CCard>
-          )}
-
-          {/* Weekly Commute Insights — Premium */}
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={() => { premiumActive ? router.push('/insights') : openPaywall(PREMIUM_FEATURES.COMMUTE_INSIGHTS); }}
-          >
-            <CCard>
-              <View style={{ padding: 16, opacity: premiumActive ? 1 : 0.5 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <Ionicons name="stats-chart" size={18} color={colours.accent} />
-                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, flex: 1 }}>
-                    {t('Weekly Commute Insights', 'Statistiques hebdomadaires')}
-                  </Text>
-                  {premiumActive
-                    ? <Ionicons name="chevron-forward" size={16} color={colours.muted} />
-                    : <PremiumBadge />
-                  }
-                </View>
-                <Text style={{ fontSize: fonts.sm, color: colours.muted }}>
-                  {t('Trends, delays, best times to travel, and CO2 saved', 'Tendances, retards, meilleurs horaires et CO2 economise')}
-                </Text>
-              </View>
-              {!premiumActive && (
-                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colours.surface + '80', borderRadius: 16 }} />
-              )}
-            </CCard>
-          </TouchableOpacity>
-
-          {/* Leave Now Alerts — Active */}
-          {premiumActive && leaveNowAlerts.length > 0 && (
-            <CCard>
-              <View style={{ padding: 16 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <Ionicons name="notifications" size={16} color={colours.accent} />
-                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
-                    {t('Leave Now Alerts', 'Alertes de depart')}
-                  </Text>
-                </View>
-                {leaveNowAlerts.map((a, i) => (
-                  <View key={a.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: colours.border }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.text }}>{a.stopName}</Text>
-                      <Text style={{ fontSize: 10, color: colours.muted }}>
-                        {t('Route', 'Route')} {a.routeId} · {new Date(a.leaveAt).toLocaleTimeString(language === 'fr' ? 'fr-CA' : 'en-CA', { hour: '2-digit', minute: '2-digit' })}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      onPress={async () => {
-                        try { if (Notifications) await Notifications.cancelScheduledNotificationAsync(a.id); } catch {}
-                        const updated = leaveNowAlerts.filter(x => x.id !== a.id);
-                        setLeaveNowAlerts(updated);
-                        AsyncStorage.setItem(SK_LEAVE_NOW_ALERTS, JSON.stringify(updated)).catch(() => {});
-                      }}
-                      hitSlop={8}
-                    >
-                      <Ionicons name="close-circle" size={20} color={colours.red} />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-            </CCard>
-          )}
-        </>)}
-
-        {/* SAFETY */}
-        <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 8, letterSpacing: 1 }}>
-          {t('SAFETY', 'SÉCURITÉ')}
-        </Text>
-
-        <CCard borderColor={tripSharing ? colours.accent : colours.border}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text }}>{t('Trip Sharing', 'Partage de trajet')}</Text>
-              <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
-                {tripSharing ? t('● Sharing your location', '● Position partagée') : t('Share your live location with a contact', 'Partagez votre position en direct')}
-              </Text>
-            </View>
-            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: tripSharing ? colours.accent : colours.muted }} />
-          </View>
-          {!tripSharing ? (
-            <TouchableOpacity
-              style={{ margin: 16, marginTop: 0, backgroundColor: colours.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
-              onPress={startTripSharing}>
-              <Ionicons name="shield" size={18} color="white" />
-              <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.lg }}>{t('Start Trip Sharing', 'Démarrer le partage')}</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={{ padding: 16, paddingTop: 0, gap: 10 }}>
-              <TouchableOpacity
-                style={{ backgroundColor: colours.accent + '18', borderWidth: 1, borderColor: colours.accent + '40', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
-                onPress={shareLocation}>
-                <Ionicons name="location" size={16} color={colours.accent} />
-                <Text style={{ fontWeight: '700', fontSize: fonts.md, color: colours.accent }}>{t('Send Location via SMS', 'Envoyer la position par SMS')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
-                onPress={stopTripSharing}>
-                <Text style={{ fontWeight: '600', fontSize: fonts.md, color: colours.muted }}>{t('Stop Sharing', 'Arrêter le partage')}</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </CCard>
-
-        {/* Emergency */}
-        <CCard>
-          {EMERGENCY_CONTACTS.map((item, i) => (
-            <View key={i}>
-              {i > 0 && <CDivider />}
-              <TouchableOpacity
-                style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}
-                onPress={() => {
-                  if (item.tel === '911') {
-                    Alert.alert(t('Call 911?', 'Appeler le 911?'), t('This will call emergency services.', "Ceci appellera les services d'urgence."), [
-                      { text: t('Cancel', 'Annuler'), style: 'cancel' },
-                      { text: t('Call 911', 'Appeler le 911'), style: 'destructive', onPress: () => Linking.openURL('tel:911') }
-                    ]);
-                  } else Linking.openURL(`tel:${item.tel}`);
-                }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
-                  <View style={{
-                    width: 36, height: 36, borderRadius: 8,
-                    backgroundColor: item.iconColor + '15',
-                    alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <Ionicons name={item.icon} size={18} color={item.iconColor} />
-                  </View>
-                  <View>
-                    <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{item.title}</Text>
-                    <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{item.desc}</Text>
-                  </View>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={colours.muted} />
-              </TouchableOpacity>
-            </View>
-          ))}
-        </CCard>
-
-        {/* SAVED ITEMS */}
-        <CCard>
-          <TouchableOpacity
-            onPress={async () => {
-              const [f, p] = await Promise.all([
-                AsyncStorage.getItem(SK_FAVS),
-                AsyncStorage.getItem(SK_SAVED_PLACES),
-              ]);
-              try { setSavedFavs(f ? JSON.parse(f) : []); } catch { setSavedFavs([]); }
-              try { setSavedPlaces(p ? JSON.parse(p) : []); } catch { setSavedPlaces([]); }
-              await refreshBoard();
-              setShowSaved(true);
-            }}
-            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}
-            activeOpacity={0.7}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
-              <View style={{
-                width: 36, height: 36, borderRadius: 8,
-                backgroundColor: colours.accent + '15',
-                alignItems: 'center', justifyContent: 'center',
-              }}>
-                <Ionicons name="bookmark" size={18} color={colours.accent} />
-              </View>
-              <View>
-                <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{t('Saved Items', 'Articles sauvegardés')}</Text>
-                <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Stops, places & board items', 'Arrêts, lieux et éléments du tableau')}</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={colours.muted} />
-          </TouchableOpacity>
-        </CCard>
-
-        {/* FARE TRACKER */}
-        {fareStats && (
-          <CCard>
-            <View style={{ padding: 16 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-                <View style={{
-                  width: 36, height: 36, borderRadius: 8,
-                  backgroundColor: colours.accent + '15',
-                  alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <Ionicons name="ticket-outline" size={18} color={colours.accent} />
-                </View>
+              <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
-                  {t('Fare Tracker', 'Suivi des tarifs')}
+                  {t(`Ghost buses reported this week: ${ghostStats.totalThisWeek}`, `Bus fant\u00f4mes signal\u00e9s cette semaine: ${ghostStats.totalThisWeek}`)}
                 </Text>
-              </View>
-
-              <Text style={{ fontSize: fonts.sm, color: colours.text, marginBottom: 6 }}>
-                {t(
-                  `${fareStats.tripsWeek} trip${fareStats.tripsWeek !== 1 ? 's' : ''} this week \u00B7 $${fareStats.costWeek.toFixed(2)}`,
-                  `${fareStats.tripsWeek} trajet${fareStats.tripsWeek !== 1 ? 's' : ''} cette semaine \u00B7 ${fareStats.costWeek.toFixed(2)} $`
-                )}
-              </Text>
-              <Text style={{ fontSize: fonts.sm, color: colours.text, marginBottom: 14 }}>
-                {t(
-                  `${fareStats.tripsMonth} trip${fareStats.tripsMonth !== 1 ? 's' : ''} this month \u00B7 $${fareStats.costMonth.toFixed(2)}`,
-                  `${fareStats.tripsMonth} trajet${fareStats.tripsMonth !== 1 ? 's' : ''} ce mois \u00B7 ${fareStats.costMonth.toFixed(2)} $`
-                )}
-              </Text>
-
-              {/* Daily cap */}
-              <Text style={{ fontSize: fonts.sm - 1, color: colours.muted, marginBottom: 4 }}>
-                {t(
-                  `${fareStats.tripsToday} ${fareStats.tripsToday === 1 ? 'tap' : 'taps'} · $${fareStats.costToday.toFixed(2)} / $13.50 daily cap`,
-                  `${fareStats.tripsToday} ${fareStats.tripsToday === 1 ? 'tap' : 'taps'} · ${fareStats.costToday.toFixed(2)} $ / 13,50 $ plafond quotidien`
-                )}
-              </Text>
-              <View style={{ height: 6, borderRadius: 3, backgroundColor: colours.border, marginBottom: 12 }}>
-                <View style={{ height: 6, borderRadius: 3, backgroundColor: colours.accent, width: `${Math.max(2, Math.min(100, (fareStats.costToday / 13.50) * 100))}%` }} />
-              </View>
-
-              {/* Monthly cap */}
-              <Text style={{ fontSize: fonts.sm - 1, color: colours.muted, marginBottom: 4 }}>
-                {t(
-                  `$${fareStats.costMonth.toFixed(2)} / $139.00 monthly cap`,
-                  `${fareStats.costMonth.toFixed(2)} $ / 139,00 $ plafond mensuel`
-                )}
-              </Text>
-              <View style={{ height: 6, borderRadius: 3, backgroundColor: colours.border, marginBottom: 12 }}>
-                <View style={{ height: 6, borderRadius: 3, backgroundColor: colours.accent, width: `${Math.max(2, Math.min(100, (fareStats.costMonth / 139) * 100))}%` }} />
-              </View>
-
-              {/* Presto Balance */}
-              <View style={{ borderTopWidth: 1, borderTopColor: colours.border, marginTop: 4, paddingTop: 14 }}>
-                {prestoSaved && prestoRemaining !== null && !showPrestoEdit ? (
-                  <View>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Ionicons name="card" size={16} color={colours.accent} />
-                        <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.text }}>{t('Presto Balance', 'Solde Presto')}</Text>
-                      </View>
-                      <TouchableOpacity onPress={() => setShowPrestoEdit(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                        <Ionicons name="pencil" size={14} color={colours.muted} />
-                      </TouchableOpacity>
-                    </View>
-                    <Text style={{ fontSize: 28, fontWeight: '200', color: colours.text, marginBottom: 4 }}>${prestoRemaining.toFixed(2)}</Text>
-                    <Text style={{ fontSize: fonts.sm - 1, color: colours.muted }}>
-                      {t(
-                        `$${parseFloat(prestoBalance).toFixed(2)} loaded − $${fareStats.costMonth.toFixed(2)} spent${prestoResetDay ? ` · resets on the ${prestoResetDay}${prestoResetDay === '1' ? 'st' : prestoResetDay === '2' ? 'nd' : prestoResetDay === '3' ? 'rd' : 'th'}` : ''}`,
-                        `${parseFloat(prestoBalance).toFixed(2)} $ charge − ${fareStats.costMonth.toFixed(2)} $ depense${prestoResetDay ? ` · reinitialise le ${prestoResetDay}` : ''}`
-                      )}
-                    </Text>
-                    {prestoRemaining < 10 && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, backgroundColor: '#FF9500' + '15', borderRadius: 8, padding: 8 }}>
-                        <Ionicons name="warning" size={14} color="#FF9500" />
-                        <Text style={{ fontSize: fonts.sm - 1, color: '#FF9500', fontWeight: '600' }}>
-                          {t('Low balance — consider reloading', 'Solde bas — pensez a recharger')}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                ) : (
-                  <View>
-                    <TouchableOpacity
-                      onPress={() => setShowPrestoEdit(!showPrestoEdit)}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: showPrestoEdit ? 12 : 0 }}
-                    >
-                      <Ionicons name="card-outline" size={16} color={colours.accent} />
-                      <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.accent }}>
-                        {t('Set Presto Balance', 'Entrer le solde Presto')}
-                      </Text>
-                    </TouchableOpacity>
-                    {showPrestoEdit && (
-                      <View>
-                        <Text style={{ fontSize: fonts.sm - 1, color: colours.muted, marginBottom: 8 }}>
-                          {t('Enter your loaded balance to track remaining funds', 'Entrez votre solde charge pour suivre les fonds restants')}
-                        </Text>
-                        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: fonts.sm - 1, color: colours.muted, marginBottom: 4 }}>{t('Balance ($)', 'Solde ($)')}</Text>
-                            <TextInput
-                              value={prestoBalance}
-                              onChangeText={(v) => { if (/^\d*\.?\d*$/.test(v)) setPrestoBalance(v); }}
-                              keyboardType="decimal-pad"
-                              placeholder="139.00"
-                              placeholderTextColor={colours.muted}
-                              style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: fonts.sm, color: colours.text, backgroundColor: colours.bg }}
-                            />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: fonts.sm - 1, color: colours.muted, marginBottom: 4 }}>{t('Resets on day (1-28)', 'Reinitialise le jour (1-28)')}</Text>
-                            <TextInput
-                              value={prestoResetDay}
-                              onChangeText={setPrestoResetDay}
-                              keyboardType="number-pad"
-                              placeholder={t('e.g. 15', 'ex. 15')}
-                              placeholderTextColor={colours.muted}
-                              style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: fonts.sm, color: colours.text, backgroundColor: colours.bg }}
-                            />
-                          </View>
-                        </View>
-                        <View style={{ flexDirection: 'row', gap: 10 }}>
-                          <TouchableOpacity
-                            onPress={savePresto}
-                            style={{ flex: 1, backgroundColor: colours.accent, borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}
-                          >
-                            <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.sm }}>{t('Save', 'Sauvegarder')}</Text>
-                          </TouchableOpacity>
-                          {prestoSaved && (
-                            <TouchableOpacity
-                              onPress={clearPresto}
-                              style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }}
-                            >
-                              <Text style={{ color: colours.muted, fontWeight: '600', fontSize: fonts.sm }}>{t('Clear', 'Effacer')}</Text>
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                      </View>
-                    )}
-                  </View>
+                {ghostStats.mostAffectedRoute && (
+                  <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
+                    {t(`Most affected: Route ${ghostStats.mostAffectedRoute} (${ghostStats.mostAffectedCount} reports)`,
+                       `Plus touch\u00e9: Route ${ghostStats.mostAffectedRoute} (${ghostStats.mostAffectedCount} signalements)`)}
+                  </Text>
                 )}
               </View>
-
-              <Text style={{ fontSize: fonts.sm - 1, color: colours.muted, fontStyle: 'italic', marginTop: 12 }}>
-                {t('Based on $4.10/tap with daily ($13.50) and monthly ($139) caps', 'Bas\u00E9 sur 4,10 $/tap avec plafonds quotidien (13,50 $) et mensuel (139 $)')}
-              </Text>
             </View>
-          </CCard>
-        )}
-
-        {/* MY SCHEDULE */}
-        {acctCampus && (
-          <CCard>
-            <TouchableOpacity
-              onPress={() => setAcctScheduleModal(true)}
-              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 }}
-              activeOpacity={0.7}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: acctCampus.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name="school-outline" size={16} color={acctCampus.accent} />
-                </View>
-                <View>
-                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.text }}>
-                    {t('My Schedule', 'Mon horaire')}
-                  </Text>
-                  <Text style={{ fontSize: 11, color: colours.muted }}>
-                    {acctSchedule && acctSchedule.classes.length > 0
-                      ? t(`${acctSchedule.classes.length} ${acctSchedule.classes.length === 1 ? 'class' : 'classes'} · ${acctSchedule.commuteMins}min commute`, `${acctSchedule.classes.length} cours · ${acctSchedule.commuteMins}min trajet`)
-                      : t('Tap to set up your schedule', 'Appuyez pour configurer votre horaire')}
-                  </Text>
-                </View>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={colours.muted} />
-            </TouchableOpacity>
           </CCard>
         )}
 
@@ -992,7 +342,7 @@ export default function AccountScreen() {
                 >
                   <Ionicons name="notifications-off" size={16} color="#e8a020" />
                   <Text style={{ flex: 1, fontSize: fonts.sm, color: '#e8a020', fontWeight: '600' }}>
-                    {t('Notifications are disabled. Tap to open Settings.', 'Les notifications sont désactivées. Appuyez pour ouvrir les Paramètres.')}
+                    {t('Notifications are disabled. Tap to open Settings.', 'Les notifications sont desactivees. Appuyez pour ouvrir les Parametres.')}
                   </Text>
                   <Ionicons name="chevron-forward" size={14} color="#e8a020" />
                 </TouchableOpacity>
@@ -1077,73 +427,34 @@ export default function AccountScreen() {
           )}
         </CCard>
 
-        {/* LATE NIGHT TIPS (collapsible) */}
-        <CCard>
-          <TouchableOpacity
-            onPress={() => setShowTips(!showTips)}
-            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}
-            activeOpacity={0.7}
-          >
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>
-              {t('LATE NIGHT TIPS', 'CONSEILS TARDIFS')}
-            </Text>
-            <Ionicons name={showTips ? 'chevron-up' : 'chevron-down'} size={16} color={colours.muted} />
-          </TouchableOpacity>
-          {showTips && LATE_NIGHT_TIPS.map((item, i) => (
-            <View key={i}>
-              {i > 0 && <CDivider />}
-              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 14 }}>
-                <View style={{ marginTop: 1 }}>
-                  <Ionicons name={item.icon} size={18} color={colours.muted} />
-                </View>
-                <Text style={{ flex: 1, fontSize: fonts.md, color: colours.muted, lineHeight: 20 }}>{item.tip}</Text>
-              </View>
-            </View>
-          ))}
-        </CCard>
-
-        {/* ACCESSIBILITY (collapsible) */}
-        <CCard>
-          <TouchableOpacity
-            onPress={() => setShowA11y(!showA11y)}
-            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}
-            activeOpacity={0.7}
-          >
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>
-              {t('ACCESSIBILITY', 'ACCESSIBILITÉ')}
-            </Text>
-            <Ionicons name={showA11y ? 'chevron-up' : 'chevron-down'} size={16} color={colours.muted} />
-          </TouchableOpacity>
-          {showA11y && [
-            { label: t('Large Text', 'Grand texte'), desc: t('Increase font size throughout the app', 'Augmenter la taille de police'), val: largeText, set: setLargeText },
-            { label: t('High Contrast', 'Contraste élevé'), desc: t('Stronger colour contrast for readability', 'Meilleur contraste pour la lisibilité'), val: highContrast, set: setHighContrast },
-            { label: t('Reduced Motion', 'Mouvement réduit'), desc: t('Minimize animations and transitions', 'Minimiser les animations'), val: reducedMotion, set: setReducedMotion },
-            { label: t('Battery Saver', 'Économie de batterie'), desc: t('Reduce GPS accuracy & polling frequency', 'Réduire la précision GPS et la fréquence de mise à jour'), val: batterySaver, set: (v: boolean) => { setBatterySaver(v); AsyncStorage.setItem(SK_BATTERY_SAVER, String(v)); } },
-          ].map((item, i) => (
-            <View key={i}>
-              {i > 0 && <CDivider />}
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14 }}>
-                <View style={{ flex: 1, marginRight: 12 }}>
-                  <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{item.label}</Text>
-                  <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{item.desc}</Text>
-                </View>
-                <Switch
-                  value={item.val}
-                  onValueChange={v => item.set(v)}
-                  trackColor={{ false: colours.border, true: colours.accent }}
-                  thumbColor={item.val ? 'white' : colours.muted}
-                />
-              </View>
-            </View>
-          ))}
-        </CCard>
-
-        {/* DISPLAY */}
+        {/* PREFERENCES */}
         <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 8, letterSpacing: 1 }}>
-          {t('DISPLAY', 'AFFICHAGE')}
+          {t('PREFERENCES', 'PREFERENCES')}
         </Text>
+
+        {/* Language */}
         <CCard>
-          <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 }}>{t('Theme', 'Thème')}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14 }}>
+            <View style={{ flex: 1, marginRight: 12 }}>
+              <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>
+                {language === 'en' ? 'English' : 'Francais'}
+              </Text>
+              <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
+                {language === 'en' ? 'Switch to French' : 'Passer en anglais'}
+              </Text>
+            </View>
+            <Switch
+              value={language === 'fr'}
+              onValueChange={v => setLanguage(v ? 'fr' : 'en')}
+              trackColor={{ false: colours.border, true: colours.lrt }}
+              thumbColor="white"
+            />
+          </View>
+        </CCard>
+
+        {/* Theme */}
+        <CCard>
+          <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 }}>{t('Theme', 'Theme')}</Text>
           <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 14 }}>
             {(['dark', 'light', 'system'] as const).map(th => (
               <TouchableOpacity
@@ -1166,77 +477,11 @@ export default function AccountScreen() {
               </TouchableOpacity>
             ))}
           </View>
-
-          {/* Custom Themes — Premium */}
-          <View style={{ borderTopWidth: 1, borderTopColor: colours.border, paddingHorizontal: 16, paddingVertical: 12 }}>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => { if (!premiumActive) openPaywall(PREMIUM_FEATURES.CUSTOM_THEMES); }}
-              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: premiumActive ? 10 : 0 }}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Ionicons name="color-palette" size={18} color={premiumActive ? colours.accent : colours.muted} />
-                <Text style={{ fontSize: fonts.md, fontWeight: '600', color: premiumActive ? colours.text : colours.muted }}>
-                  {t('Custom Themes', 'Themes personnalises')}
-                </Text>
-              </View>
-              {!premiumActive && <PremiumBadge />}
-            </TouchableOpacity>
-            {premiumActive && (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {(Object.keys(PALETTE_LABELS) as PaletteId[]).map(pid => {
-                  const pl = PALETTE_LABELS[pid];
-                  const isActive = palette === pid;
-                  return (
-                    <TouchableOpacity
-                      key={pid}
-                      onPress={() => setPalette(pid)}
-                      style={{
-                        flexDirection: 'row', alignItems: 'center', gap: 6,
-                        paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10,
-                        borderWidth: 1.5,
-                        borderColor: isActive ? pl.swatch : colours.border,
-                        backgroundColor: isActive ? pl.swatch + '15' : colours.bg,
-                      }}
-                    >
-                      <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: pl.swatch }} />
-                      <Text style={{ fontSize: fonts.sm, fontWeight: isActive ? '700' : '500', color: isActive ? pl.swatch : colours.muted }}>
-                        {t(pl.en, pl.fr)}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-          </View>
-        </CCard>
-
-        {/* LANGUAGE */}
-        <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 8, letterSpacing: 1 }}>
-          {t('LANGUAGE', 'LANGUE')}
-        </Text>
-        <CCard>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14 }}>
-            <View style={{ flex: 1, marginRight: 12 }}>
-              <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>
-                {language === 'en' ? 'English' : 'Français'}
-              </Text>
-              <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
-                {language === 'en' ? 'Switch to French' : 'Passer en anglais'}
-              </Text>
-            </View>
-            <Switch
-              value={language === 'fr'}
-              onValueChange={v => setLanguage(v ? 'fr' : 'en')}
-              trackColor={{ false: colours.border, true: colours.lrt }}
-              thumbColor="white"
-            />
-          </View>
         </CCard>
 
         {/* ABOUT */}
         <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 8, letterSpacing: 1 }}>
-          {t('ABOUT', 'À PROPOS')}
+          {t('ABOUT', 'A PROPOS')}
         </Text>
         <CCard>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}>
@@ -1250,7 +495,7 @@ export default function AccountScreen() {
               </View>
               <View>
                 <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>RouteO v{require('../../app.json').expo.version}</Text>
-                <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Built in Ottawa for Ottawa', 'Fait à Ottawa pour Ottawa')}</Text>
+                <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Built in Ottawa for Ottawa', 'Fait a Ottawa pour Ottawa')}</Text>
               </View>
             </View>
           </View>
@@ -1265,7 +510,7 @@ export default function AccountScreen() {
                 <Ionicons name="radio" size={18} color={colours.accent} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{t('Data Source', 'Source de données')}</Text>
+                <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{t('Data Source', 'Source de donnees')}</Text>
                 <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('OC Transpo GTFS-RT · Live every 30s', 'OC Transpo GTFS-RT · En direct toutes les 30s')}</Text>
               </View>
             </View>
@@ -1294,107 +539,15 @@ export default function AccountScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{t('Report a Bug', 'Signaler un bogue')}</Text>
-              <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Send us feedback or report an issue', 'Envoyez-nous vos commentaires ou signalez un problème')}</Text>
+              <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Send us feedback or report an issue', 'Envoyez-nous vos commentaires ou signalez un probleme')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={colours.muted} />
           </TouchableOpacity>
         </CCard>
 
+        <Text style={{ textAlign: 'center', color: colours.muted, fontSize: 12, paddingVertical: 20 }}>RouteO+ coming soon</Text>
 
       </ScrollView>
-
-      {showSaved && <Modal visible={showSaved} animationType="slide" transparent onRequestClose={() => setShowSaved(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '85%', paddingBottom: 34 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colours.border }}>
-              <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>{t('Saved Items', 'Articles sauvegardés')}</Text>
-              <TouchableOpacity onPress={() => setShowSaved(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Ionicons name="close" size={22} color={colours.muted} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView contentContainerStyle={{ paddingTop: 8, paddingBottom: 20 }}>
-              {savedFavs.length === 0 && savedPlaces.length === 0 && savedBoard.length === 0 && (
-                <View style={{ alignItems: 'center', padding: 40 }}>
-                  <Ionicons name="bookmark-outline" size={40} color={colours.muted} />
-                  <Text style={{ fontSize: fonts.md, color: colours.muted, marginTop: 10 }}>{t('No saved items yet', 'Aucun élément sauvegardé')}</Text>
-                </View>
-              )}
-              {savedFavs.length > 0 && (
-                <View style={{ marginBottom: 16 }}>
-                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>
-                    {t('STOPS', 'ARRÊTS')} ({savedFavs.length})
-                  </Text>
-                  {savedFavs.map((fav: any) => (
-                    <View key={fav.id} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 12 }}>
-                      <View style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
-                        <Ionicons name="bus" size={16} color={colours.accent} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{toTitleCase(fav.name)}</Text>
-                        <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Stop', 'Arrêt')} #{fav.id}</Text>
-                      </View>
-                      <TouchableOpacity onPress={() => { const next = savedFavs.filter((f: any) => f.id !== fav.id); setSavedFavs(next); AsyncStorage.setItem(SK_FAVS, JSON.stringify(next)); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.border, alignItems: 'center', justifyContent: 'center' }}>
-                        <Ionicons name="close" size={14} color={colours.muted} />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              )}
-              {savedPlaces.length > 0 && (
-                <View style={{ marginBottom: 16 }}>
-                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>
-                    {t('PLACES', 'LIEUX')} ({savedPlaces.length})
-                  </Text>
-                  {savedPlaces.map((place) => (
-                    <View key={place.id} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 12 }}>
-                      <View style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: (place.categoryColor || colours.accent) + '15', alignItems: 'center', justifyContent: 'center' }}>
-                        <Ionicons name={(place.categoryIcon || 'location') as any} size={16} color={place.categoryColor || colours.accent} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }} numberOfLines={1}>{place.name}</Text>
-                        {place.vicinity && <Text style={{ fontSize: fonts.sm, color: colours.muted }} numberOfLines={1}>{place.vicinity}</Text>}
-                      </View>
-                      <TouchableOpacity onPress={() => { const next = savedPlaces.filter(p => p.id !== place.id); setSavedPlaces(next); AsyncStorage.setItem(SK_SAVED_PLACES, JSON.stringify(next)); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.border, alignItems: 'center', justifyContent: 'center' }}>
-                        <Ionicons name="close" size={14} color={colours.muted} />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              )}
-              {savedBoard.length > 0 && (
-                <View style={{ marginBottom: 16 }}>
-                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, paddingHorizontal: 20, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>
-                    {t('BOARD ITEMS', 'ÉLÉMENTS DU TABLEAU')} ({savedBoard.length})
-                  </Text>
-                  {savedBoard.map((item, idx) => {
-                    const BOARD_ICONS: Record<string, string> = { bus_stop: 'bus', lrt_station: 'train', garbage: 'trash', service_alert: 'alert-circle', gas_prices: 'speedometer', otrain: 'train', services: 'grid', discover: 'compass', saved_team: 'american-football', external_link: 'link', campus: 'school', news: 'newspaper', neighbourhood: 'map', class_schedule: 'school-outline' };
-                    const itemId = 'id' in item ? item.id : '';
-                    const itemLabel = ('name' in item ? item.name : undefined)
-                      || (language === 'fr' ? ('name_fr' in item ? item.name_fr : undefined) || ('label_fr' in item ? item.label_fr : undefined) : ('name_en' in item ? item.name_en : undefined) || ('label_en' in item ? item.label_en : undefined))
-                      || item.type.replace(/_/g, ' ');
-                    return (
-                    <View key={`${item.type}-${itemId || idx}`} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 12 }}>
-                      <View style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
-                        <Ionicons name={(BOARD_ICONS[item.type] || 'cube') as any} size={16} color={colours.accent} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }} numberOfLines={1}>
-                          {itemLabel}
-                        </Text>
-                        <Text style={{ fontSize: fonts.sm, color: colours.muted, textTransform: 'capitalize' }}>{item.type.replace(/_/g, ' ')}</Text>
-                      </View>
-                      <TouchableOpacity onPress={() => removeFromBoard(idx)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.border, alignItems: 'center', justifyContent: 'center' }}>
-                        <Ionicons name="close" size={14} color={colours.muted} />
-                      </TouchableOpacity>
-                    </View>
-                  ); })}
-                </View>
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>}
-      {acctScheduleModal && <ClassScheduleModal visible={acctScheduleModal} onClose={() => setAcctScheduleModal(false)} colours={colours} fonts={fonts} t={t} language={language} schedule={acctSchedule} onSave={(s) => setAcctSchedule(s)} />}
 
       {/* Bug Report Modal */}
       <Modal visible={bugModalVisible} animationType="slide" transparent onRequestClose={() => setBugModalVisible(false)}>
@@ -1498,13 +651,6 @@ export default function AccountScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-
-      <PaywallSheet
-        visible={paywallVisible}
-        onDismiss={() => setPaywallVisible(false)}
-        onSuccess={() => { setPaywallVisible(false); }}
-        highlightFeature={paywallFeature}
-      />
     </View>
   );
 }

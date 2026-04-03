@@ -11,9 +11,8 @@ import {
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { useApp } from '../context/AppContext';
-import { SK_ONBOARDED, SK_SAVED_BOARD, SK_HOME_ADDRESS } from '../lib/storageKeys';
+import { SK_ONBOARDED, SK_SAVED_BOARD } from '../lib/storageKeys';
 import { fetchWithTimeout } from '../lib/fetchWithTimeout';
-import { LAYER_CONFIG, LayerKey, DEFAULT_LAYERS, saveLayerPrefs } from '../lib/mapLayers';
 import stopsearch from './(tabs)/stopsearch.json';
 
 const LinearGradient: any = LinearGradientModule?.LinearGradient ?? View;
@@ -23,19 +22,10 @@ type StopResult = { id: string; internalId: string; name: string };
 const STOP_SEARCH: StopResult[] = stopsearch as StopResult[];
 
 const TEAL = '#00A78D';
-const SLIDE_COUNT = 6;
-
-const ONBOARDING_LAYER_GROUPS: { title_en: string; title_fr: string; keys: LayerKey[] }[] = [
-  { title_en: 'Transit', title_fr: 'Transport', keys: ['ghost_buses', 'construction', 'parking', 'bike_share'] },
-  { title_en: 'Food & Drink', title_fr: 'Nourriture', keys: ['restaurants', 'bars', 'coffee', 'grocery', 'food_trucks', 'breweries', 'markets'] },
-  { title_en: 'Services', title_fr: 'Services', keys: ['pharmacy', 'gyms', 'bike_repair', 'ev_chargers', 'wifi'] },
-  { title_en: 'Discover', title_fr: 'D\u00e9couvrir', keys: ['events', 'deals', 'sports', 'public_art', 'cultural'] },
-];
-
-const SUGGESTED_DEFAULTS: LayerKey[] = ['restaurants', 'coffee', 'events'];
+const SLIDE_COUNT = 4;
 
 export default function OnboardingScreen() {
-  const { t, language } = useApp();
+  const { t } = useApp();
   const scrollRef = useRef<ScrollView>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [finishing, setFinishing] = useState(false);
@@ -48,25 +38,6 @@ export default function OnboardingScreen() {
   const [stopQuery, setStopQuery] = useState('');
   const [stopResults, setStopResults] = useState<StopResult[]>([]);
   const [addedStops, setAddedStops] = useState<StopResult[]>([]);
-
-  // Slide 5 — Layer selection
-  const [onboardingLayers, setOnboardingLayers] = useState<Record<LayerKey, boolean>>(() => {
-    const init = { ...DEFAULT_LAYERS };
-    for (const k of SUGGESTED_DEFAULTS) init[k] = true;
-    return init;
-  });
-
-  const toggleOnboardingLayer = useCallback((key: LayerKey) => {
-    setOnboardingLayers(prev => ({ ...prev, [key]: !prev[key] }));
-  }, []);
-
-  // Slide 4 — Address search
-  const [addressQuery, setAddressQuery] = useState('');
-  const [addressResults, setAddressResults] = useState<{ placeId: string; name: string; address: string }[]>([]);
-  const [selectedAddress, setSelectedAddress] = useState<{ placeId: string; label: string; lat: number; lng: number } | null>(null);
-  const addressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const fr = language === 'fr';
 
   const goToSlide = (index: number) => {
     Keyboard.dismiss();
@@ -91,12 +62,6 @@ export default function OnboardingScreen() {
         const merged = [...existingBoard, ...newStops.filter(ns => !existingBoard.some((e: any) => e.type === 'bus_stop' && e.id === ns.id))];
         await AsyncStorage.setItem(SK_SAVED_BOARD, JSON.stringify(merged));
       }
-      // Save home address
-      if (selectedAddress) {
-        await AsyncStorage.setItem(SK_HOME_ADDRESS, JSON.stringify(selectedAddress));
-      }
-      // Save layer preferences
-      await saveLayerPrefs(onboardingLayers);
       await AsyncStorage.setItem(SK_ONBOARDED, 'true');
       router.replace('/(tabs)');
     } catch (e) {
@@ -139,53 +104,12 @@ export default function OnboardingScreen() {
     setAddedStops(prev => prev.filter(s => s.id !== id));
   }, []);
 
-  // ── Address autocomplete ─────────────────────────────────────────
-  const searchAddress = useCallback((text: string) => {
-    setAddressQuery(text);
-    setSelectedAddress(null);
-    if (addressTimer.current) clearTimeout(addressTimer.current);
-    if (text.length < 3) { setAddressResults([]); return; }
-    addressTimer.current = setTimeout(async () => {
-      try {
-        const resp = await fetchWithTimeout(
-          `https://routeo-backend.vercel.app/api/places?action=autocomplete&input=${encodeURIComponent(text)}&location=45.4215,-75.6972&radius=50000`,
-        );
-        if (!resp.ok) return;
-        const data = await resp.json();
-        setAddressResults((data.predictions || []).slice(0, 5).map((p: any) => ({
-          placeId: p.placeId || p.place_id,
-          name: p.mainText || p.structured_formatting?.main_text || p.description,
-          address: p.secondaryText || p.structured_formatting?.secondary_text || '',
-        })));
-      } catch (e) { if (__DEV__) console.warn('Address search error:', e); }
-    }, 400);
-  }, []);
-
-  const selectAddress = useCallback(async (item: { placeId: string; name: string; address: string }) => {
-    Keyboard.dismiss();
-    setAddressQuery(item.name);
-    setAddressResults([]);
-    try {
-      const resp = await fetchWithTimeout(
-        `https://routeo-backend.vercel.app/api/places?action=details&placeId=${item.placeId}`,
-      );
-      if (!resp.ok) return;
-      const data = await resp.json();
-      const loc = data.geometry?.location || data.result?.geometry?.location;
-      if (loc) {
-        setSelectedAddress({ placeId: item.placeId, label: item.name, lat: loc.lat, lng: loc.lng });
-      }
-    } catch (e) { if (__DEV__) console.warn('Address details error:', e); }
-  }, []);
-
   // ── Slide logic ──────────────────────────────────────────────────
   const isLast = currentIndex === SLIDE_COUNT - 1;
   const isStopSlide = currentIndex === 2;
-  const isAddressSlide = currentIndex === 3;
-  const isLayerSlide = currentIndex === 4;
   const canAdvanceStop = addedStops.length > 0;
 
-  const accent = currentIndex <= 1 ? TEAL : currentIndex <= 3 ? '#004890' : currentIndex === 4 ? '#E91E63' : '#7b5ea7';
+  const accent = currentIndex <= 1 ? TEAL : currentIndex === 2 ? '#004890' : '#7b5ea7';
 
   return (
     <View style={{ flex: 1, backgroundColor: '#0a0f1a' }}>
@@ -353,115 +277,7 @@ export default function OnboardingScreen() {
           )}
         </View>
 
-        {/* ── Slide 4: Home address (OPTIONAL) ──────────────────── */}
-        <View style={{ width, flex: 1, paddingHorizontal: 36, paddingTop: 100 }}>
-          <View style={{
-            width: 80, height: 80, borderRadius: 40,
-            backgroundColor: '#004890' + '20', borderWidth: 1.5, borderColor: '#004890' + '40',
-            alignItems: 'center', justifyContent: 'center', marginBottom: 32, alignSelf: 'center',
-          }}>
-            <Ionicons name="home" size={36} color="#004890" />
-          </View>
-          <Text style={{ fontSize: 28, fontWeight: '800', color: '#fff', textAlign: 'center', letterSpacing: -0.5, lineHeight: 36, marginBottom: 8 }}>
-            {t("Where do you commute from?", "D'ou venez-vous?")}
-          </Text>
-          <Text style={{ fontSize: 14, color: '#8899aa', textAlign: 'center', lineHeight: 20, marginBottom: 24 }}>
-            {t('We\'ll show you the best routes from home', 'On vous montrera les meilleurs trajets de chez vous')}
-          </Text>
-
-          {/* Address search bar */}
-          <View style={{
-            flexDirection: 'row', alignItems: 'center', backgroundColor: '#131d2e',
-            borderRadius: 14, borderWidth: 1.5, borderColor: selectedAddress ? TEAL + '60' : '#1e2a3a', paddingHorizontal: 14, gap: 10,
-          }}>
-            <Ionicons name="search" size={18} color="#5a6a7a" />
-            <TextInput
-              value={addressQuery}
-              onChangeText={searchAddress}
-              placeholder={t('Search your address...', 'Rechercher votre adresse...')}
-              placeholderTextColor="#5a6a7a"
-              style={{ flex: 1, color: '#fff', fontSize: 15, paddingVertical: 14 }}
-              returnKeyType="search"
-              autoCorrect={false}
-            />
-            {selectedAddress && <Ionicons name="checkmark-circle" size={20} color={TEAL} />}
-          </View>
-
-          {/* Address results */}
-          {addressResults.length > 0 && (
-            <View style={{ marginTop: 8, backgroundColor: '#131d2e', borderRadius: 12, borderWidth: 1, borderColor: '#1e2a3a', maxHeight: 200, overflow: 'hidden' }}>
-              <ScrollView keyboardShouldPersistTaps="handled" nestedScrollEnabled>
-                {addressResults.map(a => (
-                  <TouchableOpacity
-                    key={a.placeId}
-                    onPress={() => selectAddress(a)}
-                    activeOpacity={0.7}
-                    style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: '#1e2a3a' }}
-                  >
-                    <Ionicons name="location-outline" size={16} color="#004890" />
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: '#fff', fontSize: 14 }} numberOfLines={1}>{a.name}</Text>
-                      {!!a.address && <Text style={{ color: '#5a6a7a', fontSize: 12 }} numberOfLines={1}>{a.address}</Text>}
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-        </View>
-
-        {/* ── Slide 5: Map Layers ──────────────────────────────── */}
-        <View style={{ width, flex: 1, paddingHorizontal: 36, paddingTop: 80 }}>
-          <View style={{
-            width: 80, height: 80, borderRadius: 40,
-            backgroundColor: '#E91E63' + '20', borderWidth: 1.5, borderColor: '#E91E63' + '40',
-            alignItems: 'center', justifyContent: 'center', marginBottom: 24, alignSelf: 'center',
-          }}>
-            <Ionicons name="layers" size={36} color="#E91E63" />
-          </View>
-          <Text style={{ fontSize: 24, fontWeight: '800', color: '#fff', textAlign: 'center', letterSpacing: -0.5, lineHeight: 32, marginBottom: 6 }}>
-            {t('What do you want to see?', 'Que voulez-vous voir?')}
-          </Text>
-          <Text style={{ fontSize: 14, color: '#8899aa', textAlign: 'center', lineHeight: 20, marginBottom: 20 }}>
-            {t('Pick map layers to show on your map', 'Choisissez les couches \u00e0 afficher sur la carte')}
-          </Text>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }} nestedScrollEnabled>
-            {ONBOARDING_LAYER_GROUPS.map((group, gi) => (
-              <View key={gi} style={{ marginBottom: 16 }}>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: '#5a6a7a', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
-                  {fr ? group.title_fr : group.title_en}
-                </Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {group.keys.map(key => {
-                    const config = LAYER_CONFIG[key];
-                    const active = onboardingLayers[key];
-                    return (
-                      <TouchableOpacity
-                        key={key}
-                        onPress={() => toggleOnboardingLayer(key)}
-                        style={{
-                          flexDirection: 'row', alignItems: 'center', gap: 6,
-                          backgroundColor: active ? config.color + '25' : '#131d2e',
-                          borderWidth: 1.5, borderColor: active ? config.color + '60' : '#1e2a3a',
-                          borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
-                        }}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: active }}
-                      >
-                        <Ionicons name={config.icon as any} size={14} color={active ? config.color : '#5a6a7a'} />
-                        <Text style={{ fontSize: 13, fontWeight: '600', color: active ? '#fff' : '#5a6a7a' }}>
-                          {fr ? config.labelFr : config.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* ── Slide 6: You're set ───────────────────────────────── */}
+        {/* ── Slide 4: You're set ───────────────────────────────── */}
         <View style={{ width, flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 36 }}>
           <View style={{
             width: 100, height: 100, borderRadius: 50,
@@ -476,8 +292,8 @@ export default function OnboardingScreen() {
           <Text style={{ fontSize: 16, color: '#8899aa', textAlign: 'center', lineHeight: 24, maxWidth: 300 }}>
             {addedStops.length > 0
               ? t(
-                  `${addedStops.length} stop${addedStops.length > 1 ? 's' : ''} saved to your board.${selectedAddress ? ' Home address saved.' : ''} Let's go!`,
-                  `${addedStops.length} arret${addedStops.length > 1 ? 's' : ''} enregistre${addedStops.length > 1 ? 's' : ''}.${selectedAddress ? ' Adresse enregistree.' : ''} C'est parti!`,
+                  `${addedStops.length} stop${addedStops.length > 1 ? 's' : ''} saved to your board. Let's go!`,
+                  `${addedStops.length} arret${addedStops.length > 1 ? 's' : ''} enregistre${addedStops.length > 1 ? 's' : ''}. C'est parti!`,
                 )
               : t(
                   'Everything Ottawa, one tap away.',
@@ -565,74 +381,6 @@ export default function OnboardingScreen() {
             </Text>
             <Ionicons name="arrow-forward" size={18} color="#fff" />
           </TouchableOpacity>
-        ) : isAddressSlide ? (
-          /* Address slide: Next + Skip side by side */
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <TouchableOpacity
-              style={{
-                flex: 1, borderRadius: 16, paddingVertical: 16,
-                alignItems: 'center', borderWidth: 1.5, borderColor: '#3a4a5a',
-              }}
-              onPress={() => goToSlide(4)}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel={t('Skip for now', 'Passer pour le moment')}
-            >
-              <Text style={{ color: '#8899aa', fontWeight: '700', fontSize: 16 }}>
-                {t('Skip for now', 'Passer')}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={{
-                flex: 1, backgroundColor: '#004890',
-                borderRadius: 16, paddingVertical: 16,
-                alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8,
-              }}
-              onPress={() => goToSlide(4)}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel={t('Next', 'Suivant')}
-            >
-              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>
-                {t('Next', 'Suivant')}
-              </Text>
-              <Ionicons name="arrow-forward" size={18} color="#fff" />
-            </TouchableOpacity>
-          </View>
-        ) : isLayerSlide ? (
-          /* Layer slide: Next + Skip */
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <TouchableOpacity
-              style={{
-                flex: 1, borderRadius: 16, paddingVertical: 16,
-                alignItems: 'center', borderWidth: 1.5, borderColor: '#3a4a5a',
-              }}
-              onPress={() => goToSlide(5)}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel={t('Skip', 'Passer')}
-            >
-              <Text style={{ color: '#8899aa', fontWeight: '700', fontSize: 16 }}>
-                {t('Skip', 'Passer')}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={{
-                flex: 1, backgroundColor: '#E91E63',
-                borderRadius: 16, paddingVertical: 16,
-                alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8,
-              }}
-              onPress={() => goToSlide(5)}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel={t('Next', 'Suivant')}
-            >
-              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>
-                {t('Next', 'Suivant')}
-              </Text>
-              <Ionicons name="arrow-forward" size={18} color="#fff" />
-            </TouchableOpacity>
-          </View>
         ) : isLast ? (
           /* Final slide: Get Started */
           <TouchableOpacity

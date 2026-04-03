@@ -62,9 +62,6 @@ class PlannerErrorBoundary extends React.Component<
   }
 }
 import { SK_PLANNER_PREFS, SK_SAVED_ROUTES, SK_TRIP_HISTORY, SK_LEAVE_REMINDERS, SK_ACCESSIBILITY_ROUTING, SK_MOTION, SK_WALK_PREFERENCE, SK_WALK_PACE, SK_BATTERY_SAVER, SK_CAMPUS, SK_CLASS_SCHEDULE } from '../../lib/storageKeys';
-import { usePremium, PREMIUM_FEATURES } from '../../lib/premium';
-import PremiumBadge from '../../components/PremiumBadge';
-import PaywallSheet from '../../components/PaywallSheet';
 import { CAMPUSES, CampusConfig } from '../../lib/campusData';
 import { ClassSchedule, nextClass, fmt12h as schedFmt12h } from '../../lib/scheduleData';
 
@@ -354,9 +351,7 @@ function PlannerScreenInner() {
   const [transferReliability, setTransferReliability] = useState<Record<string, { onTimePercent: number; avgDelay: number }>>({});
   const [walkAlt, setWalkAlt] = useState<{ walkMins: number; transitMins: number; transitWait: number; temp: number | null; precip: boolean } | null>(null);
 
-  // Premium
-  const { isPremium: premiumActive } = usePremium();
-  const [paywallVisible, setPaywallVisible] = useState(false);
+  const premiumActive = true;
 
   const [expandedItinerary, setExpandedItinerary] = useState<Itinerary | null>(null);
   const [expandedLeg, setExpandedLeg] = useState<number | null>(null);
@@ -2612,7 +2607,7 @@ function PlannerScreenInner() {
         {/* AI Trip Assistant — Premium */}
         <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
           <TouchableOpacity
-            onPress={() => { if (!premiumActive) setPaywallVisible(true); }}
+            onPress={() => {}}
             activeOpacity={0.85}
             style={{
               flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -2625,7 +2620,6 @@ function PlannerScreenInner() {
             <Text style={{ fontWeight: '700', fontSize: 14, color: premiumActive ? colours.accent : colours.muted }}>
               {t('AI Trip Assistant', 'Assistant IA de trajet')}
             </Text>
-            {!premiumActive && <PremiumBadge />}
           </TouchableOpacity>
         </View>
 
@@ -3316,12 +3310,6 @@ function PlannerScreenInner() {
         );
       })()}
 
-      <PaywallSheet
-        visible={paywallVisible}
-        onDismiss={() => setPaywallVisible(false)}
-        onSuccess={() => setPaywallVisible(false)}
-        highlightFeature={PREMIUM_FEATURES.AI_ASSISTANT}
-      />
     </KeyboardAvoidingView>
   );
 }
