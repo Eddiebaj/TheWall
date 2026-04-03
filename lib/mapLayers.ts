@@ -28,6 +28,7 @@ export interface MapPin {
   url?: string;
   isOpenNow?: boolean;
   photoUrl?: string;
+  fsqId?: string;
   source: 'foursquare' | 'ticketmaster' | 'ottawa' | 'community' | 'supabase';
 }
 

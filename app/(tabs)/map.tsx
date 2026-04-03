@@ -67,6 +67,7 @@ import { LAYER_CONFIG, DEFAULT_LAYERS, MapPin, LayerKey, saveLayerPrefs, loadLay
 
 const VEHICLES_URL    = 'https://routeo-backend.vercel.app/api/vehicles';
 const BACKEND_URL     = 'https://routeo-backend.vercel.app/api/arrivals';
+const CITY_URL        = 'https://routeo-backend.vercel.app/api/city';
 
 function weatherCodeToText(code: number): string {
   if (code === 0) return 'Clear';
@@ -502,18 +503,37 @@ export default function MapScreen() {
     loadLayerPrefs().then(prefs => setActiveLayers(prefs));
   }, []);
 
-  // Animate pin card on selection
+  // Animate pin card on selection + fetch live Foursquare data if available
   useEffect(() => {
     if (selectedPin) {
       pinCardAnim.setValue(0);
       Animated.timing(pinCardAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+      // Fetch fresh venue detail from Foursquare in background
+      if (selectedPin.fsqId) {
+        fetchWithTimeout(`${CITY_URL}?type=venue_detail&fsqId=${selectedPin.fsqId}`)
+          .then(r => r.ok ? r.json() : null)
+          .then(data => {
+            if (!data) return;
+            setSelectedPin(prev => {
+              if (!prev || prev.id !== selectedPin.id) return prev;
+              return {
+                ...prev,
+                isOpenNow: data.isOpenNow ?? prev.isOpenNow,
+                rating: data.rating ?? prev.rating,
+                photoUrl: data.photoUrl ?? prev.photoUrl,
+                price: data.price != null ? '$'.repeat(data.price) : prev.price,
+              };
+            });
+          })
+          .catch(() => {});
+      }
     }
-  }, [selectedPin]);
+  }, [selectedPin?.id]);
 
   const fetchLayerData = useCallback(async (layer: LayerKey) => {
     const lat = region.latitude;
     const lng = region.longitude;
-    const CITY = 'https://routeo-backend.vercel.app/api/city';
+    const CITY = CITY_URL;
     setLoadingLayers(prev => new Set(prev).add(layer));
     try {
       let pins: MapPin[] = [];
@@ -581,6 +601,9 @@ export default function MapScreen() {
               lng: v.lng,
               isOpenNow: active,
               time: active ? todayDeals.find(d => timeStr >= d.start)?.end : todayDeals[0]?.start,
+              rating: v.rating,
+              photoUrl: v.photoUrl,
+              fsqId: v.fsqId,
               source: 'community' as const,
             };
           });

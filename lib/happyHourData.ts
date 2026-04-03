@@ -5,6 +5,11 @@ export type HappyHourVenue = {
   lat: number;
   lng: number;
   deals: { days: number[]; start: string; end: string; description: string }[];
+  // Foursquare enrichment (populated by scripts/enrich-venues.js)
+  fsqId?: string;
+  rating?: number;
+  photoUrl?: string;
+  lastVerified?: string;
 };
 
 export const HAPPY_HOUR_VENUES: HappyHourVenue[] = [
