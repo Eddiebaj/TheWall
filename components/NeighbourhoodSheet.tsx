@@ -46,6 +46,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
   const [activeTab, setActiveTab] = useState<Tab>('places');
   const [places, setPlaces] = useState<any[]>([]);
   const [placesLoading, setPlacesLoading] = useState(false);
+  const [placesError, setPlacesError] = useState(false);
   const [stops, setStops] = useState<any[]>([]);
   const [stopsLoading, setStopsLoading] = useState(false);
   const fetchedTabs = useRef<Set<string>>(new Set());
@@ -98,12 +99,16 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
   const fetchPlaces = async () => {
     if (!n) return;
     setPlacesLoading(true);
+    setPlacesError(false);
     try {
       const resp = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?lat=${n.lat}&lng=${n.lng}&type=point_of_interest&radius=800`);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       setPlaces((data.results || []).slice(0, 15));
-    } catch (e) { if (__DEV__) console.warn('fetch neighbourhood places failed:', e); }
+    } catch (e) {
+      if (__DEV__) console.warn('fetch neighbourhood places failed:', e);
+      setPlacesError(true);
+    }
     setPlacesLoading(false);
   };
 
@@ -346,6 +351,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
     switch (activeTab) {
       case 'places':
         if (placesLoading) return <ContentSkeleton colours={colours} />;
+        if (placesError) return <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 20 }}>{t('Could not load places', 'Impossible de charger les lieux')}</Text>;
         if (places.length === 0) return <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 20 }}>{t('No places found', 'Aucun lieu trouv\u00e9')}</Text>;
         return places.map((p: any, i: number) => (
           <TouchableOpacity key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border }} onPress={() => { if (p.place_id) Linking.openURL(`https://www.google.com/maps/place/?q=place_id:${p.place_id}`); }}>

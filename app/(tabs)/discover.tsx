@@ -83,9 +83,13 @@ function DiscoverScreenInner() {
       }
     }).catch(() => {});
     // Fetch community deals
-    supabase.from('community_deals').select('*').order('submitted_at', { ascending: false }).limit(10)
-      .then(({ data }) => { if (data) setCommunityDeals(data); setDealsLoading(false); return null; })
-      .then(() => {}, () => { setDealsLoading(false); });
+    Promise.resolve(supabase.from('community_deals').select('*').order('submitted_at', { ascending: false }).limit(10))
+      .then(({ data, error }) => {
+        if (error) { if (__DEV__) console.warn('Supabase deals error:', error); }
+        else if (data) { setCommunityDeals(data); }
+        setDealsLoading(false);
+      })
+      .catch(() => { setDealsLoading(false); });
     // Fetch weekend events
     fetchWeekendEvents();
   }, []);
@@ -95,12 +99,12 @@ function DiscoverScreenInner() {
     try {
       const now = new Date();
       const dayOfWeek = now.getDay();
-      const daysToFri = dayOfWeek === 6 ? -1 : dayOfWeek === 0 ? -2 : 5 - dayOfWeek;
-      const friday = new Date(now);
-      friday.setDate(now.getDate() + daysToFri);
-      const sunday = new Date(friday);
-      sunday.setDate(friday.getDate() + 2);
-      const startDate = friday.toISOString().split('T')[0] + 'T00:00:00Z';
+      const daysToStart = dayOfWeek === 6 ? 0 : dayOfWeek === 0 ? 0 : 5 - dayOfWeek;
+      const start = new Date(now);
+      start.setDate(now.getDate() + daysToStart);
+      const sunday = new Date(start);
+      sunday.setDate(start.getDate() + (dayOfWeek === 6 ? 1 : dayOfWeek === 0 ? 0 : 2));
+      const startDate = start.toISOString().split('T')[0] + 'T00:00:00Z';
       const endDate = sunday.toISOString().split('T')[0] + 'T23:59:59Z';
       const resp = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/ebevents?action=ticketmaster&city=Ottawa&radius=50&size=50`);
       if (resp.ok) {

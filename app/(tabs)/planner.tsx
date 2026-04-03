@@ -1226,11 +1226,16 @@ function PlannerScreenInner() {
         const dir = dirs.find((d: any) => d.headsign === leg.headsign) || dirs[0];
         if (dir?.stops?.length) {
           // Fetch stop names from Supabase
-          const { data: stopRows } = await supabase
-            .from('stops')
-            .select('stop_id,stop_name')
-            .in('stop_id', dir.stops);
-          const nameMap = new Map((stopRows || []).map((s: any) => [s.stop_id, s.stop_name]));
+          let nameMap = new Map<string, string>();
+          try {
+            const { data: stopRows, error: stopErr } = await supabase
+              .from('stops')
+              .select('stop_id,stop_name')
+              .in('stop_id', dir.stops);
+            if (!stopErr && stopRows) {
+              nameMap = new Map(stopRows.map((s: any) => [s.stop_id, s.stop_name]));
+            }
+          } catch (e) { if (__DEV__) console.warn('Supabase stop name fetch failed:', e); }
 
           // Build ordered stop list — fetch scheduled times for these stops on this route
           const now = new Date();

@@ -59,7 +59,7 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
           setPreview((data.arrivals || []).slice(0, 3).map((a: any) => ({ routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway })));
           setPreviewFetchedAt(Date.now());
           setPreviewSource(data.source === 'sto-gtfs-rt' ? 'sto-gtfs-rt' : data.source === 'gtfs-rt' ? 'gtfs-rt' : 'gtfs-static');
-          if (data.ghostReports) setPreviewGhosts(data.ghostReports);
+          setPreviewGhosts(data.ghostReports || {});
         }
       } catch { if (!cancelled) setPreview([]); }
       finally { if (!cancelled) setPreviewLoading(false); }

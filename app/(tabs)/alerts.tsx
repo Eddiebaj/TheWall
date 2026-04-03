@@ -125,6 +125,7 @@ function AlertsScreenInner() {
   // Fetch on focus + auto-refresh LRT every 5 minutes (cleared on blur)
   useFocusEffect(useCallback(() => {
     fetchAlerts();
+    if (lrtInterval.current) clearInterval(lrtInterval.current);
     lrtInterval.current = setInterval(() => {
       fetchWithTimeout(LRT_URL).then(r => r.ok ? r.json() : null).then(d => { if (d) setLrt(d); }).catch(e => { if (__DEV__) console.warn('LRT refresh failed:', e); });
     }, 5 * 60 * 1000);

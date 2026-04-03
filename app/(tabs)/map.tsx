@@ -401,6 +401,7 @@ export default function MapScreen() {
   const [region, setRegion] = useState<Region>(OTTAWA_REGION);
   const [debouncedDelta, setDebouncedDelta] = useState(OTTAWA_REGION.latitudeDelta);
   const appIsActive = useRef(true);
+  const busIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [error, setError] = useState('');
   const [mapReady, setMapReady] = useState(false);
   const [visibleBusCount, setVisibleBusCount] = useState(0);
@@ -1137,22 +1138,23 @@ export default function MapScreen() {
   // Pause bus polling when app is backgrounded, resume when foregrounded
   useEffect(() => {
     fetchBuses();
-    let interval: ReturnType<typeof setInterval> | null = setInterval(fetchBuses, 30000);
+    if (busIntervalRef.current) clearInterval(busIntervalRef.current);
+    busIntervalRef.current = setInterval(fetchBuses, 30000);
 
     const sub = AppState.addEventListener('change', (nextState) => {
       const active = nextState === 'active';
       appIsActive.current = active;
       if (active) {
         fetchBuses();
-        if (interval) clearInterval(interval);
-        interval = setInterval(fetchBuses, 30000);
+        if (busIntervalRef.current) clearInterval(busIntervalRef.current);
+        busIntervalRef.current = setInterval(fetchBuses, 30000);
       } else {
-        if (interval) { clearInterval(interval); interval = null; }
+        if (busIntervalRef.current) { clearInterval(busIntervalRef.current); busIntervalRef.current = null; }
       }
     });
 
     return () => {
-      if (interval) clearInterval(interval);
+      if (busIntervalRef.current) clearInterval(busIntervalRef.current);
       sub.remove();
     };
   }, []);
@@ -1765,7 +1767,14 @@ export default function MapScreen() {
               </TouchableOpacity>
             )}
             </View>
-            {busLoading ? <ActivityIndicator color={colours.accent} size="small" /> : (
+            {busLoading ? <ActivityIndicator color={colours.accent} size="small" /> : error ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#F87171', paddingHorizontal: 8, paddingVertical: 6, borderRadius: 18 }}>
+                <Ionicons name="warning-outline" size={10} color="#DC2626" />
+                <Text style={{ color: '#DC2626', fontSize: 10, fontWeight: '700' }}>
+                  {t('Bus data unavailable', 'Donnees bus indisponibles')}
+                </Text>
+              </View>
+            ) : (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.tintBg, borderWidth: 1, borderColor: colours.accent + '40', paddingHorizontal: 8, paddingVertical: 6, borderRadius: 18 }}>
                 <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: zoomTooFar ? colours.muted : colours.accent }} />
                 <Text style={{ color: zoomTooFar ? colours.muted : colours.accent, fontSize: 10, fontWeight: '700' }}>

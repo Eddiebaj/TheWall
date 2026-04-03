@@ -4,7 +4,7 @@ import * as Location from 'expo-location';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Dimensions, Image, Modal, Platform, RefreshControl,
+  ActivityIndicator, Alert, Dimensions, Image, Modal, Platform, RefreshControl,
   ScrollView, StatusBar, Text, TouchableOpacity, View
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
@@ -95,6 +95,11 @@ function SavedScreenInner() {
         });
       } catch (e) {
         if (__DEV__) console.warn('Notification scheduling failed:', e);
+        Alert.alert(
+          t('Notification Error', 'Erreur de notification'),
+          t('Could not schedule notification. Please check your notification permissions.', 'Impossible de planifier la notification. Veuillez verifier vos permissions de notification.')
+        );
+        return;
       }
 
       updated[key] = { route: routeId, stopId, time: new Date(Date.now() + notifyInMs).toISOString() };
@@ -163,6 +168,10 @@ function SavedScreenInner() {
       await AsyncStorage.setItem(SK_LEAVE_NOW_ALERTS, JSON.stringify(updated));
     } catch (e) {
       if (__DEV__) console.warn('Schedule notification failed:', e);
+      Alert.alert(
+        t('Notification Error', 'Erreur de notification'),
+        t('Could not schedule notification. Please check your notification permissions.', 'Impossible de planifier la notification. Veuillez verifier vos permissions de notification.')
+      );
     }
     setScheduleModal(null);
   };

@@ -105,6 +105,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
   const [altRoutes, setAltRoutes] = useState<string[]>([]);
   const [busDisappeared, setBusDisappeared] = useState(false);
   const [busDisappearedAt, setBusDisappearedAt] = useState<number | null>(null);
+  const busDisappearedAtRef = useRef<number | null>(null);
   const [switchedRoute, setSwitchedRoute] = useState<string | null>(null);
   const [pollFailCount, setPollFailCount] = useState(0);
   const advancingRef = useRef(false);
@@ -184,6 +185,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
   // Auto-advance legs based on location
   useEffect(() => {
     if (!userCoords || !currentLeg) return;
+    if (currentLeg.to.lat == null || currentLeg.to.lon == null) return;
     const destDist = distMetres(userCoords.lat, userCoords.lon, currentLeg.to.lat, currentLeg.to.lon);
 
     if (currentLeg.mode !== 'WALK' && destDist < 200 && !getOffAlert) {
@@ -249,6 +251,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
         // Bus found — clear disappearance state
         setBusDisappeared(false);
         setBusDisappearedAt(null);
+        busDisappearedAtRef.current = null;
         // Backend returns minsAway (integer minutes) — convert to ms timestamp
         const minsAway = typeof match.minsAway === 'number' ? match.minsAway : null;
         const arrMs = minsAway !== null ? Date.now() + minsAway * 60000 : null;
@@ -274,9 +277,10 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
       } else {
         // Bus not found — 3 min grace period before warning
         const now = Date.now();
-        if (!busDisappearedAt) {
+        if (!busDisappearedAtRef.current) {
+          busDisappearedAtRef.current = now;
           setBusDisappearedAt(now);
-        } else if (now - busDisappearedAt > 180000) {
+        } else if (now - busDisappearedAtRef.current > 180000) {
           setBusDisappeared(true);
         }
       }
@@ -329,7 +333,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
       if (__DEV__) console.warn(e);
       setPollFailCount(prev => prev + 1);
     }
-  }, [currentLeg, nextLeg, activeLeg, switchedRoute, busDisappearedAt, itinerary.endTime]);
+  }, [currentLeg, nextLeg, activeLeg, switchedRoute, itinerary.endTime]);
 
   useEffect(() => {
     if (!visible) return;
@@ -461,9 +465,9 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
 
   // Elevator/escalator alert for LRT legs
   const elevatorAlert = (() => {
-    if (!alerts || !currentLeg || (currentLeg.mode !== 'TRAM' && currentLeg.mode !== 'RAIL')) return null;
+    if (!currentLeg || (currentLeg.mode !== 'TRAM' && currentLeg.mode !== 'RAIL')) return null;
     const keywords = /elevator|escalator|ascenseur|escalier roulant|hors service|out of service/i;
-    return alerts.find(a => keywords.test(a.title) || keywords.test(a.description || ''));
+    return (alerts || []).find(a => keywords.test(a.title) || keywords.test(a.description || ''));
   })();
 
   // Re-fit map when busPosition changes
