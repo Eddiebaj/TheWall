@@ -10,13 +10,17 @@ export const LAYER_CONFIG = {
   bars: { color: '#FF9800', icon: 'wine', label: 'Bars', labelFr: 'Bars' },
   food_trucks: { color: '#FF6B35', icon: 'fast-food', label: 'Food Trucks', labelFr: 'Camions-repas' },
   breweries: { color: '#8B4513', icon: 'beer', label: 'Breweries', labelFr: 'Brasseries' },
-  markets: { color: '#FF9800', icon: 'basket', label: 'Markets', labelFr: 'Marchés' },
+  markets: { color: '#795548', icon: 'basket', label: 'Markets', labelFr: 'Marchés' },
+  coffee: { color: '#795548', icon: 'cafe', label: 'Coffee', labelFr: 'Café' },
+  grocery: { color: '#388E3C', icon: 'cart', label: 'Grocery', labelFr: 'Épicerie' },
+  pharmacy: { color: '#D32F2F', icon: 'medical', label: 'Pharmacy', labelFr: 'Pharmacie' },
+  gyms: { color: '#1565C0', icon: 'barbell', label: 'Gyms', labelFr: 'Gymnases' },
   construction: { color: '#E67E22', icon: 'construct', label: 'Construction', labelFr: 'Construction' },
   parking: { color: '#3498DB', icon: 'car', label: 'Parking', labelFr: 'Stationnement' },
   bike_share: { color: '#1ABC9C', icon: 'bicycle', label: 'Bike Share', labelFr: 'Vélos' },
   bike_repair: { color: '#4CAF50', icon: 'build', label: 'Bike Repair', labelFr: 'Réparation vélo' },
   ev_chargers: { color: '#00BCD4', icon: 'flash', label: 'EV Charging', labelFr: 'Recharge VE' },
-  public_art: { color: '#E91E63', icon: 'color-palette', label: 'Public Art', labelFr: 'Art public' },
+  public_art: { color: '#FF4081', icon: 'color-palette', label: 'Public Art', labelFr: 'Art public' },
   cultural: { color: '#9C27B0', icon: 'business', label: 'Culture', labelFr: 'Culture' },
   wifi: { color: '#2196F3', icon: 'wifi', label: 'Free Wi-Fi', labelFr: 'Wi-Fi gratuit' },
 } as const;
@@ -41,7 +45,7 @@ export interface MapPin {
 }
 
 export const DEFAULT_LAYERS: Record<LayerKey, boolean> = (Object.keys(LAYER_CONFIG) as LayerKey[]).reduce(
-  (acc, key) => ({ ...acc, [key]: key === 'ghost_buses' }),
+  (acc, key) => ({ ...acc, [key]: false }),
   {} as Record<LayerKey, boolean>,
 );
 

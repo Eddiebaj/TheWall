@@ -637,16 +637,28 @@ export default function MapScreen() {
   const [discoveryLoading, setDiscoveryLoading] = useState(false);
 
   const sheetAnim = useRef(new Animated.Value(0)).current;
+  const [loadingLayers, setLoadingLayers] = useState<Set<LayerKey>>(new Set());
+  const layerFetchedAt = useRef<Partial<Record<LayerKey, number>>>({});
+  const pinCardAnim = useRef(new Animated.Value(0)).current;
 
   // Load layer preferences on mount
   useEffect(() => {
     loadLayerPrefs().then(prefs => setActiveLayers(prefs));
   }, []);
 
-  const fetchLayerData = async (layer: LayerKey) => {
+  // Animate pin card on selection
+  useEffect(() => {
+    if (selectedPin) {
+      pinCardAnim.setValue(0);
+      Animated.timing(pinCardAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    }
+  }, [selectedPin]);
+
+  const fetchLayerData = useCallback(async (layer: LayerKey) => {
     const lat = region.latitude;
     const lng = region.longitude;
     const CITY = 'https://routeo-backend.vercel.app/api/city';
+    setLoadingLayers(prev => new Set(prev).add(layer));
     try {
       let pins: MapPin[] = [];
       if (layer === 'restaurants' || layer === 'bars') {
@@ -661,22 +673,47 @@ export default function MapScreen() {
       } else if (['food_trucks', 'breweries', 'public_art', 'cultural', 'wifi', 'bike_repair', 'ev_chargers', 'markets'].includes(layer)) {
         const r = await fetchWithTimeout(`${CITY}?type=ottawa&layer=${layer}`);
         if (r.ok) pins = await r.json();
+      } else if (layer === 'events') {
+        // TODO: needs geocoded coordinates
+        pins = [];
+      } else if (layer === 'deals') {
+        // TODO: needs geocoded coordinates
+        pins = [];
+      } else if (layer === 'sports') {
+        pins = [
+          { id: 'sport_ctc', category: 'sports' as LayerKey, name: 'Canadian Tire Centre', subtitle: 'Ottawa Senators (NHL)', lat: 45.2969, lng: -75.9272, source: 'ottawa' as const },
+          { id: 'sport_td', category: 'sports' as LayerKey, name: 'TD Place Stadium', subtitle: 'Redblacks, Atletico Ottawa', lat: 45.3985, lng: -75.6838, source: 'ottawa' as const },
+          { id: 'sport_caa', category: 'sports' as LayerKey, name: 'CAA Arena', subtitle: 'Ottawa 67s (OHL)', lat: 45.3437, lng: -75.6092, source: 'ottawa' as const },
+        ];
+      } else if (layer === 'ghost_buses') {
+        // Ghost buses come from existing vehicle data — not fetched here
+        pins = [];
+      } else if (layer === 'bike_share') {
+        const r = await fetchWithTimeout(`${CITY}?type=bike_share`);
+        if (r.ok) pins = await r.json();
+      } else if (layer === 'coffee' || layer === 'grocery' || layer === 'pharmacy' || layer === 'gyms') {
+        const r = await fetchWithTimeout(`${CITY}?type=foursquare&lat=${lat}&lng=${lng}&category=${layer}&radius=1500`);
+        if (r.ok) pins = await r.json();
       }
-      // For layers that use existing data (events, deals, sports, ghost_buses, bike_share),
-      // leave empty — they use existing map data
       setLayerPins(prev => ({ ...prev, [layer]: pins }));
+      layerFetchedAt.current[layer] = Date.now();
     } catch (e) {
       if (__DEV__) console.warn(`Layer fetch failed: ${layer}`, e);
+    } finally {
+      setLoadingLayers(prev => { const s = new Set(prev); s.delete(layer); return s; });
     }
-  };
+  }, [region]);
 
   const toggleLayer = async (key: LayerKey) => {
     const newLayers = { ...activeLayers, [key]: !activeLayers[key] };
     setActiveLayers(newLayers);
-    saveLayerPrefs(newLayers);
-    if (newLayers[key] && !layerPins[key]?.length) {
-      fetchLayerData(key);
-    }
+    saveLayerPrefs(newLayers).catch(e => { if (__DEV__) console.warn('Layer prefs save failed:', e); });
+    if (!newLayers[key] && selectedPin?.category === key) setSelectedPin(null);
+    const DYNAMIC_TTL: Partial<Record<LayerKey, number>> = { parking: 5 * 60000, construction: 15 * 60000 };
+    const ttl = DYNAMIC_TTL[key];
+    const lastFetch = layerFetchedAt.current[key] || 0;
+    const isStale = ttl ? Date.now() - lastFetch > ttl : !layerPins[key]?.length;
+    if (newLayers[key] && isStale) { fetchLayerData(key); }
   };
 
   const fetchRouteShape = useCallback(async (routeId: string, agency?: string) => {
@@ -2464,10 +2501,11 @@ export default function MapScreen() {
 
       {/* Selected layer pin card */}
       {selectedPin && (
-        <View style={{
+        <Animated.View style={{
           position: 'absolute', bottom: 120, left: 16, right: 16, zIndex: 999,
           backgroundColor: colours.card, borderRadius: 16, padding: 16,
           shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8,
+          opacity: pinCardAnim, transform: [{ translateY: pinCardAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }],
         }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <View style={{
@@ -2480,12 +2518,28 @@ export default function MapScreen() {
                 {language === 'fr' ? LAYER_CONFIG[selectedPin.category].labelFr : LAYER_CONFIG[selectedPin.category].label}
               </Text>
             </View>
-            <TouchableOpacity onPress={() => setSelectedPin(null)}>
+            <TouchableOpacity onPress={() => setSelectedPin(null)} accessibilityLabel={t('Close', 'Fermer')} accessibilityRole="button">
               <Ionicons name="close-circle" size={22} color={colours.muted} />
             </TouchableOpacity>
           </View>
           <Text style={{ fontSize: 16, fontWeight: '800', color: colours.text, marginBottom: 4 }}>{selectedPin.name}</Text>
           <Text style={{ fontSize: 13, color: colours.muted, marginBottom: 6 }}>{selectedPin.subtitle}</Text>
+          {selectedPin.category === 'parking' && (selectedPin as any).available != null && (
+            <View style={{ marginVertical: 6 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>
+                  {(selectedPin as any).available}/{(selectedPin as any).total} {t('spots available', 'places disponibles')}
+                </Text>
+              </View>
+              <View style={{ height: 6, borderRadius: 3, backgroundColor: colours.border }}>
+                <View style={{
+                  height: 6, borderRadius: 3,
+                  width: `${Math.min((selectedPin as any).percentFull || 0, 100)}%`,
+                  backgroundColor: (selectedPin as any).percentFull < 50 ? '#2ecc71' : (selectedPin as any).percentFull < 80 ? '#f39c12' : '#e74c3c',
+                }} />
+              </View>
+            </View>
+          )}
           {(selectedPin.rating || selectedPin.price || selectedPin.isOpenNow !== undefined) && (
             <Text style={{ fontSize: 12, color: colours.muted, marginBottom: 4 }}>
               {selectedPin.rating ? `\u2605 ${selectedPin.rating}` : ''}{selectedPin.price ? ` \u00b7 ${selectedPin.price}` : ''}{selectedPin.isOpenNow !== undefined ? (selectedPin.isOpenNow ? ` \u00b7 ${t('Open now', 'Ouvert')}` : ` \u00b7 ${t('Closed', 'Ferm\u00e9')}`) : ''}
@@ -2506,7 +2560,7 @@ export default function MapScreen() {
               {t('Route there \u2192', 'Itin\u00e9raire \u2192')}
             </Text>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       )}
 
       {/* Nearby transit bottom sheet */}
@@ -2552,6 +2606,7 @@ export default function MapScreen() {
         activeLayers={activeLayers}
         layerPins={layerPins}
         onToggleLayer={toggleLayer}
+        loadingLayers={loadingLayers}
         onRouteToPin={(pin: MapPin) => {
           router.push({ pathname: '/(tabs)/planner', params: { toLat: String(pin.lat), toLng: String(pin.lng), toLabel: pin.name, autoplan: '1' } } as any);
         }}
