@@ -13,12 +13,14 @@ try { RNMaps = require('react-native-maps'); } catch {}
 const MapView = RNMaps?.default ?? null;
 const Marker = (RNMaps as any)?.Marker ?? null;
 const Polyline = (RNMaps as any)?.Polyline ?? null;
+const Circle = (RNMaps as any)?.Circle ?? null;
 type Region = import('react-native-maps').Region;
 import { useApp } from '../../context/AppContext';
 import { useBoard } from '../../context/BoardContext';
 import { SK_SAVED_ROUTES, SK_FAVS, SK_SAVED_NEIGHBOURHOODS, SK_SAVED_PLACES } from '../../lib/storageKeys';
 import { supabase } from '../../lib/supabase';
 import { NEIGHBOURHOODS } from '../../lib/neighbourhoodData';
+import { HAPPY_HOUR_VENUES, HappyHourVenue } from '../../lib/happyHourData';
 import ActiveTrip from '../../components/ActiveTrip';
 import BottomSheet from '@gorhom/bottom-sheet';
 import NearbyTransitSheet, { NearbyStop } from '../../components/NearbyTransitSheet';
@@ -144,6 +146,70 @@ const isLRT = (routeId: string) => {
 };
 
 const validCoord = (lat: any, lng: any) => lat != null && lng != null && !isNaN(lat) && !isNaN(lng);
+
+// ── Heat zones ──────────────────────────────────────────────────
+interface HeatZone {
+  id: string;
+  type: 'happy_hour' | 'sports' | 'event';
+  lat: number;
+  lng: number;
+  radius: number;
+  color: string;
+  strokeColor: string;
+  count?: number;
+  label: string;
+}
+
+export type VenueState = 'active' | 'soon' | 'upcoming' | 'closed';
+
+function parseTimeToMins(t: string): number {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + (m || 0);
+}
+
+function getVenueState(deal: { start: string; end: string }, currentMins: number): VenueState {
+  const openMins = parseTimeToMins(deal.start);
+  const closeMins = parseTimeToMins(deal.end);
+  if (currentMins >= openMins && currentMins < closeMins) return 'active';
+  if (currentMins >= openMins - 30 && currentMins < openMins) return 'soon';
+  if (currentMins >= openMins - 180 && currentMins < openMins) return 'upcoming';
+  return 'closed';
+}
+
+function getActiveDeals(venue: HappyHourVenue, dayOfWeek: number, currentMins: number): { deal: typeof venue.deals[0]; state: VenueState }[] {
+  return venue.deals
+    .filter(d => d.days.includes(dayOfWeek))
+    .map(d => ({ deal: d, state: getVenueState(d, currentMins) }))
+    .filter(d => d.state !== 'closed');
+}
+
+type ClusterResult = { centroidLat: number; centroidLng: number; count: number; venues: HappyHourVenue[] };
+
+function clusterVenues(venues: HappyHourVenue[], radiusMeters: number): ClusterResult[] {
+  const R = radiusMeters / 111000; // approximate degrees
+  const used = new Set<number>();
+  const clusters: ClusterResult[] = [];
+  for (let i = 0; i < venues.length; i++) {
+    if (used.has(i)) continue;
+    const group = [venues[i]];
+    used.add(i);
+    for (let j = i + 1; j < venues.length; j++) {
+      if (used.has(j)) continue;
+      const dLat = venues[i].lat - venues[j].lat;
+      const dLng = venues[i].lng - venues[j].lng;
+      if (Math.sqrt(dLat * dLat + dLng * dLng) < R) {
+        group.push(venues[j]);
+        used.add(j);
+      }
+    }
+    if (group.length >= 2) {
+      const cLat = group.reduce((s, v) => s + v.lat, 0) / group.length;
+      const cLng = group.reduce((s, v) => s + v.lng, 0) / group.length;
+      clusters.push({ centroidLat: cLat, centroidLng: cLng, count: group.length, venues: group });
+    }
+  }
+  return clusters;
+}
 
 // Styled square badge bus marker — OC red (#CE1126), STO teal (#00A78D)
 // tracksViewChanges must be true for first render so the custom View is captured
@@ -694,7 +760,7 @@ export default function MapScreen() {
               source: 'ticketmaster' as const,
             }));
           // Also update sheetEvents for TonightCard
-          setSheetEvents(evts.map((e: any) => ({ name: e.name, date: e.date, time: e.time, venue: e.venue })));
+          setSheetEvents(evts.map((e: any) => ({ name: e.name, date: e.date, time: e.time, venue: e.venue, lat: e.lat, lng: e.lng })));
         }
       } else if (layer === 'deals') {
         const { data: deals } = await supabase
@@ -791,6 +857,88 @@ export default function MapScreen() {
       Math.abs(p.lat - region.latitude) < R && Math.abs(p.lng - region.longitude) < R
     ).slice(0, 10);
   }, [layerPins, activeLayers, region.latitude, region.longitude]);
+
+  // Current time info for heat zones + deal states (refreshes with region changes)
+  const ottawaNow = useMemo(() => {
+    const now = new Date();
+    const dayOfWeek = parseInt(now.toLocaleDateString('en-CA', { weekday: 'narrow', timeZone: 'America/Toronto' }).replace(/[^0-6]/, '0'), 10);
+    // getDay() works fine for numeric day
+    const d = new Date(now.toLocaleString('en-CA', { timeZone: 'America/Toronto' }));
+    const currentMins = d.getHours() * 60 + d.getMinutes();
+    return { dayOfWeek: d.getDay(), currentMins };
+  }, [region]); // re-evaluate when map moves (rough timer proxy)
+
+  // Heat zones from happy hours, sports, events
+  const heatZones = useMemo(() => {
+    const zones: HeatZone[] = [];
+    const { dayOfWeek, currentMins } = ottawaNow;
+
+    // Happy hour zones — find active venues and cluster them
+    const activeVenues = HAPPY_HOUR_VENUES.filter(v =>
+      getActiveDeals(v, dayOfWeek, currentMins).length > 0
+    );
+    const clusters = clusterVenues(activeVenues, 800);
+    clusters.forEach(cluster => {
+      zones.push({
+        id: `happy-${cluster.centroidLat.toFixed(4)}-${cluster.centroidLng.toFixed(4)}`,
+        type: 'happy_hour',
+        lat: cluster.centroidLat,
+        lng: cluster.centroidLng,
+        radius: 300 + (cluster.count * 50),
+        color: 'rgba(255, 165, 0, 0.15)',
+        strokeColor: 'rgba(255, 165, 0, 0.4)',
+        count: cluster.count,
+        label: `${cluster.count} deals active`,
+      });
+    });
+
+    // Sports game zone
+    if (sheetSensGame?.state === 'pre' || sheetSensGame?.state === 'live') {
+      zones.push({
+        id: 'sens-game',
+        type: 'sports',
+        lat: 45.2969,
+        lng: -75.9272,
+        radius: 600,
+        color: 'rgba(200, 16, 46, 0.12)',
+        strokeColor: 'rgba(200, 16, 46, 0.3)',
+        label: t('Sens game tonight', 'Match des Sens ce soir'),
+      });
+    }
+
+    // Event zones from Ticketmaster (events starting within 3 hours)
+    const now = Date.now();
+    (sheetEvents ?? []).forEach(e => {
+      if (!e.lat || !e.lng || !e.date) return;
+      const eventDate = new Date(`${e.date}T${e.time || '19:00'}`);
+      const hoursUntil = (eventDate.getTime() - now) / (1000 * 60 * 60);
+      if (hoursUntil >= -1 && hoursUntil <= 3) {
+        zones.push({
+          id: `event-${e.date}-${e.venue}`,
+          type: 'event',
+          lat: e.lat,
+          lng: e.lng,
+          radius: 400,
+          color: 'rgba(155, 89, 182, 0.12)',
+          strokeColor: 'rgba(155, 89, 182, 0.3)',
+          label: e.name,
+        });
+      }
+    });
+
+    return zones;
+  }, [ottawaNow, sheetSensGame, sheetEvents, t]);
+
+  // Count active deals nearby for chip badge
+  const activeDealsNearby = useMemo(() => {
+    const { dayOfWeek, currentMins } = ottawaNow;
+    const R = 0.045; // ~5km
+    return HAPPY_HOUR_VENUES.filter(v =>
+      Math.abs(v.lat - region.latitude) < R &&
+      Math.abs(v.lng - region.longitude) < R &&
+      getActiveDeals(v, dayOfWeek, currentMins).length > 0
+    ).length;
+  }, [ottawaNow, region.latitude, region.longitude]);
 
   const fetchRouteShape = useCallback(async (routeId: string, agency?: string) => {
     try {
@@ -1458,6 +1606,10 @@ export default function MapScreen() {
   }, [filteredVenues, debouncedDelta]);
 
   const getVenuePinColor = (v: VenuePin): string => {
+    // Time-aware coloring: active = green, soon = amber, upcoming = muted, closed = type color
+    const { active, upcoming } = getVenueTodayDeals(v);
+    if (active.length > 0) return '#27AE60';
+    if (upcoming.length > 0) return '#FF9800';
     if (v.type.includes('fitness')) return VENUE_COLORS.fitness;
     if (v.type.includes('club')) return VENUE_COLORS.clubs;
     if (v.type.includes('restaurant')) return VENUE_COLORS.food;
@@ -1590,6 +1742,19 @@ export default function MapScreen() {
         onPanDrag={() => { if (tappedLocation) dismissTapped(); }}
         onRegionChangeComplete={(r) => setRegion(r)}
       >
+        {/* Heat zone circles — rendered before markers so they appear behind */}
+        {mapReady && Circle && heatZones.map(zone => (
+          <Circle
+            key={zone.id}
+            center={{ latitude: zone.lat, longitude: zone.lng }}
+            radius={zone.radius}
+            fillColor={zone.color}
+            strokeColor={zone.strokeColor}
+            strokeWidth={1}
+            zIndex={0}
+          />
+        ))}
+
         {/* ALL markers deferred until native map is ready to prevent AIRMap crash */}
         {mapReady && <>
           {/* Bus markers — rendered incrementally */}
@@ -1904,6 +2069,7 @@ export default function MapScreen() {
           { key: 'bars', icon: 'wine' },
           { key: 'parking', icon: 'car' },
           { key: 'events', icon: 'musical-notes' },
+          { key: 'deals', icon: 'pricetag' },
           { key: 'construction', icon: 'construct' },
           { key: 'bike_share', icon: 'bicycle' },
           { key: 'food_trucks', icon: 'fast-food' },
@@ -1927,6 +2093,11 @@ export default function MapScreen() {
               <Text style={{ fontSize: 12, fontWeight: '600', color: isActive ? 'white' : colours.muted }}>
                 {language === 'fr' ? config.labelFr : config.label}
               </Text>
+              {key === 'deals' && activeDealsNearby > 0 && (
+                <View style={{ minWidth: 16, height: 16, borderRadius: 8, backgroundColor: isActive ? 'rgba(255,255,255,0.3)' : '#27AE60', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 }}>
+                  <Text style={{ fontSize: 9, fontWeight: '800', color: 'white' }}>{activeDealsNearby}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           );
         })}
@@ -2379,25 +2550,63 @@ export default function MapScreen() {
                       {selectedVenue.name}
                     </Text>
                     <Text style={{ fontSize: fonts.sm, color: colours.muted, marginBottom: 6 }}>{selectedVenue.address}</Text>
-                    {active.length > 0 && (
-                      <View style={{ gap: 4, marginBottom: upcoming.length > 0 ? 8 : 0 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#2ecc71' }} />
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: '#2ecc71', letterSpacing: 1 }}>{t('NOW', 'MAINTENANT')}</Text>
+                    {active.length > 0 && (() => {
+                      // Find the soonest closing deal for "Open til X"
+                      const day = new Date().getDay();
+                      const todayDeals = selectedVenue.deals.filter(d => d.days.includes(day));
+                      const activeDeals = todayDeals.filter(d => {
+                        const timeStr = `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
+                        return isTimeInRange(timeStr, d.start, d.end);
+                      });
+                      const closestEnd = activeDeals.length > 0 ? activeDeals.sort((a, b) => a.end.localeCompare(b.end))[0].end : null;
+                      const endLabel = closestEnd ? closestEnd.replace(/^0/, '') : '';
+                      return (
+                        <View style={{ gap: 4, marginBottom: upcoming.length > 0 ? 8 : 0 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#2ecc7118', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                              <Ionicons name="time-outline" size={11} color="#27AE60" />
+                              <Text style={{ fontSize: 11, fontWeight: '700', color: '#27AE60' }}>
+                                {endLabel ? `${t('Open til', "Ouvert jusqu'a")} ${endLabel}` : t('Active now', 'Actif')}
+                              </Text>
+                            </View>
+                          </View>
+                          {active.map((deal, i) => (
+                            <Text key={`a${i}`} style={{ fontSize: fonts.sm, color: colours.text }}>{deal}</Text>
+                          ))}
                         </View>
-                        {active.map((deal, i) => (
-                          <Text key={`a${i}`} style={{ fontSize: fonts.sm, color: colours.text }}>{deal}</Text>
-                        ))}
-                      </View>
-                    )}
-                    {upcoming.length > 0 && (
-                      <View style={{ gap: 4 }}>
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: color, letterSpacing: 1 }}>{t('UPCOMING', 'A VENIR')}</Text>
-                        {upcoming.map((deal, i) => (
-                          <Text key={`u${i}`} style={{ fontSize: fonts.sm, color: colours.text }}>{deal}</Text>
-                        ))}
-                      </View>
-                    )}
+                      );
+                    })()}
+                    {upcoming.length > 0 && (() => {
+                      const day = new Date().getDay();
+                      const timeStr = `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
+                      const upDeals = selectedVenue.deals.filter(d => d.days.includes(day) && !isTimeInRange(timeStr, d.start, d.end) && timeStr < d.start);
+                      const soonest = upDeals.length > 0 ? upDeals.sort((a, b) => a.start.localeCompare(b.start))[0] : null;
+                      const startMins = soonest ? parseTimeToMins(soonest.start) : 0;
+                      const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+                      const minsUntil = startMins - nowMins;
+                      const isSoon = minsUntil > 0 && minsUntil <= 30;
+                      const badgeColor = isSoon ? '#FF9800' : colours.muted;
+                      const badgeBg = isSoon ? '#FF980018' : colours.muted + '15';
+                      const startLabel = soonest ? soonest.start.replace(/^0/, '') : '';
+                      return (
+                        <View style={{ gap: 4 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: badgeBg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                              <Ionicons name="time-outline" size={11} color={badgeColor} />
+                              <Text style={{ fontSize: 11, fontWeight: '700', color: badgeColor }}>
+                                {isSoon
+                                  ? `${t('Starts in', 'Commence dans')} ${minsUntil} min`
+                                  : `${t('Starts at', 'Commence a')} ${startLabel}`
+                                }
+                              </Text>
+                            </View>
+                          </View>
+                          {upcoming.map((deal, i) => (
+                            <Text key={`u${i}`} style={{ fontSize: fonts.sm, color: colours.text }}>{deal}</Text>
+                          ))}
+                        </View>
+                      );
+                    })()}
                     {active.length === 0 && upcoming.length === 0 && (
                       <Text style={{ fontSize: fonts.sm, color: colours.muted, fontStyle: 'italic' }}>{t('No deals today', 'Aucune offre aujourd\'hui')}</Text>
                     )}
