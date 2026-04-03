@@ -1,7 +1,7 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { MapPin, BookmarkSimple, NavigationArrow, User } from 'phosphor-react-native';
 import { useApp } from '../../context/AppContext';
 
 function TabLayout() {
@@ -34,7 +34,7 @@ function TabLayout() {
         options={{
           tabBarLabel: fr ? 'Carte' : 'Live Map',
           tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? 'map' : 'map-outline'} size={22} color={color} />
+            <MapPin size={22} color={color} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />
@@ -43,7 +43,7 @@ function TabLayout() {
         options={{
           tabBarLabel: fr ? 'Sauvegard\u00E9s' : 'Saved',
           tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? 'bookmark' : 'bookmark-outline'} size={22} color={color} />
+            <BookmarkSimple size={22} color={color} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />
@@ -52,7 +52,7 @@ function TabLayout() {
         options={{
           tabBarLabel: fr ? 'Trajet' : 'Planner',
           tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? 'navigate' : 'navigate-outline'} size={22} color={color} />
+            <NavigationArrow size={22} color={color} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />
@@ -61,7 +61,7 @@ function TabLayout() {
         options={{
           tabBarLabel: fr ? 'Compte' : 'Account',
           tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? 'person-circle' : 'person-circle-outline'} size={22} color={color} />
+            <User size={22} color={color} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />

@@ -30,7 +30,7 @@ import type { ServiceTile } from '../../components/ServicesGrid';
 
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { haversineKm } from '../../lib/geo';
-import { LAYER_CONFIG, DEFAULT_LAYERS, MapPin, LayerKey, saveLayerPrefs, loadLayerPrefs } from '../../lib/mapLayers';
+import { LAYER_CONFIG, LAYER_ICONS, DEFAULT_LAYERS, MapPin, LayerKey, saveLayerPrefs, loadLayerPrefs } from '../../lib/mapLayers';
 
 const VEHICLES_URL    = 'https://routeo-backend.vercel.app/api/vehicles';
 const BACKEND_URL     = 'https://routeo-backend.vercel.app/api/arrivals';
@@ -1862,7 +1862,7 @@ export default function MapScreen() {
         contentContainerStyle={{ paddingHorizontal: 16, gap: 8, flexDirection: 'row', paddingVertical: 6 }}
       >
         {(Object.entries(LAYER_CONFIG) as [LayerKey, typeof LAYER_CONFIG[LayerKey]][]).map(([key, config]) => {
-          const icon = config.icon;
+          const PhIcon = LAYER_ICONS[key as LayerKey];
           const isActive = activeLayers[key];
           return (
             <TouchableOpacity
@@ -1877,7 +1877,7 @@ export default function MapScreen() {
               ]}
               onPress={() => toggleLayer(key)}
             >
-              <Ionicons name={icon as any} size={14} color={isActive ? 'white' : colours.muted} />
+              <PhIcon size={14} color={isActive ? 'white' : colours.muted} weight={isActive ? 'fill' : 'regular'} />
               <Text style={{ fontSize: 12, fontWeight: '600', color: isActive ? 'white' : colours.muted }}>
                 {language === 'fr' ? config.labelFr : config.label}
               </Text>
@@ -2623,7 +2623,7 @@ export default function MapScreen() {
                 width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
                 backgroundColor: LAYER_CONFIG[selectedPin.category].color + '22',
               }}>
-                <Ionicons name={LAYER_CONFIG[selectedPin.category].icon as any} size={20} color={LAYER_CONFIG[selectedPin.category].color} />
+                {(() => { const PinIcon = LAYER_ICONS[selectedPin.category]; return <PinIcon size={20} color={LAYER_CONFIG[selectedPin.category].color} />; })()}
               </View>
             )}
             <View style={{ flex: 1, marginHorizontal: 10 }}>

@@ -1,5 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Tag, Ticket, ForkKnife, Coffee, Wine, Ghost, Wrench, Bicycle } from 'phosphor-react-native';
 import { SK_MAP_LAYERS } from './storageKeys';
+
+export const LAYER_ICONS = {
+  deals: Tag,
+  events: Ticket,
+  restaurants: ForkKnife,
+  coffee: Coffee,
+  bars: Wine,
+  ghost_buses: Ghost,
+  construction: Wrench,
+  bike_share: Bicycle,
+} as const;
 
 export const LAYER_CONFIG = {
   deals: { color: '#FF9800', icon: 'pricetag', label: 'Deals', labelFr: 'Rabais' },

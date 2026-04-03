@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Share, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { MapPin, LAYER_CONFIG } from '../lib/mapLayers';
+import { MapPin, LAYER_CONFIG, LAYER_ICONS, LayerKey } from '../lib/mapLayers';
 import { useApp } from '../context/AppContext';
 
 interface LayerFeedCardProps {
@@ -14,6 +14,7 @@ interface LayerFeedCardProps {
 export const LayerFeedCard = React.memo(function LayerFeedCard({ pin, onRoute, onSave, language }: LayerFeedCardProps) {
   const { colours } = useApp();
   const config = LAYER_CONFIG[pin.category];
+  const BadgeIcon = LAYER_ICONS[pin.category];
 
   const handleShare = () => {
     const msg = `${pin.name} - ${pin.subtitle}${pin.url ? '\n' + pin.url : ''}`;
@@ -24,7 +25,7 @@ export const LayerFeedCard = React.memo(function LayerFeedCard({ pin, onRoute, o
     <View style={[styles.card, { backgroundColor: colours.card, borderLeftColor: config.color }]}>
       <View style={styles.cardHeader}>
         <View style={[styles.badge, { backgroundColor: config.color + '22' }]}>
-          <Ionicons name={config.icon as any} size={11} color={config.color} />
+          <BadgeIcon size={11} color={config.color} />
           <Text style={[styles.badgeText, { color: config.color }]}>
             {language === 'fr' ? config.labelFr : config.label}
           </Text>

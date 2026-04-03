@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SavedBoardItem } from '../lib/homeConstants';
 import { SavedBoardCard } from './SavedCards';
 import { SK_LEAVE_NOW_ALERTS } from '../lib/storageKeys';
-import { LAYER_CONFIG, LayerKey, MapPin } from '../lib/mapLayers';
+import { LAYER_CONFIG, LAYER_ICONS, LayerKey, MapPin } from '../lib/mapLayers';
 import { LayerFeedCard } from './LayerFeedCard';
 import { writeWidgetData, getTopSavedStopId } from '../lib/widgetData';
 import TonightCard from './TonightCard';
@@ -856,6 +856,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                 {(Object.keys(LAYER_CONFIG) as LayerKey[]).map(key => {
                   const config = LAYER_CONFIG[key];
                   const isActive = activeLayers[key];
+                  const PhIcon = LAYER_ICONS[key as LayerKey];
                   return (
                     <TouchableOpacity
                       key={key}
@@ -878,7 +879,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                       {loadingLayers?.has(key) ? (
                         <ActivityIndicator size="small" color={config.color} />
                       ) : (
-                        <Ionicons name={config.icon as any} size={20} color={isActive ? config.color : colours.muted} />
+                        <PhIcon size={20} color={isActive ? config.color : colours.muted} weight={isActive ? 'fill' : 'regular'} />
                       )}
                       <Text style={{ fontSize: 12, fontWeight: '600', color: isActive ? colours.text : colours.muted }} numberOfLines={1}>
                         {language === 'fr' ? config.labelFr : config.label}
