@@ -120,12 +120,6 @@ export default function OnboardingScreen() {
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
       />
 
-      <View style={{
-        position: 'absolute', top: '25%', alignSelf: 'center',
-        width: 300, height: 300, borderRadius: 150,
-        backgroundColor: accent + '08',
-      }} />
-
       <ScrollView
         ref={scrollRef}
         horizontal
@@ -145,11 +139,11 @@ export default function OnboardingScreen() {
               fill={TEAL}
             />
           </Svg>
-          <Text style={{ fontSize: 52, fontWeight: '700', color: '#fff', letterSpacing: -2, marginBottom: 8 }}>
+          <Text style={{ fontSize: 52, fontWeight: '700', color: '#fff', marginBottom: 8 }}>
             Route<Text style={{ color: TEAL }}>O</Text>
           </Text>
           <View style={{ width: 48, height: 3, borderRadius: 2, backgroundColor: TEAL, marginBottom: 32 }} />
-          <Text style={{ fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', letterSpacing: -0.5, lineHeight: 36, marginBottom: 12 }}>
+          <Text style={{ fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', lineHeight: 36, marginBottom: 12 }}>
             {t('Welcome to RouteO', 'Bienvenue sur RouteO')}
           </Text>
           <Text style={{ fontSize: 16, color: '#8899aa', textAlign: 'center', lineHeight: 24, maxWidth: 300 }}>
@@ -166,7 +160,7 @@ export default function OnboardingScreen() {
           }}>
             <Ionicons name="location" size={64} color={TEAL} />
           </View>
-          <Text style={{ fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', letterSpacing: -0.5, lineHeight: 36, marginBottom: 32 }}>
+          <Text style={{ fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', lineHeight: 36, marginBottom: 32 }}>
             {t('See buses near you', 'Voir les bus pres de vous')}
           </Text>
           {locationGranted ? (
@@ -205,7 +199,7 @@ export default function OnboardingScreen() {
 
         {/* Slide 3: Add stops */}
         <View style={{ width, flex: 1, paddingHorizontal: 36, paddingTop: 100 }}>
-          <Text style={{ fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', letterSpacing: -0.5, lineHeight: 36, marginBottom: 8 }}>
+          <Text style={{ fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', lineHeight: 36, marginBottom: 8 }}>
             {t('What do you take most often?', 'Quel trajet prenez-vous?')}
           </Text>
           <Text style={{ fontSize: 14, color: '#8899aa', textAlign: 'center', lineHeight: 20, marginBottom: 24 }}>
@@ -280,7 +274,7 @@ export default function OnboardingScreen() {
           }}>
             <Ionicons name="checkmark-done" size={44} color="#7b5ea7" />
           </View>
-          <Text style={{ fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', letterSpacing: -0.5, lineHeight: 36, marginBottom: 12 }}>
+          <Text style={{ fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', lineHeight: 36, marginBottom: 12 }}>
             {t("You're all set!", 'Vous etes pret!')}
           </Text>
           <Text style={{ fontSize: 16, color: '#8899aa', textAlign: 'center', lineHeight: 24, maxWidth: 300 }}>

@@ -337,7 +337,7 @@ function SavedScreenInner() {
 
       {/* Header */}
       <View style={{ paddingHorizontal: PAD, paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 12 }}>
-        <Text style={{ fontSize: 28, fontWeight: '700', color: colours.text, letterSpacing: -0.5 }}>
+        <Text style={{ fontSize: 28, fontWeight: '700', color: colours.text }}>
           {t('Saved', 'Sauvegardes')}
         </Text>
       </View>

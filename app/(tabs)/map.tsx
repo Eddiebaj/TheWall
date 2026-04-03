@@ -209,7 +209,7 @@ const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) =>
       onPress={() => onPress(bus)}
     >
       <View style={{ backgroundColor: bg, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, minWidth: 26, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' }}>
-        <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700', letterSpacing: -0.3 }} allowFontScaling={false}>{label}</Text>
+        <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }} allowFontScaling={false}>{label}</Text>
       </View>
     </Marker>
   );
@@ -1777,7 +1777,7 @@ export default function MapScreen() {
                 </Text>
               </View>
             ) : (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.tintBg, borderWidth: 1, borderColor: colours.accent + '40', paddingHorizontal: 8, paddingVertical: 6, borderRadius: 18 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.tintBg, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 18 }}>
                 <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: zoomTooFar ? colours.muted : colours.accent }} />
                 <Text style={{ color: zoomTooFar ? colours.muted : colours.accent, fontSize: 10, fontWeight: '700' }}>
                   {zoomTooFar ? t('Zoom in', 'Zoomer') : `${visibleBuses.length}`}
@@ -1974,7 +1974,7 @@ export default function MapScreen() {
                       style={{
                         paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1,
                         borderColor: contribType === type ? '#7b5ea7' : colours.border,
-                        backgroundColor: contribType === type ? '#7b5ea7' + '18' : colours.surface,
+                        backgroundColor: contribType === type ? colours.tintBg : colours.surface,
                       }}>
                       <Text style={{ fontSize: 13, fontWeight: '600', color: contribType === type ? '#7b5ea7' : colours.text }}>
                         {t(type, type === 'Happy Hour' ? 'Happy Hour' : type === 'Food Special' ? 'Special bouffe' : type === 'Student Deal' ? 'Offre etudiante' : type === 'Event' ? 'Evenement' : 'Autre')}
@@ -2225,16 +2225,9 @@ export default function MapScreen() {
                     </Text>
                   </View>
                 )}
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colours.accent }} />
-                    <Text style={{ fontSize: fonts.sm, color: colours.accent, fontWeight: '700' }}>
-                      {t('Live · Updates every 30s', 'En direct · Mise à jour toutes les 30s')}
-                    </Text>
-                  </View>
-                  <View style={{ backgroundColor: busIsSTO ? '#00A78D' + '18' : '#CE1126' + '18', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1, borderColor: busIsSTO ? '#00A78D' + '40' : '#CE1126' + '40' }}>
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: busIsSTO ? '#00A78D' : '#CE1126' }}>{agencyLabel}</Text>
-                  </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#22c55e' }} />
+                  <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{agencyLabel}</Text>
                 </View>
                 <TouchableOpacity
                   onPress={() => { setTrackingBus(selectedBus); }}
@@ -2381,7 +2374,7 @@ export default function MapScreen() {
                       const minsUntil = startMins - nowMins;
                       const isSoon = minsUntil > 0 && minsUntil <= 30;
                       const badgeColor = isSoon ? '#FF9800' : colours.muted;
-                      const badgeBg = isSoon ? '#FF980018' : colours.muted + '15';
+                      const badgeBg = isSoon ? colours.warnBg : colours.surface;
                       const startLabel = soonest ? soonest.start.replace(/^0/, '') : '';
                       return (
                         <View style={{ gap: 4 }}>

@@ -240,7 +240,7 @@ function AlertsScreenInner() {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={{ fontSize: fonts.xxl, fontWeight: '700', color: colours.text, letterSpacing: -0.5 }}>
+            <Text style={{ fontSize: fonts.xxl, fontWeight: '700', color: colours.text }}>
               {t('Alerts', 'Alertes')}
             </Text>
             <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>

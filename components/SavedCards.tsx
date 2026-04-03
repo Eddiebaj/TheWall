@@ -68,7 +68,7 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
     return () => { cancelled = true; };
   }, [item.type, itemId]);
 
-  const cardBase = [{ width: 152, height: 148, borderRadius: 16, padding: 12, backgroundColor: isActive ? colours.accent + '22' : colours.surface, borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, justifyContent: 'space-between' as const }, cardShadow];
+  const cardBase = [{ width: 152, height: 148, borderRadius: 16, padding: 12, backgroundColor: isActive ? colours.tintBg : colours.surface, borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, justifyContent: 'space-between' as const }, cardShadow];
 
   if (item.type === 'garbage') {
     const next = garbageEvents[0];
@@ -207,13 +207,13 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
           {sg?.state === 'live' && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
               <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#cc3b2a' }} />
-              <Text style={{ fontSize: 9, fontWeight: '700', color: '#cc3b2a', letterSpacing: 0.5 }}>{t('LIVE', 'EN DIRECT')} {'\u00B7'} {sg.period}</Text>
+              <Text style={{ fontSize: 9, fontWeight: '700', color: '#cc3b2a' }}>{t('Live', 'En direct')} {'\u00B7'} {sg.period}</Text>
             </View>
           )}
           {teamLogo ? (
             <Image source={teamLogo} style={{ width: sg ? 48 : 64, height: sg ? 48 : 64 }} resizeMode="contain" />
           ) : (
-            <View style={{ width: 64, height: 64, borderRadius: 16, backgroundColor: '#c8102e18', alignItems: 'center', justifyContent: 'center' }}>
+            <View style={{ width: 64, height: 64, borderRadius: 16, backgroundColor: colours.errorBg, alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="trophy" size={26} color="#c8102e" />
             </View>
           )}
@@ -300,7 +300,7 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
   return (
     <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={`${isLRT ? t('LRT station', 'Station du TLR') : t('Bus stop', 'Arrêt de bus')} ${toTitleCase(item.name)}`}>
       {alertRouteSet.length > 0 && (
-        <View style={{ backgroundColor: '#e8a020' + '20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, marginBottom: 2 }}>
+        <View style={{ backgroundColor: colours.warnBg, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, marginBottom: 2 }}>
           <Text style={{ fontSize: 9, fontWeight: '700', color: '#e8a020' }} numberOfLines={1}>
             {'\u26A0\uFE0F'} Route {alertRouteSet.slice(0, 2).join(', ')} alert today
           </Text>
@@ -310,7 +310,7 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
         const ghostRoutes = Object.entries(previewGhosts).filter(([, g]) => g.likelyGhost).map(([rid]) => rid);
         if (ghostRoutes.length === 0) return null;
         return (
-          <View style={{ backgroundColor: '#FF9500' + '20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, marginBottom: 2 }}>
+          <View style={{ backgroundColor: colours.warnBg, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, marginBottom: 2 }}>
             <Text style={{ fontSize: 9, fontWeight: '700', color: '#FF9500' }} numberOfLines={1}>
               {'\u26A0\uFE0F'} {t(`Route ${ghostRoutes[0]} may be running ghost buses`, `Route ${ghostRoutes[0]} signal\u00e9 hors service`)}
             </Text>
@@ -437,7 +437,7 @@ export const SavedPlaceCard = React.memo(function SavedPlaceCard({ place, colour
       <ImageBackground source={photoUrl ? { uri: photoUrl } : undefined} style={{ width: '100%', height: 100, backgroundColor: place.categoryColor + '18', alignItems: photoUrl ? undefined : 'center', justifyContent: photoUrl ? undefined : 'center' }} resizeMode="cover">
         {!photoUrl && <Ionicons name={place.categoryIcon} size={28} color={place.categoryColor} />}
         <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: place.categoryColor, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-          <Text style={{ fontSize: 9, fontWeight: '700', color: 'white', textTransform: 'uppercase' }}>{label}</Text>
+          <Text style={{ fontSize: 9, fontWeight: '700', color: 'white' }}>{label}</Text>
         </View>
       </ImageBackground>
       <View style={{ padding: 10, flex: 1, justifyContent: 'center' }}>

@@ -150,7 +150,7 @@ function WheelColumn({ items, selectedIndex, onSelect, width, colours }: {
   selectedIndex: number;
   onSelect: (index: number) => void;
   width: number;
-  colours: { text: string; muted: string; border: string; accent: string };
+  colours: { text: string; muted: string; border: string; accent: string; tintBg: string };
 }) {
   const flatRef = useRef<FlatList>(null);
   const mounted = useRef(false);
@@ -214,8 +214,8 @@ function WheelColumn({ items, selectedIndex, onSelect, width, colours }: {
         height: WHEEL_ITEM_H,
         borderTopWidth: 1,
         borderBottomWidth: 1,
-        borderColor: colours.accent + '40',
-        backgroundColor: colours.accent + '10',
+        borderColor: colours.border,
+        backgroundColor: colours.tintBg,
         borderRadius: 8,
       }} />
     </View>
@@ -318,7 +318,6 @@ function PlannerScreenInner() {
   const [transferReliability, setTransferReliability] = useState<Record<string, { onTimePercent: number; avgDelay: number }>>({});
   const [walkAlt, setWalkAlt] = useState<{ walkMins: number; transitMins: number; transitWait: number; temp: number | null; precip: boolean } | null>(null);
 
-  const premiumActive = true;
 
   const [expandedItinerary, setExpandedItinerary] = useState<Itinerary | null>(null);
   const [expandedLeg, setExpandedLeg] = useState<number | null>(null);
@@ -1393,7 +1392,7 @@ function PlannerScreenInner() {
             const bufferMin = Math.round(buffer / 60000);
             if (bufferMin < 5 && bufferMin > -30) {
               return (
-                <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: '#e8a020' + '20', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#e8a020' + '40' }}>
+                <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: colours.warnBg, borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: colours.border }}>
                   <Text style={{ color: '#e8a020', fontSize: 9, fontWeight: '700' }}>{t('TIGHT', 'SERRE')}</Text>
                 </View>
               );
@@ -1433,7 +1432,7 @@ function PlannerScreenInner() {
 
         {/* Cross-border warning — transit only */}
         {travelMode === 'transit' && hasCrossBorderTrip(itin) && (
-          <View style={{ backgroundColor: '#ff9500' + '15', borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, marginBottom: 10 }}>
+          <View style={{ backgroundColor: colours.warnBg, borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, marginBottom: 10 }}>
             <Text style={{ fontSize: 12, color: '#ff9500', fontWeight: '600' }}>{t('Cross-Border Trip', 'Trajet interregional')}</Text>
             <Text style={{ fontSize: 11, color: colours.muted, marginTop: 4 }}>{t('Separate Presto tap required ($4.10 each)', 'Paiement Presto distinct requis (4,10 $ chacun)')}</Text>
           </View>
@@ -1978,7 +1977,7 @@ function PlannerScreenInner() {
                       </View>
                     )}
                     {leg.mode === 'WALK' && accessibleRouting && (leg.steps || []).some(s => s.relativeDirection === 'ELEVATOR' || /stair|step|escal/i.test(s.streetName || '')) && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FF9500' + '15', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginTop: 4 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colours.warnBg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginTop: 4 }}>
                         <Ionicons name="warning-outline" size={14} color="#FF9500" />
                         <Text style={{ fontSize: 11, fontWeight: '600', color: '#FF9500' }}>{t('This route may include stairs', 'Ce trajet peut inclure des escaliers')}</Text>
                       </View>
@@ -2425,7 +2424,7 @@ function PlannerScreenInner() {
                 setAccessibleRouting(next);
                 AsyncStorage.setItem(SK_ACCESSIBILITY_ROUTING, String(next)).catch(() => {});
               }}
-              style={{ width: 42, alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: accessibleRouting ? '#007AFF' : colours.border, backgroundColor: accessibleRouting ? '#007AFF' + '15' : colours.surface }}
+              style={{ width: 42, alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: accessibleRouting ? '#007AFF' : colours.border, backgroundColor: accessibleRouting ? colours.tintBg : colours.surface }}
               accessibilityRole="button"
               accessibilityLabel={t('Accessible routes', 'Trajets accessibles')}
               accessibilityState={{ selected: accessibleRouting }}
@@ -2576,25 +2575,6 @@ function PlannerScreenInner() {
           </TouchableOpacity>
         </View>
 
-        {/* AI Trip Assistant — Premium */}
-        <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
-          <TouchableOpacity
-            onPress={() => {}}
-            activeOpacity={0.85}
-            style={{
-              flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-              paddingVertical: 12, borderRadius: 12,
-              borderWidth: 1, borderColor: premiumActive ? colours.accent : colours.border,
-              backgroundColor: premiumActive ? colours.tintBg : colours.card,
-            }}
-          >
-            <Ionicons name="sparkles" size={16} color={premiumActive ? colours.accent : colours.muted} />
-            <Text style={{ fontWeight: '700', fontSize: 14, color: premiumActive ? colours.accent : colours.muted }}>
-              {t('AI Trip Assistant', 'Assistant IA de trajet')}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
         {/* What can I reach? */}
         {travelMode === 'transit' && (
           <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
@@ -2708,7 +2688,7 @@ function PlannerScreenInner() {
         ) : !loading && itineraries.length > 0 ? (
           <View style={{ paddingHorizontal: 20 }}>
             {accessibilityWarning && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, marginBottom: 10, borderRadius: 12, backgroundColor: '#FF9500' + '18', borderWidth: 1, borderColor: '#FF9500' + '40' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, marginBottom: 10, borderRadius: 12, backgroundColor: colours.warnBg, borderWidth: 1, borderColor: colours.border }}>
                 <Ionicons name="warning-outline" size={18} color="#FF9500" />
                 <Text style={{ flex: 1, fontSize: 13, color: colours.text, lineHeight: 18 }}>
                   {t('Accessible transit routes not available for this trip. Showing standard routes.', 'Trajets accessibles en transport non disponibles. Affichage des trajets standards.')}
@@ -2735,7 +2715,7 @@ function PlannerScreenInner() {
             </View>
             {/* Sens game warning */}
             {sensGameTonight && toPlace?.lat && haversineKm(toPlace.lat, toPlace.lng!, CTC_LAT, CTC_LNG) <= 2 && (
-              <View style={{ backgroundColor: '#c8102e' + '15', borderWidth: 1, borderColor: '#c8102e' + '40', borderRadius: 12, padding: 12, marginBottom: 12, flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
+              <View style={{ backgroundColor: colours.errorBg, borderWidth: 1, borderColor: colours.border, borderRadius: 12, padding: 12, marginBottom: 12, flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
                 <Ionicons name="warning" size={18} color="#c8102e" style={{ marginTop: 2 }} />
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 13, fontWeight: '700', color: '#c8102e' }}>
@@ -2919,7 +2899,7 @@ function PlannerScreenInner() {
                     const isFirst = mile === firstWalk;
                     const distLabel = fmtDistance(mile.distance);
                     return (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.tintBg, borderWidth: 1, borderColor: colours.accent + '20', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginTop: -4, marginBottom: 10 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.tintBg, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginTop: -4, marginBottom: 10 }}>
                         <Ionicons name="bulb-outline" size={14} color={colours.accent} />
                         <Text style={{ flex: 1, fontSize: 12, color: colours.text }}>
                           {isFirst ? t(`First ${distLabel} walk`, `Premiere marche de ${distLabel}`) : t(`Last ${distLabel} walk`, `Derniere marche de ${distLabel}`)}
@@ -2994,7 +2974,7 @@ function PlannerScreenInner() {
 
                 {/* Weather warning */}
                 {walkAlt.temp !== null && (walkAlt.temp <= -10 || walkAlt.precip) && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#3b82f6' + '12', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginTop: 10 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colours.tintBg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginTop: 10 }}>
                     <Text style={{ fontSize: 14 }}>{walkAlt.temp <= -10 ? '\u2744\uFE0F' : '\u2614'}</Text>
                     <Text style={{ fontSize: 12, fontWeight: '600', color: '#3b82f6', flex: 1 }}>
                       {walkAlt.temp <= -10
@@ -3126,7 +3106,7 @@ function PlannerScreenInner() {
                       accessibilityRole="button"
                       accessibilityLabel={`${trip.fromLabel} to ${trip.toLabel}`}
                     >
-                      <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colours.muted + '15', alignItems: 'center', justifyContent: 'center' }}>
+                      <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colours.surface, alignItems: 'center', justifyContent: 'center' }}>
                         <Ionicons name="time-outline" size={18} color={colours.muted} />
                       </View>
                       <View style={{ flex: 1 }}>
