@@ -285,11 +285,7 @@ const CATEGORY_COLORS: { [key: string]: string } = {
 };
 const getCatColor = (cat?: string) => CATEGORY_COLORS[cat || ''] || '#555';
 
-type VenuePin = {
-  name: string; address: string; type: ('bar' | 'restaurant' | 'club' | 'fitness' | 'cafe' | 'coffee' | 'pub' | 'food' | 'night' | 'gym')[];
-  lat: number; lng: number;
-  deals: { days: number[]; start: string; end: string; description: string }[];
-};
+type VenuePin = HappyHourVenue;
 
 function distAlongShape(shape: {latitude: number; longitude: number}[], lat: number, lng: number): { index: number; cumDist: number } {
   let bestIdx = 0, bestDist = Infinity;
@@ -304,207 +300,7 @@ function distAlongShape(shape: {latitude: number; longitude: number}[], lat: num
   return { index: bestIdx, cumDist };
 }
 
-const VENUE_PINS: VenuePin[] = [
-  { name: "Joey's Lansdowne", address: '825 Exhibition Way', type: ['bar', 'restaurant'], lat: 45.3998, lng: -75.6844, deals: [
-    { days: [0,1,2,3,4,5,6], start: '15:00', end: '18:00', description: 'Happy Hour daily 3-6pm' },
-    { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun-Thu 9pm-close specials' },
-    { days: [2], start: '15:00', end: '23:59', description: 'Up to 50% off wine Tuesdays' },
-  ]},
-  { name: "Joey's Rideau", address: '50 Rideau St', type: ['bar', 'restaurant'], lat: 45.4260, lng: -75.6916, deals: [
-    { days: [0,1,2,3,4,5,6], start: '15:00', end: '18:00', description: 'Happy Hour daily 3-6pm' },
-    { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun-Thu 9pm-close specials' },
-    { days: [2], start: '15:00', end: '23:59', description: 'Up to 50% off wine Tuesdays' },
-  ]},
-  { name: 'Local Public Eatery', address: '825 Exhibition Way', type: ['bar', 'restaurant'], lat: 45.3999, lng: -75.6840, deals: [
-    { days: [1,2,3,4,5], start: '14:00', end: '17:00', description: 'Mon-Fri 2-5pm happy hour' },
-    { days: [6], start: '10:00', end: '14:00', description: 'Sat drinks only 10am-2pm' },
-    { days: [0,1,2], start: '21:00', end: '23:59', description: 'Sun-Wed 9pm-close specials' },
-    { days: [3,4,5,6], start: '22:00', end: '23:59', description: 'Thu-Sat 10pm-close specials' },
-  ]},
-  { name: 'Pour Boy', address: '495 Somerset St W', type: ['bar', 'restaurant'], lat: 45.4138, lng: -75.7005, deals: [
-    { days: [1], start: '11:00', end: '23:59', description: '25% off wings Monday' },
-    { days: [2], start: '19:00', end: '23:59', description: 'Trivia night Tuesday' },
-    { days: [3], start: '19:00', end: '23:59', description: 'Open Mic Wednesday' },
-    { days: [4], start: '19:00', end: '23:59', description: 'Comedy night Thursday' },
-    { days: [5], start: '11:00', end: '23:59', description: '25% off fish & chips + Blingo Friday' },
-  ]},
-  { name: 'Rabbit Hole', address: '208 Sparks St', type: ['bar', 'restaurant', 'club'], lat: 45.4212, lng: -75.7010, deals: [
-    { days: [2], start: '16:00', end: '18:00', description: 'Tue HH 4-6pm' },
-    { days: [2], start: '17:00', end: '23:59', description: 'Half off wine + half off pizzas 5pm-late Tue' },
-    { days: [3], start: '16:00', end: '18:00', description: 'Wed HH 4-6pm + half price oysters' },
-    { days: [4], start: '16:00', end: '18:00', description: 'Thu HH 4-6pm' },
-    { days: [5,6], start: '21:00', end: '23:59', description: 'Fri/Sat Live DJ' },
-  ]},
-  { name: 'Whalesbone', address: '430 Bank St', type: ['restaurant', 'bar'], lat: 45.4122, lng: -75.6939, deals: [
-    { days: [0], start: '17:00', end: '23:59', description: 'Oysters ~$2 each Sunday nights' },
-  ]},
-  { name: "Lieutenant's Pump", address: '361 Elgin St', type: ['restaurant', 'bar', 'club'], lat: 45.4153, lng: -75.6878, deals: [
-    { days: [3], start: '11:00', end: '23:59', description: 'Wednesday wing day - half price' },
-    { days: [1,2,3,4,5], start: '11:00', end: '14:00', description: 'Lunch combo: pint + supper $5' },
-  ]},
-  { name: 'The Standard', address: '360 Elgin St', type: ['restaurant', 'bar', 'club'], lat: 45.4153, lng: -75.6884, deals: [
-    { days: [0,1,2,3,4,5,6], start: '17:00', end: '19:00', description: 'Happy Hour 7 days a week 5-7pm' },
-  ]},
-  { name: 'Heart and Crown ByWard', address: '67 Clarence St', type: ['restaurant', 'bar', 'club'], lat: 45.4290, lng: -75.6935, deals: [
-    { days: [1], start: '11:00', end: '23:59', description: 'Mon: $5 house draught' },
-    { days: [2], start: '11:00', end: '23:59', description: 'Tue: half price wine' },
-    { days: [3], start: '11:00', end: '23:59', description: 'Wed: $5 rail cocktails' },
-    { days: [4], start: '11:00', end: '23:59', description: 'Thu: $5 quarts and craft cans' },
-    { days: [0], start: '11:00', end: '23:59', description: 'Sun: $6 bloody caesars' },
-  ]},
-  { name: 'Heart and Crown Preston', address: '361 Preston St', type: ['restaurant', 'bar', 'club'], lat: 45.4011, lng: -75.7096, deals: [
-    { days: [1], start: '11:00', end: '23:59', description: 'Mon: $5 house draught' },
-    { days: [2], start: '11:00', end: '23:59', description: 'Tue: half price wine' },
-    { days: [3], start: '11:00', end: '23:59', description: 'Wed: $5 rail cocktails' },
-    { days: [4], start: '11:00', end: '23:59', description: 'Thu: $5 quarts and craft cans' },
-    { days: [0], start: '11:00', end: '23:59', description: 'Sun: $6 bloody caesars' },
-  ]},
-  { name: 'Union Local 613', address: '315 Somerset St W', type: ['restaurant', 'bar'], lat: 45.4161, lng: -75.6949, deals: [
-    { days: [1,2,3,4,5], start: '16:00', end: '17:00', description: 'Mon-Fri 4-5pm: half price wine, $6 draft, cheap cocktails' },
-  ]},
-  { name: 'Senate Bank', address: '259 Bank St', type: ['restaurant', 'bar'], lat: 45.4162, lng: -75.6968, deals: [
-    { days: [1], start: '17:00', end: '23:59', description: 'Mon: $15 wings 5pm+, $7 lagers + $5 Jameson late' },
-    { days: [2], start: '11:00', end: '23:59', description: 'Tue: $5 tequila + $12 margs all day' },
-    { days: [4], start: '17:00', end: '23:59', description: 'Thu: AYCE wings $28 + $15 mini pitcher' },
-    { days: [5], start: '11:00', end: '23:59', description: 'Fri: $15 fish & chips, $5 tequila + $12 margs' },
-    { days: [6], start: '11:00', end: '23:59', description: 'Sat: $30 bottle of wine' },
-    { days: [0], start: '14:00', end: '17:00', description: 'Sun: $5 caesars, double HH 2-5pm' },
-    { days: [0], start: '23:00', end: '23:59', description: 'Sun: double HH 11pm-2am' },
-  ]},
-  { name: 'Senate Clarence', address: '83 Clarence St', type: ['restaurant', 'bar'], lat: 45.4293, lng: -75.6931, deals: [
-    { days: [1], start: '17:00', end: '23:59', description: 'Mon: $15 wings 5pm+, $7 lagers + $5 Jameson late' },
-    { days: [2], start: '11:00', end: '23:59', description: 'Tue: $5 tequila + $12 margs all day' },
-    { days: [4], start: '17:00', end: '23:59', description: 'Thu: AYCE wings $28 + $15 mini pitcher' },
-    { days: [5], start: '11:00', end: '23:59', description: 'Fri: $15 fish & chips, $5 tequila + $12 margs' },
-    { days: [6], start: '11:00', end: '23:59', description: 'Sat: $30 bottle of wine' },
-    { days: [0], start: '14:00', end: '17:00', description: 'Sun: $5 caesars, double HH 2-5pm' },
-    { days: [0], start: '23:00', end: '23:59', description: 'Sun: double HH 11pm-2am' },
-  ]},
-  { name: 'Senate Wellington', address: '93 Wellington St', type: ['restaurant', 'bar'], lat: 45.4233, lng: -75.6987, deals: [
-    { days: [1], start: '17:00', end: '23:59', description: 'Mon: $15 wings 5pm+, $7 lagers + $5 Jameson late' },
-    { days: [2], start: '11:00', end: '23:59', description: 'Tue: $5 tequila + $12 margs all day' },
-    { days: [4], start: '17:00', end: '23:59', description: 'Thu: AYCE wings $28 + $15 mini pitcher' },
-    { days: [5], start: '11:00', end: '23:59', description: 'Fri: $15 fish & chips, $5 tequila + $12 margs' },
-    { days: [6], start: '11:00', end: '23:59', description: 'Sat: $30 bottle of wine' },
-    { days: [0], start: '14:00', end: '17:00', description: 'Sun: $5 caesars, double HH 2-5pm' },
-    { days: [0], start: '23:00', end: '23:59', description: 'Sun: double HH 11pm-2am' },
-  ]},
-  { name: 'Barley Mow Merivale', address: '1541 Merivale Rd', type: ['restaurant', 'bar'], lat: 45.3555, lng: -75.7352, deals: [
-    { days: [1,2,3,4,5], start: '14:00', end: '17:00', description: 'Mon-Fri 2-5pm HH' },
-    { days: [3], start: '20:00', end: '23:59', description: 'Wed 8pm: 30c wings' },
-    { days: [4], start: '20:00', end: '23:59', description: 'Thu 8pm: Thirsty Thursdays' },
-    { days: [1], start: '17:00', end: '23:59', description: 'Mon: $27 special + $9 beer flights' },
-    { days: [2], start: '17:00', end: '23:59', description: 'Tue: $27 tacos + $10 margaritas' },
-    { days: [3], start: '17:00', end: '23:59', description: 'Wed: $27 sandwich + $30 wine bottles' },
-    { days: [4], start: '17:00', end: '23:59', description: 'Thu: $27 burger' },
-    { days: [5], start: '17:00', end: '23:59', description: 'Fri: $27 fish & chips + $36.95 prime rib' },
-    { days: [6,0], start: '11:00', end: '23:59', description: 'Sat/Sun: $7.50 caesars. Sun: kids eat free' },
-  ]},
-  { name: 'Barley Mow Westboro', address: '399 Richmond Rd', type: ['restaurant', 'bar'], lat: 45.3910, lng: -75.7566, deals: [
-    { days: [1,2,3,4,5], start: '14:00', end: '17:00', description: 'Mon-Fri 2-5pm HH' },
-    { days: [3], start: '20:00', end: '23:59', description: 'Wed 8pm: 30c wings' },
-    { days: [4], start: '20:00', end: '23:59', description: 'Thu 8pm: Thirsty Thursdays' },
-    { days: [1], start: '17:00', end: '23:59', description: 'Mon: $27 special + $9 beer flights' },
-    { days: [2], start: '17:00', end: '23:59', description: 'Tue: $27 tacos + $10 margaritas' },
-    { days: [3], start: '17:00', end: '23:59', description: 'Wed: $27 sandwich + $30 wine bottles' },
-    { days: [4], start: '17:00', end: '23:59', description: 'Thu: $27 burger' },
-    { days: [5], start: '17:00', end: '23:59', description: 'Fri: $27 fish & chips + $36.95 prime rib' },
-    { days: [6,0], start: '11:00', end: '23:59', description: 'Sat/Sun: $7.50 caesars. Sun: kids eat free' },
-  ]},
-  { name: 'Royal Oak Wellington', address: '1217 Wellington St W', type: ['restaurant', 'bar'], lat: 45.4002, lng: -75.7313, deals: [
-    { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun-Thu 9pm: $5.50 domestics/wine/rails + half price apps' },
-    { days: [1], start: '17:00', end: '23:59', description: 'Mon: 50% off wings after 5pm' },
-    { days: [3], start: '17:00', end: '23:59', description: 'Wed: 50% off wings after 5pm + trivia 7pm' },
-    { days: [4], start: '11:00', end: '23:59', description: 'Thu: 50% off wine bottles' },
-    { days: [5], start: '11:00', end: '23:59', description: 'Fri: $3 off fish & chips' },
-    { days: [6], start: '11:00', end: '23:59', description: 'Sat: $5.95 bar rails' },
-    { days: [0], start: '11:00', end: '23:59', description: 'Sun: $7.95 caesars + craft draughts' },
-  ]},
-  { name: 'Royal Oak Bank', address: '188 Bank St', type: ['restaurant', 'bar'], lat: 45.4178, lng: -75.6986, deals: [
-    { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun-Thu 9pm: $5.50 domestics/wine/rails + half price apps' },
-    { days: [1], start: '17:00', end: '23:59', description: 'Mon: 50% off wings after 5pm' },
-    { days: [3], start: '17:00', end: '23:59', description: 'Wed: 50% off wings after 5pm + trivia 7pm' },
-    { days: [4], start: '11:00', end: '23:59', description: 'Thu: 50% off wine bottles' },
-    { days: [5], start: '11:00', end: '23:59', description: 'Fri: $3 off fish & chips' },
-    { days: [6], start: '11:00', end: '23:59', description: 'Sat: $5.95 bar rails' },
-    { days: [0], start: '11:00', end: '23:59', description: 'Sun: $7.95 caesars + craft draughts' },
-  ]},
-  { name: 'Royal Oak Slater', address: '180 Kent St', type: ['restaurant', 'bar'], lat: 45.4180, lng: -75.7017, deals: [
-    { days: [0,1,2,3,4], start: '21:00', end: '23:59', description: 'Sun-Thu 9pm: $5.50 domestics/wine/rails + half price apps' },
-    { days: [1], start: '17:00', end: '23:59', description: 'Mon: 50% off wings after 5pm' },
-    { days: [3], start: '17:00', end: '23:59', description: 'Wed: 50% off wings after 5pm + trivia 7pm' },
-    { days: [4], start: '11:00', end: '23:59', description: 'Thu: 50% off wine bottles' },
-    { days: [5], start: '11:00', end: '23:59', description: 'Fri: $3 off fish & chips' },
-    { days: [6], start: '11:00', end: '23:59', description: 'Sat: $5.95 bar rails' },
-    { days: [0], start: '11:00', end: '23:59', description: 'Sun: $7.95 caesars + craft draughts' },
-  ]},
-  { name: "Jack Astor's Lansdowne", address: '425 Marche Way', type: ['restaurant', 'bar'], lat: 45.4008, lng: -75.6830, deals: [
-    { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Happy hour daily 2-5pm' },
-    { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm-close specials' },
-    { days: [1,2], start: '11:00', end: '23:59', description: 'Half price wine bottles Mon & Tue' },
-  ]},
-  { name: "Jack Astor's Hunt Club", address: '310 W Hunt Club Rd', type: ['restaurant', 'bar'], lat: 45.3391, lng: -75.7129, deals: [
-    { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Happy hour daily 2-5pm' },
-    { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm-close specials' },
-    { days: [1,2], start: '11:00', end: '23:59', description: 'Half price wine bottles Mon & Tue' },
-  ]},
-  { name: "Jack Astor's Kanata", address: '125 Roland Michener Dr', type: ['restaurant', 'bar'], lat: 45.3085, lng: -75.9131, deals: [
-    { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Happy hour daily 2-5pm' },
-    { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm-close specials' },
-    { days: [1,2], start: '11:00', end: '23:59', description: 'Half price wine bottles Mon & Tue' },
-  ]},
-  { name: 'Shore Club', address: '11 Colonel By Dr', type: ['restaurant', 'bar'], lat: 45.4250, lng: -75.6927, deals: [
-    { days: [0,1,2,3,4,5,6], start: '15:00', end: '17:00', description: 'Daily 3-5pm: half price oysters, $2 prawns, $3.50 sliders, $9 Heineken, $12 wine' },
-  ]},
-  { name: 'Drip House', address: '692 Somerset St W', type: ['bar'], lat: 45.4110, lng: -75.7065, deals: [
-    { days: [3,4,5], start: '16:30', end: '18:30', description: 'Wed-Fri 4:30-6:30pm: $9 cocktails, wine, and appetizers' },
-  ]},
-  { name: 'Baton Rouge Downtown', address: '360 Albert St', type: ['restaurant', 'bar'], lat: 45.4181, lng: -75.7038, deals: [
-    { days: [1,2,3,4,5], start: '15:00', end: '18:00', description: 'Mon-Fri 3-6pm: $7 pints, $7 wine, $10 cocktails' },
-  ]},
-  { name: 'Baton Rouge Hunt Club', address: '270 W Hunt Club Rd', type: ['restaurant', 'bar'], lat: 45.3396, lng: -75.7110, deals: [
-    { days: [1,2,3,4,5], start: '15:00', end: '18:00', description: 'Mon-Fri 3-6pm: $7 pints, $7 wine, $10 cocktails' },
-  ]},
-  { name: 'Baton Rouge Kanata', address: '790 Earl Grey Dr', type: ['restaurant', 'bar'], lat: 45.3106, lng: -75.9095, deals: [
-    { days: [1,2,3,4,5], start: '15:00', end: '18:00', description: 'Mon-Fri 3-6pm: $7 pints, $7 wine, $10 cocktails' },
-  ]},
-  { name: 'Craft Beer Market', address: '975 Bank St', type: ['bar'], lat: 45.3987, lng: -75.6856, deals: [
-    { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Daily 2-5pm HH: discounted craft beer, wine, cocktails' },
-    { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm-close HH' },
-    { days: [0], start: '11:00', end: '23:59', description: 'All-day specials Sundays' },
-  ]},
-  { name: 'The Waverly', address: '339 Elgin St', type: ['bar', 'club'], lat: 45.4161, lng: -75.6881, deals: [
-    { days: [5,6], start: '22:00', end: '23:30', description: 'Fri/Sat 10-11:30pm: $5 bar rail' },
-  ]},
-  { name: 'House of Targ', address: '1077 Bank St', type: ['restaurant', 'bar', 'club'], lat: 45.3946, lng: -75.6831, deals: [
-    { days: [2], start: '17:00', end: '23:00', description: 'Tue: Arcade night $12.50' },
-    { days: [3], start: '17:00', end: '23:00', description: 'Wed: live music 8pm' },
-    { days: [4], start: '17:00', end: '23:00', description: 'Thu: live music 8pm' },
-    { days: [5], start: '17:00', end: '01:00', description: 'Fri: live music + events' },
-    { days: [6], start: '12:00', end: '01:00', description: 'Sat: live music + events' },
-    { days: [0], start: '12:00', end: '23:59', description: 'Sun: Free-Play Sunday' },
-  ]},
-  { name: 'Level One Game Pub', address: '14 Waller St', type: ['restaurant', 'bar'], lat: 45.4270, lng: -75.6887, deals: [
-    { days: [1], start: '18:30', end: '20:00', description: 'Mon: Geek Trivia 6:30-8pm' },
-    { days: [2], start: '17:30', end: '20:00', description: 'Tue: TKO fight night 5:30-8pm ($6)' },
-    { days: [4], start: '18:00', end: '23:00', description: 'Thu: Reddit board game meetup 6pm' },
-    { days: [0], start: '17:00', end: '23:00', description: 'Sun: Magic: The Gathering 5pm ($6)' },
-  ]},
-  { name: 'Happy Fish', address: '330 Elgin St', type: ['bar', 'club'], lat: 45.4159, lng: -75.6890, deals: [
-    { days: [4], start: '21:00', end: '23:59', description: 'Thu: $5 Jagerbombs + $5 draught' },
-    { days: [5,6], start: '21:00', end: '23:59', description: 'Fri/Sat: open 9pm-2am' },
-  ]},
-  { name: 'REFORM Health + Fitness', address: '317 McRae Ave #300', type: ['fitness'], lat: 45.3961, lng: -75.7497, deals: [
-    { days: [1,2,3,4,5], start: '06:00', end: '19:00', description: 'Indoor cycling, pilates, high-intensity classes' },
-    { days: [6,0], start: '09:00', end: '12:00', description: 'Weekend classes: cycling, pilates, full-body' },
-  ]},
-  { name: 'Pure Yoga Westboro', address: '279 Richmond Rd', type: ['fitness'], lat: 45.3935, lng: -75.7520, deals: [
-    { days: [0,1,2,3,4,5,6], start: '06:00', end: '21:00', description: 'Yoga classes + special workshops' },
-  ]},
-  { name: 'Pure Yoga Centretown', address: '359 Bank St', type: ['fitness'], lat: 45.4143, lng: -75.6950, deals: [
-    { days: [0,1,2,3,4,5,6], start: '06:00', end: '21:00', description: 'Yoga classes + special workshops' },
-  ]},
-];
+const VENUE_PINS: VenuePin[] = HAPPY_HOUR_VENUES;
 
 const VENUE_COLORS = { food: '#E67E22', happy_hour: '#8E44AD', clubs: '#E91E63', fitness: '#2ECC71' };
 
@@ -1543,15 +1339,14 @@ export default function MapScreen() {
 
   const visibleBuses = useMemo(() => filteredBuses.slice(0, visibleBusCount), [filteredBuses, visibleBusCount]);
 
-  const showVenueFilters = hasAll || filters.has('food') || filters.has('bars') || filters.has('coffee') || filters.has('gyms') || filters.has('happy_hour') || filters.has('clubs') || filters.has('fitness');
+  const showVenueFilters = hasAll || filters.has('food') || filters.has('bars') || filters.has('gyms') || filters.has('happy_hour') || filters.has('clubs') || filters.has('fitness');
   const searchLower = searchText.toLowerCase();
   const filteredVenues = useMemo(() => showVenueFilters ? VENUE_PINS.filter(v => {
     if (!venueHasActiveOrUpcomingToday(v)) return false;
     if (searchText && !v.name.toLowerCase().includes(searchLower)) return false;
     if (hasAll) return true;
-    if ((filters.has('food')) && v.type.includes('restaurant')) return true;
+    if (filters.has('food') && v.type.includes('restaurant')) return true;
     if ((filters.has('bars') || filters.has('happy_hour')) && (v.type.includes('bar') || v.type.includes('club'))) return true;
-    if ((filters.has('coffee')) && (v.type.includes('cafe') || v.type.includes('coffee'))) return true;
     if ((filters.has('gyms') || filters.has('fitness')) && v.type.includes('fitness')) return true;
     if (filters.has('clubs') && v.type.includes('club')) return true;
     return false;
@@ -1792,7 +1587,7 @@ export default function MapScreen() {
           {/* Venue markers (singles + clusters) */}
           {clusteredVenueData.singles.map((v, i) => {
             if (!validCoord(v.lat, v.lng)) return null;
-            const venueIcon: keyof typeof Ionicons.glyphMap = v.type.includes('cafe') || v.type.includes('coffee') ? 'cafe' : v.type.includes('bar') || v.type.includes('pub') ? 'beer' : v.type.includes('restaurant') || v.type.includes('food') ? 'restaurant' : v.type.includes('club') || v.type.includes('night') ? 'musical-notes' : v.type.includes('fitness') || v.type.includes('gym') ? 'barbell' : 'pint';
+            const venueIcon: keyof typeof Ionicons.glyphMap = v.type.includes('bar') ? 'beer' : v.type.includes('restaurant') ? 'restaurant' : v.type.includes('club') ? 'musical-notes' : v.type.includes('fitness') ? 'barbell' : 'pint';
             const venueColor = getVenuePinColor(v);
             const { active, upcoming } = getVenueTodayDeals(v);
             const hasDeals = active.length > 0 || upcoming.length > 0;
@@ -2880,8 +2675,6 @@ export default function MapScreen() {
         }}
         communityDeals={sheetDeals}
         onPlanTrip={() => router.push('/(tabs)/planner' as any)}
-        premiumActive={true}
-        onLeaveNowPress={() => {}}
         activeLayers={activeLayers}
         layerPins={layerPins}
         onToggleLayer={toggleLayer}

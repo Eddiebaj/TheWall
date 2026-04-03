@@ -88,10 +88,6 @@ interface NearbyTransitSheetProps {
   // Navigation
   onPlanTrip: () => void;
 
-  // Premium
-  premiumActive?: boolean;
-  onLeaveNowPress?: () => void;
-
   // City layers
   activeLayers?: Record<LayerKey, boolean>;
   layerPins?: Partial<Record<LayerKey, MapPin[]>>;
@@ -210,8 +206,6 @@ const StopCard = React.memo(function StopCard({
   expandedArrivals,
   expandedArrivalsLoading,
   t,
-  premiumActive,
-  onLeaveNowPress,
 }: {
   stop: NearbyStop;
   colours: any;
@@ -220,8 +214,6 @@ const StopCard = React.memo(function StopCard({
   expandedArrivals: { routeId: string; headsign: string; minsAway: number; source?: string; cached?: boolean; cachedAt?: number }[];
   expandedArrivalsLoading: boolean;
   t: (en: string, fr: string) => string;
-  premiumActive?: boolean;
-  onLeaveNowPress?: () => void;
 }) {
   const ghostSet = new Set(stop.ghostRoutes ?? []);
   const hasGhostWarning = stop.ghostRoutes && stop.ghostRoutes.length > 0;
@@ -328,12 +320,11 @@ const StopCard = React.memo(function StopCard({
               ))
             )}
 
-            {/* Leave Now Alert — Premium */}
+            {/* Leave Now Alert */}
             {expandedArrivals.length > 0 && (
               <TouchableOpacity
                 activeOpacity={0.85}
                 onPress={async () => {
-                  if (!premiumActive) { onLeaveNowPress?.(); return; }
                   if (!Notifications) return;
                   const nextArr = expandedArrivals[0];
                   const walkSec = stop.walkMeters / 1.4;
@@ -367,16 +358,13 @@ const StopCard = React.memo(function StopCard({
                   flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
                   marginTop: 10, paddingVertical: 10, borderRadius: 10,
                   borderWidth: 1,
-                  borderColor: premiumActive ? TEAL + '40' : colours.border,
-                  backgroundColor: premiumActive ? TEAL + '08' : colours.card,
+                  borderColor: TEAL + '40',
+                  backgroundColor: TEAL + '08',
                 }}
               >
-                <Ionicons name="notifications-outline" size={14} color={premiumActive ? TEAL : colours.muted} />
-                <Text style={{ fontSize: 13, fontWeight: '700', color: premiumActive ? TEAL : colours.muted }}>
-                  {premiumActive
-                    ? t('Set Leave Alert', 'Definir alerte de depart')
-                    : t('Leave Now Alert', 'Alerte de depart')
-                  }
+                <Ionicons name="notifications-outline" size={14} color={TEAL} />
+                <Text style={{ fontSize: 13, fontWeight: '700', color: TEAL }}>
+                  {t('Set Leave Alert', 'Definir alerte de depart')}
                 </Text>
               </TouchableOpacity>
             )}
@@ -470,8 +458,6 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
       onServiceTileTap,
       communityDeals,
       onPlanTrip,
-      premiumActive,
-      onLeaveNowPress,
       activeLayers,
       layerPins,
       onToggleLayer,
@@ -697,8 +683,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                   expandedArrivals={expandedStopId === stop.stopId ? expandedArrivals : []}
                   expandedArrivalsLoading={expandedStopId === stop.stopId && expandedArrivalsLoading}
                   t={t}
-                  premiumActive={premiumActive}
-                  onLeaveNowPress={onLeaveNowPress}
+
                 />
                 {i < peekStops.length - 1 && <Separator />}
               </React.Fragment>
@@ -719,8 +704,6 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                     expandedArrivals={expandedStopId === stop.stopId ? expandedArrivals : []}
                     expandedArrivalsLoading={expandedStopId === stop.stopId && expandedArrivalsLoading}
                     t={t}
-                    premiumActive={premiumActive}
-                    onLeaveNowPress={onLeaveNowPress}
                   />
                 </React.Fragment>
               ))}

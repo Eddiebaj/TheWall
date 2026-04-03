@@ -1,7 +1,7 @@
 export type HappyHourVenue = {
   name: string;
   address: string;
-  type: ('bar' | 'restaurant' | 'club')[];
+  type: ('bar' | 'restaurant' | 'club' | 'fitness')[];
   lat: number;
   lng: number;
   deals: { days: number[]; start: string; end: string; description: string }[];
@@ -284,5 +284,15 @@ export const HAPPY_HOUR_VENUES: HappyHourVenue[] = [
   { name: 'Corner Bar and Grill', address: '1779 Tenth Line Rd', type: ['restaurant', 'bar'], lat: 45.4740, lng: -75.5110, deals: [
     { days: [0,1,2,3,4,5,6], start: '14:00', end: '17:00', description: 'Daily 2-5pm: $5 rail, $6 Pub Lite, $7 Amsterdam, $2 off wine, food from $10' },
     { days: [0,1,2,3,4,5,6], start: '21:00', end: '23:59', description: '9pm-close: same HH + $9 wings' },
+  ]},
+  { name: 'REFORM Health + Fitness', address: '317 McRae Ave #300', type: ['fitness'], lat: 45.3961, lng: -75.7497, deals: [
+    { days: [1,2,3,4,5], start: '06:00', end: '19:00', description: 'Indoor cycling, pilates, high-intensity classes' },
+    { days: [6,0], start: '09:00', end: '12:00', description: 'Weekend classes: cycling, pilates, full-body' },
+  ]},
+  { name: 'Pure Yoga Westboro', address: '279 Richmond Rd', type: ['fitness'], lat: 45.3935, lng: -75.7520, deals: [
+    { days: [0,1,2,3,4,5,6], start: '06:00', end: '21:00', description: 'Yoga classes + special workshops' },
+  ]},
+  { name: 'Pure Yoga Centretown', address: '359 Bank St', type: ['fitness'], lat: 45.4143, lng: -75.6950, deals: [
+    { days: [0,1,2,3,4,5,6], start: '06:00', end: '21:00', description: 'Yoga classes + special workshops' },
   ]},
 ];
