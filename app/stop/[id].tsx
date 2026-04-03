@@ -192,18 +192,18 @@ const styles = StyleSheet.create({
   retryText: { color: '#fff', fontWeight: '700' },
   list: { paddingHorizontal: 16, paddingBottom: 40 },
   arrivalRow: {
-    flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 14,
+    flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 16,
     borderWidth: 1, marginBottom: 10, gap: 12,
   },
   routeBadge: {
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
     minWidth: 44, alignItems: 'center',
   },
-  routeText: { color: '#fff', fontWeight: '800' },
+  routeText: { color: '#fff', fontWeight: '700' },
   arrivalInfo: { flex: 1 },
   headsign: { fontWeight: '600' },
   scheduled: { marginTop: 2 },
   timeBox: { alignItems: 'center', minWidth: 48 },
-  minsText: { fontWeight: '800' },
+  minsText: { fontWeight: '700' },
   minLabel: { fontWeight: '500' },
 });

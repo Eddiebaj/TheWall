@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Linking, RefreshControl,
   ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View,
@@ -81,7 +81,7 @@ function StationPill({ station, lineColor }: { station: LrtStation; lineColor: s
       borderColor: station.ok ? lineColor + '40' : '#cc3b2a60',
       minWidth: 36, alignItems: 'center',
     }}>
-      <Text style={{ fontSize: 9, fontWeight: '800', color: station.ok ? lineColor : '#cc3b2a' }}>
+      <Text style={{ fontSize: 9, fontWeight: '700', color: station.ok ? lineColor : '#cc3b2a' }}>
         {station.code}
       </Text>
     </View>
@@ -97,7 +97,7 @@ function LineRow({ label, line, color, fonts, colours, t }: {
     <View style={{ marginBottom: 12 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
         <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: disrupted ? '#cc3b2a' : '#34c759' }} />
-        <Text style={{ fontSize: fonts.sm, fontWeight: '800', color: colours.text }}>{label}</Text>
+        <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.text }}>{label}</Text>
         <Text style={{ fontSize: 10, color: disrupted ? '#cc3b2a' : '#34c759', fontWeight: '700' }}>
           {disrupted ? t('DISRUPTED', 'PERTURBE') : t('RUNNING', 'EN SERVICE')}
         </Text>
@@ -210,11 +210,11 @@ function AlertsScreenInner() {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           {alert.agency === 'STO' && (
             <View style={[styles.catBadge, { backgroundColor: '#00A78D' + '20' }]}>
-              <Text style={{ fontSize: 9, fontWeight: '800', color: '#00A78D', textTransform: 'uppercase', letterSpacing: 0.5 }}>STO</Text>
+              <Text style={{ fontSize: 9, fontWeight: '700', color: '#00A78D' }}>STO</Text>
             </View>
           )}
           <View style={[styles.catBadge, { backgroundColor: catColour + '20' }]}>
-            <Text style={{ fontSize: 9, fontWeight: '800', color: catColour, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            <Text style={{ fontSize: 9, fontWeight: '700', color: catColour }}>
               {alert.category === 'detour' ? t('detour', 'd\u00e9tour')
                 : alert.category === 'cancellation' ? t('cancellation', 'annulation')
                 : alert.category === 'delay' ? t('delay', 'retard')
@@ -224,7 +224,7 @@ function AlertsScreenInner() {
             </Text>
           </View>
           {alert.routes.slice(0, 5).map(r => (
-            <View key={r} style={[styles.routeBadge, { backgroundColor: colours.accent + '18' }]}>
+            <View key={r} style={[styles.routeBadge, { backgroundColor: colours.tintBg }]}>
               <Text style={{ fontSize: 9, fontWeight: '700', color: colours.accent }}>{r}</Text>
             </View>
           ))}
@@ -274,7 +274,7 @@ function AlertsScreenInner() {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={{ fontSize: fonts.xxl, fontWeight: '800', color: colours.text, letterSpacing: -0.5 }}>
+            <Text style={{ fontSize: fonts.xxl, fontWeight: '700', color: colours.text, letterSpacing: -0.5 }}>
               {t('Alerts', 'Alertes')}
             </Text>
             <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
@@ -301,7 +301,7 @@ function AlertsScreenInner() {
               <Ionicons name={hasAlerts ? 'warning' : 'checkmark-circle'} size={20} color={statusColor} />
             </View>
             <View>
-              <Text style={{ fontSize: fonts.md, fontWeight: '800', color: statusColor }}>
+              <Text style={{ fontSize: fonts.md, fontWeight: '700', color: statusColor }}>
                 {!hasAlerts
                   ? t('All Systems Normal', 'Tous les systemes normaux')
                   : criticalCount > 0
@@ -323,7 +323,7 @@ function AlertsScreenInner() {
             accessibilityRole="link"
             accessibilityLabel={t('View LRT status on OccasionalTransport', 'Voir le statut du TLR sur OccasionalTransport')}
           >
-            <Text style={{ fontSize: 9, fontWeight: '800', color: '#00A78D', textAlign: 'center' }}>{t('LRT', 'TLR')}{'\n'}{t('STATUS', 'STATUT')}</Text>
+            <Text style={{ fontSize: 9, fontWeight: '700', color: '#00A78D', textAlign: 'center' }}>{t('LRT', 'TLR')}{'\n'}{t('Status', 'Statut')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -334,7 +334,7 @@ function AlertsScreenInner() {
         }, cardShadow]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}>
             <Ionicons name="train-outline" size={18} color={colours.accent} />
-            <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text }}>
+            <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
               {t('O-Train Station Status', 'Statut des stations O-Train')}
             </Text>
           </View>
@@ -355,8 +355,8 @@ function AlertsScreenInner() {
               {/* Recent incidents (last 24h) */}
               {lrt.incidents.filter(inc => inc.hoursAgo <= 24).length > 0 && (
                 <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: colours.border, paddingTop: 12 }}>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: colours.muted, letterSpacing: 1, marginBottom: 8 }}>
-                    {t('LAST 24 HOURS', 'DERNIERES 24 HEURES')}
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: colours.muted, marginBottom: 8 }}>
+                    {t('Last 24 hours', 'Dernieres 24 heures')}
                   </Text>
                   {lrt.incidents.filter(inc => inc.hoursAgo <= 24).map((inc, i) => (
                     <View key={i} style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
@@ -435,15 +435,8 @@ function AlertsScreenInner() {
           {loading ? (
             <View>{[0,1,2].map(i => <AlertCardSkeleton key={i} colours={colours} />)}</View>
           ) : filtered.length === 0 ? (
-            <View style={[styles.centerState, {
-              backgroundColor: colours.surface, borderRadius: 16,
-              borderWidth: 1, borderColor: colours.border, paddingVertical: 40,
-            }, cardShadow]}>
-              <Ionicons name="checkmark-circle" size={48} color="#34c759" />
-              <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text, marginTop: 12 }}>
-                {t('All Clear', 'Tout est normal')}
-              </Text>
-              <Text style={{ fontSize: fonts.sm, color: colours.muted, textAlign: 'center', marginTop: 6, lineHeight: 20 }}>
+            <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+              <Text style={{ fontSize: fonts.sm, color: colours.muted, textAlign: 'center', lineHeight: 20 }}>
                 {activeFilter
                   ? t(`No ${activeFilter === 'elevators' ? 'elevator' : activeFilter} alerts right now.`, `Aucune alerte ${activeFilter === 'elevators' ? 'ascenseur' : activeFilter} en ce moment.`)
                   : t('No active service alerts on OC Transpo.', 'Aucune alerte de service active sur OC Transpo.')
@@ -494,9 +487,6 @@ const styles = StyleSheet.create({
   },
   routeBadge: {
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
-  },
-  centerState: {
-    alignItems: 'center', paddingVertical: 32,
   },
 });
 

@@ -68,7 +68,7 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
     return () => { cancelled = true; };
   }, [item.type, itemId]);
 
-  const cardBase = [{ width: 152, height: 148, borderRadius: 14, padding: 12, backgroundColor: isActive ? colours.accent + '22' : colours.surface, borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, justifyContent: 'space-between' as const }, cardShadow];
+  const cardBase = [{ width: 152, height: 148, borderRadius: 16, padding: 12, backgroundColor: isActive ? colours.accent + '22' : colours.surface, borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, justifyContent: 'space-between' as const }, cardShadow];
 
   if (item.type === 'garbage') {
     const next = garbageEvents[0];
@@ -78,15 +78,10 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
     const BIN_COLOURS: Record<string, string> = { garbage: '#666', 'recycling-blue': '#1a6fbf', 'recycling-black': '#222', 'green-bin': '#2d7a3a', 'yard-waste': '#8b5a00' };
     return (
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#6b7f9918', alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="trash" size={12} color="#6b7f99" />
-          </View>
-          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Garbage Day', 'Jour de collecte')}</Text>
-        </View>
+        <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{t('Garbage Day', 'Jour de collecte')}</Text>
         {next ? (
           <>
-            <Text style={{ fontSize: 20, fontWeight: '900', color: colours.accent }}>{daysLabel}</Text>
+            <Text style={{ fontSize: 20, fontWeight: '700', color: colours.accent }}>{daysLabel}</Text>
             <View style={{ gap: 4 }}>
               <Text style={{ fontSize: 11, fontWeight: '700', color: colours.text }}>{nextDate?.toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
               <View style={{ flexDirection: 'row', gap: 4 }}>
@@ -112,23 +107,17 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
     const dotColor = hasAlerts ? (CATEGORY_COLOUR[active[0]?.category] || '#e8a020') : colours.accent;
     return (
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#e8a02018', alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="notifications" size={12} color="#e8a020" />
-          </View>
-          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Alerts', 'Alertes')}</Text>
-        </View>
+        <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{t('Alerts', 'Alertes')}</Text>
         <View style={{ gap: 4 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: dotColor }} />
-            <Text style={{ fontSize: 13, fontWeight: '800', color: hasAlerts ? dotColor : colours.accent }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: hasAlerts ? dotColor : colours.accent }}>
               {hasAlerts ? `${active.length} ${t('active', 'active' + (active.length > 1 ? 's' : ''))}` : t('All clear', 'Aucune alerte')}
             </Text>
           </View>
           {hasAlerts && <Text style={{ fontSize: 10, color: colours.muted, lineHeight: 14 }} numberOfLines={3}>{active[0].title}</Text>}
           {!hasAlerts && <Text style={{ fontSize: 10, color: colours.muted }}>{t('No service alerts on OC Transpo', 'Aucune alerte de service OC Transpo')}</Text>}
         </View>
-        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap to view all', 'Voir tout')} {'\u2192'}</Text>
       </TouchableOpacity>
     );
   }
@@ -140,15 +129,10 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
   if (item.type === 'gas_prices') {
     return (
       <TouchableOpacity style={cardBase} onPress={() => { fetchGasPrice(); onPress(); }} onLongPress={drag} activeOpacity={0.85}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#6b7f9918', alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="speedometer" size={12} color="#6b7f99" />
-          </View>
-          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Gas Prices', "Prix d'essence")}</Text>
-        </View>
+        <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{t('Gas Prices', "Prix d'essence")}</Text>
         {gasPrice ? (
           <>
-            <Text style={{ fontSize: 26, fontWeight: '900', color: colours.accent }}>{gasPrice}\u00A2</Text>
+            <Text style={{ fontSize: 26, fontWeight: '700', color: colours.accent }}>{gasPrice}\u00A2</Text>
             <Text style={{ fontSize: 10, color: colours.muted }}>{t('Regular', 'Ordinaire')} {'\u00B7'} {t('Ottawa avg', 'Moy. Ottawa')}</Text>
           </>
         ) : gasFailed ? (
@@ -161,7 +145,6 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
         ) : (
           <Text style={{ fontSize: 11, color: colours.muted }}>{t('Tap to load prices', 'Appuyez pour charger')}</Text>
         )}
-        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap for nearby stations', 'Stations a proximite')} {'\u2192'}</Text>
       </TouchableOpacity>
     );
   }
@@ -169,17 +152,11 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
   if (item.type === 'otrain') {
     return (
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: colours.lrt + '18', alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="train" size={12} color={colours.lrt} />
-          </View>
-          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>O-Train</Text>
-        </View>
+        <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>O-Train</Text>
         <View style={{ gap: 4 }}>
-          <Text style={{ fontSize: 13, fontWeight: '800', color: colours.lrt }}>Line 1 & 2</Text>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: colours.lrt }}>Line 1 & 2</Text>
           <Text style={{ fontSize: 10, color: colours.muted }}>{t('Confederation & Trillium Lines', 'Lignes Confederation & Trillium')}</Text>
         </View>
-        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap to view stations', 'Voir les stations')} {'\u2192'}</Text>
       </TouchableOpacity>
     );
   }
@@ -187,14 +164,8 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
   if (item.type === 'services') {
     return (
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="grid" size={12} color={colours.accent} />
-          </View>
-          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Services</Text>
-        </View>
-        <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }}>{t('Ottawa Services', 'Services Ottawa')}</Text>
-        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap to view all', 'Voir tout')} {'\u2192'}</Text>
+        <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>Services</Text>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>{t('Ottawa Services', 'Services Ottawa')}</Text>
       </TouchableOpacity>
     );
   }
@@ -202,14 +173,8 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
   if (item.type === 'discover') {
     return (
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#e8a02018', alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="compass" size={12} color="#e8a020" />
-          </View>
-          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Discover', 'Decouvrir')}</Text>
-        </View>
-        <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }}>{t('Discover Ottawa', 'Decouvrir Ottawa')}</Text>
-        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap to explore', 'Appuyez pour explorer')} {'\u2192'}</Text>
+        <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{t('Discover', 'Decouvrir')}</Text>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>{t('Discover Ottawa', 'Decouvrir Ottawa')}</Text>
       </TouchableOpacity>
     );
   }
@@ -217,14 +182,8 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
   if (item.type === 'news') {
     return (
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#cc3b2a18', alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="newspaper" size={12} color="#cc3b2a" />
-          </View>
-          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('News', 'Nouvelles')}</Text>
-        </View>
-        <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }}>{t('Local News', 'Nouvelles locales')}</Text>
-        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap to read', 'Appuyez pour lire')} {'\u2192'}</Text>
+        <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{t('News', 'Nouvelles')}</Text>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>{t('Local News', 'Nouvelles locales')}</Text>
       </TouchableOpacity>
     );
   }
@@ -232,14 +191,8 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
   if (item.type === 'neighbourhood') {
     return (
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#7b5ea718', alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="map" size={12} color="#7b5ea7" />
-          </View>
-          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Area', 'Quartier')}</Text>
-        </View>
-        <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }} numberOfLines={2}>{t(item.name_en, item.name_fr)}</Text>
-        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap to explore', 'Appuyez pour explorer')} {'\u2192'}</Text>
+        <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{t('Area', 'Quartier')}</Text>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }} numberOfLines={2}>{t(item.name_en, item.name_fr)}</Text>
       </TouchableOpacity>
     );
   }
@@ -254,7 +207,7 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
           {sg?.state === 'live' && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
               <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#cc3b2a' }} />
-              <Text style={{ fontSize: 9, fontWeight: '800', color: '#cc3b2a', letterSpacing: 0.5 }}>{t('LIVE', 'EN DIRECT')} {'\u00B7'} {sg.period}</Text>
+              <Text style={{ fontSize: 9, fontWeight: '700', color: '#cc3b2a', letterSpacing: 0.5 }}>{t('LIVE', 'EN DIRECT')} {'\u00B7'} {sg.period}</Text>
             </View>
           )}
           {teamLogo ? (
@@ -265,9 +218,9 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
             </View>
           )}
         </View>
-        <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text, textAlign: 'center' }} numberOfLines={1}>{item.name}</Text>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text, textAlign: 'center' }} numberOfLines={1}>{item.name}</Text>
         {sg?.state === 'live' && (
-          <Text style={{ fontSize: 11, fontWeight: '800', color: colours.text, textAlign: 'center', marginTop: 2 }}>{sg.homeAbbr} {sg.homeScore} \u00B7 {sg.awayAbbr} {sg.awayScore}</Text>
+          <Text style={{ fontSize: 11, fontWeight: '700', color: colours.text, textAlign: 'center', marginTop: 2 }}>{sg.homeAbbr} {sg.homeScore} \u00B7 {sg.awayAbbr} {sg.awayScore}</Text>
         )}
         {sg?.state === 'pre' && (
           <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted, textAlign: 'center', marginTop: 2 }} numberOfLines={1}>{t('Tonight vs', 'Ce soir c.')} {sg.opponentAbbr} {'\u00B7'} {sg.startTime}</Text>
@@ -280,11 +233,11 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
     const label = t(item.label_en, item.label_fr);
     return (
       <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 16, padding: 14, backgroundColor: isActive ? item.accent + '22' : colours.surface, borderWidth: 1, borderTopWidth: 3, borderColor: isActive ? item.accent : colours.border, borderTopColor: item.accent, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
-        <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: item.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: item.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
           <Ionicons name={item.icon as any} size={18} color={item.accent} />
         </View>
         <View>
-          <Text style={{ fontSize: 14, fontWeight: '800', color: colours.text, marginBottom: 4 }}>{label}</Text>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text, marginBottom: 4 }}>{label}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <Ionicons name="open-outline" size={11} color={colours.muted} />
             <Text style={{ fontSize: 10, color: colours.muted }}>{t('Opens externally', 'Ouvre en externe')}</Text>
@@ -304,12 +257,12 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
         {campus && CAMPUS_LOGOS[campus.id] ? (
           <Image source={CAMPUS_LOGOS[campus.id]} style={{ width: 44, height: 44, borderRadius: 8 }} resizeMode="contain" />
         ) : (
-          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: accent + '18', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="school" size={18} color={accent} />
           </View>
         )}
         <View>
-          <Text style={{ fontSize: 14, fontWeight: '800', color: colours.text, marginBottom: 2 }} numberOfLines={1}>{campus ? t(campus.name, campus.name_fr) : t('My Campus', 'Mon Campus')}</Text>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text, marginBottom: 2 }} numberOfLines={1}>{campus ? t(campus.name, campus.name_fr) : t('My Campus', 'Mon Campus')}</Text>
           {nextShuttle ? (
             <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }} numberOfLines={1}>
               {t('Shuttle', 'Navette')} {nextShuttle.minsAway}m
@@ -329,14 +282,8 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
   if (item.type === 'class_schedule') {
     return (
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="school-outline" size={12} color={colours.accent} />
-          </View>
-          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Schedule', 'Horaire')}</Text>
-        </View>
-        <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }}>{t('Class Schedule', 'Horaire de cours')}</Text>
-        <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>{t('Tap to view', 'Appuyez pour voir')} {'\u2192'}</Text>
+        <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{t('Schedule', 'Horaire')}</Text>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>{t('Class Schedule', 'Horaire de cours')}</Text>
       </TouchableOpacity>
     );
   }
@@ -372,10 +319,7 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
       })()}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: (isLRT ? colours.lrt : isSTO ? '#0072bc' : colours.accent) + '18', alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name={isLRT ? 'train' : 'bus-outline'} size={12} color={isLRT ? colours.lrt : isSTO ? '#0072bc' : colours.accent} />
-          </View>
-          <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text, flex: 1, lineHeight: 16 }} numberOfLines={2}>{toTitleCase(item.name)}</Text>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text, flex: 1, lineHeight: 16 }} numberOfLines={2}>{toTitleCase(item.name)}</Text>
           {!previewLoading && preview.length > 0 && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
               <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: isLive ? (isSTO ? stoBlue : '#22c55e') : colours.muted }} />
@@ -410,9 +354,9 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
             return (
             <TouchableOpacity key={i} activeOpacity={0.7} onPress={() => boardRouter.push('/(tabs)/map' as any)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <View style={{ backgroundColor: badgeColor + '18', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, minWidth: 26, alignItems: 'center' }}>
-                <Text style={{ fontSize: 10, fontWeight: '800', color: badgeColor }}>{(a.routeId || '').split('-')[0]}</Text>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: badgeColor }}>{(a.routeId || '').split('-')[0]}</Text>
               </View>
-              <Text style={{ fontSize: 12, fontWeight: '800', color: a.minsAway <= 2 ? colours.red : badgeColor }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: a.minsAway <= 2 ? colours.red : badgeColor }}>
                 {(() => { const cd = computeCountdown(a.minsAway, previewFetchedAt); return timeFormat === 'absolute'
                   ? fmtAbsTime(a.minsAway)
                   : t(cd.text, cd.textFr); })()}
@@ -427,7 +371,7 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
   );
 });
 
-// ── SavedStopCard component ──────────────────────────────────��───
+// ── SavedStopCard component ─────────────────────────────────────
 export const SavedStopCard = React.memo(function SavedStopCard({ fav, isActive, colours, fonts, t, onPress, onLongPress, cardShadow }: any) {
   const [preview, setPreview] = useState<{ routeId: string; headsign: string; minsAway: number }[]>([]);
   const [previewLoading, setPreviewLoading] = useState(true);
@@ -456,12 +400,9 @@ export const SavedStopCard = React.memo(function SavedStopCard({ fav, isActive, 
   const isLive = previewSource === 'gtfs-rt' || previewSource === 'sto-gtfs-rt';
   const liveColor = isSTO ? '#0072bc' : '#22c55e';
   return (
-    <TouchableOpacity style={[{ width: 152, height: 148, borderRadius: 14, padding: 12, backgroundColor: isActive ? stopColor : colours.surface, borderWidth: 1, borderColor: isActive ? stopColor : colours.border, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
+    <TouchableOpacity style={[{ width: 152, height: 148, borderRadius: 16, padding: 12, backgroundColor: isActive ? stopColor : colours.surface, borderWidth: 1, borderColor: isActive ? stopColor : colours.border, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : stopColor + '18', alignItems: 'center', justifyContent: 'center' }}>
-          <Ionicons name="bus" size={12} color={isActive ? 'white' : stopColor} />
-        </View>
-        <Text style={{ fontSize: 10, fontWeight: '700', color: isActive ? 'rgba(255,255,255,0.7)' : (isSTO ? '#0072bc' : colours.muted), textTransform: 'uppercase', letterSpacing: 0.5 }}>{isSTO ? 'STO' : t('Stop', 'Arr\u00eat')}</Text>
+        <Text style={{ fontSize: 10, fontWeight: '600', color: isActive ? 'rgba(255,255,255,0.7)' : (isSTO ? '#0072bc' : colours.muted) }}>{isSTO ? 'STO' : t('Stop', 'Arr\u00eat')}</Text>
         {!previewLoading && preview.length > 0 && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
             <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: isLive ? liveColor : (isActive ? 'rgba(255,255,255,0.5)' : colours.muted) }} />
@@ -469,16 +410,16 @@ export const SavedStopCard = React.memo(function SavedStopCard({ fav, isActive, 
           </View>
         )}
       </View>
-      <Text style={{ fontSize: 14, fontWeight: '800', color: isActive ? 'white' : colours.text, lineHeight: 18 }} numberOfLines={2}>{toTitleCase(fav.name)}</Text>
+      <Text style={{ fontSize: 14, fontWeight: '700', color: isActive ? 'white' : colours.text, lineHeight: 18 }} numberOfLines={2}>{toTitleCase(fav.name)}</Text>
       <View style={{ gap: 5 }}>
         {previewLoading ? <ActivityIndicator size="small" color={isActive ? 'rgba(255,255,255,0.6)' : stopColor} /> : preview.length === 0 ? <Text style={{ fontSize: 11, color: isActive ? 'rgba(255,255,255,0.5)' : colours.muted }}>{t('No arrivals', 'Aucune arriv\u00e9e')}</Text> : (
           preview.map((a, i) => (
             <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
               <View style={{ backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : stopColor + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, minWidth: 28, alignItems: 'center' }}>
-                <Text style={{ fontSize: 10, fontWeight: '800', color: isActive ? 'white' : stopColor }}>{(a.routeId || '').split('-')[0]}</Text>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: isActive ? 'white' : stopColor }}>{(a.routeId || '').split('-')[0]}</Text>
               </View>
               <Text style={{ fontSize: 11, color: isActive ? 'rgba(255,255,255,0.7)' : colours.muted, flex: 1 }} numberOfLines={1}>{a.headsign ? `\u2192 ${a.headsign}` : ''}</Text>
-              <Text style={{ fontSize: 12, fontWeight: '800', color: isActive ? 'white' : (a.minsAway <= 2 ? colours.red : stopColor) }}>{(() => { const cd = computeCountdown(a.minsAway, previewFetchedAt); return t(cd.text, cd.textFr); })()}</Text>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: isActive ? 'white' : (a.minsAway <= 2 ? colours.red : stopColor) }}>{(() => { const cd = computeCountdown(a.minsAway, previewFetchedAt); return t(cd.text, cd.textFr); })()}</Text>
             </View>
           ))
         )}
@@ -496,11 +437,11 @@ export const SavedPlaceCard = React.memo(function SavedPlaceCard({ place, colour
       <ImageBackground source={photoUrl ? { uri: photoUrl } : undefined} style={{ width: '100%', height: 100, backgroundColor: place.categoryColor + '18', alignItems: photoUrl ? undefined : 'center', justifyContent: photoUrl ? undefined : 'center' }} resizeMode="cover">
         {!photoUrl && <Ionicons name={place.categoryIcon} size={28} color={place.categoryColor} />}
         <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: place.categoryColor, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-          <Text style={{ fontSize: 9, fontWeight: '800', color: 'white', textTransform: 'uppercase' }}>{label}</Text>
+          <Text style={{ fontSize: 9, fontWeight: '700', color: 'white', textTransform: 'uppercase' }}>{label}</Text>
         </View>
       </ImageBackground>
       <View style={{ padding: 10, flex: 1, justifyContent: 'center' }}>
-        <Text style={{ fontSize: 12, fontWeight: '800', color: colours.text, marginBottom: 2 }} numberOfLines={1}>{place.name}</Text>
+        <Text style={{ fontSize: 12, fontWeight: '700', color: colours.text, marginBottom: 2 }} numberOfLines={1}>{place.name}</Text>
         <Text style={{ fontSize: 10, color: colours.muted }} numberOfLines={1}>{place.vicinity}</Text>
         {place.rating && (<View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4 }}><Ionicons name="star" size={10} color={colours.orange} /><Text style={{ fontSize: 10, fontWeight: '600', color: colours.text }}>{place.rating}</Text></View>)}
       </View>

@@ -570,7 +570,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
               <Ionicons name="navigate" size={18} color="#fff" />
             </View>
             <View>
-              <Text style={{ fontSize: 18, fontWeight: '900', color: colours.text }}>{t('Active Trip', 'Trajet actif')}</Text>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text }}>{t('Active Trip', 'Trajet actif')}</Text>
               <Text style={{ fontSize: 12, color: colours.muted }}>
                 {t('Arrives', 'Arrivee')} {fmtTimeFromMs(liveEta || itinerary.endTime)} · {fmtDuration((liveEta || itinerary.endTime) - now)}
               </Text>
@@ -649,7 +649,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
                   <View style={{ alignItems: 'center' }}>
                     <View style={{ backgroundColor: busPosition.agency === 'STO' ? '#00A78D' : '#CE1126', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1.5, borderColor: 'white', flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                       <Ionicons name="bus" size={10} color="white" />
-                      <Text style={{ fontSize: 9, fontWeight: '900', color: 'white' }}>{busPosition.routeId}</Text>
+                      <Text style={{ fontSize: 9, fontWeight: '700', color: 'white' }}>{busPosition.routeId}</Text>
                     </View>
                   </View>
                 </Marker>
@@ -676,7 +676,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
                 <Ionicons name={legIcon as any} size={18} color={legColor} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 15, fontWeight: '800', color: colours.text, lineHeight: 19 }} numberOfLines={2}>{stepTitle}</Text>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text, lineHeight: 19 }} numberOfLines={2}>{stepTitle}</Text>
                 <Text style={{ fontSize: 12, color: colours.muted }} numberOfLines={2}>{stepSubtitle}</Text>
               </View>
               {/* Countdown inline */}
@@ -684,13 +684,13 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
                 departed ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.green + '22', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
                     <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colours.green }} />
-                    <Text style={{ fontSize: 12, fontWeight: '800', color: colours.green }}>{t('Now', 'Maint.')}</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: colours.green }}>{t('Now', 'Maint.')}</Text>
                   </View>
                 ) : (
                   <Animated.View style={{ opacity: pulseAnim }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colours.accentAlt + '22', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
                       <Ionicons name="time-outline" size={12} color={colours.accentAlt} />
-                      <Text style={{ fontSize: 16, fontWeight: '900', color: colours.accentAlt, fontVariant: ['tabular-nums'] }}>
+                      <Text style={{ fontSize: 16, fontWeight: '700', color: colours.accentAlt, fontVariant: ['tabular-nums'] }}>
                         {countdownMin}:{String(countdownRemSec).padStart(2, '0')}
                       </Text>
                     </View>
@@ -813,13 +813,13 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
           {getOffAlert && (
             <View style={{ marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.red + '22', borderWidth: 1, borderColor: colours.red, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
               <Ionicons name="notifications" size={16} color={colours.red} />
-              <Text style={{ flex: 1, fontSize: 13, fontWeight: '800', color: colours.red }}>{t('Get off soon!', 'Descendez bient\u00f4t!')}</Text>
+              <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: colours.red }}>{t('Get off soon!', 'Descendez bient\u00f4t!')}</Text>
             </View>
           )}
           {tripEnded && (
             <View style={{ marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.green + '22', borderWidth: 1, borderColor: colours.green, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
               <Ionicons name="checkmark-circle" size={16} color={colours.green} />
-              <Text style={{ flex: 1, fontSize: 13, fontWeight: '800', color: colours.green }}>{t('You have arrived!', 'Vous etes arrive!')}</Text>
+              <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: colours.green }}>{t('You have arrived!', 'Vous etes arrive!')}</Text>
             </View>
           )}
 
@@ -850,7 +850,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
                 </View>
               )}
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>
                   {t('Next', 'Suivant')}
                 </Text>
                 <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }} numberOfLines={1}>{nextStepTitle}</Text>
@@ -872,7 +872,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
                   <View key={i} style={{ flex: 1, height: 26, borderRadius: 8, backgroundColor: done ? color : active ? color + '44' : colours.border, borderWidth: active ? 1 : 0, borderColor: color, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
                     <Ionicons name={(LEG_ICONS[leg.mode] || 'bus') as any} size={11} color={done || active ? '#fff' : colours.muted} />
                     {leg.routeShortName && (
-                      <Text style={{ fontSize: 9, fontWeight: '800', color: done || active ? '#fff' : colours.muted }}>{leg.routeShortName}</Text>
+                      <Text style={{ fontSize: 9, fontWeight: '700', color: done || active ? '#fff' : colours.muted }}>{leg.routeShortName}</Text>
                     )}
                   </View>
                 );
@@ -903,7 +903,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
             accessibilityLabel={tripEnded ? t('Done', 'Terminer') : t('End trip', 'Terminer le trajet')}
           >
             <Ionicons name={tripEnded ? 'checkmark-circle' : 'stop-circle'} size={20} color="#fff" />
-            <Text style={{ fontSize: 16, fontWeight: '800', color: '#fff' }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>
               {tripEnded ? t('Done', 'Terminer') : t('End Trip', 'Terminer le trajet')}
             </Text>
           </TouchableOpacity>

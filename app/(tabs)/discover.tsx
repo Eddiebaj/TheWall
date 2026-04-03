@@ -216,7 +216,7 @@ function DiscoverScreenInner() {
             <TouchableOpacity
               key={tab}
               onPress={() => setActiveSection(tab)}
-              style={{ flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: active ? colours.accent + '15' : 'transparent' }}
+              style={{ flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: active ? colours.tintBg : 'transparent' }}
             >
               <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: active ? colours.accent : colours.muted }}>
                 {tab === 'feed' ? t('Local Feed', 'Fil local') : t('Neighbourhoods', 'Quartiers')}
@@ -234,16 +234,13 @@ function DiscoverScreenInner() {
         >
           {/* Trending near you */}
           <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 10 }}>
               {t('Trending Near You', 'Tendances pr\u00e8s de vous')}
             </Text>
             {trendingNeighbourhoods.length === 0 ? (
-              <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                <Ionicons name="compass-outline" size={24} color={colours.muted} />
-                <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 6 }}>
-                  {t("Explore Ottawa's neighbourhoods", "Explorez les quartiers d'Ottawa")}
-                </Text>
-              </View>
+              <Text style={{ fontSize: fonts.sm, color: colours.muted, paddingVertical: 12 }}>
+                {t("Explore Ottawa's neighbourhoods", "Explorez les quartiers d'Ottawa")}
+              </Text>
             ) : (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
                 {trendingNeighbourhoods.map(n => {
@@ -254,12 +251,12 @@ function DiscoverScreenInner() {
                       key={n.id}
                       activeOpacity={0.9}
                       onPress={() => { setSelected(n); setSheetVisible(true); }}
-                      style={[{ width: 150, height: 110, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: colours.border }, cardShadow]}
+                      style={[{ width: 150, height: 110, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: colours.border }, cardShadow]}
                     >
                       <ImageBackground source={{ uri: n.photoUrl }} style={{ width: '100%', height: '100%', justifyContent: 'flex-end' }} resizeMode="cover">
                         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)' }} />
                         <View style={{ padding: 10 }}>
-                          <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3 }}>{name}</Text>
+                          <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3 }}>{name}</Text>
                           {dist ? <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11 }}>{dist}</Text> : null}
                         </View>
                       </ImageBackground>
@@ -272,7 +269,7 @@ function DiscoverScreenInner() {
 
           {/* New deals this week */}
           <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 10 }}>
               {t('New Deals This Week', 'Nouvelles offres cette semaine')}
             </Text>
             {dealsLoading ? (
@@ -281,12 +278,9 @@ function DiscoverScreenInner() {
                 <FeedCardSkeleton colours={colours} />
               </View>
             ) : communityDeals.length === 0 ? (
-              <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                <Ionicons name="pricetag-outline" size={24} color={colours.muted} />
-                <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 6 }}>
-                  {t('No deals this week', 'Aucune offre cette semaine')}
-                </Text>
-              </View>
+              <Text style={{ fontSize: fonts.sm, color: colours.muted, paddingVertical: 12 }}>
+                {t('No deals this week', 'Aucune offre cette semaine')}
+              </Text>
             ) : (
               communityDeals.slice(0, 5).map(deal => {
                 const dayNames = language === 'fr' ? ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -296,7 +290,7 @@ function DiscoverScreenInner() {
                     key={deal.id}
                     style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: isToday ? '#2ecc71' + '40' : colours.border, backgroundColor: isToday ? '#2ecc7108' : colours.surface, marginBottom: 8 }, cardShadow]}
                   >
-                    <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: isToday ? '#2ecc71' + '18' : colours.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: isToday ? '#2ecc71' + '18' : colours.tintBg, alignItems: 'center', justifyContent: 'center' }}>
                       <Ionicons name="pricetag" size={16} color={isToday ? '#2ecc71' : colours.accent} />
                     </View>
                     <View style={{ flex: 1 }}>
@@ -316,7 +310,7 @@ function DiscoverScreenInner() {
 
           {/* Events this weekend */}
           <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 10 }}>
               {t('Events This Weekend', '\u00c9v\u00e9nements ce week-end')}
             </Text>
             {eventsLoading ? (
@@ -324,12 +318,9 @@ function DiscoverScreenInner() {
                 <HorizontalCardsSkeleton colours={colours} count={3} />
               </View>
             ) : weekendEvents.length === 0 ? (
-              <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                <Ionicons name="calendar-outline" size={24} color={colours.muted} />
-                <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 6 }}>
-                  {t('No events this weekend', 'Aucun \u00e9v\u00e9nement ce weekend')}
-                </Text>
-              </View>
+              <Text style={{ fontSize: fonts.sm, color: colours.muted, paddingVertical: 12 }}>
+                {t('No events this weekend', 'Aucun \u00e9v\u00e9nement ce weekend')}
+              </Text>
             ) : (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
                 {weekendEvents.map(ev => (
@@ -337,7 +328,7 @@ function DiscoverScreenInner() {
                     key={ev.id}
                     activeOpacity={0.9}
                     onPress={() => ev.url && Linking.openURL(ev.url)}
-                    style={[{ width: 200, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface }, cardShadow]}
+                    style={[{ width: 200, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface }, cardShadow]}
                   >
                     {ev.image ? (
                       <ImageBackground source={{ uri: ev.image }} style={{ width: '100%', height: 100 }} resizeMode="cover">
@@ -365,16 +356,13 @@ function DiscoverScreenInner() {
 
           {/* Latest news */}
           <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 10 }}>
               {t('Latest News', 'Derni\u00e8res nouvelles')}
             </Text>
             {newsArticles.length === 0 ? (
-              <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                <Ionicons name="newspaper-outline" size={24} color={colours.muted} />
-                <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 6 }}>
-                  {t('No news available', 'Aucune nouvelle disponible')}
-                </Text>
-              </View>
+              <Text style={{ fontSize: fonts.sm, color: colours.muted, paddingVertical: 12 }}>
+                {t('No news available', 'Aucune nouvelle disponible')}
+              </Text>
             ) : (
               newsArticles.slice(0, 5).map(article => (
                 <TouchableOpacity
@@ -408,7 +396,7 @@ function DiscoverScreenInner() {
         <>
           {/* Search */}
           <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 14, paddingHorizontal: 14 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 16, paddingHorizontal: 14 }}>
               <Ionicons name="search" size={16} color={colours.muted} />
               <TextInput
                 value={search}
@@ -426,7 +414,7 @@ function DiscoverScreenInner() {
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100 }}>
-            <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, marginBottom: 12 }}>
               {sorted.length} {t('neighbourhoods', 'quartiers')}
             </Text>
 
@@ -464,7 +452,7 @@ function DiscoverScreenInner() {
                       <Ionicons name={isSaved ? 'bookmark' : 'bookmark-outline'} size={16} color="#fff" />
                     </TouchableOpacity>
                     <View style={{ padding: 14 }}>
-                      <Text style={{ color: '#fff', fontSize: fonts.lg, fontWeight: '800', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 }}>{name}</Text>
+                      <Text style={{ color: '#fff', fontSize: fonts.lg, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 }}>{name}</Text>
                       <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: fonts.sm, marginTop: 2, textShadowColor: 'rgba(0,0,0,0.4)', textShadowRadius: 3 }} numberOfLines={2}>{desc}</Text>
                     </View>
                   </ImageBackground>

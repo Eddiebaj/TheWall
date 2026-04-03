@@ -138,8 +138,8 @@ function SkeletonCard({ colours }: { colours: any }) {
       <View style={{ width: 160, height: 16, borderRadius: 6, backgroundColor: colours.muted + '25', marginBottom: 8 }} />
       <View style={{ width: 80, height: 12, borderRadius: 4, backgroundColor: colours.muted + '15', marginBottom: 10 }} />
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <View style={{ width: 52, height: 32, borderRadius: 10, backgroundColor: colours.muted + '15' }} />
-        <View style={{ width: 52, height: 32, borderRadius: 10, backgroundColor: colours.muted + '15' }} />
+        <View style={{ width: 52, height: 32, borderRadius: 12, backgroundColor: colours.muted + '15' }} />
+        <View style={{ width: 52, height: 32, borderRadius: 12, backgroundColor: colours.muted + '15' }} />
       </View>
     </View>
   );
@@ -165,8 +165,8 @@ const RouteBadge = React.memo(function RouteBadge({
         style={{
           minWidth: 52,
           height: 32,
-          borderRadius: 10,
-          backgroundColor: colours.accent + '15',
+          borderRadius: 12,
+          backgroundColor: colours.tintBg,
           borderWidth: 1,
           borderColor: colours.accent + '30',
           alignItems: 'center',
@@ -174,7 +174,7 @@ const RouteBadge = React.memo(function RouteBadge({
           paddingHorizontal: 8,
         }}
       >
-        <Text style={{ fontSize: 15, fontWeight: '800', color: colours.accent }}>{routeId}</Text>
+        <Text style={{ fontSize: 15, fontWeight: '700', color: colours.accent }}>{routeId}</Text>
         {isGhost && (
           <View
             style={{
@@ -282,7 +282,7 @@ const StopCard = React.memo(function StopCard({
                   }}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '800', color: colours.accent, minWidth: 36 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: colours.accent, minWidth: 36 }}>
                       {a.routeId}
                     </Text>
                     <Text style={{ fontSize: 13, color: colours.muted, flex: 1 }} numberOfLines={1}>
@@ -356,7 +356,7 @@ const StopCard = React.memo(function StopCard({
                 }}
                 style={{
                   flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  marginTop: 10, paddingVertical: 10, borderRadius: 10,
+                  marginTop: 10, paddingVertical: 10, borderRadius: 12,
                   borderWidth: 1,
                   borderColor: TEAL + '40',
                   backgroundColor: TEAL + '08',
@@ -423,7 +423,7 @@ function SheetSeparator({ colours }: { colours: any }) {
 function SheetSectionHeader({ label, colours }: { label: string; colours: any }) {
   return (
     <View style={{ paddingHorizontal: 16, paddingTop: 18, paddingBottom: 8 }}>
-      <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+      <Text style={{ fontSize: 13, fontWeight: '600', color: colours.muted }}>
         {label}
       </Text>
     </View>
@@ -557,11 +557,11 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
             }}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={{ fontSize: 17, fontWeight: '800', color: colours.text }}>
+              <Text style={{ fontSize: 17, fontWeight: '700', color: colours.text }}>
                 {t('Nearby Transit', 'Transport a proximite')}
               </Text>
               {activeLayers && Object.values(activeLayers).filter(Boolean).length > 0 && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 8, backgroundColor: colours.accent + '20', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 8, backgroundColor: colours.tintBg, borderRadius: 12, paddingHorizontal: 6, paddingVertical: 2 }}>
                   <Ionicons name="layers" size={12} color={colours.accent} />
                   <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent }}>
                     {Object.values(activeLayers).filter(Boolean).length}
@@ -585,7 +585,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                 marginHorizontal: 16,
                 marginBottom: 8,
                 backgroundColor: AMBER_BG,
-                borderRadius: 10,
+                borderRadius: 12,
                 paddingHorizontal: 12,
                 paddingVertical: 8,
                 alignSelf: 'flex-start',
@@ -620,7 +620,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
           {happeningNow && happeningNow.length > 0 && (
             <View style={{ paddingBottom: 8 }}>
               <View style={{ paddingHorizontal: 16, paddingBottom: 6 }}>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: colours.muted }}>
                   {t('Happening Now', 'En ce moment')}
                 </Text>
               </View>
@@ -744,7 +744,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
               activeOpacity={0.8}
               style={{
                 backgroundColor: TEAL,
-                borderRadius: 14,
+                borderRadius: 16,
                 paddingVertical: 14,
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -754,7 +754,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
               accessibilityLabel={t('Plan a trip', 'Planifier un trajet')}
             >
               <Ionicons name="navigate" size={16} color="#fff" />
-              <Text style={{ fontWeight: '800', fontSize: 15, color: '#fff' }}>
+              <Text style={{ fontWeight: '700', fontSize: 15, color: '#fff' }}>
                 {t('Plan a trip', 'Planifier un trajet')}
               </Text>
             </TouchableOpacity>
@@ -810,7 +810,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                         marginBottom: 8,
                       }}
                     >
-                      <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: isToday ? '#2ecc7118' : colours.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
+                      <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: isToday ? '#2ecc7118' : colours.tintBg, alignItems: 'center', justifyContent: 'center' }}>
                         <Ionicons name="pricetag" size={16} color={isToday ? '#2ecc71' : colours.accent} />
                       </View>
                       <View style={{ flex: 1 }}>

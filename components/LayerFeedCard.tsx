@@ -74,7 +74,7 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 10, fontWeight: '700' },
   timeBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
   rating: { fontSize: 11 },
-  title: { fontSize: 14, fontWeight: '800', marginBottom: 2 },
+  title: { fontSize: 14, fontWeight: '700', marginBottom: 2 },
   subtitle: { fontSize: 12, marginBottom: 6 },
   footer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   meta: { fontSize: 11 },

@@ -136,21 +136,21 @@ function NeighbourhoodSection({ colours, fonts, cardShadow, events, onPress }: P
               {evtCount > 0 && (
                 <View style={{ position: 'absolute', top: 8, left: 8 }} pointerEvents="none">
                   <View style={{ backgroundColor: n.accent, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
-                    <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>{evtCount} {evtCount === 1 ? t('event', '\u00e9v\u00e9nement') : t('events', '\u00e9v\u00e9nements')}</Text>
+                    <Text style={{ color: '#fff', fontSize: 9, fontWeight: '700' }}>{evtCount} {evtCount === 1 ? t('event', '\u00e9v\u00e9nement') : t('events', '\u00e9v\u00e9nements')}</Text>
                   </View>
                 </View>
               )}
               {/* Transit score badge */}
               {score && (
                 <View style={{ position: 'absolute', bottom: 40, left: 8, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 }} pointerEvents="none">
-                  <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>
+                  <Text style={{ color: '#fff', fontSize: 9, fontWeight: '700' }}>
                     {t('Transit Score', 'Score transit')}: {score.transit_score}/10
                   </Text>
                 </View>
               )}
               {/* Name */}
               <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 10 }} pointerEvents="none">
-                <Text numberOfLines={2} style={{ color: '#fff', fontSize: fonts.md, fontWeight: '800', lineHeight: 18, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 }}>
+                <Text numberOfLines={2} style={{ color: '#fff', fontSize: fonts.md, fontWeight: '700', lineHeight: 18, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 }}>
                   {name}
                 </Text>
               </View>

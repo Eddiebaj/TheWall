@@ -377,7 +377,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
               <View key={i} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>{v.name}</Text>
-                  {v.isActive && <View style={{ backgroundColor: '#00A78D', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}><Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>{t('NOW', 'ACTIF')}</Text></View>}
+                  {v.isActive && <View style={{ backgroundColor: '#00A78D', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}><Text style={{ color: '#fff', fontSize: 9, fontWeight: '700' }}>{t('NOW', 'ACTIF')}</Text></View>}
                 </View>
                 <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{v.address}</Text>
                 {(v.isActive ? v.activeDeals : v.upcomingDeals).map((d: any, j: number) => (
@@ -393,7 +393,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
             {/* Community-submitted deals */}
             {communityDeals.length > 0 && (
               <View style={{ marginTop: nearbyDeals.length > 0 ? 16 : 0 }}>
-                <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, marginBottom: 8 }}>
                   {t('Community Deals', 'Offres communautaires')}
                 </Text>
                 {communityDeals.map((d, i) => {
@@ -462,7 +462,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
                       setDealStatus(null);
                       setDealModerationReason('');
                     }}
-                    style={{ marginTop: 12, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, backgroundColor: colours.accent + '15', borderWidth: 1, borderColor: colours.accent + '30' }}
+                    style={{ marginTop: 12, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, backgroundColor: colours.tintBg, borderWidth: 1, borderColor: colours.accent + '30' }}
                     accessibilityRole="button"
                   >
                     <Text style={{ fontSize: 13, fontWeight: '600', color: colours.accent, textAlign: 'center' }}>{t('Done', 'Fermer')}</Text>
@@ -543,19 +543,19 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
             {/* Transit score card */}
             {transitScore && (
               <View style={{ backgroundColor: n.accent + '12', borderRadius: 12, padding: 16, marginTop: 12, marginBottom: 8, borderWidth: 1, borderColor: n.accent + '30', alignItems: 'center' }}>
-                <Text style={{ fontSize: 36, fontWeight: '900', color: n.accent }}>{transitScore.transit_score}</Text>
+                <Text style={{ fontSize: 36, fontWeight: '700', color: n.accent }}>{transitScore.transit_score}</Text>
                 <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, marginTop: 2 }}>{t('Transit Score', 'Score transit')}</Text>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-around', width: '100%', marginTop: 14 }}>
                   <View style={{ alignItems: 'center' }}>
-                    <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>{transitScore.stop_count}</Text>
+                    <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text }}>{transitScore.stop_count}</Text>
                     <Text style={{ fontSize: 10, color: colours.muted, fontWeight: '600', marginTop: 2 }}>{t('stops', 'arr\u00eats')}</Text>
                   </View>
                   <View style={{ alignItems: 'center' }}>
-                    <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>{transitScore.route_count}</Text>
+                    <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text }}>{transitScore.route_count}</Text>
                     <Text style={{ fontSize: 10, color: colours.muted, fontWeight: '600', marginTop: 2 }}>{t('routes', 'lignes')}</Text>
                   </View>
                   <View style={{ alignItems: 'center' }}>
-                    <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>{transitScore.avg_frequency}</Text>
+                    <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text }}>{transitScore.avg_frequency}</Text>
                     <Text style={{ fontSize: 10, color: colours.muted, fontWeight: '600', marginTop: 2 }}>{t('min avg frequency', 'min freq. moy.')}</Text>
                   </View>
                 </View>
@@ -581,7 +581,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
           <TouchableOpacity key={i} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border }} onPress={() => Linking.openURL(a.link)}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
               <View style={{ backgroundColor: SOURCE_COLOURS[a.source] || colours.accent, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 }}>
-                <Text style={{ color: '#fff', fontSize: 8, fontWeight: '800' }}>{a.source}</Text>
+                <Text style={{ color: '#fff', fontSize: 8, fontWeight: '700' }}>{a.source}</Text>
               </View>
               <Text style={{ fontSize: 10, color: colours.muted, fontWeight: '600' }}>{timeAgo(a.pubDate, language)}</Text>
             </View>
@@ -599,7 +599,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
         <View style={{ paddingTop: 16, paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colours.border }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: fonts.xxl, fontWeight: '800', color: colours.text }}>{name}</Text>
+              <Text style={{ fontSize: fonts.xxl, fontWeight: '700', color: colours.text }}>{name}</Text>
               <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{description}</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={{ marginLeft: 12, backgroundColor: colours.surface, borderRadius: 20, width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colours.border }}>

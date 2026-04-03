@@ -342,7 +342,7 @@ export default function AccountScreen() {
                 <Text style={{ fontSize: fonts.xl, fontWeight: '700', color: colours.text, marginBottom: 16 }}>{t('Report a bug', 'Signaler un bogue')}</Text>
 
                 <TextInput
-                  style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colours.text, minHeight: 80, textAlignVertical: 'top', marginBottom: 12 }}
+                  style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colours.text, minHeight: 80, textAlignVertical: 'top', marginBottom: 12 }}
                   placeholder={t('What went wrong?', 'Que s\'est-il passe?')}
                   placeholderTextColor={colours.muted}
                   value={bugMessage}
@@ -357,7 +357,7 @@ export default function AccountScreen() {
                       key={s}
                       onPress={() => setBugScreen(bugScreen === s ? '' : s)}
                       style={{
-                        paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1,
+                        paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1,
                         borderColor: bugScreen === s ? colours.red : colours.border,
                         backgroundColor: bugScreen === s ? colours.errorBg : colours.surface,
                       }}>

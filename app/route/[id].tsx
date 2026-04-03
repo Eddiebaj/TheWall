@@ -138,7 +138,7 @@ export default function RouteScreen() {
           <View style={{ alignItems: 'center', paddingTop: 20, paddingBottom: 16 }}>
             <View style={{ backgroundColor: routeColor, borderRadius: 16, paddingHorizontal: 28, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <Ionicons name="bus" size={28} color="#fff" />
-              <Text style={{ color: '#fff', fontSize: fonts.xxl, fontWeight: '800' }}>{routeLabel}</Text>
+              <Text style={{ color: '#fff', fontSize: fonts.xxl, fontWeight: '700' }}>{routeLabel}</Text>
             </View>
           </View>
 
@@ -150,7 +150,7 @@ export default function RouteScreen() {
                   key={i}
                   onPress={() => { setSelectedDir(i); setSelectedStop(null); setStopFreq(null); }}
                   style={{
-                    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
+                    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12,
                     borderWidth: 1,
                     backgroundColor: selectedDir === i ? routeColor + '18' : colours.surface,
                     borderColor: selectedDir === i ? routeColor : colours.border,
@@ -170,18 +170,18 @@ export default function RouteScreen() {
               {/* Stats row */}
               <View style={[{ flexDirection: 'row', backgroundColor: colours.surface, borderRadius: 16, borderWidth: 1, borderColor: colours.border, padding: 14, marginBottom: 14, gap: 0 }, cardShadow]}>
                 <View style={{ flex: 1, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 11, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('First Bus', 'Premier bus')}</Text>
-                  <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text, marginTop: 2 }}>{dir.firstBus}</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: colours.muted }}>{t('First Bus', 'Premier bus')}</Text>
+                  <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text, marginTop: 2 }}>{dir.firstBus}</Text>
                 </View>
                 <View style={{ width: 1, backgroundColor: colours.border }} />
                 <View style={{ flex: 1, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 11, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Last Bus', 'Dernier bus')}</Text>
-                  <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text, marginTop: 2 }}>{dir.lastBus}</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: colours.muted }}>{t('Last Bus', 'Dernier bus')}</Text>
+                  <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text, marginTop: 2 }}>{dir.lastBus}</Text>
                 </View>
                 <View style={{ width: 1, backgroundColor: colours.border }} />
                 <View style={{ flex: 1, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 11, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Frequency', 'Frequence')}</Text>
-                  <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text, marginTop: 2 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: colours.muted }}>{t('Frequency', 'Frequence')}</Text>
+                  <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text, marginTop: 2 }}>
                     {dir.avgFrequencyMin ? `${dir.avgFrequencyMin}m` : '—'}
                   </Text>
                 </View>
@@ -220,7 +220,7 @@ export default function RouteScreen() {
               </View>
 
               {/* Stop list header */}
-              <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 8 }}>
                 {dir.stops.length} {t('Stops', 'Arrets')}
               </Text>
 

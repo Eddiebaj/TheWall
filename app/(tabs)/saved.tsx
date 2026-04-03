@@ -359,7 +359,7 @@ function SavedScreenInner() {
 
       {/* Header */}
       <View style={{ paddingHorizontal: PAD, paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 12 }}>
-        <Text style={{ fontSize: 28, fontWeight: '900', color: colours.text, letterSpacing: -0.5 }}>
+        <Text style={{ fontSize: 28, fontWeight: '700', color: colours.text, letterSpacing: -0.5 }}>
           {t('Saved', 'Sauvegardes')}
         </Text>
       </View>
@@ -371,20 +371,8 @@ function SavedScreenInner() {
       ) : isEmpty ? (
         /* Empty state */
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 }}>
-          <View style={{
-            width: 80, height: 80, borderRadius: 40,
-            backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 20,
-          }}>
-            <Ionicons name="bookmark-outline" size={36} color={colours.accent} />
-          </View>
-          <Text style={{ fontSize: 20, fontWeight: '800', color: colours.text, textAlign: 'center', marginBottom: 8 }}>
-            {t('Nothing saved yet', 'Rien de sauvegarde')}
-          </Text>
-          <Text style={{ fontSize: 14, color: colours.muted, textAlign: 'center', lineHeight: 20 }}>
-            {t(
-              'Search for stops, places and routes on the map to save them here.',
-              'Recherchez des arrets, lieux et trajets sur la carte pour les sauvegarder ici.',
-            )}
+          <Text style={{ fontSize: fonts.sm, color: colours.muted }}>
+            {t('No saved stops', 'Aucun arret sauvegarde')}
           </Text>
         </View>
       ) : (
@@ -412,7 +400,7 @@ function SavedScreenInner() {
               }}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text, flex: 1 }} numberOfLines={1}>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text, flex: 1 }} numberOfLines={1}>
                   {mostUsedStop.name}
                 </Text>
                 {cachedStops[mostUsedStop.id] ? (
@@ -425,7 +413,7 @@ function SavedScreenInner() {
                     backgroundColor: TEAL + '20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
                   }}>
                     <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: TEAL }} />
-                    <Text style={{ fontSize: 10, fontWeight: '800', color: TEAL }}>LIVE</Text>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: TEAL }}>LIVE</Text>
                   </View>
                 )}
               </View>
@@ -437,10 +425,10 @@ function SavedScreenInner() {
                     <View key={`${a.routeId}-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       <View style={{
                         minWidth: 40, height: 26, borderRadius: 8, paddingHorizontal: 6,
-                        backgroundColor: colours.accent + '15', borderWidth: 1, borderColor: colours.accent + '30',
+                        backgroundColor: colours.tintBg, borderWidth: 1, borderColor: colours.accent + '30',
                         alignItems: 'center', justifyContent: 'center',
                       }}>
-                        <Text style={{ fontSize: 13, fontWeight: '800', color: colours.accent }}>{a.routeId}</Text>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>{a.routeId}</Text>
                       </View>
                       <Text style={{ fontSize: 13, fontWeight: '700', color: a.minsAway < 2 ? TEAL : colours.text }}>
                         {a.minsAway <= 0 ? '< 1' : `${a.minsAway}m`}
@@ -491,7 +479,7 @@ function SavedScreenInner() {
                 ...cardShadow,
               }}
             >
-              <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+              <Text style={{ fontSize: 11, fontWeight: '600', color: colours.muted, marginBottom: 4 }}>
                 {t('Last trip', 'Dernier trajet')}
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
@@ -521,7 +509,7 @@ function SavedScreenInner() {
                         width: HALF_W,
                         height: 120,
                         backgroundColor: colours.card,
-                        borderRadius: 14,
+                        borderRadius: 16,
                         padding: 12,
                         borderWidth: 1,
                         borderColor: colours.border,
@@ -530,7 +518,7 @@ function SavedScreenInner() {
                       }}
                     >
                       <View>
-                        <Text style={{ fontSize: 14, fontWeight: '800', color: colours.text }} numberOfLines={2}>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }} numberOfLines={2}>
                           {stop.name}
                         </Text>
                         <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }}>#{stop.id}</Text>
@@ -544,9 +532,9 @@ function SavedScreenInner() {
                               <View key={`${a.routeId}-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                                 <View style={{
                                   minWidth: 32, height: 22, borderRadius: 6, paddingHorizontal: 4,
-                                  backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center',
+                                  backgroundColor: colours.tintBg, alignItems: 'center', justifyContent: 'center',
                                 }}>
-                                  <Text style={{ fontSize: 11, fontWeight: '800', color: colours.accent }}>{a.routeId}</Text>
+                                  <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent }}>{a.routeId}</Text>
                                 </View>
                                 <Text style={{ fontSize: 11, fontWeight: '700', color: a.minsAway < 2 ? TEAL : colours.text }}>
                                   {a.minsAway <= 0 ? '<1' : `${a.minsAway}m`}
@@ -606,7 +594,7 @@ function SavedScreenInner() {
                     style={{
                       width: HALF_W,
                       height: 120,
-                      borderRadius: 14,
+                      borderRadius: 16,
                       overflow: 'hidden',
                       borderWidth: 1,
                       borderColor: colours.border,
@@ -662,7 +650,7 @@ function SavedScreenInner() {
       <Modal visible={!!scheduleModal} transparent animationType="fade" onRequestClose={() => setScheduleModal(null)}>
         <TouchableOpacity activeOpacity={1} onPress={() => setScheduleModal(null)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
           <TouchableOpacity activeOpacity={1} style={{ backgroundColor: colours.card, borderRadius: 20, padding: 24, width: SCREEN_W - 48, borderWidth: 1, borderColor: colours.border }}>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text, marginBottom: 4 }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text, marginBottom: 4 }}>
               {t('Schedule Alert', 'Planifier une alerte')}
             </Text>
             <Text style={{ fontSize: 13, color: colours.muted, marginBottom: 16 }}>
@@ -670,19 +658,19 @@ function SavedScreenInner() {
             </Text>
 
             {/* Time picker — hour + minute */}
-            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
-              {t('Bus departure time', 'Heure de d\u00e9part du bus')}
+            <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 8 }}>
+              {t('Bus departure time', 'Heure de depart du bus')}
             </Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16 }}>
               <TouchableOpacity onPress={() => setSchedHour(h => (h - 1 + 24) % 24)} style={{ padding: 8 }}>
                 <Ionicons name="chevron-up" size={20} color={colours.muted} />
               </TouchableOpacity>
               <View style={{ backgroundColor: colours.surface, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, borderWidth: 1, borderColor: colours.border, minWidth: 60, alignItems: 'center' }}>
-                <Text style={{ fontSize: 24, fontWeight: '800', color: colours.text }}>{String(schedHour).padStart(2, '0')}</Text>
+                <Text style={{ fontSize: 24, fontWeight: '700', color: colours.text }}>{String(schedHour).padStart(2, '0')}</Text>
               </View>
-              <Text style={{ fontSize: 24, fontWeight: '800', color: colours.text }}>:</Text>
+              <Text style={{ fontSize: 24, fontWeight: '700', color: colours.text }}>:</Text>
               <View style={{ backgroundColor: colours.surface, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, borderWidth: 1, borderColor: colours.border, minWidth: 60, alignItems: 'center' }}>
-                <Text style={{ fontSize: 24, fontWeight: '800', color: colours.text }}>{String(schedMin).padStart(2, '0')}</Text>
+                <Text style={{ fontSize: 24, fontWeight: '700', color: colours.text }}>{String(schedMin).padStart(2, '0')}</Text>
               </View>
               <TouchableOpacity onPress={() => setSchedMin(m => (m + 5) % 60)} style={{ padding: 8 }}>
                 <Ionicons name="chevron-up" size={20} color={colours.muted} />

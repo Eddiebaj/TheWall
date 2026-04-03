@@ -21,7 +21,7 @@ export default function PremiumBadge({ size = 'small' }: PremiumBadgeProps) {
     }}>
       <Text style={{
         fontSize: isSmall ? 9 : 12,
-        fontWeight: '800',
+        fontWeight: '700',
         color: TEAL,
         letterSpacing: 1,
       }}>

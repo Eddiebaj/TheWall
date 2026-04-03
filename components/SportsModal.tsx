@@ -186,51 +186,6 @@ export default function SportsModal({ visible, onClose, colours, fonts, t, langu
         results.push({ team: team.name, games: [] });
       }
     }
-    // Hardcoded schedules for teams without API
-    const now = new Date();
-    const CHARGE_SCHEDULE = [
-      { date: '2026-04-08T23:00:00Z', opponent: 'Seattle Torrent', opponentAbbr: 'SEA', homeAway: 'vs' },
-      { date: '2026-04-18T18:00:00Z', opponent: 'New York Sirens', opponentAbbr: 'NY', homeAway: 'vs' },
-      { date: '2026-04-25T23:00:00Z', opponent: 'Toronto Sceptres', opponentAbbr: 'TOR', homeAway: 'vs' },
-    ].filter(g => new Date(g.date) > now).slice(0, 5).map(g => ({ ...g, status: '' }));
-    if (CHARGE_SCHEDULE.length > 0) results.push({ team: 'Charge', games: CHARGE_SCHEDULE });
-
-    const ATLETICO_SCHEDULE = [
-      { date: '2026-04-04T20:00:00Z', opponent: 'Forge FC', opponentAbbr: 'FOR', homeAway: '@' },
-      { date: '2026-04-12T20:00:00Z', opponent: 'Cavalry FC', opponentAbbr: 'CAV', homeAway: '@' },
-      { date: '2026-04-19T18:00:00Z', opponent: 'Surge', opponentAbbr: 'SUR', homeAway: '@' },
-      { date: '2026-04-26T17:00:00Z', opponent: 'Valour FC', opponentAbbr: 'VAL', homeAway: 'vs' },
-      { date: '2026-05-01T23:30:00Z', opponent: 'York United', opponentAbbr: 'YRK', homeAway: '@' },
-      { date: '2026-05-17T17:00:00Z', opponent: 'HFX Wanderers', opponentAbbr: 'HFX', homeAway: 'vs' },
-      { date: '2026-05-24T18:00:00Z', opponent: 'Forge FC', opponentAbbr: 'FOR', homeAway: 'vs' },
-      { date: '2026-05-30T22:00:00Z', opponent: 'Pacific FC', opponentAbbr: 'PAC', homeAway: '@' },
-      { date: '2026-06-06T02:00:00Z', opponent: 'Valour FC', opponentAbbr: 'VAL', homeAway: '@' },
-      { date: '2026-06-09T23:00:00Z', opponent: 'Surge', opponentAbbr: 'SUR', homeAway: 'vs' },
-    ].filter(g => new Date(g.date) > now).slice(0, 5).map(g => ({ ...g, status: '' }));
-    if (ATLETICO_SCHEDULE.length > 0) results.push({ team: 'Atl\u00E9tico', games: ATLETICO_SCHEDULE });
-
-    const BLACKJACKS_SCHEDULE = [
-      { date: '2026-05-12T23:30:00Z', opponent: 'Surge', opponentAbbr: 'SUR', homeAway: 'vs' },
-      { date: '2026-05-18T23:00:00Z', opponent: 'River Lions', opponentAbbr: 'NIA', homeAway: 'vs' },
-      { date: '2026-05-21T23:30:00Z', opponent: 'Honey Badgers', opponentAbbr: 'HB', homeAway: 'vs' },
-      { date: '2026-05-23T23:00:00Z', opponent: 'Alliance', opponentAbbr: 'MTL', homeAway: 'vs' },
-      { date: '2026-06-02T23:30:00Z', opponent: 'Bandits', opponentAbbr: 'VAN', homeAway: 'vs' },
-      { date: '2026-06-04T23:30:00Z', opponent: 'Sea Bears', opponentAbbr: 'WPG', homeAway: 'vs' },
-      { date: '2026-06-21T23:00:00Z', opponent: 'SSK', opponentAbbr: 'SSK', homeAway: 'vs' },
-      { date: '2026-06-23T23:30:00Z', opponent: 'Shooting Stars', opponentAbbr: 'SCB', homeAway: 'vs' },
-      { date: '2026-06-28T17:00:00Z', opponent: 'River Lions', opponentAbbr: 'NIA', homeAway: 'vs' },
-      { date: '2026-07-08T23:30:00Z', opponent: 'Alliance', opponentAbbr: 'MTL', homeAway: 'vs' },
-      { date: '2026-07-12T20:00:00Z', opponent: 'Honey Badgers', opponentAbbr: 'HB', homeAway: 'vs' },
-      { date: '2026-07-22T23:30:00Z', opponent: 'Shooting Stars', opponentAbbr: 'SCB', homeAway: 'vs' },
-    ].filter(g => new Date(g.date) > now).slice(0, 5).map(g => ({ ...g, status: '' }));
-    if (BLACKJACKS_SCHEDULE.length > 0) results.push({ team: 'Blackjacks', games: BLACKJACKS_SCHEDULE });
-
-    const SIXTYSEVENS_SCHEDULE = [
-      { date: '2026-03-18T19:00:00Z', opponent: 'Oshawa Generals', opponentAbbr: 'OSH', homeAway: 'vs' },
-      { date: '2026-03-21T19:00:00Z', opponent: 'Kingston Frontenacs', opponentAbbr: 'KGN', homeAway: 'vs' },
-    ].filter(g => new Date(g.date) > now).slice(0, 5).map(g => ({ ...g, status: '' }));
-    if (SIXTYSEVENS_SCHEDULE.length > 0) results.push({ team: "67's", games: SIXTYSEVENS_SCHEDULE });
-
     setSportsSchedule(results);
     setSportsScheduleLoading(false);
     if (onScheduleLoaded) onScheduleLoaded(results);
@@ -250,7 +205,7 @@ export default function SportsModal({ visible, onClose, colours, fonts, t, langu
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: colours.border }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Ionicons name="trophy" size={20} color="#c8102e" />
-              <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text }}>{t('Ottawa Sports', 'Sports Ottawa')}</Text>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text }}>{t('Ottawa Sports', 'Sports Ottawa')}</Text>
             </View>
             <TouchableOpacity onPress={handleClose} style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="close" size={16} color={colours.text} />
@@ -367,39 +322,56 @@ export default function SportsModal({ visible, onClose, colours, fonts, t, langu
             {/* Schedule tab */}
             {sportsTab === 'schedule' && (() => {
               const withGames = sportsSchedule.filter(s => s.games.length > 0);
+              const noApiTeams = OTTAWA_TEAMS.filter(tm => !tm.nhl && !tm.espn);
               return (
                 <View style={{ gap: 12 }}>
                   {sportsScheduleLoading ? (
                     <View style={{ padding: 32, alignItems: 'center' }}><ActivityIndicator color={colours.accent} /></View>
-                  ) : withGames.length === 0 ? (
+                  ) : withGames.length === 0 && noApiTeams.length === 0 ? (
                     <View style={{ padding: 32, alignItems: 'center' }}>
                       <Ionicons name="calendar-outline" size={32} color={colours.muted} />
                       <Text style={{ fontSize: fonts.md, color: colours.muted, marginTop: 10, textAlign: 'center' }}>
                         {t('No upcoming games', 'Aucun match \u00E0 venir')}
                       </Text>
                     </View>
-                  ) : withGames.map((s, i) => (
-                    <View key={i} style={{ backgroundColor: colours.bg, borderRadius: 12, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 6 }}>
-                        <Ionicons name="trophy" size={12} color={colours.accent} />
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent, textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.team}</Text>
-                      </View>
-                      {s.games.map((g: any, j: number) => {
-                        const d = new Date(g.date);
-                        return (
-                          <View key={j} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: j > 0 ? 1 : 0, borderTopColor: colours.border, gap: 10 }}>
-                            <View style={{ width: 44 }}>
-                              <Text style={{ fontSize: 11, fontWeight: '800', color: colours.accent }}>{d.toLocaleDateString(language === 'fr' ? 'fr-CA' : 'en-CA', { month: 'short', day: 'numeric' })}</Text>
-                              <Text style={{ fontSize: 10, color: colours.muted }}>{d.toLocaleDateString(language === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'short' })}</Text>
+                  ) : (<>
+                    {withGames.map((s, i) => (
+                      <View key={i} style={{ backgroundColor: colours.bg, borderRadius: 12, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 6 }}>
+                          <Ionicons name="trophy" size={12} color={colours.accent} />
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent, textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.team}</Text>
+                        </View>
+                        {s.games.map((g: any, j: number) => {
+                          const d = new Date(g.date);
+                          return (
+                            <View key={j} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: j > 0 ? 1 : 0, borderTopColor: colours.border, gap: 10 }}>
+                              <View style={{ width: 44 }}>
+                                <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent }}>{d.toLocaleDateString(language === 'fr' ? 'fr-CA' : 'en-CA', { month: 'short', day: 'numeric' })}</Text>
+                                <Text style={{ fontSize: 10, color: colours.muted }}>{d.toLocaleDateString(language === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'short' })}</Text>
+                              </View>
+                              <Text style={{ fontSize: 13, fontWeight: '700', color: g.homeAway === 'vs' ? colours.accent : colours.muted, width: 20, textAlign: 'center' }}>{g.homeAway}</Text>
+                              <Text style={{ flex: 1, fontSize: fonts.md, fontWeight: '600', color: colours.text }} numberOfLines={1}>{g.opponent}</Text>
+                              <Text style={{ fontSize: 11, color: colours.muted }}>{d.toLocaleTimeString(language === 'fr' ? 'fr-CA' : 'en-CA', { hour: 'numeric', minute: '2-digit' })}</Text>
                             </View>
-                            <Text style={{ fontSize: 13, fontWeight: '700', color: g.homeAway === 'vs' ? colours.accent : colours.muted, width: 20, textAlign: 'center' }}>{g.homeAway}</Text>
-                            <Text style={{ flex: 1, fontSize: fonts.md, fontWeight: '600', color: colours.text }} numberOfLines={1}>{g.opponent}</Text>
-                            <Text style={{ fontSize: 11, color: colours.muted }}>{d.toLocaleTimeString(language === 'fr' ? 'fr-CA' : 'en-CA', { hour: 'numeric', minute: '2-digit' })}</Text>
-                          </View>
-                        );
-                      })}
-                    </View>
-                  ))}
+                          );
+                        })}
+                      </View>
+                    ))}
+                    {noApiTeams.map(tm => (
+                      <View key={tm.name} style={{ backgroundColor: colours.bg, borderRadius: 12, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 6 }}>
+                          <Ionicons name="trophy" size={12} color={colours.accent} />
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent, textTransform: 'uppercase', letterSpacing: 0.5 }}>{tm.name}</Text>
+                        </View>
+                        <TouchableOpacity onPress={() => Linking.openURL(tm.url).catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, gap: 6 }}>
+                          <Ionicons name="open-outline" size={14} color={colours.muted} />
+                          <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.muted }}>
+                            {t('Schedule unavailable \u00B7 View on web \u2192', 'Calendrier indisponible \u00B7 Voir en ligne \u2192')}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </>)}
                 </View>
               );
             })()}

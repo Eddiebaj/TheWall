@@ -145,11 +145,11 @@ export default function OnboardingScreen() {
               fill={TEAL}
             />
           </Svg>
-          <Text style={{ fontSize: 52, fontWeight: '900', color: '#fff', letterSpacing: -2, marginBottom: 8 }}>
+          <Text style={{ fontSize: 52, fontWeight: '700', color: '#fff', letterSpacing: -2, marginBottom: 8 }}>
             Route<Text style={{ color: TEAL }}>O</Text>
           </Text>
           <View style={{ width: 48, height: 3, borderRadius: 2, backgroundColor: TEAL, marginBottom: 32 }} />
-          <Text style={{ fontSize: 28, fontWeight: '800', color: '#fff', textAlign: 'center', letterSpacing: -0.5, lineHeight: 36, marginBottom: 12 }}>
+          <Text style={{ fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', letterSpacing: -0.5, lineHeight: 36, marginBottom: 12 }}>
             {t('Welcome to RouteO', 'Bienvenue sur RouteO')}
           </Text>
           <Text style={{ fontSize: 16, color: '#8899aa', textAlign: 'center', lineHeight: 24, maxWidth: 300 }}>
@@ -166,14 +166,8 @@ export default function OnboardingScreen() {
           }}>
             <Ionicons name="location" size={64} color={TEAL} />
           </View>
-          <Text style={{ fontSize: 28, fontWeight: '800', color: '#fff', textAlign: 'center', letterSpacing: -0.5, lineHeight: 36, marginBottom: 12 }}>
+          <Text style={{ fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', letterSpacing: -0.5, lineHeight: 36, marginBottom: 32 }}>
             {t('See buses near you', 'Voir les bus pres de vous')}
-          </Text>
-          <Text style={{ fontSize: 16, color: '#8899aa', textAlign: 'center', lineHeight: 24, maxWidth: 300, marginBottom: 32 }}>
-            {t(
-              'RouteO uses your location to show live arrivals at nearby stops.',
-              'RouteO utilise votre position pour afficher les arrivees en direct aux arrets a proximite.',
-            )}
           </Text>
           {locationGranted ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -200,7 +194,7 @@ export default function OnboardingScreen() {
               ) : (
                 <>
                   <Ionicons name="location" size={18} color="#fff" />
-                  <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>
                     {t('Enable Location', 'Activer la position')}
                   </Text>
                 </>
@@ -211,7 +205,7 @@ export default function OnboardingScreen() {
 
         {/* ── Slide 3: Add stops (REQUIRED) ─────────────────────── */}
         <View style={{ width, flex: 1, paddingHorizontal: 36, paddingTop: 100 }}>
-          <Text style={{ fontSize: 28, fontWeight: '800', color: '#fff', textAlign: 'center', letterSpacing: -0.5, lineHeight: 36, marginBottom: 8 }}>
+          <Text style={{ fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', letterSpacing: -0.5, lineHeight: 36, marginBottom: 8 }}>
             {t('What do you take most often?', 'Quel trajet prenez-vous?')}
           </Text>
           <Text style={{ fontSize: 14, color: '#8899aa', textAlign: 'center', lineHeight: 20, marginBottom: 24 }}>
@@ -221,7 +215,7 @@ export default function OnboardingScreen() {
           {/* Search bar */}
           <View style={{
             flexDirection: 'row', alignItems: 'center', backgroundColor: '#131d2e',
-            borderRadius: 14, borderWidth: 1.5, borderColor: '#1e2a3a', paddingHorizontal: 14, gap: 10,
+            borderRadius: 16, borderWidth: 1.5, borderColor: '#1e2a3a', paddingHorizontal: 14, gap: 10,
           }}>
             <Ionicons name="search" size={18} color="#5a6a7a" />
             <TextInput
@@ -286,7 +280,7 @@ export default function OnboardingScreen() {
           }}>
             <Ionicons name="checkmark-done" size={44} color="#7b5ea7" />
           </View>
-          <Text style={{ fontSize: 28, fontWeight: '800', color: '#fff', textAlign: 'center', letterSpacing: -0.5, lineHeight: 36, marginBottom: 12 }}>
+          <Text style={{ fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', letterSpacing: -0.5, lineHeight: 36, marginBottom: 12 }}>
             {t("You're all set!", 'Vous etes pret!')}
           </Text>
           <Text style={{ fontSize: 16, color: '#8899aa', textAlign: 'center', lineHeight: 24, maxWidth: 300 }}>
@@ -343,7 +337,7 @@ export default function OnboardingScreen() {
               accessibilityRole="button"
               accessibilityLabel={t('Next', 'Suivant')}
             >
-              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 17 }}>
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 17 }}>
                 {t('Next', 'Suivant')}
               </Text>
               <Ionicons name="arrow-forward" size={18} color="#fff" />
@@ -376,7 +370,7 @@ export default function OnboardingScreen() {
             accessibilityRole="button"
             accessibilityLabel={t('Next', 'Suivant')}
           >
-            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 17 }}>
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 17 }}>
               {t('Next', 'Suivant')}
             </Text>
             <Ionicons name="arrow-forward" size={18} color="#fff" />
@@ -395,7 +389,7 @@ export default function OnboardingScreen() {
             accessibilityRole="button"
             accessibilityLabel={t('Get Started', 'Commencer')}
           >
-            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 17 }}>
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 17 }}>
               {finishing ? t('Saving...', 'Sauvegarde...') : t('Get Started', 'Commencer')}
             </Text>
           </TouchableOpacity>
@@ -412,7 +406,7 @@ export default function OnboardingScreen() {
               accessibilityRole="button"
               accessibilityLabel={t('Next', 'Suivant')}
             >
-              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 17 }}>
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 17 }}>
                 {t('Next', 'Suivant')}
               </Text>
               <Ionicons name="arrow-forward" size={18} color="#fff" />

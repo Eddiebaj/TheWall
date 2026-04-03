@@ -241,7 +241,7 @@ const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) =>
       onPress={() => onPress(bus)}
     >
       <View style={{ backgroundColor: bg, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, minWidth: 26, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' }}>
-        <Text style={{ color: '#fff', fontSize: 11, fontWeight: '900', letterSpacing: -0.3 }} allowFontScaling={false}>{label}</Text>
+        <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700', letterSpacing: -0.3 }} allowFontScaling={false}>{label}</Text>
       </View>
     </Marker>
   );
@@ -1667,7 +1667,7 @@ export default function MapScreen() {
               onPress={() => mapRef.current?.animateToRegion({ latitude: cl.lat, longitude: cl.lng, latitudeDelta: debouncedDelta * 0.4, longitudeDelta: debouncedDelta * 0.4 }, 400)}
             >
               <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#7b5ea7', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.6)' }}>
-                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>{cl.count}</Text>
+                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{cl.count}</Text>
               </View>
             </Marker>
           ))}
@@ -1718,7 +1718,7 @@ export default function MapScreen() {
             anchor={{ x: 0.5, y: 1 }}
           >
             <View style={{ alignItems: 'center' }}>
-              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 4 }}>
+              <View style={{ width: 28, height: 28, borderRadius: 16, backgroundColor: colours.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 4 }}>
                 <Ionicons name="location" size={16} color="#fff" />
               </View>
               <View style={{ width: 2, height: 6, backgroundColor: colours.accent, marginTop: -1 }} />
@@ -1799,7 +1799,7 @@ export default function MapScreen() {
             )}
             </View>
             {busLoading ? <ActivityIndicator color={colours.accent} size="small" /> : (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.accent + '18', borderWidth: 1, borderColor: colours.accent + '40', paddingHorizontal: 8, paddingVertical: 6, borderRadius: 18 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.tintBg, borderWidth: 1, borderColor: colours.accent + '40', paddingHorizontal: 8, paddingVertical: 6, borderRadius: 18 }}>
                 <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: zoomTooFar ? colours.muted : colours.accent }} />
                 <Text style={{ color: zoomTooFar ? colours.muted : colours.accent, fontSize: 10, fontWeight: '700' }}>
                   {zoomTooFar ? t('Zoom in', 'Zoomer') : `${visibleBuses.length}`}
@@ -1809,7 +1809,7 @@ export default function MapScreen() {
           </View>
           {lastUpdated ? <Text style={{ fontSize: 9, color: colours.muted, textAlign: 'right', marginTop: 3 }}>{t('Updated', 'Mis à jour')} {lastUpdated}</Text> : null}
           {placeSuggestions.length > 0 && (
-            <View style={{ backgroundColor: colours.surface, borderRadius: 10, borderWidth: 1, borderColor: colours.border, marginTop: 4, overflow: 'hidden' }}>
+            <View style={{ backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginTop: 4, overflow: 'hidden' }}>
               {placeSuggestions.map((s, i) => (
                 <TouchableOpacity
                   key={s.placeId}
@@ -1847,7 +1847,7 @@ export default function MapScreen() {
             const border = active ? f.color : colours.border;
             return (
               <TouchableOpacity key={f.key}
-                style={{ borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: bg, borderWidth: 1, borderColor: border, flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                style={{ borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: bg, borderWidth: 1, borderColor: border, flexDirection: 'row', alignItems: 'center', gap: 4 }}
                 onPress={() => {
                   if (isDiscovery) {
                     if (discoveryCategory === f.key) {
@@ -1916,7 +1916,7 @@ export default function MapScreen() {
               </Text>
               {key === 'deals' && activeDealsNearby > 0 && (
                 <View style={{ minWidth: 16, height: 16, borderRadius: 8, backgroundColor: isActive ? 'rgba(255,255,255,0.3)' : '#27AE60', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 }}>
-                  <Text style={{ fontSize: 9, fontWeight: '800', color: 'white' }}>{activeDealsNearby}</Text>
+                  <Text style={{ fontSize: 9, fontWeight: '700', color: 'white' }}>{activeDealsNearby}</Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -1961,7 +1961,7 @@ export default function MapScreen() {
             {contribSent ? (
               <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 }}>
                 <Ionicons name="checkmark-circle" size={48} color="#00A78D" />
-                <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text, marginTop: 12 }}>{t('Thank you!', 'Merci!')}</Text>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text, marginTop: 12 }}>{t('Thank you!', 'Merci!')}</Text>
                 <Text style={{ fontSize: 14, color: colours.muted, textAlign: 'center', marginTop: 6, lineHeight: 20 }}>
                   {t('Deal submitted! It will appear on the map shortly.', 'Offre soumise! Elle apparaitra bientot sur la carte.')}
                 </Text>
@@ -1974,12 +1974,12 @@ export default function MapScreen() {
               </View>
             ) : (
               <View style={{ paddingHorizontal: 20 }}>
-                <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text, marginBottom: 4 }}>{t('Add a Place or Deal', 'Ajouter un lieu ou une offre')}</Text>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text, marginBottom: 4 }}>{t('Add a Place or Deal', 'Ajouter un lieu ou une offre')}</Text>
                 <Text style={{ fontSize: 13, color: colours.muted, marginBottom: 16 }}>{t('Help fellow Ottawa riders discover great spots', 'Aidez les usagers a decouvrir de bons endroits')}</Text>
 
-                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Place Name', 'Nom du lieu')} *</Text>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 4 }}>{t('Place Name', 'Nom du lieu')} *</Text>
                 <TextInput
-                  style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colours.text, marginBottom: 12 }}
+                  style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colours.text, marginBottom: 12 }}
                   placeholder={t('e.g. The Clocktower Brew Pub', 'ex. The Clocktower Brew Pub')}
                   placeholderTextColor={colours.muted}
                   value={contribName}
@@ -1987,14 +1987,14 @@ export default function MapScreen() {
                   onChangeText={(v) => setContribName(v.replace(/<[^>]*>/g, ''))}
                 />
 
-                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Deal Type', 'Type d\'offre')} *</Text>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 4 }}>{t('Deal Type', 'Type d\'offre')} *</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
                   {['Happy Hour', 'Food Special', 'Student Deal', 'Event', 'Other'].map(type => (
                     <TouchableOpacity
                       key={type}
                       onPress={() => setContribType(type)}
                       style={{
-                        paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1,
+                        paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1,
                         borderColor: contribType === type ? '#7b5ea7' : colours.border,
                         backgroundColor: contribType === type ? '#7b5ea7' + '18' : colours.surface,
                       }}>
@@ -2005,9 +2005,9 @@ export default function MapScreen() {
                   ))}
                 </View>
 
-                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Details', 'Details')} *</Text>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 4 }}>{t('Details', 'Details')} *</Text>
                 <TextInput
-                  style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colours.text, minHeight: 60, textAlignVertical: 'top', marginBottom: 12 }}
+                  style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colours.text, minHeight: 60, textAlignVertical: 'top', marginBottom: 12 }}
                   placeholder={t('e.g. $5 pints Mon-Fri 3-6pm', 'ex. Pintes a 5$ lun-ven 15h-18h')}
                   placeholderTextColor={colours.muted}
                   value={contribInfo}
@@ -2016,9 +2016,9 @@ export default function MapScreen() {
                   multiline
                 />
 
-                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Address', 'Adresse')} ({t('optional', 'optionnel')})</Text>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 4 }}>{t('Address', 'Adresse')} ({t('optional', 'optionnel')})</Text>
                 <TextInput
-                  style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colours.text, marginBottom: 16 }}
+                  style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colours.text, marginBottom: 16 }}
                   placeholder={t('e.g. 575 Bank St', 'ex. 575 rue Bank')}
                   placeholderTextColor={colours.muted}
                   value={contribAddress}
@@ -2079,7 +2079,7 @@ export default function MapScreen() {
           shadowOffset: { width: 0, height: -3 }, elevation: 10,
         }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
-            <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+            <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colours.tintBg, alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="location" size={20} color={colours.accent} />
             </View>
             <View style={{ flex: 1 }}>
@@ -2108,7 +2108,7 @@ export default function MapScreen() {
               accessibilityLabel={t('Route here', 'M\'y rendre')}
             >
               <Ionicons name="navigate" size={16} color="#fff" />
-              <Text style={{ fontSize: fonts.sm, fontWeight: '800', color: '#fff' }}>{t('Route here', 'M\'y rendre')}</Text>
+              <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: '#fff' }}>{t('Route here', 'M\'y rendre')}</Text>
               <Ionicons name="arrow-forward" size={14} color="#fff" />
             </TouchableOpacity>
           </View>
@@ -2131,7 +2131,7 @@ export default function MapScreen() {
             <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border }} />
           </View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 8 }}>
-            <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>
+            <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text }}>
               {discoveryResults.length} {t('Results', 'Resultats')}
             </Text>
             <TouchableOpacity onPress={clearDiscovery} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Clear results', 'Effacer les resultats')}>
@@ -2154,7 +2154,7 @@ export default function MapScreen() {
                     Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
                   }}
                 >
-                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: meta.color + '18', alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: meta.color + '18', alignItems: 'center', justifyContent: 'center' }}>
                     <Ionicons name={meta.icon} size={18} color={meta.color} />
                   </View>
                   <View style={{ flex: 1 }}>
@@ -2218,7 +2218,7 @@ export default function MapScreen() {
                     <Text style={{ color: busLrt ? '#ffffff' : sheetIconText, fontSize: 18 }}>{busLrt ? '🚊' : '🚌'}</Text>
                   </View>
                   <View>
-                    <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>
+                    <Text style={{ fontSize: fonts.xl, fontWeight: '700', color: colours.text }}>
                       {busLrt ? 'O-Train' : `${t('Route', 'Route')} ${selectedBus.routeId.split('-')[0]}`}
                     </Text>
                     <Text style={{ fontSize: fonts.sm, color: colours.muted }}>
@@ -2239,9 +2239,9 @@ export default function MapScreen() {
                   <View style={{ height: 6, borderRadius: 3, backgroundColor: busIsSTO ? '#00A78D' : '#CE1126', width: `${Math.min(100, selectedBus.progress ?? 0)}%` as `${number}%` }} />
                 </View>
                 {busEtaInfo && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, backgroundColor: colours.accent + '12', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, backgroundColor: colours.tintBg, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 }}>
                     <Ionicons name="location-outline" size={14} color={colours.accent} />
-                    <Text style={{ fontSize: 13, fontWeight: '800', color: colours.accent }}>~{busEtaInfo.mins} min</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>~{busEtaInfo.mins} min</Text>
                     <Text style={{ fontSize: 12, color: colours.muted, flex: 1 }} numberOfLines={1}>
                       {t(`to ${toTitleCase(busEtaInfo.stopName)}`, `avant ${toTitleCase(busEtaInfo.stopName)}`)}
                     </Text>
@@ -2280,7 +2280,7 @@ export default function MapScreen() {
                       </View>
                     )}
                   </View>
-                  <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text, marginBottom: 4 }} numberOfLines={3}>
+                  <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text, marginBottom: 4 }} numberOfLines={3}>
                     {selectedEvent.name}
                   </Text>
                   {selectedEvent.date && (
@@ -2302,7 +2302,7 @@ export default function MapScreen() {
                   style={{ marginTop: 14, backgroundColor: selectedEvent.source === 'ticketmaster' ? '#026CDF' : getCatColor(selectedEvent.category), borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
                   accessibilityRole="link"
                   accessibilityLabel={selectedEvent.source === 'ticketmaster' ? t('Get tickets', 'Acheter des billets') : t('View event', 'Voir l\'evenement')}>
-                  <Text style={{ color: 'white', fontWeight: '800', fontSize: fonts.md }}>
+                  <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>
                     {selectedEvent.source === 'ticketmaster' ? t('Get Tickets', 'Acheter des billets') : t('View Event', 'Voir l\'evenement')} →
                   </Text>
                 </TouchableOpacity>
@@ -2313,7 +2313,7 @@ export default function MapScreen() {
           {selectedCluster && (
             <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>
+                <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text }}>
                   {selectedCluster.length} {t('Events Here', 'evenements ici')}
                 </Text>
                 <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} onPress={hideSheet} accessibilityRole="button" accessibilityLabel={t('Close panel', 'Fermer le panneau')}>
@@ -2353,7 +2353,7 @@ export default function MapScreen() {
                         </View>
                       ))}
                     </View>
-                    <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text, marginBottom: 4 }}>
+                    <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text, marginBottom: 4 }}>
                       {selectedVenue.name}
                     </Text>
                     <Text style={{ fontSize: fonts.sm, color: colours.muted, marginBottom: 6 }}>{selectedVenue.address}</Text>
@@ -2427,7 +2427,7 @@ export default function MapScreen() {
                   style={{ marginTop: 14, backgroundColor: color, borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
                   accessibilityRole="link"
                   accessibilityLabel={t('Open in Maps', 'Ouvrir dans Maps')}>
-                  <Text style={{ color: 'white', fontWeight: '800', fontSize: fonts.md }}>
+                  <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>
                     {t('Open in Maps', 'Ouvrir dans Maps')}
                   </Text>
                 </TouchableOpacity>
@@ -2445,7 +2445,7 @@ export default function MapScreen() {
                       <Text style={{ fontSize: 10, fontWeight: '700', color: '#3498db' }}>{t('Place', 'Lieu')}</Text>
                     </View>
                   </View>
-                  <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text, marginBottom: 4 }}>
+                  <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text, marginBottom: 4 }}>
                     {searchedPlace.name}
                   </Text>
                   <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{searchedPlace.address}</Text>
@@ -2460,7 +2460,7 @@ export default function MapScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={t('Route here', 'M\'y rendre')}>
                 <Ionicons name="navigate" size={16} color="white" />
-                <Text style={{ color: 'white', fontWeight: '800', fontSize: fonts.md }}>
+                <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>
                   {t('Route here', 'M\'y rendre')} →
                 </Text>
               </TouchableOpacity>
@@ -2479,7 +2479,7 @@ export default function MapScreen() {
                       </Text>
                     </View>
                   </View>
-                  <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text, marginBottom: 4 }}>
+                  <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text, marginBottom: 4 }}>
                     {selectedSavedPin.name}
                   </Text>
                   {selectedSavedPin.routeLabel && (
@@ -2505,7 +2505,7 @@ export default function MapScreen() {
                 style={{ marginTop: 14, backgroundColor: selectedSavedPin.kind === 'stop' ? '#e74c3c' : selectedSavedPin.kind === 'place' ? '#e8a020' : selectedSavedPin.kind === 'neighbourhood' ? '#7b5ea7' : '#2ecc71', borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
                 accessibilityRole="link"
                 accessibilityLabel={t('Open in Maps', 'Ouvrir dans Maps')}>
-                <Text style={{ color: 'white', fontWeight: '800', fontSize: fonts.md }}>
+                <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>
                   {t('Open in Maps', 'Ouvrir dans Maps')}
                 </Text>
               </TouchableOpacity>
@@ -2530,7 +2530,7 @@ export default function MapScreen() {
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 8 }}>
             <View style={{ flex: 1, marginRight: 12 }}>
               <Text style={{ fontSize: 12, color: colours.muted, fontWeight: '600' }}>{t('Routes to', 'Itineraires vers')}</Text>
-              <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }} numberOfLines={1}>{tripDestLabel}</Text>
+              <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text }} numberOfLines={1}>{tripDestLabel}</Text>
             </View>
             <TouchableOpacity onPress={clearTripResults} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
               <Ionicons name="close" size={16} color={colours.text} />
@@ -2544,8 +2544,7 @@ export default function MapScreen() {
             </View>
           ) : tripResults.length === 0 ? (
             <View style={{ alignItems: 'center', paddingVertical: 24, paddingHorizontal: 20 }}>
-              <Ionicons name="warning-outline" size={28} color={colours.muted} />
-              <Text style={{ color: colours.muted, fontSize: fonts.sm, marginTop: 8, textAlign: 'center' }}>{t('No routes found. Try the full planner for more options.', 'Aucun itineraire trouve. Essayez le planificateur complet.')}</Text>
+              <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center' }}>{t('No routes found. Try the full planner for more options.', 'Aucun itineraire trouve. Essayez le planificateur complet.')}</Text>
             </View>
           ) : (
             <ScrollView style={{ maxHeight: 320, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
@@ -2560,11 +2559,11 @@ export default function MapScreen() {
                   <View key={i} style={{ backgroundColor: colours.bg, borderRadius: 16, borderWidth: 1, borderColor: colours.border, padding: 14, marginBottom: 10 }}>
                     {/* Time + duration row */}
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text }}>
+                      <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
                         {fmt(depTime)} → {fmt(arrTime)}
                       </Text>
-                      <View style={{ backgroundColor: colours.accent + '18', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-                        <Text style={{ fontSize: 12, fontWeight: '800', color: colours.accent }}>{durationMin} min</Text>
+                      <View style={{ backgroundColor: colours.tintBg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accent }}>{durationMin} min</Text>
                       </View>
                     </View>
                     {/* Route pills */}
@@ -2584,7 +2583,7 @@ export default function MapScreen() {
                           <View key={li} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                             {li > 0 && itin.legs[li - 1]?.mode !== 'WALK' && <Ionicons name="arrow-forward" size={10} color={colours.muted} />}
                             <View style={{ backgroundColor: bg, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
-                              <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800' }}>{leg.routeShortName || leg.mode}</Text>
+                              <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{leg.routeShortName || leg.mode}</Text>
                             </View>
                             {leg.headsign && <Text style={{ fontSize: 11, color: colours.muted }} numberOfLines={1}>{leg.headsign}</Text>}
                           </View>
@@ -2608,7 +2607,7 @@ export default function MapScreen() {
                         style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#34c759', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 }}
                         accessibilityRole="button"
                         accessibilityLabel={t('Start trip', 'Demarrer le trajet')}>
-                        <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>GO</Text>
+                        <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>GO</Text>
                         <Ionicons name="arrow-forward" size={12} color="#fff" />
                       </TouchableOpacity>
                     </View>
@@ -2649,19 +2648,19 @@ export default function MapScreen() {
             {selectedPin.photoUrl ? (
               <Image
                 source={{ uri: selectedPin.photoUrl }}
-                style={{ width: 48, height: 48, borderRadius: 10 }}
+                style={{ width: 48, height: 48, borderRadius: 12 }}
                 resizeMode="cover"
               />
             ) : (
               <View style={{
-                width: 48, height: 48, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+                width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
                 backgroundColor: LAYER_CONFIG[selectedPin.category].color + '22',
               }}>
                 <Ionicons name={LAYER_CONFIG[selectedPin.category].icon as any} size={20} color={LAYER_CONFIG[selectedPin.category].color} />
               </View>
             )}
             <View style={{ flex: 1, marginHorizontal: 10 }}>
-              <Text style={{ fontSize: 16, fontWeight: '800', color: colours.text }} numberOfLines={1}>{selectedPin.name}</Text>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: colours.text }} numberOfLines={1}>{selectedPin.name}</Text>
               <Text style={{ fontSize: 13, color: colours.muted, marginTop: 2 }} numberOfLines={1}>{selectedPin.subtitle}</Text>
             </View>
             <TouchableOpacity onPress={() => setSelectedPin(null)} accessibilityLabel={t('Close', 'Fermer')} accessibilityRole="button">
@@ -2677,7 +2676,7 @@ export default function MapScreen() {
             <Text style={{ fontSize: 12, color: colours.muted, marginBottom: 4 }}>{selectedPin.time}</Text>
           )}
           <TouchableOpacity
-            style={{ backgroundColor: colours.accent, borderRadius: 10, paddingVertical: 10, alignItems: 'center', marginTop: 8 }}
+            style={{ backgroundColor: colours.accent, borderRadius: 12, paddingVertical: 10, alignItems: 'center', marginTop: 8 }}
             onPress={() => {
               const pin = selectedPin;
               setSelectedPin(null);

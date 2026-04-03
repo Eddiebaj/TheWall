@@ -87,7 +87,7 @@ function WheelColumn({ items, selectedIndex, onChange, colours, formatItem }: {
       <View pointerEvents="none" style={{
         position: 'absolute', top: paddingItems * WHEEL_ITEM_H, left: 0, right: 0,
         height: WHEEL_ITEM_H, borderTopWidth: 1, borderBottomWidth: 1,
-        borderColor: colours.border, backgroundColor: colours.accent + '08', zIndex: 1,
+        borderColor: colours.border, backgroundColor: colours.tintBg, zIndex: 1,
       }} />
       <ScrollView
         ref={scrollRef}
@@ -365,7 +365,7 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
               <Ionicons name="arrow-back" size={24} color={colours.text} />
             </TouchableOpacity>
           )}
-          <Text style={{ fontSize: 17, fontWeight: '800', color: colours.text }}>
+          <Text style={{ fontSize: 17, fontWeight: '700', color: colours.text }}>
             {step === 'list' ? t('Class Schedule', 'Horaire de cours') : (editingId ? t('Edit Class', 'Modifier le cours') : t('Add Class', 'Ajouter un cours'))}
           </Text>
           {step === 'list' ? (
@@ -389,7 +389,7 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
               padding: 14, marginBottom: 16,
             }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-                <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: '#00A78D15', alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ width: 34, height: 34, borderRadius: 12, backgroundColor: '#00A78D15', alignItems: 'center', justifyContent: 'center' }}>
                   <Ionicons name="bus" size={18} color="#00A78D" />
                 </View>
                 <View>
@@ -420,7 +420,7 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
               const dayClasses = classesForDay({ classes, commuteMins }, day);
               return (
                 <View key={day} style={{ marginBottom: 16 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: colours.muted, marginBottom: 8 }}>
                     {dayLabel(day)}
                   </Text>
                   {dayClasses.map(c => (
@@ -430,7 +430,7 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
                       onLongPress={() => deleteClass(c.id)}
                       style={{
                         flexDirection: 'row', alignItems: 'center', gap: 10,
-                        backgroundColor: colours.surface, borderRadius: 10, borderWidth: 1, borderColor: colours.border,
+                        backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border,
                         borderLeftWidth: 3, borderLeftColor: c.colour,
                         padding: 12, marginBottom: 6,
                       }}
@@ -450,14 +450,11 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
 
             {classes.length === 0 && (
               <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-                <View style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+                <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: colours.tintBg, alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
                   <Ionicons name="school-outline" size={26} color={colours.accent} />
                 </View>
                 <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text, marginBottom: 6 }}>
                   {t('No classes yet', 'Aucun cours pour le moment')}
-                </Text>
-                <Text style={{ fontSize: 13, color: colours.muted, textAlign: 'center', lineHeight: 19 }}>
-                  {t('Tap + to add your first class', 'Appuyez sur + pour ajouter votre premier cours')}
                 </Text>
               </View>
             )}
@@ -476,9 +473,6 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
               </Text>
             </TouchableOpacity>
 
-            <Text style={{ fontSize: 11, color: colours.muted, textAlign: 'center', marginTop: 12 }}>
-              {t('Long-press a class to delete it', 'Appui long sur un cours pour le supprimer')}
-            </Text>
           </ScrollView>
         )}
 
@@ -495,7 +489,7 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
               placeholder={t('e.g. Calculus II', 'ex. Calcul II')}
               placeholderTextColor={colours.muted}
               style={{
-                borderWidth: 1, borderColor: colours.border, borderRadius: 10,
+                borderWidth: 1, borderColor: colours.border, borderRadius: 12,
                 paddingHorizontal: 14, paddingVertical: 12, fontSize: fonts.sm,
                 color: colours.text, backgroundColor: colours.surface, marginBottom: 14,
               }}
@@ -512,7 +506,7 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
               placeholder={t('e.g. STEM 117', 'ex. STEM 117')}
               placeholderTextColor={colours.muted}
               style={{
-                borderWidth: 1, borderColor: colours.border, borderRadius: 10,
+                borderWidth: 1, borderColor: colours.border, borderRadius: 12,
                 paddingHorizontal: 14, paddingVertical: 12, fontSize: fonts.sm,
                 color: colours.text, backgroundColor: colours.surface, marginBottom: 14,
               }}
@@ -530,7 +524,7 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
                     key={d}
                     onPress={() => toggleDay(d)}
                     style={{
-                      paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10,
+                      paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12,
                       backgroundColor: sel ? colours.accent : colours.surface,
                       borderWidth: 1, borderColor: sel ? colours.accent : colours.border,
                     }}

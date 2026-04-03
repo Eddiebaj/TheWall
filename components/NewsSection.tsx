@@ -152,7 +152,7 @@ function NewsSection({ colours, fonts, cardShadow, onArticlesLoaded, sortMode = 
       <View style={{ paddingHorizontal: 20, paddingVertical: 20, alignItems: 'center' }}>
         <Ionicons name="newspaper-outline" size={28} color={colours.muted} />
         <Text style={{ color: colours.muted, fontSize: fonts.sm, marginTop: 6 }}>{t('No news available', 'Aucune nouvelle disponible')}</Text>
-        <TouchableOpacity onPress={onRefresh} style={{ marginTop: 8, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}>
+        <TouchableOpacity onPress={onRefresh} style={{ marginTop: 8, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.tintBg }}>
           <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Retry', 'Réessayer')}</Text>
         </TouchableOpacity>
       </View>
@@ -207,7 +207,7 @@ function NewsSection({ colours, fonts, cardShadow, onArticlesLoaded, sortMode = 
                   <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)' }} />
                   {/* Source badge */}
                   <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: sourceColour, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 4 }}>
-                    <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.3 }}>{article.source}</Text>
+                    <Text style={{ color: '#fff', fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 }}>{article.source}</Text>
                   </View>
                   {/* Time ago */}
                   <View style={{ position: 'absolute', top: 8, right: 8 }}>
@@ -220,7 +220,7 @@ function NewsSection({ colours, fonts, cardShadow, onArticlesLoaded, sortMode = 
                       style={{
                         color: '#fff',
                         fontSize: fonts.md,
-                        fontWeight: '800',
+                        fontWeight: '700',
                         lineHeight: 20,
                         textShadowColor: 'rgba(0,0,0,0.6)',
                         textShadowRadius: 4,
@@ -246,7 +246,7 @@ function NewsSection({ colours, fonts, cardShadow, onArticlesLoaded, sortMode = 
                   </View>
                   {/* Source badge */}
                   <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: sourceColour, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 4 }}>
-                    <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.3 }}>{article.source}</Text>
+                    <Text style={{ color: '#fff', fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 }}>{article.source}</Text>
                   </View>
                   {/* Time ago */}
                   <View style={{ position: 'absolute', top: 8, right: 8 }}>
@@ -259,7 +259,7 @@ function NewsSection({ colours, fonts, cardShadow, onArticlesLoaded, sortMode = 
                       style={{
                         color: colours.text,
                         fontSize: fonts.md,
-                        fontWeight: '800',
+                        fontWeight: '700',
                         lineHeight: 20,
                       }}
                     >
@@ -284,7 +284,7 @@ function NewsSection({ colours, fonts, cardShadow, onArticlesLoaded, sortMode = 
           if (visibleCount < total) return (
             <TouchableOpacity
               onPress={() => setVisibleCount(prev => prev + 20)}
-              style={{ alignSelf: 'center', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: colours.accent + '40', backgroundColor: colours.accent + '10', marginTop: 4 }}
+              style={{ alignSelf: 'center', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: colours.accent + '40', backgroundColor: colours.tintBg, marginTop: 4 }}
             >
               <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Load more', 'Charger plus')}</Text>
             </TouchableOpacity>

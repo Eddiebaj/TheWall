@@ -325,7 +325,7 @@ export default function BusTrackingModal({
           zIndex: 10,
         }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>
+            <Text style={{ fontSize: fonts.xl, fontWeight: '700', color: colours.text }}>
               {t('Route', 'Route')} {routeId.split('-')[0]}
             </Text>
             <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }} numberOfLines={1}>
@@ -419,12 +419,12 @@ export default function BusTrackingModal({
                       backgroundColor: accentColor,
                       alignItems: 'center', justifyContent: 'center',
                     }}>
-                      <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800' }}>
+                      <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>
                         {routeId.split('-')[0]}
                       </Text>
                     </View>
                     <View>
-                      <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>
+                      <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text }}>
                         {t('Route', 'Route')} {routeId.split('-')[0]}
                       </Text>
                       <Text style={{ fontSize: fonts.sm, color: colours.muted }}>
@@ -433,7 +433,7 @@ export default function BusTrackingModal({
                     </View>
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={{ fontSize: 22, fontWeight: '800', color: (liveEta ?? minsAway) <= 2 ? colours.red : accentColor }}>
+                    <Text style={{ fontSize: 22, fontWeight: '700', color: (liveEta ?? minsAway) <= 2 ? colours.red : accentColor }}>
                       {(() => { const cd = computeCountdown(liveEta ?? minsAway, Date.now()); return t(cd.text, cd.textFr); })()}
                     </Text>
                     <Text style={{ fontSize: 10, color: colours.muted }}>{t('to stop', 'à l\'arrêt')}</Text>

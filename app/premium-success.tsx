@@ -59,7 +59,7 @@ export default function PremiumSuccessScreen() {
         <Ionicons name="checkmark" size={44} color={TEAL} />
       </Animated.View>
 
-      <Text style={{ fontSize: fonts.xxl, fontWeight: '800', color: colours.text, textAlign: 'center', marginBottom: 8 }}>
+      <Text style={{ fontSize: fonts.xxl, fontWeight: '700', color: colours.text, textAlign: 'center', marginBottom: 8 }}>
         {t('Welcome to RouteO+', 'Bienvenue dans RouteO+')}
       </Text>
       <Text style={{ fontSize: fonts.md, color: colours.muted, textAlign: 'center', marginBottom: 28 }}>
@@ -87,7 +87,7 @@ export default function PremiumSuccessScreen() {
         accessibilityRole="button"
         accessibilityLabel={t('Let\'s go', 'Allons-y')}
       >
-        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>
+        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>
           {t('Let\'s go', 'Allons-y')} →
         </Text>
       </TouchableOpacity>

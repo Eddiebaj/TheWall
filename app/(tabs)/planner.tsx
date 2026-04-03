@@ -1355,7 +1355,7 @@ function PlannerScreenInner() {
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: color + '18', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 3 }}>
         <Ionicons name={icon as any} size={10} color={color} />
         {isTransitLeg && (
-          <Text style={{ fontSize: 10, fontWeight: '800', color }}>{leg.routeShortName}</Text>
+          <Text style={{ fontSize: 10, fontWeight: '700', color }}>{leg.routeShortName}</Text>
         )}
         {(leg.mode === 'WALK' || leg.mode === 'CAR' || leg.mode === 'BICYCLE') && (
           <Text style={{ fontSize: 10, fontWeight: '600', color }}>{fmtDistance(leg.distance)}</Text>
@@ -1404,14 +1404,14 @@ function PlannerScreenInner() {
         {/* Badge — mode-specific */}
         {travelMode !== 'transit' && isFirst && (
           <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: (LEG_COLOURS[travelMode === 'driving' ? 'CAR' : travelMode === 'bicycling' ? 'BICYCLE' : 'WALK'] || colours.accent) + '20', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: (LEG_COLOURS[travelMode === 'driving' ? 'CAR' : travelMode === 'bicycling' ? 'BICYCLE' : 'WALK'] || colours.accent) + '40' }}>
-            <Text style={{ color: LEG_COLOURS[travelMode === 'driving' ? 'CAR' : travelMode === 'bicycling' ? 'BICYCLE' : 'WALK'] || colours.accent, fontSize: 9, fontWeight: '800' }}>
+            <Text style={{ color: LEG_COLOURS[travelMode === 'driving' ? 'CAR' : travelMode === 'bicycling' ? 'BICYCLE' : 'WALK'] || colours.accent, fontSize: 9, fontWeight: '700' }}>
               {travelMode === 'driving' ? t('DRIVE', 'AUTO') : travelMode === 'bicycling' ? t('CYCLE', 'VELO') : t('WALK', 'MARCHE')}
             </Text>
           </View>
         )}
         {travelMode === 'transit' && isFirst && !isWalkOnly && (
           <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: colours.accent, borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3 }}>
-            <Text style={{ color: 'white', fontSize: 9, fontWeight: '800' }}>{arriveBy ? t('RECOMMENDED', 'RECOMMANDE') : t('FASTEST', 'PLUS RAPIDE')}</Text>
+            <Text style={{ color: 'white', fontSize: 9, fontWeight: '700' }}>{arriveBy ? t('RECOMMENDED', 'RECOMMANDE') : t('FASTEST', 'PLUS RAPIDE')}</Text>
           </View>
         )}
         {travelMode === 'transit' && !isFirst && !isWalkOnly && (() => {
@@ -1422,7 +1422,7 @@ function PlannerScreenInner() {
             if (bufferMin < 5 && bufferMin > -30) {
               return (
                 <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: '#e8a020' + '20', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#e8a020' + '40' }}>
-                  <Text style={{ color: '#e8a020', fontSize: 9, fontWeight: '800' }}>{t('TIGHT', 'SERRE')}</Text>
+                  <Text style={{ color: '#e8a020', fontSize: 9, fontWeight: '700' }}>{t('TIGHT', 'SERRE')}</Text>
                 </View>
               );
             }
@@ -1432,7 +1432,7 @@ function PlannerScreenInner() {
           if (!arriveBy && firstTransit && (itin.startTime - firstTransit.startTime) >= 600000) {
             return (
               <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: '#7b5ea7' + '20', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#7b5ea7' + '40' }}>
-                <Text style={{ color: '#7b5ea7', fontSize: 9, fontWeight: '800' }}>{t('LATER', 'PLUS TARD')}</Text>
+                <Text style={{ color: '#7b5ea7', fontSize: 9, fontWeight: '700' }}>{t('LATER', 'PLUS TARD')}</Text>
               </View>
             );
           }
@@ -1440,13 +1440,13 @@ function PlannerScreenInner() {
         })()}
         {travelMode === 'transit' && isWalkOnly && (
           <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: '#34c759' + '20', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#34c759' + '40' }}>
-            <Text style={{ color: '#34c759', fontSize: 9, fontWeight: '800' }}>{t('FREE', 'GRATUIT')}</Text>
+            <Text style={{ color: '#34c759', fontSize: 9, fontWeight: '700' }}>{t('FREE', 'GRATUIT')}</Text>
           </View>
         )}
 
         {/* Time row */}
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginBottom: 8 }}>
-          <Text style={{ fontSize: 22, fontWeight: '900', color: colours.text }}>{fmtDuration(itin.duration)}</Text>
+          <Text style={{ fontSize: 22, fontWeight: '700', color: colours.text }}>{fmtDuration(itin.duration)}</Text>
           <Text style={{ fontSize: 13, color: colours.muted }}>
             {fmtTime(itin.startTime)} → {fmtTime(itin.endTime)}
           </Text>
@@ -1591,7 +1591,7 @@ function PlannerScreenInner() {
               </Text>
             )}
             {travelMode === 'transit' && hasTransit && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.accent + '15', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.tintBg, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3 }}>
                 {accessibleRouting && <Ionicons name="accessibility-outline" size={10} color={colours.accent} />}
                 <Text style={{ fontSize: 10, color: colours.accent }}>🎫</Text>
                 <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent }}>$4.10 Presto</Text>
@@ -1601,7 +1601,7 @@ function PlannerScreenInner() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <TouchableOpacity
               onPress={(e) => { e.stopPropagation(); setReminderModal({ itin, idx }); setReminderTime(new Date(itin.startTime - 5 * 60 * 1000)); }}
-              style={{ width: 36, height: 36, borderRadius: 20, backgroundColor: colours.accent + '15', borderWidth: 1, borderColor: colours.accent + '30', alignItems: 'center', justifyContent: 'center' }}
+              style={{ width: 36, height: 36, borderRadius: 16, backgroundColor: colours.tintBg, borderWidth: 1, borderColor: colours.accent + '30', alignItems: 'center', justifyContent: 'center' }}
               accessibilityRole="button"
               accessibilityLabel={t('Set reminder', 'Definir un rappel')}
             >
@@ -1609,12 +1609,12 @@ function PlannerScreenInner() {
             </TouchableOpacity>
             <TouchableOpacity
               onPress={(e) => { e.stopPropagation(); Haptics?.impactAsync?.(Haptics.ImpactFeedbackStyle.Medium); setActiveTripItinerary(itin); }}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#34c759', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8 }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#34c759', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 }}
               accessibilityRole="button"
               accessibilityLabel={t('Start trip', 'Demarrer le trajet')}
             >
               <Ionicons name="navigate" size={12} color="#fff" />
-              <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff' }}>GO</Text>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#fff' }}>GO</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1786,7 +1786,7 @@ function PlannerScreenInner() {
           {/* Header */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colours.border }}>
             <View>
-              <Text style={{ fontSize: 20, fontWeight: '900', color: colours.text }}>{fmtDuration(expandedItinerary.duration)}</Text>
+              <Text style={{ fontSize: 20, fontWeight: '700', color: colours.text }}>{fmtDuration(expandedItinerary.duration)}</Text>
               <Text style={{ fontSize: 13, color: colours.muted, marginTop: 2 }}>{fmtTime(expandedItinerary.startTime)} → {fmtTime(expandedItinerary.endTime)}</Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -1812,7 +1812,7 @@ function PlannerScreenInner() {
               </TouchableOpacity>
               {/* Notification indicator — shows when trip notifications are armed */}
               {tracking && transitNotifIds.current.length > 0 && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, backgroundColor: '#34c759' + '18', borderWidth: 1, borderColor: '#34c759' + '50' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, backgroundColor: '#34c759' + '18', borderWidth: 1, borderColor: '#34c759' + '50' }}>
                   <Ionicons name="notifications" size={12} color="#34c759" />
                   <Text style={{ fontSize: 11, fontWeight: '700', color: '#34c759' }}>{t('Notifying', 'Notifications')}</Text>
                 </View>
@@ -1822,12 +1822,12 @@ function PlannerScreenInner() {
                   Haptics?.impactAsync?.(Haptics.ImpactFeedbackStyle.Medium);
                   setActiveTripItinerary(expandedItinerary);
                 }}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: '#34c759' }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, backgroundColor: '#34c759' }}
                 accessibilityRole="button"
                 accessibilityLabel={t('Start active trip', 'Demarrer le trajet actif')}
               >
                 <Ionicons name="navigate" size={14} color="#fff" />
-                <Text style={{ fontSize: 13, fontWeight: '800', color: '#fff' }}>GO</Text>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#fff' }}>GO</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={closeExpandedModal} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Close trip details', 'Fermer les details du trajet')}>
                 <Ionicons name="close" size={18} color={colours.text} />
@@ -1900,7 +1900,7 @@ function PlannerScreenInner() {
               </TouchableOpacity>
             )}
             {tracking && (
-              <View style={{ position: 'absolute', top: 12, left: 12, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colours.surface + 'EE', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: colours.border }}>
+              <View style={{ position: 'absolute', top: 12, left: 12, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colours.surface + 'EE', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: colours.border }}>
                 <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#34c759' }} />
                 <Text style={{ fontSize: 12, fontWeight: '700', color: colours.text }}>
                   {activeLeg < (expandedItinerary.legs || []).length
@@ -2020,7 +2020,7 @@ function PlannerScreenInner() {
                 </View>
               );
             })}
-            <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, backgroundColor: colours.accent + '12', borderRadius: 12, borderWidth: 1, borderColor: colours.accent + '30' }}>
+            <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, backgroundColor: colours.tintBg, borderRadius: 12, borderWidth: 1, borderColor: colours.accent + '30' }}>
               <Ionicons name="location" size={18} color={colours.accent} />
               <View>
                 <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>{t('Arrive', 'Arrivee')} {fmtTime(expandedItinerary.endTime)}</Text>
@@ -2054,11 +2054,11 @@ function PlannerScreenInner() {
               <View style={{ paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 16, paddingHorizontal: 20, backgroundColor: colours.surface, borderBottomWidth: 1, borderBottomColor: colours.border }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
-                    <View style={{ backgroundColor: routeColor, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, minWidth: 44, alignItems: 'center' }}>
-                      <Text style={{ color: '#fff', fontSize: 18, fontWeight: '900' }}>{leg.routeShortName}</Text>
+                    <View style={{ backgroundColor: routeColor, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, minWidth: 44, alignItems: 'center' }}>
+                      <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{leg.routeShortName}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }} numberOfLines={1}>
+                      <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text }} numberOfLines={1}>
                         {t('Route', 'Route')} {leg.routeShortName}
                       </Text>
                       {leg.headsign && <Text style={{ fontSize: fonts.sm, color: colours.muted }} numberOfLines={1}>{leg.headsign}</Text>}
@@ -2092,11 +2092,11 @@ function PlannerScreenInner() {
                     {/* Next departures */}
                     {routeDetailDepartures.length > 0 && (
                       <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
-                        <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text, marginBottom: 10 }}>{t('Next departures', 'Prochains departs')}</Text>
+                        <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, marginBottom: 10 }}>{t('Next departures', 'Prochains departs')}</Text>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
                           {routeDetailDepartures.map((dep, di) => (
                             <View key={di} style={{ backgroundColor: di === 0 ? routeColor + '18' : colours.surface, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: di === 0 ? routeColor + '40' : colours.border, minWidth: 80, alignItems: 'center' }}>
-                              <Text style={{ fontSize: 15, fontWeight: '800', color: di === 0 ? routeColor : colours.text }}>{dep}</Text>
+                              <Text style={{ fontSize: 15, fontWeight: '700', color: di === 0 ? routeColor : colours.text }}>{dep}</Text>
                               {di === 0 && <Text style={{ fontSize: 9, fontWeight: '700', color: routeColor, marginTop: 2 }}>{t('NEXT', 'PROCHAIN')}</Text>}
                             </View>
                           ))}
@@ -2125,7 +2125,7 @@ function PlannerScreenInner() {
                           {routeDetailBus && Marker && (
                             <Marker coordinate={{ latitude: routeDetailBus.lat, longitude: routeDetailBus.lng }} anchor={{ x: 0.5, y: 0.5 }}>
                               <View style={{ backgroundColor: routeColor, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' }}>
-                                <Text style={{ color: '#fff', fontSize: 11, fontWeight: '900' }}>{leg.routeShortName}</Text>
+                                <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{leg.routeShortName}</Text>
                               </View>
                             </Marker>
                           )}
@@ -2136,7 +2136,7 @@ function PlannerScreenInner() {
                     {/* All stops */}
                     {routeDetailStops.length > 0 && (
                       <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
-                        <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text, marginBottom: 12 }}>{t('All stops', 'Tous les arrets')}</Text>
+                        <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, marginBottom: 12 }}>{t('All stops', 'Tous les arrets')}</Text>
                         {routeDetailStops.map((stop, si) => {
                           const cleanName = toTitleCase(stop.stop_name.replace(/\s*\(\d+\)$/, ''));
                           const isBoard = cleanName.toLowerCase().includes(boardName.toLowerCase().slice(0, 10)) || stop.stop_id === (leg.from?.name?.match(/\((\d+)\)/)?.[1] || '');
@@ -2266,7 +2266,7 @@ function PlannerScreenInner() {
           {/* Divider + swap */}
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 }}>
             <View style={{ flex: 1, height: 1, backgroundColor: colours.border }} />
-            <TouchableOpacity onPress={swap} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center', marginHorizontal: 8 }} accessibilityRole="button" accessibilityLabel={t('Swap start and destination', 'Inverser depart et destination')}>
+            <TouchableOpacity onPress={swap} style={{ width: 28, height: 28, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center', marginHorizontal: 8 }} accessibilityRole="button" accessibilityLabel={t('Swap start and destination', 'Inverser depart et destination')}>
               <Ionicons name="swap-vertical" size={14} color={colours.muted} />
             </TouchableOpacity>
             <View style={{ flex: 1, height: 1, backgroundColor: colours.border }} />
@@ -2436,7 +2436,7 @@ function PlannerScreenInner() {
                 <TouchableOpacity
                   key={m.key}
                   onPress={() => setTravelMode(m.key)}
-                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: active ? colours.accent : colours.border, backgroundColor: active ? colours.accent + '15' : colours.surface }}
+                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: active ? colours.accent : colours.border, backgroundColor: active ? colours.tintBg : colours.surface }}
                   accessibilityRole="button"
                   accessibilityLabel={t(m.label_en, m.label_fr)}
                   accessibilityState={{ selected: active }}
@@ -2482,7 +2482,7 @@ function PlannerScreenInner() {
                     <TouchableOpacity
                       key={p.key}
                       onPress={() => { setWalkPace(p.key); AsyncStorage.setItem(SK_WALK_PACE, p.key).catch(() => {}); }}
-                      style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: active ? colours.accent : colours.border, backgroundColor: active ? colours.accent + '15' : colours.surface }}
+                      style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: active ? colours.accent : colours.border, backgroundColor: active ? colours.tintBg : colours.surface }}
                     >
                       <Text style={{ fontSize: 11, fontWeight: '700', color: active ? colours.accent : colours.muted }}>{t(p.label_en, p.label_fr)}</Text>
                     </TouchableOpacity>
@@ -2502,14 +2502,14 @@ function PlannerScreenInner() {
                 <TouchableOpacity
                   key={String(ab)}
                   onPress={() => { setArriveBy(ab); savePlannerPrefs(departTime, ab); setShowTimePicker(true); }}
-                  style={[{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: active ? colours.accent : colours.border, backgroundColor: active ? colours.accent + '15' : colours.surface }, cardShadow]}
+                  style={[{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: active ? colours.accent : colours.border, backgroundColor: active ? colours.tintBg : colours.surface }, cardShadow]}
                   accessibilityRole="button"
                   accessibilityLabel={ab ? t('Arrive by', 'Arriver avant') : t('Depart at', 'Depart a')}
                   accessibilityState={{ selected: active }}
                 >
                   <Ionicons name={ab ? 'flag-outline' : 'time-outline'} size={14} color={active ? colours.accent : colours.muted} />
                   <Text style={{ fontSize: 13, fontWeight: '700', color: active ? colours.accent : colours.muted }}>{ab ? t('Arrive by', 'Arriver avant') : t('Depart at', 'Depart a')}</Text>
-                  {active && <Text style={{ fontSize: 13, fontWeight: '800', color: colours.accent }}>{fmtTime(departTime.getTime())}{departTime.toLocaleDateString('en-CA') !== new Date().toLocaleDateString('en-CA') ? ` ${departTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}</Text>}
+                  {active && <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>{fmtTime(departTime.getTime())}{departTime.toLocaleDateString('en-CA') !== new Date().toLocaleDateString('en-CA') ? ` ${departTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}</Text>}
                 </TouchableOpacity>
               );
             })}
@@ -2523,7 +2523,7 @@ function PlannerScreenInner() {
               {/* Now button */}
               <TouchableOpacity
                 onPress={() => { const now = new Date(); setDepartTime(now); savePlannerPrefs(now, arriveBy); setShowTimePicker(false); }}
-                style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15', marginBottom: 12 }}
+                style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.tintBg, marginBottom: 12 }}
                 accessibilityRole="button"
                 accessibilityLabel={t('Set time to now', 'Mettre a maintenant')}
               >
@@ -2578,7 +2578,7 @@ function PlannerScreenInner() {
               {/* Done button */}
               <TouchableOpacity
                 onPress={() => setShowTimePicker(false)}
-                style={{ marginTop: 8, alignSelf: 'center', paddingHorizontal: 24, paddingVertical: 8, borderRadius: 20, backgroundColor: colours.accent }}
+                style={{ marginTop: 8, alignSelf: 'center', paddingHorizontal: 24, paddingVertical: 8, borderRadius: 16, backgroundColor: colours.accent }}
                 accessibilityRole="button"
                 accessibilityLabel={t('Done selecting time', 'Termine la selection de l\'heure')}
               >
@@ -2599,7 +2599,7 @@ function PlannerScreenInner() {
           >
             {loading
               ? <ActivityIndicator color="white" size="small" />
-              : <Text style={{ color: 'white', fontWeight: '800', fontSize: 16 }}>{t('Plan Trip', 'Planifier le trajet')}</Text>
+              : <Text style={{ color: 'white', fontWeight: '700', fontSize: 16 }}>{t('Plan Trip', 'Planifier le trajet')}</Text>
             }
           </TouchableOpacity>
         </View>
@@ -2613,7 +2613,7 @@ function PlannerScreenInner() {
               flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
               paddingVertical: 12, borderRadius: 12,
               borderWidth: 1, borderColor: premiumActive ? colours.accent : colours.border,
-              backgroundColor: premiumActive ? colours.accent + '12' : colours.card,
+              backgroundColor: premiumActive ? colours.tintBg : colours.card,
             }}
           >
             <Ionicons name="sparkles" size={16} color={premiumActive ? colours.accent : colours.muted} />
@@ -2629,7 +2629,7 @@ function PlannerScreenInner() {
             <TouchableOpacity
               onPress={fetchIsochrone}
               disabled={isoLoading}
-              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '12' }}
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.tintBg }}
               activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel={t('What can I reach in 20 minutes', 'Que puis-je atteindre en 20 minutes')}
@@ -2656,8 +2656,7 @@ function PlannerScreenInner() {
                   </View>
                 ) : isoStops.length === 0 ? (
                   <View style={{ padding: 24, alignItems: 'center' }}>
-                    <Ionicons name="location-outline" size={28} color={colours.muted} />
-                    <Text style={{ color: colours.muted, fontSize: 13, marginTop: 8, textAlign: 'center' }}>{t('No transit stops reachable within 20 minutes from your current location.', 'Aucun arret de transport en commun accessible en 20 minutes depuis votre position.')}</Text>
+                    <Text style={{ color: colours.muted, fontSize: 13, textAlign: 'center' }}>{t('No transit stops reachable within 20 minutes.', 'Aucun arret accessible en 20 minutes.')}</Text>
                   </View>
                 ) : (
                   isoStops.map((stop, i) => (
@@ -2667,14 +2666,14 @@ function PlannerScreenInner() {
                         {stop.routes.length > 0 && (
                           <View style={{ flexDirection: 'row', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
                             {stop.routes.map(r => (
-                              <View key={r} style={{ backgroundColor: colours.accent + '18', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
-                                <Text style={{ fontSize: 10, fontWeight: '800', color: colours.accent }}>{r}</Text>
+                              <View key={r} style={{ backgroundColor: colours.tintBg, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                                <Text style={{ fontSize: 10, fontWeight: '700', color: colours.accent }}>{r}</Text>
                               </View>
                             ))}
                           </View>
                         )}
                       </View>
-                      <Text style={{ fontSize: 16, fontWeight: '800', color: colours.accent, marginLeft: 12 }}>{stop.travelTime}m</Text>
+                      <Text style={{ fontSize: 16, fontWeight: '700', color: colours.accent, marginLeft: 12 }}>{stop.travelTime}m</Text>
                     </View>
                   ))
                 )}
@@ -2683,7 +2682,7 @@ function PlannerScreenInner() {
               {/* Nearby places within isochrone */}
               {isoPlaces.length > 0 && (
                 <View style={{ marginTop: 12 }}>
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 8 }}>
                     {t('Nearby places', 'Lieux a proximite')}
                   </Text>
                   {(['Food', 'Parks', 'Transit'] as const).map(cat => {
@@ -2723,8 +2722,7 @@ function PlannerScreenInner() {
           <View style={{ paddingHorizontal: 20, paddingTop: 12 }}>{[0,1,2].map(i => <ItinerarySkeleton key={i} colours={colours} />)}</View>
         ) : !loading && searched && error ? (
           <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 }}>
-            <Ionicons name="map-outline" size={40} color={colours.muted} />
-            <Text style={{ color: colours.text, fontSize: 16, fontWeight: '700', marginTop: 12, textAlign: 'center' }}>{t('No routes found', 'Aucun trajet trouv\u00e9')}</Text>
+            <Text style={{ color: colours.muted, fontSize: 14, fontWeight: '600', textAlign: 'center' }}>{t('No routes found', 'Aucun trajet trouv\u00e9')}</Text>
             <Text style={{ color: colours.muted, fontSize: 13, marginTop: 6, textAlign: 'center' }}>{error}</Text>
             <TouchableOpacity
               onPress={plan}
@@ -2746,12 +2744,12 @@ function PlannerScreenInner() {
               </View>
             )}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted }}>
                 {itineraries.length} {t(itineraries.length !== 1 ? 'routes found' : 'route found', itineraries.length !== 1 ? 'trajets trouv\u00e9s' : 'trajet trouv\u00e9')}
               </Text>
               <TouchableOpacity
                 onPress={toggleSaveRoute}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: isRouteSaved ? colours.accent : colours.border, backgroundColor: isRouteSaved ? colours.accent + '15' : colours.surface }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: isRouteSaved ? colours.accent : colours.border, backgroundColor: isRouteSaved ? colours.tintBg : colours.surface }}
                 activeOpacity={0.8}
                 accessibilityRole="button"
                 accessibilityLabel={isRouteSaved ? t('Remove saved route', 'Retirer le trajet enregistre') : t('Save route', 'Enregistrer le trajet')}
@@ -2799,7 +2797,7 @@ function PlannerScreenInner() {
                         const y = itinLayoutMap.current[pill.idx];
                         if (y != null) mainScrollRef.current?.scrollTo({ y: itinListYOffset.current + y, animated: true });
                       }}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: colours.accent + '12', borderWidth: 1, borderColor: colours.accent + '30' }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: colours.tintBg, borderWidth: 1, borderColor: colours.accent + '30' }}
                       accessibilityRole="button"
                     >
                       <Ionicons name={pill.icon} size={13} color={colours.accent} />
@@ -2812,7 +2810,7 @@ function PlannerScreenInner() {
             {/* View on Map toggle */}
             <TouchableOpacity
               onPress={() => { setShowRouteMap(prev => !prev); setSelectedRouteIdx(0); }}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: showRouteMap ? colours.accent + '15' : colours.surface, borderWidth: 1, borderColor: showRouteMap ? colours.accent : colours.border, marginBottom: 12 }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, backgroundColor: showRouteMap ? colours.tintBg : colours.surface, borderWidth: 1, borderColor: showRouteMap ? colours.accent : colours.border, marginBottom: 12 }}
               activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityLabel={showRouteMap ? t('Hide map', 'Masquer la carte') : t('View on map', 'Voir sur la carte')}
@@ -2879,7 +2877,7 @@ function PlannerScreenInner() {
                     {/* Destination marker */}
                     {dest && Marker && (
                       <Marker coordinate={{ latitude: dest.lat, longitude: dest.lon }} anchor={{ x: 0.5, y: 0.5 }}>
-                        <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: colours.accent, borderWidth: 2, borderColor: 'white', alignItems: 'center', justifyContent: 'center' }}>
+                        <View style={{ width: 20, height: 20, borderRadius: 12, backgroundColor: colours.accent, borderWidth: 2, borderColor: 'white', alignItems: 'center', justifyContent: 'center' }}>
                           <Ionicons name="flag" size={10} color="white" />
                         </View>
                       </Marker>
@@ -2922,7 +2920,7 @@ function PlannerScreenInner() {
                             (itin.legs || []).forEach(l => coords.push(...legCoords(l)));
                             if (coords.length > 1) routeMapRef.current?.fitToCoordinates(coords, { edgePadding: { top: 40, right: 40, bottom: 40, left: 40 }, animated: true });
                           }}
-                          style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, backgroundColor: ri === selectedRouteIdx ? colours.accent : colours.surface, borderWidth: 1, borderColor: ri === selectedRouteIdx ? colours.accent : colours.border }}
+                          style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: ri === selectedRouteIdx ? colours.accent : colours.surface, borderWidth: 1, borderColor: ri === selectedRouteIdx ? colours.accent : colours.border }}
                         >
                           <Text style={{ fontSize: 11, fontWeight: '700', color: ri === selectedRouteIdx ? 'white' : colours.muted }}>
                             {t('Route', 'Trajet')} {ri + 1}
@@ -2949,7 +2947,7 @@ function PlannerScreenInner() {
                     const isFirst = mile === firstWalk;
                     const distLabel = fmtDistance(mile.distance);
                     return (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.accent + '08', borderWidth: 1, borderColor: colours.accent + '20', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginTop: -4, marginBottom: 10 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.tintBg, borderWidth: 1, borderColor: colours.accent + '20', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginTop: -4, marginBottom: 10 }}>
                         <Ionicons name="bulb-outline" size={14} color={colours.accent} />
                         <Text style={{ flex: 1, fontSize: 12, color: colours.text }}>
                           {isFirst ? t(`First ${distLabel} walk`, `Premiere marche de ${distLabel}`) : t(`Last ${distLabel} walk`, `Derniere marche de ${distLabel}`)}
@@ -2991,15 +2989,15 @@ function PlannerScreenInner() {
               <View style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 16, padding: 16, marginBottom: 12 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                   <Ionicons name="walk-outline" size={18} color={colours.accent} />
-                  <Text style={{ fontSize: 15, fontWeight: '800', color: colours.text }}>{t('Walk or Wait?', 'Marcher ou attendre?')}</Text>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text }}>{t('Walk or Wait?', 'Marcher ou attendre?')}</Text>
                 </View>
 
                 <View style={{ flexDirection: 'row', gap: 0 }}>
                   {/* Wait for bus */}
                   <View style={{ flex: 1, alignItems: 'center', paddingVertical: 10 }}>
                     <Ionicons name="bus-outline" size={24} color={colours.accent} />
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, marginTop: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Wait for bus', 'Attendre le bus')}</Text>
-                    <Text style={{ fontSize: 26, fontWeight: '800', color: colours.text, marginTop: 4 }}>{walkAlt.transitMins}<Text style={{ fontSize: 14, fontWeight: '600' }}> min</Text></Text>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, marginTop: 6 }}>{t('Wait for bus', 'Attendre le bus')}</Text>
+                    <Text style={{ fontSize: 26, fontWeight: '700', color: colours.text, marginTop: 4 }}>{walkAlt.transitMins}<Text style={{ fontSize: 14, fontWeight: '600' }}> min</Text></Text>
                     {walkAlt.transitWait > 0 && (
                       <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }}>{t(`${walkAlt.transitWait} min wait`, `${walkAlt.transitWait} min d'attente`)}</Text>
                     )}
@@ -3011,8 +3009,8 @@ function PlannerScreenInner() {
                   {/* Walk now */}
                   <View style={{ flex: 1, alignItems: 'center', paddingVertical: 10 }}>
                     <Ionicons name="walk-outline" size={24} color={walkAlt.walkMins <= walkAlt.transitMins + 5 ? '#00A78D' : colours.muted} />
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, marginTop: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Walk now', 'Marcher maintenant')}</Text>
-                    <Text style={{ fontSize: 26, fontWeight: '800', color: walkAlt.walkMins <= walkAlt.transitMins + 5 ? '#00A78D' : colours.text, marginTop: 4 }}>{walkAlt.walkMins}<Text style={{ fontSize: 14, fontWeight: '600' }}> min</Text></Text>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, marginTop: 6 }}>{t('Walk now', 'Marcher maintenant')}</Text>
+                    <Text style={{ fontSize: 26, fontWeight: '700', color: walkAlt.walkMins <= walkAlt.transitMins + 5 ? '#00A78D' : colours.text, marginTop: 4 }}>{walkAlt.walkMins}<Text style={{ fontSize: 14, fontWeight: '600' }}> min</Text></Text>
                     {walkAlt.walkMins <= walkAlt.transitMins && (
                       <Text style={{ fontSize: 11, fontWeight: '700', color: '#00A78D', marginTop: 2 }}>{t('Faster!', 'Plus rapide!')}</Text>
                     )}
@@ -3060,7 +3058,7 @@ function PlannerScreenInner() {
           <View style={{ paddingHorizontal: 20 }}>
             {savedRoutes.length > 0 && (
               <View style={{ paddingTop: 12, marginBottom: 4 }}>
-                <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 10 }}>
                   {t('Saved Routes', 'Trajets enregistres')}
                 </Text>
                 {savedRoutes.map((route) => (
@@ -3077,7 +3075,7 @@ function PlannerScreenInner() {
                     accessibilityRole="button"
                     accessibilityLabel={`${route.fromLabel} to ${route.toLabel}`}
                   >
-                    <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colours.tintBg, alignItems: 'center', justifyContent: 'center' }}>
                       <Ionicons name="bookmark" size={18} color={colours.accent} />
                     </View>
                     <View style={{ flex: 1 }}>
@@ -3104,7 +3102,7 @@ function PlannerScreenInner() {
                   {CAMPUS_LOGOS[plannerCampus.id] ? (
                     <Image source={CAMPUS_LOGOS[plannerCampus.id]} style={{ width: 44, height: 44, borderRadius: 8 }} resizeMode="contain" />
                   ) : (
-                    <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: plannerCampus.accent + '20', alignItems: 'center', justifyContent: 'center' }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: plannerCampus.accent + '20', alignItems: 'center', justifyContent: 'center' }}>
                       <Ionicons name="school" size={18} color={plannerCampus.accent} />
                     </View>
                   )}
@@ -3122,18 +3120,13 @@ function PlannerScreenInner() {
             })()}
             {tripHistory.length === 0 && savedRoutes.length === 0 ? (
               <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-                <View style={{ width: 64, height: 64, borderRadius: 16, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-                  <Ionicons name="navigate" size={28} color={colours.accent} />
-                </View>
-                <Text style={{ fontSize: 17, fontWeight: '800', color: colours.text, textAlign: 'center' }}>{t('Plan your trip', 'Planifiez votre trajet')}</Text>
-                <Text style={{ fontSize: 13, color: colours.muted, textAlign: 'center', marginTop: 6, lineHeight: 19 }}>
-                  {t('Real OC Transpo routing with transfers,\nwalk times, and live schedules.', 'Itineraires OC Transpo reels avec correspondances,\ntemps de marche et horaires en direct.')}
-                </Text>
+                <Text style={{ fontSize: 14, color: colours.muted, textAlign: 'center' }}>{t('Plan your trip above', 'Planifiez votre trajet ci-dessus')}</Text>
+
               </View>
             ) : tripHistory.length > 0 ? (
               <View style={{ paddingTop: savedRoutes.length > 0 ? 0 : 12 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, letterSpacing: 0.5 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted }}>
                     {t('Recent Trips', 'Trajets recents')}
                   </Text>
                   {tripHistory.length > 3 && (
@@ -3181,7 +3174,7 @@ function PlannerScreenInner() {
                           });
                         }}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.border, alignItems: 'center', justifyContent: 'center' }}
+                        style={{ width: 28, height: 28, borderRadius: 16, backgroundColor: colours.border, alignItems: 'center', justifyContent: 'center' }}
                       >
                         <Ionicons name="close" size={14} color={colours.muted} />
                       </TouchableOpacity>
@@ -3214,16 +3207,14 @@ function PlannerScreenInner() {
         return (
           <Modal visible transparent animationType="slide" onRequestClose={() => setReminderModal(null)}>
             <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
-              <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
+              <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 }}>
                 {/* Handle bar */}
                 <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, alignSelf: 'center', marginBottom: 16 }} />
 
-                <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text, marginBottom: 4 }}>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text, marginBottom: 4 }}>
                   {t('Leave Now Reminder', 'Rappel de depart')}
                 </Text>
-                <Text style={{ fontSize: 13, color: colours.muted, marginBottom: 16 }}>
-                  {t("We'll notify you when it's time to leave", 'Nous vous avertirons quand il sera temps de partir')}
-                </Text>
+
 
                 {/* Trip summary */}
                 <View style={{ backgroundColor: colours.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 16 }}>
@@ -3290,7 +3281,7 @@ function PlannerScreenInner() {
                   style={{ backgroundColor: colours.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 10 }}
                   accessibilityRole="button"
                 >
-                  <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>
+                  <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>
                     {t('Set Reminder', 'Definir le rappel')}
                   </Text>
                 </TouchableOpacity>

@@ -513,7 +513,7 @@ function ExploreScreenInner() {
               paddingBottom: 8,
             }}>
               <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 70, backgroundColor: 'rgba(0,0,0,0.30)' }} />
-              <Text numberOfLines={1} style={{ color: 'white', fontSize: fonts.md, fontWeight: '800', textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 4 }}>
+              <Text numberOfLines={1} style={{ color: 'white', fontSize: fonts.md, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 4 }}>
                 {place.name}
               </Text>
               <Text numberOfLines={1} style={{ color: 'rgba(255,255,255,0.8)', fontSize: fonts.sm, marginTop: 1, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3 }}>
@@ -534,7 +534,7 @@ function ExploreScreenInner() {
               backgroundColor: selectedCategory.color + '18',
               alignItems: 'center', justifyContent: 'center',
             }}>
-              <Text style={{ fontSize: 9, fontWeight: '800', color: selectedCategory.color }}>{index + 1}</Text>
+              <Text style={{ fontSize: 9, fontWeight: '700', color: selectedCategory.color }}>{index + 1}</Text>
             </View>
             {place.rating && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
@@ -566,7 +566,7 @@ function ExploreScreenInner() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
               <View style={{
                 width: 20, height: 20, borderRadius: 4,
-                backgroundColor: colours.accent + '18',
+                backgroundColor: colours.tintBg,
                 alignItems: 'center', justifyContent: 'center',
               }}>
                 <Ionicons name="bus" size={10} color={colours.accent} />
@@ -579,10 +579,10 @@ function ExploreScreenInner() {
               </Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 8 }}>
-              <View style={{ backgroundColor: colours.accent + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, minWidth: 24, alignItems: 'center' }}>
-                <Text style={{ fontSize: 10, fontWeight: '800', color: colours.accent }}>{transit.routeId}</Text>
+              <View style={{ backgroundColor: colours.tintBg, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, minWidth: 24, alignItems: 'center' }}>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: colours.accent }}>{transit.routeId}</Text>
               </View>
-              <Text style={{ fontSize: fonts.sm, fontWeight: '800', color: transit.minsAway <= 2 ? '#cc3b2a' : colours.accent }}>
+              <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: transit.minsAway <= 2 ? '#cc3b2a' : colours.accent }}>
                 {transit.minsAway === 0 ? t('Now', 'Maint.') : `${transit.minsAway}m`}
               </Text>
             </View>
@@ -619,31 +619,12 @@ function ExploreScreenInner() {
     );
     if (filteredPlaces.length === 0) return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 }}>
-        <Ionicons name={selectedCategory.icon as any} size={40} color={colours.muted} style={{ marginBottom: 12 }} />
-        <Text style={{ color: colours.muted, fontSize: fonts.md, textAlign: 'center' }}>
+        <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center' }}>
           {searchQuery
             ? t(`No results for "${searchQuery}"`, `Aucun r\u00e9sultat pour "${searchQuery}"`)
             : t(`No ${catLabel(selectedCategory).toLowerCase()} found nearby`, `Aucun(e) ${catLabel(selectedCategory).toLowerCase()} trouv\u00e9(e) \u00e0 proximit\u00e9`)
           }
         </Text>
-        {maxDistance > 0 && (
-          <TouchableOpacity
-            style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}
-            onPress={() => setMaxDistance(0)}
-          >
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Show all distances', 'Afficher toutes les distances')}</Text>
-          </TouchableOpacity>
-        )}
-        {!searchQuery && maxDistance === 0 && (
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel={t('Retry search', 'R\u00e9essayer la recherche')}
-            style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}
-            onPress={fetchPlaces}
-          >
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Retry', 'R\u00e9essayer')}</Text>
-          </TouchableOpacity>
-        )}
       </View>
     );
     return (
@@ -652,7 +633,7 @@ function ExploreScreenInner() {
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100, paddingTop: 8 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colours.accent} />}
       >
-        <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, marginBottom: 10 }}>
           {filteredPlaces.length} {catLabel(selectedCategory).toLowerCase()} · {sortLabel()}
           {maxDistance > 0 ? ` · ${t(`within ${formatDistance(maxDistance)}`, `dans ${formatDistance(maxDistance)}`)}` : ''}
         </Text>
@@ -716,7 +697,7 @@ function ExploreScreenInner() {
               style={{
                 flexDirection: 'row', alignItems: 'center', gap: 4,
                 borderWidth: 1, borderRadius: 8, paddingHorizontal: 9, height: 28,
-                backgroundColor: sortBy === opt.id ? colours.accent + '18' : colours.surface,
+                backgroundColor: sortBy === opt.id ? colours.tintBg : colours.surface,
                 borderColor: sortBy === opt.id ? colours.accent : colours.border,
               }}
               onPress={() => setSortBy(opt.id)}

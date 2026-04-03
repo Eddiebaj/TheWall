@@ -67,7 +67,7 @@ export default function PaywallSheet({ visible, onDismiss, onSuccess, highlightF
             {/* Test mode banner */}
             {__DEV__ && (
               <View style={{ backgroundColor: '#e8a020', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginBottom: 12, alignItems: 'center' }}>
-                <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>TEST MODE — payments not real</Text>
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>TEST MODE — payments not real</Text>
               </View>
             )}
             {/* Logo / Badge */}
@@ -79,7 +79,7 @@ export default function PaywallSheet({ visible, onDismiss, onSuccess, highlightF
               }}>
                 <Ionicons name="diamond" size={28} color={TEAL} />
               </View>
-              <Text style={{ fontSize: fonts.xxl, fontWeight: '800', color: colours.text }}>RouteO+</Text>
+              <Text style={{ fontSize: fonts.xxl, fontWeight: '700', color: colours.text }}>RouteO+</Text>
               <Text style={{ fontSize: fonts.md, color: colours.muted, marginTop: 4, textAlign: 'center' }}>
                 {t('Unlock the full transit experience', 'Debloquez l\'experience transit complete')}
               </Text>
@@ -131,7 +131,7 @@ export default function PaywallSheet({ visible, onDismiss, onSuccess, highlightF
             >
               {purchasing === 'monthly'
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>
+                : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>
                     {t('Start for $2.99/month', 'Commencer a 2,99 $/mois')}
                   </Text>
               }
