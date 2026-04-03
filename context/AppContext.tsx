@@ -31,15 +31,18 @@ const DARK_COLOURS = {
   surface:  '#131a24',
   card:     '#1a2230',
   border:   '#1e2d42',
-  accent:   '#00A78D',  // Ottawa teal
-  accentAlt:'#004890',  // Ottawa blue
-  lrt:      '#004890',  // Ottawa blue for O-Train
+  accent:   '#00A78D',
+  accentAlt:'#004890',
+  lrt:      '#004890',
   text:     '#eef2f7',
   muted:    '#6b7f99',
-  green:    '#00A78D',  // teal doubles as green
-  orange:   '#e8a020',  // amber for warnings/delays
-  red:      '#cc3b2a',  // errors, closed, ghost bus
+  green:    '#00A78D',
+  orange:   '#e8a020',
+  red:      '#cc3b2a',
   purple:   '#7b5ea7',
+  tintBg:   '#0f2420',
+  warnBg:   '#1f1a0d',
+  errorBg:  '#1f100e',
 };
 
 const LIGHT_COLOURS = {
@@ -47,15 +50,18 @@ const LIGHT_COLOURS = {
   surface:  '#ffffff',
   card:     '#f7fafc',
   border:   '#dde4ef',
-  accent:   '#00A78D',  // Ottawa teal
-  accentAlt:'#004890',  // Ottawa blue
-  lrt:      '#004890',  // Ottawa blue for O-Train
+  accent:   '#00A78D',
+  accentAlt:'#004890',
+  lrt:      '#004890',
   text:     '#0d1117',
   muted:    '#7b8fa8',
-  green:    '#00957d',  // slightly darker teal for light bg readability
+  green:    '#00957d',
   orange:   '#c47d0a',
   red:      '#b83224',
   purple:   '#6b4f9e',
+  tintBg:   '#e8f5f2',
+  warnBg:   '#fdf6e8',
+  errorBg:  '#fceeed',
 };
 
 const HIGH_CONTRAST_DARK = {
@@ -64,6 +70,9 @@ const HIGH_CONTRAST_DARK = {
   text:    '#ffffff',
   muted:   '#a0b4cc',
   surface: '#0f1929',
+  tintBg:  '#0a2e24',
+  warnBg:  '#2a2010',
+  errorBg: '#2a1210',
 };
 
 const HIGH_CONTRAST_LIGHT = {
@@ -72,6 +81,9 @@ const HIGH_CONTRAST_LIGHT = {
   text:   '#000000',
   muted:  '#2d4a6b',
   surface: '#ffffff',
+  tintBg:  '#d9f0ec',
+  warnBg:  '#f5edd4',
+  errorBg: '#f5dbd9',
 };
 
 // Palette accent overrides (applied on top of dark/light base)

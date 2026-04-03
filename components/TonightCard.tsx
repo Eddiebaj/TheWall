@@ -10,11 +10,11 @@ import { SK_CAMPUS, SK_TONIGHT_DISMISSED } from '../lib/storageKeys';
 import { buildTonightSummary, shouldShowTonightCard, SportEntry, TonightFocus, TonightSummary } from '../lib/tonightHelpers';
 import { haversineKm } from '../lib/geo';
 
-const SPORT_ICONS: { [key in SportEntry['icon']]: string } = {
-  hockey: 'snow',
-  football: 'american-football',
-  basketball: 'basketball',
-  soccer: 'football',
+const SPORT_COLOURS: Record<string, string> = {
+  hockey: '#c8102e',
+  football: '#000000',
+  basketball: '#1d428a',
+  soccer: '#00843d',
 };
 
 type Props = {
@@ -30,16 +30,6 @@ type Props = {
   onPressDeals?: () => void;
   onDismiss?: () => void;
 };
-
-function weatherIcon(condition: string): string {
-  const c = condition.toLowerCase();
-  if (c.includes('thunder') || c.includes('storm')) return 'thunderstorm';
-  if (c.includes('rain') || c.includes('drizzle') || c.includes('shower')) return 'rainy';
-  if (c.includes('snow') || c.includes('flurr')) return 'snow';
-  if (c.includes('cloud') || c.includes('overcast')) return 'cloudy';
-  if (c.includes('clear') || c.includes('sunny')) return 'sunny';
-  return 'partly-sunny';
-}
 
 function nearestNeighbourhood(lat: number, lng: number): Neighbourhood {
   let best = NEIGHBOURHOODS[0];
@@ -58,7 +48,6 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sp
   const [focusName, setFocusName] = useState<{ en: string; fr: string } | null>(null);
   const [focus, setFocus] = useState<TonightFocus | null>(null);
 
-  // Load campus → resolve nearest neighbourhood
   useEffect(() => {
     AsyncStorage.getItem(SK_CAMPUS).then(val => {
       if (!val) return;
@@ -93,120 +82,69 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sp
 
   if (!show || !summary) return null;
 
+  const title = focusName
+    ? t(`Tonight in ${focusName.en}`, `Ce soir a ${focusName.fr}`)
+    : t('Tonight in Ottawa', 'Ce soir a Ottawa');
+
+  // Build a compact subtitle: "3 events · 5 deals" or "2 events"
+  const parts: string[] = [];
+  if (summary.events.count > 0) parts.push(`${summary.events.count} ${t('events', 'evenements')}`);
+  if (summary.deals.count > 0) parts.push(`${summary.deals.count} ${t('deals', 'offres')}`);
+
   return (
     <View style={[{
       marginHorizontal: 20,
       marginBottom: 16,
       borderRadius: 16,
-      borderWidth: 2,
-      borderColor: colours.accent + '40',
+      borderWidth: 1,
+      borderColor: colours.border,
       backgroundColor: colours.surface,
       overflow: 'hidden',
     }, cardShadow]}>
-      {/* Gradient accent top bar */}
-      <View style={{ height: 4, backgroundColor: colours.accent }} />
 
       <View style={{ padding: 14 }}>
         {/* Header */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Ionicons name="moon" size={18} color={colours.accent} />
-            <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text }}>
-              {focusName
-                ? t(`Tonight in ${focusName.en}`, `Ce soir a ${focusName.fr}`)
-                : t('Tonight in Ottawa', 'Ce soir a Ottawa')}
-            </Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: summary.sports.length > 0 ? 12 : 4 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text }}>{title}</Text>
+            {weather && (
+              <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
+                {Math.round(weather.temp)}{'\u00B0'} · {weather.condition}
+              </Text>
+            )}
           </View>
           <TouchableOpacity onPress={dismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="close-circle" size={22} color={colours.muted} />
+            <Ionicons name="close" size={18} color={colours.muted} />
           </TouchableOpacity>
         </View>
 
-        {/* Sports — multiple entries */}
-        {summary.sports.map((sport, i) => (
-          <TouchableOpacity key={i} onPress={onPressSports} activeOpacity={onPressSports ? 0.7 : 1} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <View style={{ backgroundColor: sport.colour + '18', borderRadius: 8, padding: 6 }}>
-              <Ionicons name={SPORT_ICONS[sport.icon] as any} size={14} color={sport.colour} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>{sport.label}</Text>
-              <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{sport.detail}</Text>
-            </View>
-            {onPressSports && <Ionicons name="chevron-forward" size={14} color={colours.muted} />}
-          </TouchableOpacity>
-        ))}
+        {/* Sports — hero treatment with team color accent */}
+        {summary.sports.map((sport, i) => {
+          const teamColor = SPORT_COLOURS[sport.icon] || colours.accent;
+          return (
+            <TouchableOpacity key={i} onPress={onPressSports} activeOpacity={onPressSports ? 0.7 : 1}
+              style={{ backgroundColor: teamColor + '0C', borderRadius: 10, padding: 10, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: teamColor }}>
+              <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{sport.label}</Text>
+              <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>{sport.detail}</Text>
+            </TouchableOpacity>
+          );
+        })}
 
-        {/* Events */}
-        {summary.events.count > 0 && (
-          <TouchableOpacity onPress={onPressEvents} activeOpacity={onPressEvents ? 0.7 : 1} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <View style={{ backgroundColor: '#7b5ea718', borderRadius: 8, padding: 6 }}>
-              <Ionicons name="calendar" size={14} color="#7b5ea7" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
-                {summary.events.count} {t('events today', 'evenements aujourd\'hui')}
-              </Text>
-              {summary.events.highlights.length > 0 && (
-                <Text style={{ fontSize: fonts.sm, color: colours.muted }} numberOfLines={1}>
-                  {summary.events.highlights.join(', ')}
-                </Text>
-              )}
-            </View>
-            {onPressEvents && <Ionicons name="chevron-forward" size={14} color={colours.muted} />}
-          </TouchableOpacity>
-        )}
-
-        {/* Deals */}
-        {summary.deals.count > 0 && (
-          <TouchableOpacity onPress={onPressDeals} activeOpacity={onPressDeals ? 0.7 : 1} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <View style={{ backgroundColor: '#00A78D18', borderRadius: 8, padding: 6 }}>
-              <Ionicons name="pricetag" size={14} color="#00A78D" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
-                {summary.deals.count} {t('active deals', 'offres actives')}
-              </Text>
-              {summary.deals.highlights.length > 0 && (
-                <Text style={{ fontSize: fonts.sm, color: colours.muted }} numberOfLines={1}>
-                  {summary.deals.highlights.join(', ')}
-                </Text>
-              )}
-            </View>
-            {onPressDeals && <Ionicons name="chevron-forward" size={14} color={colours.muted} />}
-          </TouchableOpacity>
-        )}
-
-        {/* Near venue bars (grouped by venue) */}
-        {summary.nearVenueBars.length > 0 && (() => {
-          const byVenue: { [key: string]: typeof summary.nearVenueBars } = {};
-          for (const b of summary.nearVenueBars) {
-            if (!byVenue[b.venueName]) byVenue[b.venueName] = [];
-            byVenue[b.venueName].push(b);
-          }
-          return Object.entries(byVenue).map(([venueName, bars]) => (
-            <View key={venueName} style={{ marginTop: 4, marginBottom: 4, backgroundColor: '#cc3b2a08', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: '#cc3b2a20' }}>
-              <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: '#cc3b2a', marginBottom: 4 }}>
-                {t(`Near ${venueName}`, `Pres du ${venueName}`)}
-              </Text>
-              {bars.map((b, i) => (
-                <Text key={i} style={{ fontSize: fonts.sm, color: colours.muted }}>
-                  {b.name}{b.deal ? ` - ${b.deal}` : ''}
-                </Text>
-              ))}
-            </View>
-          ));
-        })()}
-
-        {/* Weather */}
-        {summary.weather && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: summary.sports.length > 0 || summary.events.count > 0 || summary.deals.count > 0 ? 8 : 0 }}>
-            <View style={{ backgroundColor: '#e8a02018', borderRadius: 8, padding: 6 }}>
-              <Ionicons name={weatherIcon(summary.weather?.condition || '') as any} size={14} color="#e8a020" />
-            </View>
-            <Text style={{ fontSize: fonts.sm, color: colours.muted }}>
-              {Math.round(summary.weather.temp)}{'\u00B0'}C · {summary.weather.condition}
+        {/* Events + Deals — combined single line */}
+        {parts.length > 0 && (
+          <TouchableOpacity
+            onPress={summary.events.count > 0 ? onPressEvents : onPressDeals}
+            activeOpacity={0.7}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
+            <Text style={{ fontSize: fonts.md, color: colours.text }}>
+              {parts.join(' · ')}
             </Text>
-          </View>
+            {(summary.events.highlights.length > 0 || summary.deals.highlights.length > 0) && (
+              <Text style={{ fontSize: fonts.sm, color: colours.muted }} numberOfLines={1}>
+                {[...summary.events.highlights, ...summary.deals.highlights].slice(0, 2).join(', ')}
+              </Text>
+            )}
+          </TouchableOpacity>
         )}
       </View>
     </View>

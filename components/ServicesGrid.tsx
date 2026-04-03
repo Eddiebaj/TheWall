@@ -9,39 +9,23 @@ export type ServicesTab = { id: string; label_en: string; label_fr: string; icon
 
 export const SERVICES_TABS: ServicesTab[] = [
   {
-    id: 'entertainment', label_en: 'Fun', label_fr: 'Divertis.', icon: 'sparkles',
+    id: 'explore', label_en: 'Explore', label_fr: 'Explorer', icon: 'compass',
     tiles: [
-      { id: 'sports',      label_en: 'Ottawa Sports', label_fr: 'Sports Ottawa', icon: 'trophy-outline',   accent: '#c8102e', action: 'alert',    target: 'sports' },
+      { id: 'sports',      label_en: 'Sports',       label_fr: 'Sports',        icon: 'trophy-outline',   accent: '#c8102e', action: 'alert',    target: 'sports' },
       { id: 'social',      label_en: 'Social',       label_fr: 'Social',        icon: 'beer',             accent: '#7b5ea7', action: 'alert',    target: 'social' },
-      { id: 'tm_events',   label_en: 'Live Events',  label_fr: '\u00C9v\u00E9nements',    icon: 'ticket',           accent: '#026CDF', action: 'navigate', target: '/(tabs)/events?source=ticketmaster' },
-      { id: 'eb_events',   label_en: 'Community',    label_fr: 'Communaut\u00E9',    icon: 'people',           accent: '#F05537', action: 'navigate', target: '/(tabs)/events?source=eventbrite' },
-      { id: 'local_events', label_en: '613flea & TD', label_fr: '613flea & TD', icon: 'storefront',       accent: '#c0852a', action: 'navigate', target: '/(tabs)/events?source=local' },
-      { id: 'reddit',      label_en: 'r/ottawa',     label_fr: 'r/ottawa',      icon: 'chatbubbles',      accent: '#FF4500', action: 'link',     target: 'https://www.reddit.com/r/ottawa/' },
-    ],
-  },
-  {
-    id: 'food', label_en: 'Food', label_fr: 'Bouffe', icon: 'restaurant',
-    tiles: [
-      { id: 'eats_nearby', label_en: 'Nearby Eats',  label_fr: 'Restos pr\u00E8s',   icon: 'restaurant',       accent: '#cc3b2a', action: 'navigate', target: '/(tabs)/nearby?category=restaurant' },
+      { id: 'tm_events',   label_en: 'Events',       label_fr: '\u00C9v\u00E9nements',    icon: 'ticket',           accent: '#026CDF', action: 'navigate', target: '/(tabs)/events?source=ticketmaster' },
+      { id: 'eats_nearby', label_en: 'Eats',         label_fr: 'Restos',        icon: 'restaurant',       accent: '#cc3b2a', action: 'navigate', target: '/(tabs)/nearby?category=restaurant' },
       { id: 'coffee',      label_en: 'Coffee',       label_fr: 'Caf\u00E9',          icon: 'cafe',             accent: '#c0852a', action: 'navigate', target: '/(tabs)/nearby?category=cafe' },
-      { id: 'grocery',     label_en: 'Grocery',      label_fr: '\u00C9picerie',      icon: 'cart',             accent: '#004890', action: 'navigate', target: '/(tabs)/nearby?category=supermarket' },
     ],
   },
   {
     id: 'city', label_en: 'City', label_fr: 'Ville', icon: 'business',
     tiles: [
-      { id: 'live_map',    label_en: 'Live Map',     label_fr: 'Carte live',    icon: 'map',              accent: '#00A78D', action: 'navigate', target: '/(tabs)/map' },
-      { id: 'trip_plan',   label_en: 'Trip Planner', label_fr: 'Planificateur', icon: 'navigate',         accent: '#004890', action: 'navigate', target: '/(tabs)/planner' },
       { id: 'bikeshare',   label_en: 'Bike Share',   label_fr: 'V\u00E9los',         icon: 'bicycle',          accent: '#00A78D', action: 'alert',    target: 'bikeshare' },
-      { id: '311',         label_en: '311 Report',   label_fr: 'Signaler 311',  icon: 'megaphone',        accent: '#cc3b2a', action: 'alert',    target: '311' },
-      { id: 'garbage',     label_en: 'Garbage Day',  label_fr: 'Collecte',      icon: 'trash',            accent: '#6b7f99', action: 'alert',    target: 'garbage' },
-      { id: 'hydro',       label_en: 'Hydro Ottawa', label_fr: 'Hydro Ottawa',  icon: 'flash',            accent: '#e8a020', action: 'link',     target: 'https://hydroottawa.com/en/outages' },
-      { id: 'road_511',    label_en: 'Road Events',  label_fr: '\u00C9v\u00E9nements',    icon: 'warning',          accent: '#e8a020', action: 'alert',    target: 'road_closures' },
-      { id: 'parks',       label_en: 'Parks & Rinks',label_fr: 'Parcs & Patins',icon: 'snow',             accent: '#004890', action: 'alert',    target: 'parks' },
-      { id: 'campus',      label_en: 'My Campus',    label_fr: 'Mon Campus',    icon: 'school',           accent: '#004890', action: 'alert',    target: 'campus' },
-      { id: 'gas',         label_en: 'Gas Prices',   label_fr: 'Prix essence',  icon: 'speedometer',      accent: '#e8a020', action: 'alert',    target: 'gas_prices' },
-      { id: 'uber',        label_en: 'Uber',         label_fr: 'Uber',          icon: 'car-sport',        accent: '#6b7f99', action: 'link',     target: 'uber://' },
-      { id: 'lyft',        label_en: 'Lyft',         label_fr: 'Lyft',          icon: 'car-sport',        accent: '#FF00BF', action: 'link',     target: 'lyft://' },
+      { id: '311',         label_en: '311',           label_fr: '311',            icon: 'megaphone',        accent: '#cc3b2a', action: 'alert',    target: '311' },
+      { id: 'garbage',     label_en: 'Garbage',      label_fr: 'Collecte',      icon: 'trash',            accent: '#6b7f99', action: 'alert',    target: 'garbage' },
+      { id: 'campus',      label_en: 'Campus',       label_fr: 'Campus',        icon: 'school',           accent: '#004890', action: 'alert',    target: 'campus' },
+      { id: 'parks',       label_en: 'Parks',        label_fr: 'Parcs',         icon: 'leaf',             accent: '#004890', action: 'alert',    target: 'parks' },
     ],
   },
 ];
@@ -64,7 +48,24 @@ function ServicesGrid({ colours, fonts, t, language, activeTab, onTabChange, onT
       <View style={{ flexDirection: 'row', paddingHorizontal: 20, gap: 6, marginBottom: 10 }}>
         {SERVICES_TABS.map(tab => {
           const active = activeTab === tab.id;
-          return (<TouchableOpacity key={tab.id} onPress={() => onTabChange(tab.id)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, flex: 1, height: 32, borderRadius: 16, borderWidth: 1, backgroundColor: active ? colours.accent : colours.surface, borderColor: active ? colours.accent : colours.border }} accessibilityRole="tab" accessibilityLabel={language === 'fr' ? tab.label_fr : tab.label_en} accessibilityState={{ selected: active }}><Ionicons name={tab.icon as any} size={12} color={active ? 'white' : colours.muted} /><Text style={{ fontSize: fonts.sm, fontWeight: '700', color: active ? 'white' : colours.muted }}>{language === 'fr' ? tab.label_fr : tab.label_en}</Text></TouchableOpacity>);
+          return (
+            <TouchableOpacity
+              key={tab.id}
+              onPress={() => onTabChange(tab.id)}
+              style={{
+                flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+                paddingHorizontal: 16, height: 32, borderRadius: 16, borderWidth: 1,
+                backgroundColor: active ? colours.accent : 'transparent',
+                borderColor: active ? colours.accent : colours.border,
+              }}
+              accessibilityRole="tab"
+              accessibilityLabel={language === 'fr' ? tab.label_fr : tab.label_en}
+              accessibilityState={{ selected: active }}>
+              <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: active ? 'white' : colours.muted }}>
+                {language === 'fr' ? tab.label_fr : tab.label_en}
+              </Text>
+            </TouchableOpacity>
+          );
         })}
       </View>
       <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
