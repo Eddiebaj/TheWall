@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
 import { useBoard } from '../../context/BoardContext';
+import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { haversineKm } from '../../lib/geo';
 import { cardShadow as sharedCardShadow } from '../../lib/styles';
@@ -41,37 +42,6 @@ function timeAgo(dateStr: string, t: (en: string, fr: string) => string): string
   if (hrs < 24) return t(`${hrs}h ago`, `il y a ${hrs}h`);
   const days = Math.floor(hrs / 24);
   return t(`${days}d ago`, `il y a ${days}j`);
-}
-
-// ── Error Boundary ───────────────────────────────────────────────
-class SavedErrorBoundary extends React.Component<
-  { children: React.ReactNode; colours: any; fonts: any; t: (en: string, fr: string) => string },
-  { hasError: boolean }
-> {
-  state = { hasError: false };
-  static getDerivedStateFromError() { return { hasError: true }; }
-  componentDidCatch(error: Error) { if (__DEV__) console.warn('SavedErrorBoundary caught:', error); }
-  render() {
-    if (this.state.hasError) {
-      const { colours, fonts, t } = this.props;
-      return (
-        <View style={{ flex: 1, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-          <Ionicons name="alert-circle-outline" size={48} color={colours.muted} />
-          <Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
-            {t('Something went wrong', 'Une erreur s\'est produite')}
-          </Text>
-          <TouchableOpacity
-            onPress={() => this.setState({ hasError: false })}
-            style={{ marginTop: 20, backgroundColor: colours.accent, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }}
-            accessibilityRole="button"
-          >
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: fonts.md }}>{t('Tap to retry', 'Appuyez pour r\u00e9essayer')}</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-    return this.props.children;
-  }
 }
 
 function SavedScreenInner() {
@@ -134,7 +104,7 @@ function SavedScreenInner() {
     await AsyncStorage.setItem(SK_LEAVE_NOW_ALERTS, JSON.stringify(updated));
   };
 
-  // ── Schedule future departure alert ──────────────────────────
+  // Schedule future departure alert
   const [scheduleModal, setScheduleModal] = useState<{ stopId: string; stopName: string; routeId: string } | null>(null);
   const [schedHour, setSchedHour] = useState(8);
   const [schedMin, setSchedMin] = useState(0);
@@ -238,7 +208,7 @@ function SavedScreenInner() {
     return { map, cached };
   };
 
-  // ── Load data ──────────────────────────────────────────────────
+  // Load data
   const loadData = useCallback(async () => {
     try {
       const [placesRaw, tripRaw] = await Promise.all([
@@ -352,7 +322,6 @@ function SavedScreenInner() {
 
   const isEmpty = stops.length === 0 && places.length === 0 && !recentTrip;
 
-  // ── Render ─────────────────────────────────────────────────────
   return (
     <View style={{ flex: 1, backgroundColor: colours.bg }}>
       <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
@@ -381,7 +350,7 @@ function SavedScreenInner() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={TEAL} />}
           contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: 100 }}
         >
-          {/* ── Most used stop (full width) ──────────────────── */}
+          {/* Most used stop */}
           {mostUsedStop && (
             <TouchableOpacity
               activeOpacity={0.75}
@@ -458,7 +427,7 @@ function SavedScreenInner() {
             </TouchableOpacity>
           )}
 
-          {/* ── Recent trip (full width) ─────────────────────── */}
+          {/* Recent trip */}
           {recentTrip && (
             <TouchableOpacity
               activeOpacity={0.75}
@@ -493,7 +462,7 @@ function SavedScreenInner() {
             </TouchableOpacity>
           )}
 
-          {/* ── Saved stops grid (half width pairs) ──────────── */}
+          {/* Saved stops grid */}
           {stops.length > 0 && (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: GAP }}>
               {stops
@@ -573,7 +542,7 @@ function SavedScreenInner() {
             </View>
           )}
 
-          {/* ── Saved places grid (half width pairs) ─────────── */}
+          {/* Saved places grid */}
           {places.length > 0 && (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: GAP, marginTop: stops.length > 0 ? GAP : 0 }}>
               {places.map(place => {
@@ -646,7 +615,7 @@ function SavedScreenInner() {
         </ScrollView>
       )}
 
-      {/* ── Schedule Future Alert Modal ────────────────────────── */}
+      {/* Schedule Future Alert Modal */}
       <Modal visible={!!scheduleModal} transparent animationType="fade" onRequestClose={() => setScheduleModal(null)}>
         <TouchableOpacity activeOpacity={1} onPress={() => setScheduleModal(null)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
           <TouchableOpacity activeOpacity={1} style={{ backgroundColor: colours.card, borderRadius: 20, padding: 24, width: SCREEN_W - 48, borderWidth: 1, borderColor: colours.border }}>
@@ -721,10 +690,10 @@ function SavedScreenInner() {
 }
 
 export default function SavedScreen() {
-  const { colours, fonts, t } = useApp();
+  const { colours, fonts } = useApp();
   return (
-    <SavedErrorBoundary colours={colours} fonts={fonts} t={t}>
+    <ScreenErrorBoundary colours={colours} fonts={fonts}>
       <SavedScreenInner />
-    </SavedErrorBoundary>
+    </ScreenErrorBoundary>
   );
 }

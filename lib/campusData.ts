@@ -64,7 +64,7 @@ export type CampusConfig = {
   shuttleDestination?: { name: string; lat: number; lng: number };
 };
 
-// ── Shuttle schedules (weekday, from uOttawa PDF) ──────────────────
+// Shuttle schedules (weekday, from uOttawa PDF)
 
 const UOTTAWA_SHUTTLES: ShuttleRoute[] = [
   {
@@ -95,7 +95,7 @@ const UOTTAWA_SHUTTLES: ShuttleRoute[] = [
   },
 ];
 
-// ── Library hours ──────────────────────────────────────────────────
+// Library hours
 
 const LIBRARIES: LibraryHours[] = [
   {
@@ -148,7 +148,7 @@ const LIBRARIES: LibraryHours[] = [
   },
 ];
 
-// ── U-Pass info ────────────────────────────────────────────────────
+// U-Pass info
 
 const UPASS: UPassInfo = {
   cost: '$240.52/term',
@@ -159,7 +159,7 @@ const UPASS: UPassInfo = {
   url: 'https://www.octranspo.com/en/fares/u-pass/',
 };
 
-// ── Campus configs ─────────────────────────────────────────────────
+// Campus configs
 
 export const CAMPUSES: CampusConfig[] = [
   {
@@ -223,7 +223,7 @@ export const CAMPUSES: CampusConfig[] = [
   },
 ];
 
-// ── Helpers ────────────────────────────────────────────────────────
+// Helpers
 
 /** Get next departure time and minutes until it */
 export function getNextDeparture(departures: string[]): { time: string; minsAway: number } | null {

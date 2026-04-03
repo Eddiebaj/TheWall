@@ -8,43 +8,9 @@ import {
 import { useApp } from '../../context/AppContext';
 import { AlertCardSkeleton } from '../../components/Shimmer';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
+import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
 
-// ── Error Boundary ───────────────────────────────────────────────
-class AlertsErrorBoundary extends React.Component<
-  { children: React.ReactNode; colours: any; fonts: any; t: (en: string, fr: string) => string },
-  { hasError: boolean }
-> {
-  state = { hasError: false };
-  static getDerivedStateFromError() { return { hasError: true }; }
-  componentDidCatch(error: Error) { if (__DEV__) console.warn('AlertsErrorBoundary caught:', error); }
-  render() {
-    if (this.state.hasError) {
-      const { colours, fonts, t } = this.props;
-      return (
-        <View style={{ flex: 1, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-          <Ionicons name="alert-circle-outline" size={48} color={colours.muted} />
-          <Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
-            {t('Something went wrong', 'Une erreur s\'est produite')}
-          </Text>
-          <Text style={{ color: colours.muted, fontSize: fonts.sm, marginTop: 8, textAlign: 'center' }}>
-            {t('Tap below to try again', 'Appuyez ci-dessous pour r\u00e9essayer')}
-          </Text>
-          <TouchableOpacity
-            onPress={() => this.setState({ hasError: false })}
-            style={{ marginTop: 20, backgroundColor: colours.accent, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }}
-            accessibilityRole="button"
-            accessibilityLabel={t('Tap to retry', 'Appuyez pour r\u00e9essayer')}
-          >
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: fonts.md }}>{t('Tap to retry', 'Appuyez pour r\u00e9essayer')}</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-// ── Constants ────────────────────────────────────────────────────
+// Constants
 const ALERTS_URL = 'https://routeo-backend.vercel.app/api/alerts';
 const LRT_URL = 'https://routeo-backend.vercel.app/api/alerts?action=lrt';
 
@@ -55,7 +21,6 @@ const CATEGORY_COLOUR: { [key: string]: string } = {
 
 const LINE_COLOURS = { line1: '#004890', line2: '#00A78D', line4: '#8E44AD' };
 
-// ── Types ─────────────────────────────────────────────────────────
 type ServiceAlert = {
   id: number; title: string; description: string;
   link: string; pubDate: string; routes: string[]; category: string;
@@ -70,7 +35,7 @@ type LrtData = {
   incidents: LrtIncident[]; fetchedAt: string;
 };
 
-// ── Standalone components (outside main component to avoid re-creation) ──
+// Standalone components (outside main component to avoid re-creation)
 
 function StationPill({ station, lineColor }: { station: LrtStation; lineColor: string }) {
   return (
@@ -111,7 +76,7 @@ function LineRow({ label, line, color, fonts, colours, t }: {
   );
 }
 
-// ── Main Screen ───────────────────────────────────────────────────
+// Main Screen
 function AlertsScreenInner() {
   const { colours, fonts, t, theme, resolvedTheme } = useApp();
 
@@ -166,7 +131,7 @@ function AlertsScreenInner() {
     return () => { if (lrtInterval.current) clearInterval(lrtInterval.current); };
   }, []));
 
-  // ── Derived data (memoized) ──────────────────────────────────
+  // Derived data (memoized)
   const { activeAlerts, accessibilityAlerts, elevatorAlerts, categories, filtered, criticalCount, hasAlerts, statusColor } = useMemo(() => {
     const _activeAlerts = alerts.filter(a => a.category !== 'accessibility');
     const _accessibilityAlerts = alerts.filter(a => a.category === 'accessibility');
@@ -194,7 +159,7 @@ function AlertsScreenInner() {
     };
   }, [alerts, activeFilter]);
 
-  // ── Render alert card ──────────────────────────────────────────
+  // Render alert card
   const renderAlertCard = (alert: ServiceAlert) => {
     const catColour = CATEGORY_COLOUR[alert.category] || colours.accent;
     const isExpanded = expandedId === alert.id;
@@ -491,10 +456,10 @@ const styles = StyleSheet.create({
 });
 
 export default function AlertsScreen() {
-  const { colours, fonts, t } = useApp();
+  const { colours, fonts } = useApp();
   return (
-    <AlertsErrorBoundary colours={colours} fonts={fonts} t={t}>
+    <ScreenErrorBoundary colours={colours} fonts={fonts}>
       <AlertsScreenInner />
-    </AlertsErrorBoundary>
+    </ScreenErrorBoundary>
   );
 }

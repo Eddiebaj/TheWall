@@ -27,7 +27,7 @@ type Props = {
 
 const PLAN_URL = 'https://routeo-backend.vercel.app/api/plan';
 
-// ── Scroll wheel time picker ──
+// Scroll wheel time picker
 const WHEEL_ITEM_H = 44;
 const VISIBLE_ITEMS = 5;
 const WHEEL_H = WHEEL_ITEM_H * VISIBLE_ITEMS;
@@ -379,7 +379,7 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
           )}
         </View>
 
-        {/* ── LIST STEP ── */}
+        {/* List step */}
         {step === 'list' && (
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
             {/* Commute info (auto-calculated) */}
@@ -476,7 +476,7 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
           </ScrollView>
         )}
 
-        {/* ── ADD/EDIT STEP ── */}
+        {/* Add/edit step */}
         {step === 'add' && (
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
             {/* Name */}

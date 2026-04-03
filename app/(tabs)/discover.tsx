@@ -15,6 +15,7 @@ import { NewsArticle, timeAgo } from '../../lib/newsData';
 import { SK_NEWS_CACHE, SK_SAVED_NEIGHBOURHOODS } from '../../lib/storageKeys';
 import { supabase } from '../../lib/supabase';
 import NeighbourhoodSheet from '../../components/NeighbourhoodSheet';
+import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
 import { FeedCardSkeleton, HorizontalCardsSkeleton } from '../../components/Shimmer';
 
 type CommunityDeal = {
@@ -34,37 +35,6 @@ type WeekendEvent = {
   url: string;
   image?: string;
 };
-
-// ── Error Boundary ───────────────────────────────────────────────
-class DiscoverErrorBoundary extends React.Component<
-  { children: React.ReactNode; colours: any; fonts: any; t: (en: string, fr: string) => string },
-  { hasError: boolean }
-> {
-  state = { hasError: false };
-  static getDerivedStateFromError() { return { hasError: true }; }
-  componentDidCatch(error: Error) { if (__DEV__) console.warn('DiscoverErrorBoundary caught:', error); }
-  render() {
-    if (this.state.hasError) {
-      const { colours, fonts, t } = this.props;
-      return (
-        <View style={{ flex: 1, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-          <Ionicons name="alert-circle-outline" size={48} color={colours.muted} />
-          <Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
-            {t('Something went wrong', 'Une erreur s\'est produite')}
-          </Text>
-          <TouchableOpacity
-            onPress={() => this.setState({ hasError: false })}
-            style={{ marginTop: 20, backgroundColor: colours.accent, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }}
-            accessibilityRole="button"
-          >
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: fonts.md }}>{t('Tap to retry', 'Appuyez pour r\u00e9essayer')}</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-    return this.props.children;
-  }
-}
 
 function DiscoverScreenInner() {
   const { colours, theme, resolvedTheme, t, fonts, language } = useApp();
@@ -477,10 +447,10 @@ function DiscoverScreenInner() {
 }
 
 export default function DiscoverScreen() {
-  const { colours, fonts, t } = useApp();
+  const { colours, fonts } = useApp();
   return (
-    <DiscoverErrorBoundary colours={colours} fonts={fonts} t={t}>
+    <ScreenErrorBoundary colours={colours} fonts={fonts}>
       <DiscoverScreenInner />
-    </DiscoverErrorBoundary>
+    </ScreenErrorBoundary>
   );
 }

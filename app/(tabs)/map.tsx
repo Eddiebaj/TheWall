@@ -24,42 +24,9 @@ import { HAPPY_HOUR_VENUES, HappyHourVenue } from '../../lib/happyHourData';
 import ActiveTrip from '../../components/ActiveTrip';
 import BottomSheet from '@gorhom/bottom-sheet';
 import NearbyTransitSheet, { NearbyStop } from '../../components/NearbyTransitSheet';
+import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
 import { cacheArrivals, getCachedArrivals } from '../../lib/arrivalCache';
 import type { ServiceTile } from '../../components/ServicesGrid';
-
-// Error boundary to catch AIRMap native crashes and show a recoverable fallback
-class MapErrorBoundary extends React.Component<
-  { children: React.ReactNode; colours: any; fonts: any; t: (en: string, fr: string) => string },
-  { hasError: boolean }
-> {
-  state = { hasError: false };
-  static getDerivedStateFromError() { return { hasError: true }; }
-  render() {
-    if (this.state.hasError) {
-      const { colours, fonts, t } = this.props;
-      return (
-        <View style={{ flex: 1, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-          <Ionicons name="map-outline" size={48} color={colours.muted} />
-          <Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
-            {t('Map temporarily unavailable', 'Carte temporairement indisponible')}
-          </Text>
-          <Text style={{ color: colours.muted, fontSize: fonts.sm, marginTop: 8, textAlign: 'center' }}>
-            {t('Something went wrong with the map view', 'Un probleme est survenu avec la carte')}
-          </Text>
-          <TouchableOpacity
-            onPress={() => this.setState({ hasError: false })}
-            style={{ marginTop: 20, backgroundColor: colours.accent, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }}
-            accessibilityRole="button"
-            accessibilityLabel={t('Tap to retry loading map', 'Appuyez pour reessayer la carte')}
-          >
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: fonts.md }}>{t('Tap to retry', 'Appuyez pour reessayer')}</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-    return this.props.children;
-  }
-}
 
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { haversineKm } from '../../lib/geo';
@@ -146,7 +113,7 @@ const isLRT = (routeId: string) => {
 
 const validCoord = (lat: any, lng: any) => lat != null && lng != null && !isNaN(lat) && !isNaN(lng);
 
-// ── Heat zones ──────────────────────────────────────────────────
+// Heat zones
 interface HeatZone {
   id: string;
   type: 'happy_hour' | 'sports' | 'event';
@@ -340,13 +307,13 @@ const venueHasActiveOrUpcomingToday = (venue: VenuePin): boolean => {
   return active.length > 0 || upcoming.length > 0;
 };
 
-// ── Today filter ─────────────────────────────────────────────────
+// Today filter
 const getTodayStr = () => {
   const now = new Date();
   return now.toLocaleDateString('en-CA', { timeZone: 'America/Toronto' }); // YYYY-MM-DD in ET
 };
 
-// ── Grid-based clustering ─────────────────────────────────────────
+// Grid-based clustering
 type Cluster = {
   id: string;
   lat: number; lng: number;
@@ -373,7 +340,7 @@ const clusterEvents = (events: MapEvent[], delta: number): Cluster[] => {
   });
 };
 
-// ── Module-level event cache (persists for app session) ──────────
+// Module-level event cache (persists for app session)
 let _eventsCache: MapEvent[] | null = null;
 let _eventsCacheTime = 0;
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
@@ -892,7 +859,7 @@ export default function MapScreen() {
     setTripDestLabel('');
   }, []);
 
-  // ── Nearby stops fetch ──────────────────────────────────────────
+  // Nearby stops fetch
   const fetchNearbyStops = useCallback(async () => {
     setNearbyLoading(true);
     try {
@@ -1009,7 +976,7 @@ export default function MapScreen() {
   // Initial nearby stops fetch
   useEffect(() => { fetchNearbyStops(); }, [fetchNearbyStops]);
 
-  // ── Sheet data fetching ───────────────────────────────────────
+  // Sheet data fetching
   useEffect(() => {
     // Alerts
     fetchWithTimeout('https://routeo-backend.vercel.app/api/alerts', { timeout: 8000 })
@@ -1553,7 +1520,7 @@ export default function MapScreen() {
   const clusters = useMemo(() => clusterEvents(todayEvents, debouncedDelta), [todayEvents, debouncedDelta]);
 
   return (
-    <MapErrorBoundary colours={colours} fonts={fonts} t={t}>
+    <ScreenErrorBoundary colours={colours} fonts={fonts}>
     <View style={{ flex: 1, backgroundColor: colours.bg }}>
       <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
 
@@ -2763,6 +2730,6 @@ export default function MapScreen() {
       )}
 
     </View>
-    </MapErrorBoundary>
+    </ScreenErrorBoundary>
   );
 }

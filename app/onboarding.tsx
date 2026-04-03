@@ -70,7 +70,7 @@ export default function OnboardingScreen() {
     }
   };
 
-  // ── Location permission ──────────────────────────────────────────
+  // Location permission
   const requestLocation = useCallback(async () => {
     setLocationRequesting(true);
     try {
@@ -82,7 +82,7 @@ export default function OnboardingScreen() {
     setLocationRequesting(false);
   }, []);
 
-  // ── Stop search ──────────────────────────────────────────────────
+  // Stop search
   const searchStops = useCallback((text: string) => {
     setStopQuery(text);
     if (text.length < 2) { setStopResults([]); return; }
@@ -104,7 +104,7 @@ export default function OnboardingScreen() {
     setAddedStops(prev => prev.filter(s => s.id !== id));
   }, []);
 
-  // ── Slide logic ──────────────────────────────────────────────────
+  // Slide logic
   const isLast = currentIndex === SLIDE_COUNT - 1;
   const isStopSlide = currentIndex === 2;
   const canAdvanceStop = addedStops.length > 0;
@@ -137,7 +137,7 @@ export default function OnboardingScreen() {
         keyboardShouldPersistTaps="handled"
         style={{ flex: 1 }}
       >
-        {/* ── Slide 1: Welcome ──────────────────────────────────── */}
+        {/* Slide 1: Welcome */}
         <View style={{ width, flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 36 }}>
           <Svg width={200} height={80} viewBox="0 0 200 80" style={{ marginBottom: 24, opacity: 0.85 }}>
             <Path
@@ -157,7 +157,7 @@ export default function OnboardingScreen() {
           </Text>
         </View>
 
-        {/* ── Slide 2: Location ─────────────────────────────────── */}
+        {/* Slide 2: Location */}
         <View style={{ width, flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 36 }}>
           <View style={{
             width: 100, height: 100, borderRadius: 50,
@@ -203,7 +203,7 @@ export default function OnboardingScreen() {
           )}
         </View>
 
-        {/* ── Slide 3: Add stops (REQUIRED) ─────────────────────── */}
+        {/* Slide 3: Add stops */}
         <View style={{ width, flex: 1, paddingHorizontal: 36, paddingTop: 100 }}>
           <Text style={{ fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', letterSpacing: -0.5, lineHeight: 36, marginBottom: 8 }}>
             {t('What do you take most often?', 'Quel trajet prenez-vous?')}
@@ -271,7 +271,7 @@ export default function OnboardingScreen() {
           )}
         </View>
 
-        {/* ── Slide 4: You're set ───────────────────────────────── */}
+        {/* Slide 4: You're set */}
         <View style={{ width, flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 36 }}>
           <View style={{
             width: 100, height: 100, borderRadius: 50,
@@ -298,7 +298,7 @@ export default function OnboardingScreen() {
         </View>
       </ScrollView>
 
-      {/* ── Bottom controls ─────────────────────────────────────── */}
+      {/* Bottom controls */}
       <View style={{ paddingHorizontal: 24, paddingBottom: 52 }}>
         {/* Dot indicators */}
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 28 }}>

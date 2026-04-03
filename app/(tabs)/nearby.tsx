@@ -14,6 +14,7 @@ import { haversineKm } from '../../lib/geo';
 import { SK_SAVED_PLACES } from '../../lib/storageKeys';
 import { supabase } from '../../lib/supabase';
 import { toTitleCase } from '../../lib/utils';
+import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
 const ARRIVALS_URL = 'https://routeo-backend.vercel.app/api/arrivals';
 
 const CATEGORIES = [
@@ -81,41 +82,6 @@ type Place = {
 
 type StopCoord = { stop_id: string; stop_name: string; stop_lat: number; stop_lon: number };
 type NearbyTransit = { stopName: string; stopId: string; walkMin: number; routeId: string; minsAway: number };
-
-// ── Error Boundary ───────────────────────────────────────────────
-class NearbyErrorBoundary extends React.Component<
-  { children: React.ReactNode; colours: any; fonts: any; t: (en: string, fr: string) => string },
-  { hasError: boolean }
-> {
-  state = { hasError: false };
-  static getDerivedStateFromError() { return { hasError: true }; }
-  componentDidCatch(error: Error) { if (__DEV__) console.warn('NearbyErrorBoundary caught:', error); }
-  render() {
-    if (this.state.hasError) {
-      const { colours, fonts, t } = this.props;
-      return (
-        <View style={{ flex: 1, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-          <Ionicons name="alert-circle-outline" size={48} color={colours.muted} />
-          <Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
-            {t('Something went wrong', 'Une erreur s\'est produite')}
-          </Text>
-          <Text style={{ color: colours.muted, fontSize: fonts.sm, marginTop: 8, textAlign: 'center' }}>
-            {t('Tap below to try again', 'Appuyez ci-dessous pour r\u00e9essayer')}
-          </Text>
-          <TouchableOpacity
-            onPress={() => this.setState({ hasError: false })}
-            style={{ marginTop: 20, backgroundColor: colours.accent, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }}
-            accessibilityRole="button"
-            accessibilityLabel={t('Tap to retry', 'Appuyez pour r\u00e9essayer')}
-          >
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: fonts.md }}>{t('Tap to retry', 'Appuyez pour r\u00e9essayer')}</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-    return this.props.children;
-  }
-}
 
 function ExploreScreenInner() {
   const { colours, theme, resolvedTheme, language, t, fonts } = useApp();
@@ -745,10 +711,10 @@ function ExploreScreenInner() {
 }
 
 export default function ExploreScreen() {
-  const { colours, fonts, t } = useApp();
+  const { colours, fonts } = useApp();
   return (
-    <NearbyErrorBoundary colours={colours} fonts={fonts} t={t}>
+    <ScreenErrorBoundary colours={colours} fonts={fonts}>
       <ExploreScreenInner />
-    </NearbyErrorBoundary>
+    </ScreenErrorBoundary>
   );
 }

@@ -1,11 +1,11 @@
 // Shared constants, types, and helpers used by home screen components
 import { CampusConfig } from './campusData';
 
-// ── API URLs ─────────────────────────────────────────────────────
+// API URLs
 export const BACKEND_URL = 'https://routeo-backend.vercel.app/api/arrivals';
 export const GAS_URL = 'https://routeo-backend.vercel.app/api/city?type=gas';
 
-// ── Types ────────────────────────────────────────────────────────
+// Types
 export type SavedBoardItem =
   | { type: 'bus_stop';      id: string; name: string; agency?: 'OC' | 'STO' }
   | { type: 'lrt_station';   id: string; name: string; agency?: 'OC' | 'STO' }
@@ -36,13 +36,13 @@ export type GasReport = {
   disputed_count: number;
 };
 
-// ── Alert category colours ───────────────────────────────────────
+// Alert category colours
 export const CATEGORY_COLOUR: { [key: string]: string } = {
   lrt: '#00A78D', detour: '#e8a020', cancellation: '#cc3b2a',
   delay: '#e8a020', accessibility: '#7b5ea7', general: '#004890',
 };
 
-// ── Team & campus logos ──────────────────────────────────────────
+// Team & campus logos
 export const TEAM_LOGOS: { [name: string]: any } = {
   'Senators': require('../assets/images/2025-01-ottawa-senators-logo.webp'),
   'REDBLACKS': require('../assets/images/ottawa-redblacks-logo-2023-featured.png'),
@@ -59,7 +59,7 @@ export const CAMPUS_LOGOS: Record<string, any> = {
   algonquin: require('../assets/schools/algonquin.png'),
 };
 
-// ── Time formatters ──────────────────────────────────────────────
+// Time formatters
 export const fmtTimeFromDate = (date: Date): string => {
   const h = date.getHours();
   const m = String(date.getMinutes()).padStart(2, '0');
@@ -69,7 +69,7 @@ export const fmtTimeFromDate = (date: Date): string => {
 export const fmtTime = fmtTimeFromDate;
 export const fmtAbsTime = (minsAway: number): string => fmtTimeFromDate(new Date(Date.now() + minsAway * 60000));
 
-// ── Garbage bin info ─────────────────────────────────────────────
+// Garbage bin info
 export const BIN_INFO: Record<string, { dot: string; color: string; label: string; accepts: string[]; rejects: string[] }> = {
   'garbage':         { dot: '●', color: '#666',    label: 'Garbage',           accepts: ['Food-soiled paper','Non-recyclable plastics','Styrofoam','Broken glass','Diapers'], rejects: ['Recyclables','Hazardous waste','Electronics'] },
   'recycling-blue':  { dot: '●', color: '#1a6fbf', label: 'Blue Bin',          accepts: ['Paper & cardboard','Newspapers','Flyers','Milk cartons','Paper bags'], rejects: ['Plastic bags','Food waste','Styrofoam'] },
@@ -78,7 +78,7 @@ export const BIN_INFO: Record<string, { dot: string; color: string; label: strin
   'yard-waste':      { dot: '●', color: '#8b5a00', label: 'Yard Waste',        accepts: ['Leaves','Grass clippings','Branches (under 1.5m)','Garden plants'], rejects: ['Food waste','Soil','Rocks'] },
 };
 
-// ── Stop helpers ─────────────────────────────────────────────────
+// Stop helpers
 export const isStoStop = (id: string): boolean => {
   const num = parseInt(id);
   if (isNaN(num)) return false;

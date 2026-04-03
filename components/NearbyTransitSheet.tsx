@@ -23,7 +23,7 @@ import { CampusConfig } from '../lib/campusData';
 let Notifications: typeof import('expo-notifications') | null = null;
 try { Notifications = require('expo-notifications'); } catch {}
 
-// ── Types ────────────────────────────────────────────────────────
+// Types
 
 export interface NearbyStop {
   stopId: string;
@@ -102,7 +102,7 @@ interface NearbyTransitSheetProps {
   onSubmitDeal?: () => void;
 }
 
-// ── Helpers ──────────────────────────────────────────────────────
+// Helpers
 
 const SNAP_POINTS = ['25%', '55%', '90%'];
 const TEAL = '#00A78D';
@@ -130,7 +130,7 @@ function weatherIconName(icon: string): string {
   return 'partly-sunny-outline';
 }
 
-// ── Skeleton card ────────────────────────────────────────────────
+// Skeleton card
 
 function SkeletonCard({ colours }: { colours: any }) {
   return (
@@ -145,7 +145,7 @@ function SkeletonCard({ colours }: { colours: any }) {
   );
 }
 
-// ── Route badge ──────────────────────────────────────────────────
+// Route badge
 
 const RouteBadge = React.memo(function RouteBadge({
   routeId,
@@ -196,7 +196,7 @@ const RouteBadge = React.memo(function RouteBadge({
   );
 });
 
-// ── Stop card ────────────────────────────────────────────────────
+// Stop card
 
 const StopCard = React.memo(function StopCard({
   stop,
@@ -375,7 +375,7 @@ const StopCard = React.memo(function StopCard({
   );
 });
 
-// ── Weather row ──────────────────────────────────────────────────
+// Weather row
 
 const WeatherRow = React.memo(function WeatherRow({ weather, colours, t, onPress }: {
   weather: { temp: number; condition: string; icon: string };
@@ -411,10 +411,7 @@ const WeatherRow = React.memo(function WeatherRow({ weather, colours, t, onPress
   );
 });
 
-// ── Recent trips ─────────────────────────────────────────────────
-
-
-// ── Shared layout helpers (stable references) ───────────────────
+// Shared layout helpers (stable references)
 
 function SheetSeparator({ colours }: { colours: any }) {
   return <View style={{ height: 1, backgroundColor: colours.border, marginHorizontal: 16 }} />;
@@ -430,7 +427,7 @@ function SheetSectionHeader({ label, colours }: { label: string; colours: any })
   );
 }
 
-// ── Main component ───────────────────────────────────────────────
+// Main component
 
 const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
   (
@@ -545,7 +542,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
           contentContainerStyle={{ paddingBottom: 60 }}
           showsVerticalScrollIndicator={false}
         >
-          {/* ── Header ─────────────────────────────────────────── */}
+          {/* Header */}
           <View
             style={{
               flexDirection: 'row',
@@ -578,7 +575,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
             </TouchableOpacity>
           </View>
 
-          {/* ── Disruption pill ────────────────────────────────── */}
+          {/* Disruption pill */}
           {hasDisruption && (
             <View
               style={{
@@ -597,7 +594,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
             </View>
           )}
 
-          {/* ── Alert banner ───────────────────────────────────── */}
+          {/* Alert banner */}
           {activeAlertCount > 0 && (
             <View
               style={{
@@ -616,7 +613,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
             </View>
           )}
 
-          {/* ── Happening Now banner ──────────────────────────── */}
+          {/* Happening Now banner */}
           {happeningNow && happeningNow.length > 0 && (
             <View style={{ paddingBottom: 8 }}>
               <View style={{ paddingHorizontal: 16, paddingBottom: 6 }}>
@@ -656,7 +653,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
             </View>
           )}
 
-          {/* ── STATE 1 — Peek: nearby stops (top 4) ──────────── */}
+          {/* Peek: nearby stops (top 4) */}
           {nearbyLoading ? (
             <>
               <SkeletonCard colours={colours} />
@@ -690,7 +687,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
             ))
           )}
 
-          {/* ── STATE 2 — Mid: remaining stops + saved board ───── */}
+          {/* Remaining stops + saved board */}
           {!nearbyLoading && nearbyStops.length > 4 && (
             <>
               {nearbyStops.slice(4).map((stop) => (
@@ -760,7 +757,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
             </TouchableOpacity>
           </View>
 
-          {/* ── STATE 3 — Full: Ottawa life ───────────────────── */}
+          {/* Ottawa life */}
           <Separator />
 
           {/* Tonight card */}

@@ -6,7 +6,7 @@ import {
 import { fetchWithTimeout } from '../lib/fetchWithTimeout';
 import { toTitleCase, decodePolyline } from '../lib/utils';
 
-// ── Types ──────────────────────────────────────────────────────
+// Types
 type WalkStep = { distance: number; relativeDirection: string; streetName: string; instruction?: string | null };
 type Leg = {
   mode: string;
@@ -79,7 +79,7 @@ const MapView = RNMaps?.default ?? null;
 const Marker = (RNMaps as any)?.Marker ?? null;
 const Polyline = (RNMaps as any)?.Polyline ?? null;
 
-// ── Component ──────────────────────────────────────────────────
+// Component
 type ActiveTripProps = {
   visible: boolean;
   itinerary: Itinerary;
@@ -124,7 +124,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
   const nextLeg = activeLeg < legs.length - 1 ? legs[activeLeg + 1] : null;
   const isLastLeg = activeLeg === legs.length - 1;
 
-  // ── Manual advance leg ───────────────────────────────────────
+  // Manual advance leg
   const advanceLeg = () => {
     if (activeLeg >= legs.length - 1) return;
     // If advancing from walk to bus leg ("I'm at the stop"), confirm arrival
@@ -145,7 +145,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
     Haptics?.impactAsync?.(Haptics.ImpactFeedbackStyle.Medium);
   };
 
-  // ── Reset notification refs when a new trip starts ──────────
+  // Reset notification refs when a new trip starts
   useEffect(() => {
     if (visible) {
       notificationFired.current = false;
@@ -153,14 +153,14 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
     }
   }, [visible]);
 
-  // ── Clock tick every second ──────────────────────────────────
+  // Clock tick every second
   useEffect(() => {
     if (!visible) return;
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, [visible]);
 
-  // ── Location tracking ────────────────────────────────────────
+  // Location tracking
   useEffect(() => {
     if (!visible || !Location) return;
     let sub: any = null;
@@ -181,7 +181,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
     return () => { sub?.remove(); locationSubRef.current = null; };
   }, [visible]);
 
-  // ── Auto-advance legs based on location ──────────────────────
+  // Auto-advance legs based on location
   useEffect(() => {
     if (!userCoords || !currentLeg) return;
     const destDist = distMetres(userCoords.lat, userCoords.lon, currentLeg.to.lat, currentLeg.to.lon);
@@ -214,7 +214,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
     }
   }, [userCoords, activeLeg, currentLeg, getOffAlert, tripEnded]);
 
-  // ── Poll arrivals for current transit leg ────────────────────
+  // Poll arrivals for current transit leg
   const pollArrivals = useCallback(async () => {
     if (!currentLeg || currentLeg.mode === 'WALK' || currentLeg.mode === 'CAR' || currentLeg.mode === 'BICYCLE') return;
     const routeId = switchedRoute || currentLeg.routeShortName;
@@ -338,7 +338,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
     return () => { if (arrivalPollRef.current) clearInterval(arrivalPollRef.current); };
   }, [visible, activeLeg, pollArrivals]);
 
-  // ── Schedule notifications on mount ──────────────────────────
+  // Schedule notifications on mount
   useEffect(() => {
     if (!visible || !Notifications) return;
     (async () => {
@@ -381,7 +381,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
     };
   }, [visible]);
 
-  // ── Cleanup on unmount ───────────────────────────────────────
+  // Cleanup on unmount
   const handleEnd = () => {
     if (tripEnded) {
       cleanup();
@@ -433,7 +433,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
     } catch (e) { if (__DEV__) console.warn(e); }
   };
 
-  // ── Pulse animation for countdown <5 min ────────────────────
+  // Pulse animation for countdown <5 min
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const shouldPulse = (() => {
     if (!currentLeg) return false;
@@ -459,14 +459,14 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
     return () => pulse.stop();
   }, [shouldPulse]);
 
-  // ── Elevator/escalator alert for LRT legs ──────────────────
+  // Elevator/escalator alert for LRT legs
   const elevatorAlert = (() => {
     if (!alerts || !currentLeg || (currentLeg.mode !== 'TRAM' && currentLeg.mode !== 'RAIL')) return null;
     const keywords = /elevator|escalator|ascenseur|escalier roulant|hors service|out of service/i;
     return alerts.find(a => keywords.test(a.title) || keywords.test(a.description || ''));
   })();
 
-  // ── Re-fit map when busPosition changes ─────────────────────
+  // Re-fit map when busPosition changes
   useEffect(() => {
     if (!mapRef.current || !busPosition || !currentLeg) return;
     const poly = currentLeg.legGeometry?.points ? decodePolyline(currentLeg.legGeometry.points) : null;
@@ -482,14 +482,14 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
     }
   }, [busPosition]);
 
-  // ── Estimate passed stops based on time progress ───────────
+  // Estimate passed stops based on time progress
   const getPassedStopCount = (): number => {
     if (!userCoords || !currentLeg || currentLeg.mode === 'WALK' || currentLeg.intermediateStops.length === 0) return 0;
     const legProgress = Math.max(0, Math.min(1, (now - currentLeg.startTime) / (currentLeg.endTime - currentLeg.startTime)));
     return Math.floor(legProgress * currentLeg.intermediateStops.length);
   };
 
-  // ── Derived values ───────────────────────────────────────────
+  // Derived values
   if (!currentLeg) return null;
 
   const isWalk = currentLeg.mode === 'WALK';

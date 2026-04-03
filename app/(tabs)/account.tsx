@@ -225,7 +225,7 @@ export default function AccountScreen() {
               style={{ backgroundColor: colours.warnBg, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}
             >
               <Text style={{ flex: 1, fontSize: fonts.sm, fontWeight: '600', color: colours.orange }}>
-                {t('Notifications off. Tap to fix.', 'Notifications desactivees. Appuyez pour corriger.')}
+                {t('Notifications off', 'Notifications desactivees')}
               </Text>
             </TouchableOpacity>
           )}

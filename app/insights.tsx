@@ -6,7 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
 import { SK_TRIP_HISTORY } from '../lib/storageKeys';
 
-// ── Types ────────────────────────────────────────────────────────
+// Types
 
 type Trip = {
   id: string;
@@ -21,7 +21,7 @@ type Trip = {
 
 type RouteStat = { route: string; count: number; avgMins: number; bestMins: number };
 
-// ── Helpers ──────────────────────────────────────────────────────
+// Helpers
 
 function startOfWeek(d: Date): Date {
   const day = d.getDay();
@@ -32,7 +32,7 @@ function startOfWeek(d: Date): Date {
   return start;
 }
 
-// ── Screen ───────────────────────────────────────────────────────
+// Screen
 
 export default function InsightsScreen() {
   const { colours, fonts, t, language } = useApp();

@@ -27,40 +27,7 @@ import ActiveTrip from '../../components/ActiveTrip';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { supabase } from '../../lib/supabase';
 
-// ── Error Boundary ───────────────────────────────────────────────
-class PlannerErrorBoundary extends React.Component<
-  { children: React.ReactNode; colours: { bg: string; text: string; muted: string; accent: string }; fonts: { sm: number; md: number; lg: number; xl: number; xxl: number }; t: (en: string, fr: string) => string },
-  { hasError: boolean }
-> {
-  state = { hasError: false };
-  static getDerivedStateFromError() { return { hasError: true }; }
-  componentDidCatch(error: Error) { if (__DEV__) console.warn('PlannerErrorBoundary caught:', error); }
-  render() {
-    if (this.state.hasError) {
-      const { colours, fonts, t } = this.props;
-      return (
-        <View style={{ flex: 1, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-          <Ionicons name="navigate-outline" size={48} color={colours.muted} />
-          <Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
-            {t('Something went wrong', 'Une erreur s\'est produite')}
-          </Text>
-          <Text style={{ color: colours.muted, fontSize: fonts.sm, marginTop: 8, textAlign: 'center' }}>
-            {t('The planner ran into an issue', 'Le planificateur a rencontr\u00e9 un probl\u00e8me')}
-          </Text>
-          <TouchableOpacity
-            onPress={() => this.setState({ hasError: false })}
-            style={{ marginTop: 20, backgroundColor: colours.accent, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }}
-            accessibilityRole="button"
-            accessibilityLabel={t('Tap to retry', 'Appuyez pour r\u00e9essayer')}
-          >
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: fonts.md }}>{t('Tap to retry', 'Appuyez pour r\u00e9essayer')}</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-    return this.props.children;
-  }
-}
+import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
 import { SK_PLANNER_PREFS, SK_SAVED_ROUTES, SK_TRIP_HISTORY, SK_LEAVE_REMINDERS, SK_ACCESSIBILITY_ROUTING, SK_MOTION, SK_WALK_PREFERENCE, SK_WALK_PACE, SK_BATTERY_SAVER, SK_CAMPUS, SK_CLASS_SCHEDULE } from '../../lib/storageKeys';
 import { CAMPUSES, CampusConfig } from '../../lib/campusData';
 import { ClassSchedule, nextClass, fmt12h as schedFmt12h } from '../../lib/scheduleData';
@@ -174,7 +141,7 @@ function fmtDistance(metres: number) {
   return `${(metres / 1000).toFixed(1)}km`;
 }
 
-// ── Custom Wheel Picker ─────────────────────────────────────────
+// Custom Wheel Picker
 const WHEEL_ITEM_H = 40;
 const WHEEL_VISIBLE = 5;
 
@@ -406,7 +373,7 @@ function PlannerScreenInner() {
   const cardShadow = isLight ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 } : { shadowColor: '#ffffff', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 };
 
 
-  // ── Load saved routes + trip history ──────────────────────────
+  // Load saved routes + trip history
   useEffect(() => {
     AsyncStorage.getItem(SAVED_ROUTES_KEY).then(val => {
       try { if (val) setSavedRoutes(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved routes failed:', e); }
@@ -465,7 +432,7 @@ function PlannerScreenInner() {
     }).catch(() => {});
   }, []);
 
-  // ── Fetch alerts for transfer warnings ─────────────────────────
+  // Fetch alerts for transfer warnings
   useEffect(() => {
     fetchWithTimeout('https://routeo-backend.vercel.app/api/alerts')
       .then(r => r.ok ? r.json() : null)
@@ -473,7 +440,7 @@ function PlannerScreenInner() {
       .catch(() => {});
   }, []);
 
-  // ── Load planner prefs (hour, minute, arriveBy) ──────────────
+  // Load planner prefs
   useEffect(() => {
     AsyncStorage.getItem(SK_PLANNER_PREFS).then(val => {
       try {
@@ -489,7 +456,7 @@ function PlannerScreenInner() {
     }).catch(() => {});
   }, []);
 
-  // ── Save planner prefs when they change ──────────────────────
+  // Save planner prefs when they change
   const savePlannerPrefs = useCallback((time: Date, ab: boolean) => {
     AsyncStorage.setItem(SK_PLANNER_PREFS, JSON.stringify({
       hour: time.getHours(),
@@ -498,7 +465,7 @@ function PlannerScreenInner() {
     })).catch(() => {});
   }, []);
 
-  // ── Cleanup location subscription on unmount ──────────────────
+  // Cleanup location subscription on unmount
   useEffect(() => {
     return () => {
       locationSubRef.current?.remove();
@@ -507,7 +474,7 @@ function PlannerScreenInner() {
     };
   }, []);
 
-  // ── Handle deep-link params from home screen ──────────────────
+  // Handle deep-link params from home screen
   // Auto-plan immediately when arriving from a saved route or schedule GO
   useEffect(() => {
     if (params.toLabel && params.toLat) {
@@ -564,7 +531,7 @@ function PlannerScreenInner() {
     }
   }, [params.toLabel, params.toLat]);
 
-  // ── Handle deep-link text params (routeo://planner?from=X&to=Y) ──
+  // Handle deep-link text params
   useEffect(() => {
     if (params.from || params.to) {
       // Only handle text-only deep links (no lat/lng already handled above)
@@ -605,7 +572,7 @@ function PlannerScreenInner() {
     }
   }, [params.from, params.to]);
 
-  // ── Autocomplete ─────────────────────────────────────────────
+  // Autocomplete
   const autocomplete = useCallback(async (text: string, field: 'from' | 'to' | `waypoint_${number}`) => {
     if (text.length < 2) {
       if (field === 'from') setFromResults([]);
@@ -661,7 +628,7 @@ function PlannerScreenInner() {
     setFromResults([]); setToResults([]);
   };
 
-  // ── Plan core — accepts explicit places (used by auto-plan on deep-link) ──
+  // Plan core
   const planWithPlaces = useCallback(async (resolvedFrom: PlaceResult, resolvedTo: PlaceResult) => {
     if (!resolvedFrom?.lat || !resolvedTo?.lat) return;
     setLoading(true); setError(''); setSearched(true); setItineraries([]); setShowRouteMap(false); setSelectedRouteIdx(0); setAccessibilityWarning(false);
@@ -825,7 +792,7 @@ function PlannerScreenInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [arriveBy, departTime, accessibleRouting, walkPreference, walkPace, travelMode]);
 
-  // ── Plan — called by button, resolves text inputs first ───────
+  // Plan trip
   const plan = async () => {
     Haptics?.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Keyboard.dismiss();
@@ -971,7 +938,7 @@ function PlannerScreenInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showTimePicker, departTime]);
 
-  // ── Fetch transfer reliability for planned itineraries ────────
+  // Fetch transfer reliability
   const fetchTransferReliability = useCallback(async (itins: Itinerary[]) => {
     try {
       // Collect all transit route IDs involved in transfers
@@ -1018,7 +985,7 @@ function PlannerScreenInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itineraries]);
 
-  // ── Walk or Wait? comparison ────────────────────────────────
+  // Walk or Wait comparison
   useEffect(() => {
     if (travelMode !== 'transit' || itineraries.length === 0 || !fromPlace?.lat || !toPlace?.lat) {
       setWalkAlt(null);
@@ -1074,7 +1041,7 @@ function PlannerScreenInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itineraries, travelMode]);
 
-  // ── Save / unsave route ───────────────────────────────────────
+  // Save / unsave route
   const isRouteSaved = useMemo(() => {
     if (!fromPlace || !toPlace) return false;
     return savedRoutes.some(r =>
@@ -1109,7 +1076,7 @@ function PlannerScreenInner() {
     await AsyncStorage.setItem(SAVED_ROUTES_KEY, JSON.stringify(updated));
   };
 
-  // ── Isochrone: What can I reach? ──────────────────────────────
+  // Isochrone: What can I reach?
   const [isoStops, setIsoStops] = useState<{ name: string; travelTime: number; routes: string[] }[]>([]);
   const [isoLoading, setIsoLoading] = useState(false);
   const [isoVisible, setIsoVisible] = useState(false);
@@ -1224,7 +1191,7 @@ function PlannerScreenInner() {
     setIsoLoading(false);
   };
 
-  // ── Route detail modal ───────────────────────────────────────
+  // Route detail modal
   const openRouteDetail = useCallback(async (leg: Leg) => {
     if (!leg.routeShortName) return;
     setRouteDetailLeg(leg);
@@ -1346,7 +1313,7 @@ function PlannerScreenInner() {
     setRouteDetailShape([]);
   }, []);
 
-  // ── Render helpers ────────────────────────────────────────────
+  // Render helpers
   const renderLegPill = (leg: Leg, i: number) => {
     const color = LEG_COLOURS[leg.mode] || colours.accent;
     const icon = LEG_ICONS[leg.mode] || 'bus';
@@ -1622,7 +1589,7 @@ function PlannerScreenInner() {
     );
   };
 
-  // ── Transit trip notifications ────────────────────────────────
+  // Transit trip notifications
   const requestNotifPermission = async (): Promise<boolean> => {
     if (!Notifications) return false;
     const { status: existing } = await Notifications.getPermissionsAsync();
@@ -1723,7 +1690,7 @@ function PlannerScreenInner() {
     transitNotifIds.current = ids;
   };
 
-  // ── Live tracking ─────────────────────────────────────────────
+  // Live tracking
   const stopTracking = () => {
     locationSubRef.current?.remove();
     locationSubRef.current = null;
@@ -2035,7 +2002,7 @@ function PlannerScreenInner() {
 
   // (time picker is now inline — no modal needed)
 
-  // ── Main render ───────────────────────────────────────────────
+  // Main render
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colours.bg }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       {renderExpandedItinerary()}
@@ -3199,7 +3166,7 @@ function PlannerScreenInner() {
         ) : null}
       </ScrollView>
 
-      {/* ── Leave Reminder Modal ──────────────────────────────────── */}
+      {/* Leave Reminder Modal */}
       {reminderModal && (() => {
         const itin = reminderModal.itin;
         const routeNames = (itin.legs || []).filter(l => l.mode !== 'WALK').map(l => l.routeShortName).filter(Boolean).join(', ');
@@ -3306,11 +3273,11 @@ function PlannerScreenInner() {
 }
 
 export default function PlannerScreen() {
-  const { colours, fonts, t } = useApp();
+  const { colours, fonts } = useApp();
   return (
-    <PlannerErrorBoundary colours={colours} fonts={fonts} t={t}>
+    <ScreenErrorBoundary colours={colours} fonts={fonts}>
       <PlannerScreenInner />
-    </PlannerErrorBoundary>
+    </ScreenErrorBoundary>
   );
 }
 

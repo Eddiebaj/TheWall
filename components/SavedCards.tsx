@@ -16,7 +16,7 @@ import {
 } from '../lib/homeConstants';
 
 
-// ── SavedBoardCard component ─────────────────────────────────────
+// SavedBoardCard component
 export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, cardShadow, garbageEvents, alerts, sensGame, onMoveLeft, onMoveRight, timeFormat, campusData }: {
   item: SavedBoardItem;
   colours: { bg: string; text: string; muted: string; accent: string; surface: string; border: string; lrt: string; red: string; [key: string]: string };
@@ -94,7 +94,7 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
         ) : (
           <View style={{ gap: 4 }}>
             <Ionicons name="location-outline" size={14} color={colours.accent} />
-            <Text style={{ fontSize: 11, color: colours.muted }}>{t('Tap to set your address', 'Appuyez pour entrer votre adresse')}</Text>
+            <Text style={{ fontSize: 11, color: colours.muted }}>{t('Set address', 'Entrer adresse')}</Text>
           </View>
         )}
       </TouchableOpacity>
@@ -143,7 +143,7 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
             </TouchableOpacity>
           </View>
         ) : (
-          <Text style={{ fontSize: 11, color: colours.muted }}>{t('Tap to load prices', 'Appuyez pour charger')}</Text>
+          <Text style={{ fontSize: 11, color: colours.muted }}>{t('Load prices', 'Charger les prix')}</Text>
         )}
       </TouchableOpacity>
     );
@@ -272,7 +272,7 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
               {t('Library', 'Biblio')} {lib.open ? t('Open', 'Ouvert') : t('Closed', 'Ferm\u00e9')}
             </Text>
           ) : (
-            <Text style={{ fontSize: 10, color: colours.muted }}>{t('Tap to set up', 'Appuyez pour configurer')}</Text>
+            <Text style={{ fontSize: 10, color: colours.muted }}>{t('Set up', 'Configurer')}</Text>
           )}
         </View>
       </TouchableOpacity>
@@ -288,7 +288,7 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
     );
   }
 
-  // ── Bus Stop / LRT card ──
+  // Bus Stop / LRT card
   const isLRT = item.type === 'lrt_station';
   const isLive = previewSource === 'gtfs-rt' || previewSource === 'sto-gtfs-rt';
   const isSTO = ('agency' in item && item.agency === 'STO') || isStoStop(item.id);
@@ -371,7 +371,7 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
   );
 });
 
-// ── SavedStopCard component ─────────────────────────────────────
+// SavedStopCard component
 export const SavedStopCard = React.memo(function SavedStopCard({ fav, isActive, colours, fonts, t, onPress, onLongPress, cardShadow }: any) {
   const [preview, setPreview] = useState<{ routeId: string; headsign: string; minsAway: number }[]>([]);
   const [previewLoading, setPreviewLoading] = useState(true);
@@ -428,7 +428,7 @@ export const SavedStopCard = React.memo(function SavedStopCard({ fav, isActive, 
   );
 });
 
-// ── SavedPlaceCard component ─────────────────────────────────────
+// SavedPlaceCard component
 export const SavedPlaceCard = React.memo(function SavedPlaceCard({ place, colours, fonts, language, t, onPress, onLongPress, cardShadow }: any) {
   const photoUrl = place.photoRef ? `https://routeo-backend.vercel.app/api/places?action=photo&photo_reference=${place.photoRef}&maxwidth=400` : null;
   const label = language === 'fr' ? place.categoryLabel_fr : place.categoryLabel_en;
