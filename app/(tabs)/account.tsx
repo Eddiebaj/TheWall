@@ -13,8 +13,12 @@ import { useBoard } from '../../context/BoardContext';
 import { supabase } from '../../lib/supabase';
 import { registerPushToken, syncSubscriptions } from '../../lib/pushNotifications';
 import { SK_NOTIF_SETTINGS, SK_LEAVE_NOW_ALERTS } from '../../lib/storageKeys';
+import { useRouter } from 'expo-router';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { cardShadow as sharedCardShadow } from '../../lib/styles';
+import ClassScheduleModal from '../../components/ClassScheduleModal';
+import { ClassSchedule } from '../../lib/scheduleData';
+import { SK_CLASS_SCHEDULE } from '../../lib/storageKeys';
 
 type NotifSettings = {
   tripAlerts: boolean;
@@ -85,6 +89,10 @@ export default function AccountScreen() {
     language, setLanguage, t,
   } = useApp();
   const { savedBoard } = useBoard();
+  const router = useRouter();
+
+  const [classModalVisible, setClassModalVisible] = useState(false);
+  const [classSchedule, setClassSchedule] = useState<ClassSchedule | null>(null);
 
   const isLight = resolvedTheme === 'light';
   const cardShadow = isLight ? sharedCardShadow : {};
@@ -109,6 +117,9 @@ export default function AccountScreen() {
         if (resp.ok) { const data = await resp.json(); setGhostStats(data); }
       } catch (e) { if (__DEV__) console.warn(e); }
     })();
+    AsyncStorage.getItem(SK_CLASS_SCHEDULE).then(val => {
+      if (val) { try { setClassSchedule(JSON.parse(val)); } catch {} }
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -298,6 +309,31 @@ export default function AccountScreen() {
           </View>
         </View>
 
+        {/* Tools */}
+        <View style={[{
+          borderWidth: 1, borderColor: colours.border, borderRadius: 16,
+          marginHorizontal: 20, marginBottom: 20, overflow: 'hidden',
+          backgroundColor: colours.surface,
+        }, cardShadow]}>
+          <TouchableOpacity
+            onPress={() => setClassModalVisible(true)}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14 }}
+            accessibilityRole="button"
+          >
+            <Text style={{ fontSize: fonts.md, color: colours.text }}>{t('Class Schedule', 'Horaire de cours')}</Text>
+            <Ionicons name="chevron-forward" size={16} color={colours.muted} />
+          </TouchableOpacity>
+          <View style={{ height: 1, backgroundColor: colours.border, marginHorizontal: 16 }} />
+          <TouchableOpacity
+            onPress={() => router.push('/insights' as any)}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14 }}
+            accessibilityRole="button"
+          >
+            <Text style={{ fontSize: fonts.md, color: colours.text }}>{t('Commute Insights', 'Statistiques de trajet')}</Text>
+            <Ionicons name="chevron-forward" size={16} color={colours.muted} />
+          </TouchableOpacity>
+        </View>
+
         {/* Bug report — simple text link */}
         <TouchableOpacity
           onPress={() => { setBugModalVisible(true); setBugSent(false); setBugMessage(''); setBugScreen(''); }}
@@ -416,6 +452,17 @@ export default function AccountScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <ClassScheduleModal
+        visible={classModalVisible}
+        onClose={() => setClassModalVisible(false)}
+        colours={colours}
+        fonts={fonts}
+        t={t}
+        language={language}
+        schedule={classSchedule}
+        onSave={setClassSchedule}
+      />
     </View>
   );
 }

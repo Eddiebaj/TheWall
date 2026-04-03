@@ -22,6 +22,7 @@ import { supabase } from '../../lib/supabase';
 import { NEIGHBOURHOODS } from '../../lib/neighbourhoodData';
 import { HAPPY_HOUR_VENUES, HappyHourVenue } from '../../lib/happyHourData';
 import ActiveTrip from '../../components/ActiveTrip';
+import BusTrackingModal from '../../components/BusTrackingModal';
 import BottomSheet from '@gorhom/bottom-sheet';
 import NearbyTransitSheet, { NearbyStop } from '../../components/NearbyTransitSheet';
 import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
@@ -410,7 +411,8 @@ export default function MapScreen() {
   const [selectedSavedPin, setSelectedSavedPin] = useState<SavedPin | null>(null);
   const [savedLoaded, setSavedLoaded] = useState(false);
   const [selectedRouteShape, setSelectedRouteShape] = useState<{latitude: number; longitude: number}[]>([]);
-  const [busEtaInfo, setBusEtaInfo] = useState<{ mins: number; stopName: string } | null>(null);
+  const [busEtaInfo, setBusEtaInfo] = useState<{ mins: number; stopName: string; stopId: string } | null>(null);
+  const [trackingBus, setTrackingBus] = useState<Bus | null>(null);
 
   // Tapped location ("Route here" feature)
   const [tappedLocation, setTappedLocation] = useState<{ lat: number; lng: number; address: string } | null>(null);
@@ -1081,7 +1083,7 @@ export default function MapScreen() {
         if (cancelled || !nearbyStops || nearbyStops.length === 0) return;
 
         // Find nearest stop to user
-        let bestStop: { stop_name: string; stop_lat: number; stop_lon: number } | null = null;
+        let bestStop: { stop_id: string; stop_name: string; stop_lat: number; stop_lon: number } | null = null;
         let bestDist = Infinity;
         for (const s of nearbyStops) {
           const d = haversineKm(uLat, uLng, s.stop_lat, s.stop_lon);
@@ -1106,7 +1108,7 @@ export default function MapScreen() {
 
         if (!cancelled) {
           const cleanName = bestStop.stop_name.replace(/\s*\(\d+\)$/, '');
-          setBusEtaInfo({ mins: etaMins, stopName: cleanName });
+          setBusEtaInfo({ mins: etaMins, stopName: cleanName, stopId: bestStop.stop_id });
         }
       } catch (e) { if (__DEV__) console.warn(e); }
     })();
@@ -2234,6 +2236,16 @@ export default function MapScreen() {
                     <Text style={{ fontSize: 10, fontWeight: '700', color: busIsSTO ? '#00A78D' : '#CE1126' }}>{agencyLabel}</Text>
                   </View>
                 </View>
+                <TouchableOpacity
+                  onPress={() => { setTrackingBus(selectedBus); }}
+                  style={{ backgroundColor: busIsSTO ? '#00A78D' : '#CE1126', borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 12 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('Track this bus', 'Suivre ce bus')}
+                >
+                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: '#fff' }}>
+                    {t('Track this bus', 'Suivre ce bus')}
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
           ); })()}
@@ -2738,6 +2750,19 @@ export default function MapScreen() {
         />
       )}
 
+      <BusTrackingModal
+        visible={!!trackingBus}
+        onClose={() => setTrackingBus(null)}
+        routeId={trackingBus?.routeId ?? ''}
+        headsign=""
+        stopName={busEtaInfo?.stopName ?? ''}
+        stopId={busEtaInfo?.stopId ?? trackingBus?.toStop ?? ''}
+        minsAway={busEtaInfo?.mins ?? 0}
+        isSTO={trackingBus?.agency === 'STO'}
+        colours={colours}
+        fonts={fonts}
+        t={t}
+      />
     </View>
     </ScreenErrorBoundary>
   );

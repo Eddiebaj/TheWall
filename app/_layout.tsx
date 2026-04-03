@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Image, View, Text, ScrollView, StyleSheet } from 'react-native';
 import { AppProvider } from '../context/AppContext';
 import { BoardProvider } from '../context/BoardContext';
+import NetworkBanner from '../components/NetworkBanner';
 import { SK_ONBOARDED, SK_CRASH_LOG } from '../lib/storageKeys';
 
 // Prevent the native splash screen from auto-hiding until our animated splash starts
@@ -145,7 +146,6 @@ function RootNav() {
       <Stack.Screen name="stop/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="route/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="insights" options={{ headerShown: false }} />
-      <Stack.Screen name="premium-success" options={{ headerShown: false }} />
     </Stack>
   );
 }
@@ -156,6 +156,7 @@ export default function RootLayout() {
       <AppProvider>
         <BoardProvider>
           <RootNav />
+          <NetworkBanner />
         </BoardProvider>
       </AppProvider>
     </RootErrorBoundary>

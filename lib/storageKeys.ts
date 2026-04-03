@@ -132,10 +132,6 @@ export const SK_COMMUTE_DURATION = 'routeo_commute_duration';
 // Home address (commute origin)
 export const SK_HOME_ADDRESS = 'routeo_home_address';
 
-// Premium subscription
-export const SK_PREMIUM = 'routeo_premium';
-export const SK_PREMIUM_EXPIRES = 'routeo_premium_expires';
-
 // Custom palette
 export const SK_PALETTE = 'routeo_palette';
 
