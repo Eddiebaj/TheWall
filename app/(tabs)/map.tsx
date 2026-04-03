@@ -547,12 +547,13 @@ export default function MapScreen() {
           setSheetEvents(evts.map((e: any) => ({ name: e.name, date: e.date, time: e.time, venue: e.venue, lat: e.lat, lng: e.lng })));
         }
       } else if (layer === 'deals') {
+        // Community deals from Supabase
         const { data: deals } = await supabase
           .from('community_deals')
           .select('id, venue_name, deal_description, lat, lng, photo_url, category')
           .eq('approved', true)
           .not('lat', 'is', null);
-        pins = (deals || []).map((d: any) => ({
+        const communityPins: MapPin[] = (deals || []).map((d: any) => ({
           id: `deal_${d.id}`,
           category: 'deals' as LayerKey,
           name: d.venue_name,
@@ -562,6 +563,28 @@ export default function MapScreen() {
           photoUrl: d.photo_url,
           source: 'community' as const,
         }));
+        // Hardcoded happy hour venues with active/upcoming deals today
+        const now = new Date();
+        const day = now.getDay();
+        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        const venuePins: MapPin[] = HAPPY_HOUR_VENUES
+          .filter(v => v.deals.some(d => d.days.includes(day) && timeStr <= d.end))
+          .map(v => {
+            const todayDeals = v.deals.filter(d => d.days.includes(day) && timeStr <= d.end);
+            const active = todayDeals.some(d => timeStr >= d.start && timeStr < d.end);
+            return {
+              id: `hh_${v.name.replace(/\s+/g, '_').toLowerCase()}`,
+              category: 'deals' as LayerKey,
+              name: v.name,
+              subtitle: todayDeals[0]?.description || '',
+              lat: v.lat,
+              lng: v.lng,
+              isOpenNow: active,
+              time: active ? todayDeals.find(d => timeStr >= d.start)?.end : todayDeals[0]?.start,
+              source: 'community' as const,
+            };
+          });
+        pins = [...venuePins, ...communityPins];
       } else if (layer === 'ghost_buses') {
         // Fetch recent ghost bus reports grouped by stop, join with stops table for lat/lng
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -655,7 +678,15 @@ export default function MapScreen() {
     const activeVenues = HAPPY_HOUR_VENUES.filter(v =>
       getActiveDeals(v, dayOfWeek, currentMins).length > 0
     );
-    const clusters = clusterVenues(activeVenues, 800);
+    // Include community deals as virtual venues for clustering
+    const communityDealPins = (layerPins?.deals ?? []).filter(p => p.id.startsWith('deal_'));
+    const communityAsVenues: HappyHourVenue[] = communityDealPins.map(p => ({
+      name: p.name, address: '', type: ['restaurant' as const],
+      lat: p.lat, lng: p.lng,
+      deals: [{ days: [dayOfWeek], start: '00:00', end: '23:59', description: p.subtitle }],
+    }));
+    const allActiveVenues = [...activeVenues, ...communityAsVenues];
+    const clusters = clusterVenues(allActiveVenues, 800);
     clusters.forEach(cluster => {
       zones.push({
         id: `happy-${cluster.centroidLat.toFixed(4)}-${cluster.centroidLng.toFixed(4)}`,
@@ -705,7 +736,7 @@ export default function MapScreen() {
     });
 
     return zones;
-  }, [ottawaNow, sheetSensGame, sheetEvents, t]);
+  }, [ottawaNow, sheetSensGame, sheetEvents, layerPins, t]);
 
   // Count active deals nearby for chip badge
   const activeDealsNearby = useMemo(() => {
