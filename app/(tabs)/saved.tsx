@@ -4,7 +4,7 @@ import * as Location from 'expo-location';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Dimensions, Image, Platform, RefreshControl,
+  ActivityIndicator, Dimensions, Image, Modal, Platform, RefreshControl,
   ScrollView, StatusBar, Text, TouchableOpacity, View
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
@@ -132,6 +132,69 @@ function SavedScreenInner() {
 
     setLeaveAlerts(updated);
     await AsyncStorage.setItem(SK_LEAVE_NOW_ALERTS, JSON.stringify(updated));
+  };
+
+  // ── Schedule future departure alert ──────────────────────────
+  const [scheduleModal, setScheduleModal] = useState<{ stopId: string; stopName: string; routeId: string } | null>(null);
+  const [schedHour, setSchedHour] = useState(8);
+  const [schedMin, setSchedMin] = useState(0);
+  const [schedWeekdays, setSchedWeekdays] = useState(false);
+
+  const openScheduleModal = (stopId: string, stopName: string, routeId: string) => {
+    const now = new Date();
+    setSchedHour(now.getHours());
+    setSchedMin(Math.ceil(now.getMinutes() / 5) * 5 % 60);
+    setSchedWeekdays(false);
+    setScheduleModal({ stopId, stopName, routeId });
+  };
+
+  const confirmScheduleAlert = async () => {
+    if (!scheduleModal) return;
+    const { stopId, routeId } = scheduleModal;
+    try {
+      const Notifs = require('expo-notifications');
+
+      if (schedWeekdays) {
+        // Schedule recurring weekday notifications (Mon-Fri)
+        for (let dayOfWeek = 2; dayOfWeek <= 6; dayOfWeek++) {
+          await Notifs.scheduleNotificationAsync({
+            content: {
+              title: t(`Time to catch Route ${routeId}`, `C'est l'heure de prendre la route ${routeId}`),
+              body: t(`Leave now for your ${schedHour}:${String(schedMin).padStart(2, '0')} bus`, `Partez maintenant pour votre bus de ${schedHour}:${String(schedMin).padStart(2, '0')}`),
+              data: { type: 'leave_now_scheduled', stopId, routeId },
+              sound: 'default',
+            },
+            trigger: { type: Notifs.SchedulableTriggerInputTypes.WEEKLY, weekday: dayOfWeek, hour: schedHour, minute: Math.max(0, schedMin - 3) },
+          });
+        }
+      } else {
+        // Schedule one-time notification
+        const target = new Date();
+        target.setHours(schedHour, Math.max(0, schedMin - 3), 0, 0);
+        if (target.getTime() <= Date.now()) target.setDate(target.getDate() + 1);
+
+        await Notifs.scheduleNotificationAsync({
+          content: {
+            title: t(`Time to catch Route ${routeId}`, `C'est l'heure de prendre la route ${routeId}`),
+            body: t(`Leave now for your ${schedHour}:${String(schedMin).padStart(2, '0')} bus`, `Partez maintenant pour votre bus de ${schedHour}:${String(schedMin).padStart(2, '0')}`),
+            data: { type: 'leave_now_scheduled', stopId, routeId },
+            sound: 'default',
+          },
+          trigger: { type: Notifs.SchedulableTriggerInputTypes.DATE, date: target },
+        });
+      }
+
+      const key = `${stopId}-${routeId}-sched`;
+      const updated = {
+        ...leaveAlerts,
+        [key]: { route: routeId, stopId, time: `${schedHour}:${String(schedMin).padStart(2, '0')}`, recurring: schedWeekdays },
+      };
+      setLeaveAlerts(updated as any);
+      await AsyncStorage.setItem(SK_LEAVE_NOW_ALERTS, JSON.stringify(updated));
+    } catch (e) {
+      if (__DEV__) console.warn('Schedule notification failed:', e);
+    }
+    setScheduleModal(null);
   };
 
   const cardShadow = isLight ? sharedCardShadow : {};
@@ -384,15 +447,16 @@ function SavedScreenInner() {
                       </Text>
                       <TouchableOpacity
                         onPress={() => toggleLeaveAlert(mostUsedStop.id, a.routeId, a.minsAway)}
+                        onLongPress={() => openScheduleModal(mostUsedStop.id, mostUsedStop.name, a.routeId)}
                         hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                         style={{ padding: 4 }}
                         accessibilityRole="button"
-                        accessibilityLabel={t('Set departure alert', 'Definir une alerte de depart')}
+                        accessibilityLabel={t('Set departure alert. Long press to schedule.', 'Definir une alerte. Appui long pour planifier.')}
                       >
                         <Ionicons
-                          name={leaveAlerts[`${mostUsedStop.id}-${a.routeId}`] ? 'notifications' : 'notifications-outline'}
+                          name={leaveAlerts[`${mostUsedStop.id}-${a.routeId}`] || leaveAlerts[`${mostUsedStop.id}-${a.routeId}-sched`] ? 'notifications' : 'notifications-outline'}
                           size={16}
-                          color={leaveAlerts[`${mostUsedStop.id}-${a.routeId}`] ? '#FF9500' : colours.muted}
+                          color={leaveAlerts[`${mostUsedStop.id}-${a.routeId}`] || leaveAlerts[`${mostUsedStop.id}-${a.routeId}-sched`] ? '#FF9500' : colours.muted}
                         />
                       </TouchableOpacity>
                     </View>
@@ -489,15 +553,16 @@ function SavedScreenInner() {
                                 </Text>
                                 <TouchableOpacity
                                   onPress={() => toggleLeaveAlert(stop.id, a.routeId, a.minsAway)}
+                                  onLongPress={() => openScheduleModal(stop.id, stop.name, a.routeId)}
                                   hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                                   style={{ padding: 2 }}
                                   accessibilityRole="button"
-                                  accessibilityLabel={t('Set departure alert', 'Definir une alerte de depart')}
+                                  accessibilityLabel={t('Set departure alert. Long press to schedule.', 'Definir une alerte. Appui long pour planifier.')}
                                 >
                                   <Ionicons
-                                    name={leaveAlerts[`${stop.id}-${a.routeId}`] ? 'notifications' : 'notifications-outline'}
+                                    name={leaveAlerts[`${stop.id}-${a.routeId}`] || leaveAlerts[`${stop.id}-${a.routeId}-sched`] ? 'notifications' : 'notifications-outline'}
                                     size={14}
-                                    color={leaveAlerts[`${stop.id}-${a.routeId}`] ? '#FF9500' : colours.muted}
+                                    color={leaveAlerts[`${stop.id}-${a.routeId}`] || leaveAlerts[`${stop.id}-${a.routeId}-sched`] ? '#FF9500' : colours.muted}
                                   />
                                 </TouchableOpacity>
                               </View>
@@ -592,6 +657,77 @@ function SavedScreenInner() {
           )}
         </ScrollView>
       )}
+
+      {/* ── Schedule Future Alert Modal ────────────────────────── */}
+      <Modal visible={!!scheduleModal} transparent animationType="fade" onRequestClose={() => setScheduleModal(null)}>
+        <TouchableOpacity activeOpacity={1} onPress={() => setScheduleModal(null)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <TouchableOpacity activeOpacity={1} style={{ backgroundColor: colours.card, borderRadius: 20, padding: 24, width: SCREEN_W - 48, borderWidth: 1, borderColor: colours.border }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text, marginBottom: 4 }}>
+              {t('Schedule Alert', 'Planifier une alerte')}
+            </Text>
+            <Text style={{ fontSize: 13, color: colours.muted, marginBottom: 16 }}>
+              {t(`Notify me to catch Route ${scheduleModal?.routeId}`, `M'alerter pour la route ${scheduleModal?.routeId}`)}
+            </Text>
+
+            {/* Time picker — hour + minute */}
+            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+              {t('Bus departure time', 'Heure de d\u00e9part du bus')}
+            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16 }}>
+              <TouchableOpacity onPress={() => setSchedHour(h => (h - 1 + 24) % 24)} style={{ padding: 8 }}>
+                <Ionicons name="chevron-up" size={20} color={colours.muted} />
+              </TouchableOpacity>
+              <View style={{ backgroundColor: colours.surface, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, borderWidth: 1, borderColor: colours.border, minWidth: 60, alignItems: 'center' }}>
+                <Text style={{ fontSize: 24, fontWeight: '800', color: colours.text }}>{String(schedHour).padStart(2, '0')}</Text>
+              </View>
+              <Text style={{ fontSize: 24, fontWeight: '800', color: colours.text }}>:</Text>
+              <View style={{ backgroundColor: colours.surface, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, borderWidth: 1, borderColor: colours.border, minWidth: 60, alignItems: 'center' }}>
+                <Text style={{ fontSize: 24, fontWeight: '800', color: colours.text }}>{String(schedMin).padStart(2, '0')}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setSchedMin(m => (m + 5) % 60)} style={{ padding: 8 }}>
+                <Ionicons name="chevron-up" size={20} color={colours.muted} />
+              </TouchableOpacity>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 16 }}>
+              <TouchableOpacity onPress={() => setSchedHour(h => (h + 1) % 24)} style={{ padding: 4 }}>
+                <Ionicons name="chevron-down" size={16} color={colours.muted} />
+              </TouchableOpacity>
+              <View style={{ width: 60 }} />
+              <View style={{ width: 20 }} />
+              <View style={{ width: 60 }} />
+              <TouchableOpacity onPress={() => setSchedMin(m => (m - 5 + 60) % 60)} style={{ padding: 4 }}>
+                <Ionicons name="chevron-down" size={16} color={colours.muted} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ fontSize: 11, color: colours.muted, textAlign: 'center', marginBottom: 16 }}>
+              {t('We\'ll notify you 3 min before this time', 'Nous vous alerterons 3 min avant cette heure')}
+            </Text>
+
+            {/* Recurring toggle */}
+            <TouchableOpacity
+              onPress={() => setSchedWeekdays(!schedWeekdays)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: schedWeekdays ? '#FF9500' + '15' : colours.surface, borderWidth: 1, borderColor: schedWeekdays ? '#FF9500' + '40' : colours.border, marginBottom: 20 }}
+            >
+              <Ionicons name={schedWeekdays ? 'checkbox' : 'square-outline'} size={20} color={schedWeekdays ? '#FF9500' : colours.muted} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{t('Every weekday', 'Chaque jour de semaine')}</Text>
+                <Text style={{ fontSize: 11, color: colours.muted }}>{t('Mon-Fri recurring alert', 'Alerte r\u00e9currente lun-ven')}</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Actions */}
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity onPress={() => setScheduleModal(null)} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: colours.muted }}>{t('Cancel', 'Annuler')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={confirmScheduleAlert} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: '#FF9500', alignItems: 'center' }}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>{t('Schedule', 'Planifier')}</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
