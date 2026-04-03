@@ -147,3 +147,6 @@ export const SK_CO2_TOTAL = 'routeo_co2_total';
 
 // Community deal votes
 export const SK_MY_DEAL_VOTES = 'routeo_my_deal_votes';
+
+// Map layers
+export const SK_MAP_LAYERS = 'routeo_map_layers';

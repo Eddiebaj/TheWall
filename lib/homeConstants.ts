@@ -3,7 +3,7 @@ import { CampusConfig } from './campusData';
 
 // ── API URLs ─────────────────────────────────────────────────────
 export const BACKEND_URL = 'https://routeo-backend.vercel.app/api/arrivals';
-export const GAS_URL = 'https://routeo-backend.vercel.app/api/gas';
+export const GAS_URL = 'https://routeo-backend.vercel.app/api/city?type=gas';
 
 // ── Types ────────────────────────────────────────────────────────
 export type SavedBoardItem =

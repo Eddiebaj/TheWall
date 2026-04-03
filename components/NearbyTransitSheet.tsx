@@ -1,6 +1,7 @@
 import React, { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  Dimensions,
   View,
   Text,
   TouchableOpacity,
@@ -12,6 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { SavedBoardItem } from '../lib/homeConstants';
 import { SavedBoardCard } from './SavedCards';
 import { SK_TRIP_HISTORY, SK_LEAVE_NOW_ALERTS } from '../lib/storageKeys';
+import { LAYER_CONFIG, LayerKey, MapPin } from '../lib/mapLayers';
+import { LayerFeedCard } from './LayerFeedCard';
 import { writeWidgetData, getTopSavedStopId } from '../lib/widgetData';
 import TonightCard from './TonightCard';
 import NewsSection from './NewsSection';
@@ -89,6 +92,12 @@ interface NearbyTransitSheetProps {
   // Premium
   premiumActive?: boolean;
   onLeaveNowPress?: () => void;
+
+  // City layers
+  activeLayers?: Record<LayerKey, boolean>;
+  layerPins?: Partial<Record<LayerKey, MapPin[]>>;
+  onToggleLayer?: (key: LayerKey) => void;
+  onRouteToPin?: (pin: MapPin) => void;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -507,6 +516,10 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
       onPlanTrip,
       premiumActive,
       onLeaveNowPress,
+      activeLayers,
+      layerPins,
+      onToggleLayer,
+      onRouteToPin,
     },
     ref,
   ) => {
@@ -835,6 +848,72 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                   );
                 })}
               </View>
+            </>
+          )}
+
+          {/* City layers */}
+          {activeLayers && onToggleLayer && (
+            <>
+              <Separator />
+              <SectionHeader label={t('SHOW ON MAP', 'AFFICHER SUR LA CARTE')} />
+
+              {/* Layer feed (active layers, max 10 pins) */}
+              {onRouteToPin && (() => {
+                const feedPins = (Object.entries(activeLayers) as [LayerKey, boolean][])
+                  .filter(([_, active]) => active)
+                  .flatMap(([key]) => (layerPins?.[key] ?? []).slice(0, 2))
+                  .slice(0, 10);
+                return feedPins.length > 0 ? (
+                  <View style={{ marginBottom: 8 }}>
+                    {feedPins.map(pin => (
+                      <LayerFeedCard key={`feed-${pin.id}`} pin={pin} onRoute={onRouteToPin} language={language} />
+                    ))}
+                  </View>
+                ) : null;
+              })()}
+
+              {/* Layer toggle grid */}
+              <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {(Object.entries(LAYER_CONFIG) as [LayerKey, typeof LAYER_CONFIG[LayerKey]][]).map(([key, config]) => {
+                    const isActive = activeLayers[key];
+                    return (
+                      <TouchableOpacity
+                        key={key}
+                        style={{
+                          width: (Dimensions.get('window').width - 32 - 16) / 3,
+                          paddingVertical: 10, paddingHorizontal: 8,
+                          borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: 4,
+                          backgroundColor: colours.surface,
+                          borderWidth: isActive ? 1.5 : 1,
+                          borderColor: isActive ? config.color : colours.border,
+                          opacity: isActive ? 1 : 0.55,
+                        }}
+                        onPress={() => onToggleLayer(key)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name={config.icon as any} size={22} color={isActive ? config.color : colours.muted} />
+                        <Text
+                          style={{ fontSize: 10, fontWeight: '600', textAlign: 'center', color: isActive ? colours.text : colours.muted }}
+                          numberOfLines={1}
+                        >
+                          {language === 'fr' ? config.labelFr : config.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Empty state */}
+              {Object.values(activeLayers).every(v => !v) && (
+                <View style={{ alignItems: 'center', paddingVertical: 40, gap: 12, paddingHorizontal: 32 }}>
+                  <Ionicons name="layers-outline" size={40} color={colours.muted} />
+                  <Text style={{ fontSize: 14, textAlign: 'center', lineHeight: 20, color: colours.muted }}>
+                    {t('Turn on layers to see Ottawa on the map', 'Activez des couches pour voir Ottawa sur la carte')}
+                  </Text>
+                </View>
+              )}
             </>
           )}
 

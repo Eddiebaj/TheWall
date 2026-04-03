@@ -63,6 +63,7 @@ class MapErrorBoundary extends React.Component<
 
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { haversineKm } from '../../lib/geo';
+import { LAYER_CONFIG, DEFAULT_LAYERS, MapPin, LayerKey, saveLayerPrefs, loadLayerPrefs } from '../../lib/mapLayers';
 
 const VEHICLES_URL    = 'https://routeo-backend.vercel.app/api/vehicles';
 const BACKEND_URL     = 'https://routeo-backend.vercel.app/api/arrivals';
@@ -614,6 +615,11 @@ export default function MapScreen() {
   const [expandedArrivals, setExpandedArrivals] = useState<{ routeId: string; headsign: string; minsAway: number; source?: string }[]>([]);
   const [expandedArrivalsLoading, setExpandedArrivalsLoading] = useState(false);
 
+  // City layers
+  const [activeLayers, setActiveLayers] = useState<Record<LayerKey, boolean>>(DEFAULT_LAYERS);
+  const [layerPins, setLayerPins] = useState<Partial<Record<LayerKey, MapPin[]>>>({});
+  const [selectedPin, setSelectedPin] = useState<MapPin | null>(null);
+
   // Sheet data: saved board, alerts, weather, events
   const [sheetAlerts, setSheetAlerts] = useState<any[]>([]);
   const [sheetWeather, setSheetWeather] = useState<{ temp: number; condition: string; icon: string } | null>(null);
@@ -631,6 +637,47 @@ export default function MapScreen() {
   const [discoveryLoading, setDiscoveryLoading] = useState(false);
 
   const sheetAnim = useRef(new Animated.Value(0)).current;
+
+  // Load layer preferences on mount
+  useEffect(() => {
+    loadLayerPrefs().then(prefs => setActiveLayers(prefs));
+  }, []);
+
+  const fetchLayerData = async (layer: LayerKey) => {
+    const lat = region.latitude;
+    const lng = region.longitude;
+    const CITY = 'https://routeo-backend.vercel.app/api/city';
+    try {
+      let pins: MapPin[] = [];
+      if (layer === 'restaurants' || layer === 'bars') {
+        const r = await fetchWithTimeout(`${CITY}?type=foursquare&lat=${lat}&lng=${lng}&category=${layer}&radius=1500`);
+        if (r.ok) pins = await r.json();
+      } else if (layer === 'construction') {
+        const r = await fetchWithTimeout(`${CITY}?type=construction`);
+        if (r.ok) pins = await r.json();
+      } else if (layer === 'parking') {
+        const r = await fetchWithTimeout(`${CITY}?type=parking`);
+        if (r.ok) pins = await r.json();
+      } else if (['food_trucks', 'breweries', 'public_art', 'cultural', 'wifi', 'bike_repair', 'ev_chargers', 'markets'].includes(layer)) {
+        const r = await fetchWithTimeout(`${CITY}?type=ottawa&layer=${layer}`);
+        if (r.ok) pins = await r.json();
+      }
+      // For layers that use existing data (events, deals, sports, ghost_buses, bike_share),
+      // leave empty — they use existing map data
+      setLayerPins(prev => ({ ...prev, [layer]: pins }));
+    } catch (e) {
+      if (__DEV__) console.warn(`Layer fetch failed: ${layer}`, e);
+    }
+  };
+
+  const toggleLayer = async (key: LayerKey) => {
+    const newLayers = { ...activeLayers, [key]: !activeLayers[key] };
+    setActiveLayers(newLayers);
+    saveLayerPrefs(newLayers);
+    if (newLayers[key] && !layerPins[key]?.length) {
+      fetchLayerData(key);
+    }
+  };
 
   const fetchRouteShape = useCallback(async (routeId: string, agency?: string) => {
     try {
@@ -1570,6 +1617,38 @@ export default function MapScreen() {
           </Marker>
         )}
 
+        {/* City layer pins */}
+        {Marker && (Object.entries(activeLayers) as [LayerKey, boolean][]).map(([key, active]) => {
+          if (!active || !layerPins[key]?.length) return null;
+          const config = LAYER_CONFIG[key];
+          return layerPins[key]!.map(pin => (
+            <Marker
+              key={`layer-${key}-${pin.id}`}
+              coordinate={{ latitude: pin.lat, longitude: pin.lng }}
+              onPress={() => setSelectedPin(pin)}
+              tracksViewChanges={false}
+            >
+              <View style={{ alignItems: 'center' }}>
+                <View style={{
+                  width: 28, height: 28, borderRadius: 14,
+                  backgroundColor: config.color,
+                  alignItems: 'center', justifyContent: 'center',
+                  shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.3, shadowRadius: 3, elevation: 4,
+                }}>
+                  <Ionicons name={config.icon as any} size={12} color="white" />
+                </View>
+                <View style={{
+                  width: 0, height: 0,
+                  borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 6,
+                  borderLeftColor: 'transparent', borderRightColor: 'transparent',
+                  borderTopColor: config.color, marginTop: -1,
+                }} />
+              </View>
+            </Marker>
+          ));
+        })}
+
         {/* Route shape polyline for selected bus */}
         {Polyline && selectedRouteShape.length > 0 && (() => {
           if (__DEV__) console.log(`[RouteShape] rendering Polyline with ${selectedRouteShape.length} points, agency=${selectedBus?.agency}`);
@@ -2383,6 +2462,53 @@ export default function MapScreen() {
         </View>
       )}
 
+      {/* Selected layer pin card */}
+      {selectedPin && (
+        <View style={{
+          position: 'absolute', bottom: 120, left: 16, right: 16, zIndex: 999,
+          backgroundColor: colours.card, borderRadius: 16, padding: 16,
+          shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8,
+        }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <View style={{
+              flexDirection: 'row', alignItems: 'center', gap: 4,
+              backgroundColor: LAYER_CONFIG[selectedPin.category].color, borderRadius: 20,
+              paddingHorizontal: 8, paddingVertical: 4,
+            }}>
+              <Ionicons name={LAYER_CONFIG[selectedPin.category].icon as any} size={11} color="white" />
+              <Text style={{ color: 'white', fontSize: 11, fontWeight: '700' }}>
+                {language === 'fr' ? LAYER_CONFIG[selectedPin.category].labelFr : LAYER_CONFIG[selectedPin.category].label}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => setSelectedPin(null)}>
+              <Ionicons name="close-circle" size={22} color={colours.muted} />
+            </TouchableOpacity>
+          </View>
+          <Text style={{ fontSize: 16, fontWeight: '800', color: colours.text, marginBottom: 4 }}>{selectedPin.name}</Text>
+          <Text style={{ fontSize: 13, color: colours.muted, marginBottom: 6 }}>{selectedPin.subtitle}</Text>
+          {(selectedPin.rating || selectedPin.price || selectedPin.isOpenNow !== undefined) && (
+            <Text style={{ fontSize: 12, color: colours.muted, marginBottom: 4 }}>
+              {selectedPin.rating ? `\u2605 ${selectedPin.rating}` : ''}{selectedPin.price ? ` \u00b7 ${selectedPin.price}` : ''}{selectedPin.isOpenNow !== undefined ? (selectedPin.isOpenNow ? ` \u00b7 ${t('Open now', 'Ouvert')}` : ` \u00b7 ${t('Closed', 'Ferm\u00e9')}`) : ''}
+            </Text>
+          )}
+          {selectedPin.time && (
+            <Text style={{ fontSize: 12, color: colours.muted, marginBottom: 4 }}>{selectedPin.time}</Text>
+          )}
+          <TouchableOpacity
+            style={{ backgroundColor: colours.accent, borderRadius: 10, paddingVertical: 10, alignItems: 'center', marginTop: 8 }}
+            onPress={() => {
+              const pin = selectedPin;
+              setSelectedPin(null);
+              router.push({ pathname: '/(tabs)/planner', params: { toLat: String(pin.lat), toLng: String(pin.lng), toLabel: pin.name, autoplan: '1' } } as any);
+            }}
+          >
+            <Text style={{ color: 'white', fontSize: 14, fontWeight: '700' }}>
+              {t('Route there \u2192', 'Itin\u00e9raire \u2192')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Nearby transit bottom sheet */}
       <NearbyTransitSheet
         ref={nearbySheetRef}
@@ -2423,6 +2549,12 @@ export default function MapScreen() {
         onPlanTrip={() => router.push('/(tabs)/planner' as any)}
         premiumActive={premiumActive}
         onLeaveNowPress={() => { if (!premiumActive) setMapPaywallVisible(true); }}
+        activeLayers={activeLayers}
+        layerPins={layerPins}
+        onToggleLayer={toggleLayer}
+        onRouteToPin={(pin: MapPin) => {
+          router.push({ pathname: '/(tabs)/planner', params: { toLat: String(pin.lat), toLng: String(pin.lng), toLabel: pin.name, autoplan: '1' } } as any);
+        }}
       />
 
       {/* ActiveTrip overlay */}
