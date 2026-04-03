@@ -623,7 +623,7 @@ export default function MapScreen() {
   // Sheet data: saved board, alerts, weather, events
   const [sheetAlerts, setSheetAlerts] = useState<any[]>([]);
   const [sheetWeather, setSheetWeather] = useState<{ temp: number; condition: string; icon: string } | null>(null);
-  const [sheetEvents, setSheetEvents] = useState<{ name: string; date: string; time?: string; venue: string }[]>([]);
+  const [sheetEvents, setSheetEvents] = useState<{ name: string; date: string; time?: string; venue: string; lat?: number; lng?: number }[]>([]);
   const [sheetSensGame, setSheetSensGame] = useState<any>(null);
   const [sheetDeals, setSheetDeals] = useState<{ id: string; venue_name: string; deal_text: string; day_of_week: number }[]>([]);
 
@@ -674,11 +674,44 @@ export default function MapScreen() {
         const r = await fetchWithTimeout(`${CITY}?type=ottawa&layer=${layer}`);
         if (r.ok) pins = await r.json();
       } else if (layer === 'events') {
-        // TODO: needs geocoded coordinates
-        pins = [];
+        const now = new Date().toISOString().replace(/\.\d+Z/, 'Z');
+        const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/ebevents?action=ticketmaster&city=Ottawa&size=30&startDateTime=${encodeURIComponent(now)}`);
+        if (r.ok) {
+          const data = await r.json();
+          const evts = data.events || [];
+          pins = evts
+            .filter((e: any) => e.lat != null && e.lng != null)
+            .map((e: any) => ({
+              id: `event_${e.id}`,
+              category: 'events' as LayerKey,
+              name: e.name,
+              subtitle: e.venue || '',
+              lat: e.lat,
+              lng: e.lng,
+              time: e.date,
+              url: e.url,
+              photoUrl: e.imageUrl,
+              source: 'ticketmaster' as const,
+            }));
+          // Also update sheetEvents for TonightCard
+          setSheetEvents(evts.map((e: any) => ({ name: e.name, date: e.date, time: e.time, venue: e.venue })));
+        }
       } else if (layer === 'deals') {
-        // TODO: needs geocoded coordinates
-        pins = [];
+        const { data: deals } = await supabase
+          .from('community_deals')
+          .select('id, venue_name, deal_description, lat, lng, photo_url, category')
+          .eq('approved', true)
+          .not('lat', 'is', null);
+        pins = (deals || []).map((d: any) => ({
+          id: `deal_${d.id}`,
+          category: 'deals' as LayerKey,
+          name: d.venue_name,
+          subtitle: d.deal_description,
+          lat: d.lat,
+          lng: d.lng,
+          photoUrl: d.photo_url,
+          source: 'community' as const,
+        }));
       } else if (layer === 'sports') {
         pins = [
           { id: 'sport_ctc', category: 'sports' as LayerKey, name: 'Canadian Tire Centre', subtitle: 'Ottawa Senators (NHL)', lat: 45.2969, lng: -75.9272, source: 'ottawa' as const },
@@ -686,8 +719,39 @@ export default function MapScreen() {
           { id: 'sport_caa', category: 'sports' as LayerKey, name: 'CAA Arena', subtitle: 'Ottawa 67s (OHL)', lat: 45.3437, lng: -75.6092, source: 'ottawa' as const },
         ];
       } else if (layer === 'ghost_buses') {
-        // Ghost buses come from existing vehicle data — not fetched here
-        pins = [];
+        // Fetch recent ghost bus reports grouped by stop, join with stops table for lat/lng
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+        const { data: reports } = await supabase
+          .from('stop_reports')
+          .select('stop_id, route_id, category, created_at')
+          .neq('category', 'confirmed_arrived')
+          .gte('created_at', oneHourAgo);
+        if (reports && reports.length > 0) {
+          // Group by stop_id
+          const byStop: Record<string, { routes: Set<string>; count: number }> = {};
+          for (const r of reports) {
+            if (!byStop[r.stop_id]) byStop[r.stop_id] = { routes: new Set(), count: 0 };
+            byStop[r.stop_id].count++;
+            if (r.route_id) byStop[r.stop_id].routes.add(r.route_id);
+          }
+          // Get stop coordinates
+          const stopIds = Object.keys(byStop);
+          const { data: stops } = await supabase
+            .from('stops')
+            .select('stop_id, stop_name, stop_lat, stop_lon')
+            .in('stop_id', stopIds);
+          if (stops) {
+            pins = stops.map((s: any) => ({
+              id: `ghost_${s.stop_id}`,
+              category: 'ghost_buses' as LayerKey,
+              name: s.stop_name || `Stop ${s.stop_id}`,
+              subtitle: `${byStop[s.stop_id].count} report${byStop[s.stop_id].count > 1 ? 's' : ''} - ${[...byStop[s.stop_id].routes].join(', ')}`,
+              lat: s.stop_lat,
+              lng: s.stop_lon,
+              source: 'supabase' as const,
+            }));
+          }
+        }
       } else if (layer === 'bike_share') {
         const r = await fetchWithTimeout(`${CITY}?type=bike_share`);
         if (r.ok) pins = await r.json();
@@ -715,6 +779,18 @@ export default function MapScreen() {
     const isStale = ttl ? Date.now() - lastFetch > ttl : !layerPins[key]?.length;
     if (newLayers[key] && isStale) { fetchLayerData(key); }
   };
+
+  // Happening Now: time-sensitive pins within 500m
+  const happeningNow = useMemo(() => {
+    if (!layerPins) return [];
+    const timeLayers: LayerKey[] = ['events', 'deals', 'sports'];
+    const allPins = timeLayers.flatMap(k => (activeLayers[k] ? (layerPins[k] || []) : []));
+    // Filter to within ~500m of map center
+    const R = 0.0045; // ~500m in degrees
+    return allPins.filter(p =>
+      Math.abs(p.lat - region.latitude) < R && Math.abs(p.lng - region.longitude) < R
+    ).slice(0, 10);
+  }, [layerPins, activeLayers, region.latitude, region.longitude]);
 
   const fetchRouteShape = useCallback(async (routeId: string, agency?: string) => {
     try {
@@ -2661,6 +2737,10 @@ export default function MapScreen() {
         loadingLayers={loadingLayers}
         onRouteToPin={(pin: MapPin) => {
           router.push({ pathname: '/(tabs)/planner', params: { toLat: String(pin.lat), toLng: String(pin.lng), toLabel: pin.name, autoplan: '1' } } as any);
+        }}
+        happeningNow={happeningNow}
+        onSubmitDeal={() => {
+          router.push('/(tabs)/discover' as any);
         }}
       />
 

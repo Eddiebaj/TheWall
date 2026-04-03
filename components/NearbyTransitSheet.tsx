@@ -5,6 +5,7 @@ import {
   Text,
   TouchableOpacity,
   ActivityIndicator,
+  ScrollView,
   useWindowDimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -99,6 +100,12 @@ interface NearbyTransitSheetProps {
   onToggleLayer?: (key: LayerKey) => void;
   onRouteToPin?: (pin: MapPin) => void;
   loadingLayers?: Set<LayerKey>;
+
+  // Happening now
+  happeningNow?: MapPin[];
+
+  // Deal submission
+  onSubmitDeal?: () => void;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -531,6 +538,8 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
       onToggleLayer,
       onRouteToPin,
       loadingLayers,
+      happeningNow,
+      onSubmitDeal,
     },
     ref,
   ) => {
@@ -681,6 +690,46 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                   `${activeAlertCount} alerte${activeAlertCount > 1 ? 's' : ''} active${activeAlertCount > 1 ? 's' : ''}`,
                 )}
               </Text>
+            </View>
+          )}
+
+          {/* ── Happening Now banner ──────────────────────────── */}
+          {happeningNow && happeningNow.length > 0 && (
+            <View style={{ paddingBottom: 8 }}>
+              <View style={{ paddingHorizontal: 16, paddingBottom: 6 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+                  {t('Happening Now', 'En ce moment')}
+                </Text>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
+                {happeningNow.map(pin => {
+                  const cfg = LAYER_CONFIG[pin.category];
+                  return (
+                    <TouchableOpacity
+                      key={pin.id}
+                      activeOpacity={0.7}
+                      onPress={() => onRouteToPin?.(pin)}
+                      style={{
+                        width: 150,
+                        padding: 10,
+                        borderRadius: 12,
+                        backgroundColor: colours.surface,
+                        borderWidth: 1,
+                        borderColor: cfg.color + '40',
+                      }}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                        <Ionicons name={cfg.icon as any} size={12} color={cfg.color} />
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: cfg.color }}>
+                          {language === 'fr' ? cfg.labelFr : cfg.label}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: colours.text }} numberOfLines={2}>{pin.name}</Text>
+                      {pin.subtitle ? <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }} numberOfLines={1}>{pin.subtitle}</Text> : null}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
             </View>
           )}
 
@@ -981,6 +1030,33 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
           <Separator />
           <RecentTripsSection colours={colours} t={t} />
         </BottomSheetScrollView>
+
+        {/* Deal submission FAB */}
+        {onSubmitDeal && (
+          <TouchableOpacity
+            onPress={onSubmitDeal}
+            activeOpacity={0.85}
+            style={{
+              position: 'absolute',
+              bottom: 24,
+              right: 16,
+              width: 48,
+              height: 48,
+              borderRadius: 24,
+              backgroundColor: '#27AE60',
+              alignItems: 'center',
+              justifyContent: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.25,
+              shadowRadius: 4,
+              elevation: 4,
+            }}
+            accessibilityLabel={t('Submit a deal', 'Soumettre un rabais')}
+          >
+            <Ionicons name="add" size={26} color="#fff" />
+          </TouchableOpacity>
+        )}
       </BottomSheet>
     );
   },

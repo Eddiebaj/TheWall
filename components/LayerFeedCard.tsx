@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Share, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { MapPin, LAYER_CONFIG } from '../lib/mapLayers';
 import { useApp } from '../context/AppContext';
@@ -7,12 +7,18 @@ import { useApp } from '../context/AppContext';
 interface LayerFeedCardProps {
   pin: MapPin;
   onRoute: (pin: MapPin) => void;
+  onSave?: (pin: MapPin) => void;
   language: string;
 }
 
-export const LayerFeedCard = React.memo(function LayerFeedCard({ pin, onRoute, language }: LayerFeedCardProps) {
+export const LayerFeedCard = React.memo(function LayerFeedCard({ pin, onRoute, onSave, language }: LayerFeedCardProps) {
   const { colours } = useApp();
   const config = LAYER_CONFIG[pin.category];
+
+  const handleShare = () => {
+    const msg = `${pin.name} - ${pin.subtitle}${pin.url ? '\n' + pin.url : ''}`;
+    Share.share({ message: msg }).catch(() => {});
+  };
 
   return (
     <View style={[styles.card, { backgroundColor: colours.card, borderLeftColor: config.color }]}>
@@ -38,11 +44,21 @@ export const LayerFeedCard = React.memo(function LayerFeedCard({ pin, onRoute, l
             {pin.isOpenNow ? (language === 'fr' ? 'Ouvert' : 'Open') : (language === 'fr' ? 'Ferm\u00e9' : 'Closed')}
           </Text>
         )}
-        <TouchableOpacity onPress={() => onRoute(pin)} style={styles.routeBtn}>
-          <Text style={[styles.routeBtnText, { color: colours.accent }]}>
-            {language === 'fr' ? 'Itin\u00e9raire \u2192' : 'Route there \u2192'}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.actions}>
+          {onSave && (
+            <TouchableOpacity onPress={() => onSave(pin)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="bookmark-outline" size={16} color={colours.muted} />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={handleShare} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="share-outline" size={16} color={colours.muted} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => onRoute(pin)} style={styles.routeBtn}>
+            <Text style={[styles.routeBtnText, { color: colours.accent }]}>
+              {language === 'fr' ? 'Itin\u00e9raire \u2192' : 'Route there \u2192'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -58,6 +74,7 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 12, marginBottom: 6 },
   footer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   meta: { fontSize: 11 },
-  routeBtn: { marginLeft: 'auto' },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 12, marginLeft: 'auto' },
+  routeBtn: {},
   routeBtnText: { fontSize: 12, fontWeight: '700' },
 });
