@@ -3,6 +3,7 @@ import { Stack, router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Image, View, Text, ScrollView, StyleSheet } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppProvider } from '../context/AppContext';
 import { BoardProvider } from '../context/BoardContext';
 import NetworkBanner from '../components/NetworkBanner';
@@ -152,14 +153,16 @@ function RootNav() {
 
 export default function RootLayout() {
   return (
-    <RootErrorBoundary>
-      <AppProvider>
-        <BoardProvider>
-          <RootNav />
-          <NetworkBanner />
-        </BoardProvider>
-      </AppProvider>
-    </RootErrorBoundary>
+    <SafeAreaProvider>
+      <RootErrorBoundary>
+        <AppProvider>
+          <BoardProvider>
+            <RootNav />
+            <NetworkBanner />
+          </BoardProvider>
+        </AppProvider>
+      </RootErrorBoundary>
+    </SafeAreaProvider>
   );
 }
 

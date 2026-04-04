@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
-let Haptics: typeof import('expo-haptics') | null = null;
-try { Haptics = require('expo-haptics'); } catch {}
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { hapticLight, hapticMedium, hapticSuccess, hapticSelection } from '../../lib/haptics';
 let Notifications: typeof import('expo-notifications') | null = null;
 try { Notifications = require('expo-notifications'); } catch {}
 import { useLocalSearchParams } from 'expo-router';
@@ -289,6 +289,7 @@ function directionIcon(dir: string): string {
 
 function PlannerScreenInner() {
   const { colours, fonts, t, language } = useApp();
+  const insets = useSafeAreaInsets();
   const { height: SCREEN_H } = useWindowDimensions();
   const params = useLocalSearchParams();
 
@@ -793,7 +794,7 @@ function PlannerScreenInner() {
 
   // Plan trip
   const plan = async () => {
-    Haptics?.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    hapticLight();
     Keyboard.dismiss();
     setFromResults([]);
     setToResults([]);
@@ -1579,7 +1580,7 @@ function PlannerScreenInner() {
               <Ionicons name="notifications-outline" size={16} color={colours.accent} />
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={(e) => { e.stopPropagation(); Haptics?.impactAsync?.(Haptics.ImpactFeedbackStyle.Medium); setActiveTripItinerary(itin); }}
+              onPress={(e) => { e.stopPropagation(); hapticMedium(); setActiveTripItinerary(itin); }}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#34c759', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 }}
               accessibilityRole="button"
               accessibilityLabel={t('Start trip', 'Demarrer le trajet')}
@@ -1790,7 +1791,7 @@ function PlannerScreenInner() {
               )}
               <TouchableOpacity
                 onPress={() => {
-                  Haptics?.impactAsync?.(Haptics.ImpactFeedbackStyle.Medium);
+                  hapticMedium();
                   setActiveTripItinerary(expandedItinerary);
                 }}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, backgroundColor: '#34c759' }}
@@ -2022,7 +2023,7 @@ function PlannerScreenInner() {
           return (
             <View style={{ flex: 1, backgroundColor: colours.bg }}>
               {/* Header */}
-              <View style={{ paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 16, paddingHorizontal: 20, backgroundColor: colours.surface, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+              <View style={{ paddingTop: insets.top + 12, paddingBottom: 16, paddingHorizontal: 20, backgroundColor: colours.surface, borderBottomWidth: 1, borderBottomColor: colours.border }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
                     <View style={{ backgroundColor: routeColor, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, minWidth: 44, alignItems: 'center' }}>
@@ -2185,7 +2186,7 @@ function PlannerScreenInner() {
         />
       )}
 
-      <ScrollView ref={mainScrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 40 }}
+      <ScrollView ref={mainScrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: 40 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

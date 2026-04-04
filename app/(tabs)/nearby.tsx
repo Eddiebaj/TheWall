@@ -7,7 +7,9 @@ import {
   RefreshControl, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../context/AppContext';
+import { hapticLight, hapticSuccess } from '../../lib/haptics';
 import { PlaceCardSkeleton } from '../../components/Shimmer';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { haversineKm } from '../../lib/geo';
@@ -87,6 +89,7 @@ function ExploreScreenInner() {
   const { colours, theme, resolvedTheme, language, t, fonts } = useApp();
   const router = useRouter();
   const isLight = resolvedTheme === 'light';
+  const insets = useSafeAreaInsets();
 
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locationError, setLocationError] = useState('');
@@ -146,6 +149,7 @@ function ExploreScreenInner() {
         setSavedPlaceIds(prev => new Set(prev).add(place.id));
       }
       await AsyncStorage.setItem(SK_SAVED_PLACES, JSON.stringify(places));
+      hapticSuccess();
     } catch (e) { if (__DEV__) console.warn('toggleSavePlace failed:', e); }
   };
 
@@ -423,6 +427,8 @@ function ExploreScreenInner() {
         }}
         onPress={() => navigateToPlanner(place)}
         activeOpacity={0.92}
+        accessibilityRole="button"
+        accessibilityLabel={`${place.name}, ${formatDistance(place.distance)}`}
       >
         <ImageBackground
           source={hasPhoto ? { uri: getPhotoUrl(place.photoRef!) } : undefined}
@@ -613,7 +619,7 @@ function ExploreScreenInner() {
       <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
 
       {/* Search bar */}
-      <View style={{ paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 60 : 40, marginBottom: 8 }}>
+      <View style={{ paddingHorizontal: 20, paddingTop: insets.top + 12, marginBottom: 8 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 10, height: 38 }}>
           <Ionicons name="search" size={15} color={colours.muted} style={{ marginRight: 7 }} />
           <TextInput
@@ -643,7 +649,9 @@ function ExploreScreenInner() {
                 backgroundColor: selectedCategory.id === cat.id ? cat.color + '18' : colours.surface,
                 borderColor: selectedCategory.id === cat.id ? cat.color : colours.border,
               }}
-              onPress={() => { setSelectedCategory(cat); setSearchQuery(''); }}
+              onPress={() => { hapticLight(); setSelectedCategory(cat); setSearchQuery(''); }}
+              accessibilityRole="button"
+              accessibilityLabel={catLabel(cat)}
             >
               <Ionicons name={cat.icon as any} size={12} color={selectedCategory.id === cat.id ? cat.color : colours.muted} />
               <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: selectedCategory.id === cat.id ? cat.color : colours.muted }}>
@@ -666,7 +674,9 @@ function ExploreScreenInner() {
                 backgroundColor: sortBy === opt.id ? colours.tintBg : colours.surface,
                 borderColor: sortBy === opt.id ? colours.accent : colours.border,
               }}
-              onPress={() => setSortBy(opt.id)}
+              onPress={() => { hapticLight(); setSortBy(opt.id); }}
+              accessibilityRole="button"
+              accessibilityLabel={language === 'fr' ? opt.label_fr : opt.label_en}
             >
               <Ionicons name={opt.icon as any} size={11} color={sortBy === opt.id ? colours.accent : colours.muted} />
               <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: sortBy === opt.id ? colours.accent : colours.muted }}>
@@ -691,7 +701,9 @@ function ExploreScreenInner() {
                   backgroundColor: isActive ? colours.accentAlt + '18' : colours.surface,
                   borderColor: isActive ? colours.accentAlt : colours.border,
                 }}
-                onPress={() => setMaxDistance(opt.value)}
+                onPress={() => { hapticLight(); setMaxDistance(opt.value); }}
+                accessibilityRole="button"
+                accessibilityLabel={language === 'fr' ? opt.label_fr : opt.label}
               >
                 {opt.value === 0 && <Ionicons name="globe-outline" size={11} color={isActive ? colours.accentAlt : colours.muted} />}
                 <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: isActive ? colours.accentAlt : colours.muted }}>

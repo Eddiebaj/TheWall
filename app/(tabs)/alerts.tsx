@@ -5,9 +5,11 @@ import {
   ActivityIndicator, Linking, RefreshControl,
   ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../context/AppContext';
 import { AlertCardSkeleton } from '../../components/Shimmer';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
+import { hapticLight } from '../../lib/haptics';
 import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
 
 // Constants
@@ -91,6 +93,7 @@ function AlertsScreenInner() {
   const lrtInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const isLight = resolvedTheme === 'light';
+  const insets = useSafeAreaInsets();
   const cardShadow = isLight
     ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 }
     : {};
@@ -167,8 +170,9 @@ function AlertsScreenInner() {
     return (
       <TouchableOpacity
         key={alert.id}
-        onPress={() => setExpandedId(isExpanded ? null : alert.id)}
+        onPress={() => { hapticLight(); setExpandedId(isExpanded ? null : alert.id); }}
         activeOpacity={0.85}
+        accessibilityLabel={`${alert.category} alert: ${alert.title}`}
         style={[styles.alertCard, {
           backgroundColor: colours.surface, borderColor: colours.border, borderLeftColor: catColour,
         }, cardShadow]}
@@ -238,9 +242,9 @@ function AlertsScreenInner() {
         }
       >
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
           <View>
-            <Text style={{ fontSize: fonts.xxl, fontWeight: '700', color: colours.text }}>
+            <Text style={{ fontSize: fonts.xxl, fontWeight: '700', color: colours.text }} accessibilityRole="header">
               {t('Alerts', 'Alertes')}
             </Text>
             <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
@@ -378,7 +382,7 @@ function AlertsScreenInner() {
               return (
                 <TouchableOpacity
                   key={cat}
-                  onPress={() => setActiveFilter(cat === 'all' ? null : (active ? null : cat))}
+                  onPress={() => { hapticLight(); setActiveFilter(cat === 'all' ? null : (active ? null : cat)); }}
                   style={[styles.filterPill, {
                     backgroundColor: active ? colour : colours.surface,
                     borderColor: active ? colour : colours.border,
@@ -422,7 +426,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-    paddingHorizontal: 20, paddingTop: 60, paddingBottom: 16,
+    paddingHorizontal: 20, paddingTop: 0, paddingBottom: 16,
   },
   refreshBtn: {
     width: 36, height: 36, borderRadius: 18,

@@ -26,6 +26,8 @@ import BusTrackingModal from '../../components/BusTrackingModal';
 import BottomSheet from '@gorhom/bottom-sheet';
 import NearbyTransitSheet, { NearbyStop } from '../../components/NearbyTransitSheet';
 import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { hapticLight, hapticMedium, hapticSuccess } from '../../lib/haptics';
 import { cacheArrivals, getCachedArrivals } from '../../lib/arrivalCache';
 import type { ServiceTile } from '../../components/ServicesGrid';
 
@@ -380,6 +382,7 @@ const fetchAllEvents = async (): Promise<MapEvent[]> => {
 export default function MapScreen() {
   const { colours, theme, resolvedTheme, t, fonts, language } = useApp();
   const { savedBoard: boardItems } = useBoard();
+  const insets = useSafeAreaInsets();
   const isLight = resolvedTheme === 'light';
   const mapRef = useRef<any>(null);
   const deepLinkParams = useLocalSearchParams();
@@ -629,6 +632,7 @@ export default function MapScreen() {
   }, [region]);
 
   const toggleLayer = async (key: LayerKey) => {
+    hapticLight();
     const newLayers = { ...activeLayers, [key]: !activeLayers[key] };
     setActiveLayers(newLayers);
     saveLayerPrefs(newLayers).catch(e => { if (__DEV__) console.warn('Layer prefs save failed:', e); });
@@ -768,6 +772,7 @@ export default function MapScreen() {
   }, []);
 
   const openSheet = useCallback((bus?: Bus, event?: MapEvent, clusterEvs?: MapEvent[], venue?: VenuePin) => {
+    if (bus) hapticMedium(); else hapticLight();
     // Dismiss tapped location card if open
     if (tappedLocationRef.current) { setTappedLocation(null); tappedAnim.setValue(0); }
     setSelectedBus(bus || null); setSelectedEvent(event || null); setSelectedCluster(clusterEvs || null); setSelectedVenue(venue || null);
@@ -786,6 +791,7 @@ export default function MapScreen() {
   }, [sheetAnim, fetchRouteShape, tappedAnim]);
 
   const hideSheet = useCallback(() => {
+    hapticLight();
     Animated.spring(sheetAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start(() => {
       setSelectedBus(null); setSelectedEvent(null); setSelectedCluster(null); setSelectedVenue(null); setSelectedSavedPin(null);
       setSelectedRouteShape([]); setBusEtaInfo(null);
@@ -1438,6 +1444,7 @@ export default function MapScreen() {
   }, []);
 
   const selectPlace = useCallback(async (suggestion: { placeId: string; name: string; address: string }) => {
+    hapticLight();
     Keyboard.dismiss();
     setPlaceSuggestions([]);
     try {
@@ -1737,7 +1744,7 @@ export default function MapScreen() {
       {/* Header */}
       <View style={{
         position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
-        paddingTop: Platform.OS === 'ios' ? 54 : 36, paddingHorizontal: 20, paddingBottom: 8,
+        paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 8,
         backgroundColor: isLight ? 'rgba(240,244,248,0.92)' : 'rgba(15,20,30,0.92)',
       }}>
         {/* Search bar + bus count */}

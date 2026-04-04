@@ -1,11 +1,12 @@
 import { Tabs } from 'expo-router';
-import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MapPin, BookmarkSimple, NavigationArrow, User } from 'phosphor-react-native';
 import { useApp } from '../../context/AppContext';
 
 function TabLayout() {
   const { colours, language } = useApp();
+  const insets = useSafeAreaInsets();
   const fr = language === 'fr';
   return (
     <Tabs
@@ -15,9 +16,9 @@ function TabLayout() {
           backgroundColor: colours.surface,
           borderTopColor: colours.border,
           borderTopWidth: 0.5,
-          height: Platform.OS === 'ios' ? 84 : 64,
+          height: 56 + insets.bottom,
           paddingTop: 6,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 10,
+          paddingBottom: insets.bottom,
         },
         tabBarActiveTintColor: colours.accent,
         tabBarInactiveTintColor: colours.muted,

@@ -7,9 +7,11 @@ import {
   ActivityIndicator, Alert, Dimensions, Image, Modal, Platform, RefreshControl,
   ScrollView, StatusBar, Text, TouchableOpacity, View
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../context/AppContext';
 import { useBoard } from '../../context/BoardContext';
 import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
+import { hapticLight, hapticSuccess } from '../../lib/haptics';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { haversineKm } from '../../lib/geo';
 import { cardShadow as sharedCardShadow } from '../../lib/styles';
@@ -49,6 +51,7 @@ function SavedScreenInner() {
   const { savedBoard: boardItems } = useBoard();
   const isLight = resolvedTheme === 'light';
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [stops, setStops] = useState<SavedStop[]>([]);
   const [places, setPlaces] = useState<SavedPlace[]>([]);
@@ -74,6 +77,7 @@ function SavedScreenInner() {
   }, []);
 
   const toggleLeaveAlert = async (stopId: string, routeId: string, minsAway: number) => {
+    hapticLight();
     const key = `${stopId}-${routeId}`;
     const updated = { ...leaveAlerts };
 
@@ -159,6 +163,7 @@ function SavedScreenInner() {
         });
       }
 
+      hapticSuccess();
       const key = `${stopId}-${routeId}-sched`;
       const updated = {
         ...leaveAlerts,
@@ -336,8 +341,8 @@ function SavedScreenInner() {
       <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
 
       {/* Header */}
-      <View style={{ paddingHorizontal: PAD, paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 12 }}>
-        <Text style={{ fontSize: 28, fontWeight: '700', color: colours.text }}>
+      <View style={{ paddingHorizontal: PAD, paddingTop: insets.top + 12, paddingBottom: 12 }}>
+        <Text accessibilityRole="header" style={{ fontSize: 28, fontWeight: '700', color: colours.text }}>
           {t('Saved', 'Sauvegardes')}
         </Text>
       </View>
@@ -349,15 +354,16 @@ function SavedScreenInner() {
       ) : isEmpty ? (
         /* Empty state */
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 }}>
+          <Ionicons name="bookmark-outline" size={40} color={colours.muted} style={{ marginBottom: 12 }} />
           <Text style={{ fontSize: fonts.sm, color: colours.muted }}>
-            {t('No saved stops', 'Aucun arret sauvegarde')}
+            {t('Add stops from the map to see live arrivals here', 'Ajoutez des arrets depuis la carte pour voir les arrivees ici')}
           </Text>
         </View>
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={TEAL} />}
-          contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: 100 }}
+          contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: insets.bottom + 100 }}
         >
           {/* Most used stop */}
           {mostUsedStop && (

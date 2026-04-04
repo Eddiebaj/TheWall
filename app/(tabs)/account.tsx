@@ -8,14 +8,16 @@ import {
     StatusBar, Switch, Text, TextInput,
     TouchableOpacity, View
 } from 'react-native';
-import { useApp } from '../../context/AppContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useApp, PALETTE_LABELS, PaletteId } from '../../context/AppContext';
 import { useBoard } from '../../context/BoardContext';
 import { supabase } from '../../lib/supabase';
 import { registerPushToken, syncSubscriptions } from '../../lib/pushNotifications';
-import { SK_NOTIF_SETTINGS, SK_LEAVE_NOW_ALERTS } from '../../lib/storageKeys';
+import { SK_NOTIF_SETTINGS } from '../../lib/storageKeys';
 import { useRouter } from 'expo-router';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { cardShadow as sharedCardShadow } from '../../lib/styles';
+import { hapticLight, hapticMedium, hapticSuccess } from '../../lib/haptics';
 import ClassScheduleModal from '../../components/ClassScheduleModal';
 import { ClassSchedule } from '../../lib/scheduleData';
 import { SK_CLASS_SCHEDULE } from '../../lib/storageKeys';
@@ -25,7 +27,6 @@ type NotifSettings = {
   serviceDisruptions: boolean;
   cityReminders: boolean;
   events: boolean;
-  // Legacy keys still stored for backend sync
   leaveNow: boolean;
   arrivalAlerts: boolean;
   transferAtRisk: boolean;
@@ -73,7 +74,6 @@ const DEFAULT_NOTIF_SETTINGS: NotifSettings = {
   delayAlerts: false,
 };
 
-// Map master toggles to the granular keys synced to backend
 const MASTER_KEY_MAP: Record<string, (keyof NotifSettings)[]> = {
   tripAlerts: ['leaveNow', 'arrivalAlerts', 'transferAtRisk', 'tripDisruption', 'lastBus'],
   serviceDisruptions: ['lrtDisruption', 'routeCancellation', 'significantDelay', 'serviceResumed', 'busRunningEarly'],
@@ -83,13 +83,48 @@ const MASTER_KEY_MAP: Record<string, (keyof NotifSettings)[]> = {
 
 const NOTIF_SETTINGS_KEY = SK_NOTIF_SETTINGS;
 
+function SectionHeader({ label, icon, colours, fonts }: { label: string; icon: string; colours: any; fonts: any }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, marginBottom: 8, marginTop: 4 }}>
+      <Ionicons name={icon as any} size={16} color={colours.muted} />
+      <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</Text>
+    </View>
+  );
+}
+
+function Divider({ colours }: { colours: any }) {
+  return <View style={{ height: 1, backgroundColor: colours.border, marginHorizontal: 16 }} />;
+}
+
+function SettingsRow({ label, icon, onPress, colours, fonts, right }: {
+  label: string; icon: string; onPress: () => void; colours: any; fonts: any; right?: React.ReactNode;
+}) {
+  return (
+    <TouchableOpacity
+      onPress={() => { hapticLight(); onPress(); }}
+      style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 }}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <Ionicons name={icon as any} size={18} color={colours.accent} />
+      <Text style={{ fontSize: fonts.md, color: colours.text, flex: 1 }}>{label}</Text>
+      {right || <Ionicons name="chevron-forward" size={16} color={colours.muted} />}
+    </TouchableOpacity>
+  );
+}
+
 export default function AccountScreen() {
   const {
     theme, setTheme, resolvedTheme, colours, fonts,
     language, setLanguage, t,
+    palette, setPalette,
+    largeText, setLargeText,
+    highContrast, setHighContrast,
+    reducedMotion, setReducedMotion,
   } = useApp();
   const { savedBoard } = useBoard();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [classModalVisible, setClassModalVisible] = useState(false);
   const [classSchedule, setClassSchedule] = useState<ClassSchedule | null>(null);
@@ -181,6 +216,7 @@ export default function AccountScreen() {
   };
 
   const toggleMaster = async (masterKey: string, value: boolean) => {
+    hapticLight();
     const subKeys = MASTER_KEY_MAP[masterKey];
     if (value) {
       const granted = await requestPermissionIfNeeded();
@@ -194,29 +230,44 @@ export default function AccountScreen() {
   };
 
   const notifToggles = [
-    { key: 'tripAlerts', label: t('Trip alerts', 'Alertes de trajet') },
-    { key: 'serviceDisruptions', label: t('Service disruptions', 'Perturbations de service') },
-    { key: 'cityReminders', label: t('City reminders', 'Rappels ville') },
-    { key: 'events', label: t('Events', 'Evenements') },
+    { key: 'tripAlerts', label: t('Trip alerts', 'Alertes de trajet'), icon: 'bus' },
+    { key: 'serviceDisruptions', label: t('Service disruptions', 'Perturbations de service'), icon: 'warning' },
+    { key: 'cityReminders', label: t('City reminders', 'Rappels ville'), icon: 'home' },
+    { key: 'events', label: t('Events', 'Evenements'), icon: 'calendar' },
   ];
+
+  const Card = ({ children, style }: { children: React.ReactNode; style?: any }) => (
+    <View style={[{
+      borderWidth: 1, borderColor: colours.border, borderRadius: 16,
+      marginHorizontal: 20, marginBottom: 20, overflow: 'hidden',
+      backgroundColor: colours.surface,
+    }, cardShadow, style]}>
+      {children}
+    </View>
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: colours.bg }}>
       <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}>
 
-        <View style={{ paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 12 }} />
+        <View style={{ paddingTop: insets.top + 12, paddingBottom: 12 }} />
 
-        {/* Profile — simple text, no icon badge */}
         <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
-          <Text style={{ fontSize: fonts.xxl, fontWeight: '700', color: colours.text }}>{t('Settings', 'Parametres')}</Text>
+          <Text
+            style={{ fontSize: fonts.xxl, fontWeight: '700', color: colours.text }}
+            accessibilityRole="header"
+          >
+            {t('Settings', 'Parametres')}
+          </Text>
         </View>
 
-        {/* Ghost Bus Stats — compact inline */}
+        {/* Ghost Bus Stats */}
         {ghostStats && ghostStats.totalThisWeek > 0 && (
           <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
-            <View style={{ backgroundColor: colours.warnBg, borderRadius: 12, padding: 14 }}>
-              <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.orange }}>
+            <View style={{ backgroundColor: colours.warnBg, borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Ionicons name="eye-off" size={18} color={colours.orange} />
+              <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.orange, flex: 1 }}>
                 {ghostStats.totalThisWeek} {t('ghost buses this week', 'bus fantomes cette semaine')}
                 {ghostStats.mostAffectedRoute ? ` · ${t('Route', 'Route')} ${ghostStats.mostAffectedRoute}` : ''}
               </Text>
@@ -224,27 +275,29 @@ export default function AccountScreen() {
           </View>
         )}
 
-        {/* Notifications — flat toggles, no sub-items, no descriptions */}
-        <View style={[{
-          borderWidth: 1, borderColor: colours.border, borderRadius: 16,
-          marginHorizontal: 20, marginBottom: 20, overflow: 'hidden',
-          backgroundColor: colours.surface,
-        }, cardShadow]}>
+        {/* ── NOTIFICATIONS ── */}
+        <SectionHeader label={t('Notifications', 'Notifications')} icon="notifications-outline" colours={colours} fonts={fonts} />
+        <Card>
           {notifPermission === 'denied' && (
             <TouchableOpacity
-              onPress={() => Linking.openSettings()}
+              onPress={() => { hapticMedium(); Linking.openSettings(); }}
               style={{ backgroundColor: colours.warnBg, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('Open settings to enable notifications', 'Ouvrir les parametres pour activer les notifications')}
             >
+              <Ionicons name="alert-circle" size={18} color={colours.orange} />
               <Text style={{ flex: 1, fontSize: fonts.sm, fontWeight: '600', color: colours.orange }}>
-                {t('Notifications off', 'Notifications desactivees')}
+                {t('Notifications off — tap to enable', 'Notifications desactivees — appuyez pour activer')}
               </Text>
+              <Ionicons name="open-outline" size={14} color={colours.orange} />
             </TouchableOpacity>
           )}
           {notifToggles.map((item, i) => (
             <View key={item.key}>
-              {i > 0 && <View style={{ height: 1, backgroundColor: colours.border, marginHorizontal: 16 }} />}
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14 }}>
-                <Text style={{ fontSize: fonts.md, color: notifSettings[item.key as keyof NotifSettings] ? colours.text : colours.muted }}>
+              {i > 0 && <Divider colours={colours} />}
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 }}>
+                <Ionicons name={item.icon as any} size={18} color={notifSettings[item.key as keyof NotifSettings] ? colours.accent : colours.muted} />
+                <Text style={{ fontSize: fonts.md, color: notifSettings[item.key as keyof NotifSettings] ? colours.text : colours.muted, flex: 1 }}>
                   {item.label}
                 </Text>
                 <Switch
@@ -253,38 +306,21 @@ export default function AccountScreen() {
                   trackColor={{ false: colours.border, true: colours.accent }}
                   thumbColor="white"
                   ios_backgroundColor={colours.border}
+                  accessibilityLabel={item.label}
                 />
               </View>
             </View>
           ))}
-        </View>
+        </Card>
 
-        {/* Language — plain row */}
-        <View style={[{
-          borderWidth: 1, borderColor: colours.border, borderRadius: 16,
-          marginHorizontal: 20, marginBottom: 20, overflow: 'hidden',
-          backgroundColor: colours.surface,
-        }, cardShadow]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14 }}>
-            <Text style={{ fontSize: fonts.md, color: colours.text }}>
-              {language === 'en' ? 'English' : 'Francais'}
-            </Text>
-            <Switch
-              value={language === 'fr'}
-              onValueChange={v => setLanguage(v ? 'fr' : 'en')}
-              trackColor={{ false: colours.border, true: colours.lrt }}
-              thumbColor="white"
-              ios_backgroundColor={colours.border}
-            />
-          </View>
-        </View>
+        {/* ── APPEARANCE ── */}
+        <SectionHeader label={t('Appearance', 'Apparence')} icon="color-palette-outline" colours={colours} fonts={fonts} />
 
-        {/* Theme — keep the 3-option picker, it works */}
-        <View style={[{
-          borderWidth: 1, borderColor: colours.border, borderRadius: 16,
-          marginHorizontal: 20, marginBottom: 20, overflow: 'hidden',
-          backgroundColor: colours.surface, padding: 16,
-        }, cardShadow]}>
+        {/* Theme picker */}
+        <Card style={{ padding: 16 }}>
+          <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, marginBottom: 12 }}>
+            {t('Theme', 'Theme')}
+          </Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {(['dark', 'light', 'system'] as const).map(th => (
               <TouchableOpacity
@@ -295,7 +331,11 @@ export default function AccountScreen() {
                   backgroundColor: theme === th ? colours.tintBg : colours.bg,
                   borderColor: theme === th ? colours.accent : colours.border,
                 }}
-                onPress={() => setTheme(th)}>
+                onPress={() => { hapticLight(); setTheme(th); }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: theme === th }}
+                accessibilityLabel={th === 'dark' ? t('Dark mode', 'Mode sombre') : th === 'light' ? t('Light mode', 'Mode clair') : t('System theme', 'Theme systeme')}
+              >
                 <Ionicons
                   name={th === 'dark' ? 'moon' : th === 'light' ? 'sunny' : 'phone-portrait'}
                   size={18}
@@ -307,46 +347,172 @@ export default function AccountScreen() {
               </TouchableOpacity>
             ))}
           </View>
-        </View>
 
-        {/* Tools */}
-        <View style={[{
-          borderWidth: 1, borderColor: colours.border, borderRadius: 16,
-          marginHorizontal: 20, marginBottom: 20, overflow: 'hidden',
-          backgroundColor: colours.surface,
-        }, cardShadow]}>
-          <TouchableOpacity
+          {/* Palette picker */}
+          <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, marginTop: 16, marginBottom: 12 }}>
+            {t('Color palette', 'Palette de couleurs')}
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+            {(Object.keys(PALETTE_LABELS) as PaletteId[]).map(pid => {
+              const pl = PALETTE_LABELS[pid];
+              const active = palette === pid;
+              return (
+                <TouchableOpacity
+                  key={pid}
+                  onPress={() => { hapticLight(); setPalette(pid); }}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 6,
+                    paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10,
+                    borderWidth: 1,
+                    borderColor: active ? pl.swatch : colours.border,
+                    backgroundColor: active ? pl.swatch + '18' : colours.bg,
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={language === 'fr' ? pl.fr : pl.en}
+                >
+                  <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: pl.swatch }} />
+                  <Text style={{ fontSize: fonts.sm, fontWeight: active ? '700' : '500', color: active ? pl.swatch : colours.muted }}>
+                    {language === 'fr' ? pl.fr : pl.en}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </Card>
+
+        {/* Language */}
+        <Card>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 }}>
+            <Ionicons name="language" size={18} color={colours.accent} />
+            <Text style={{ fontSize: fonts.md, color: colours.text, flex: 1 }}>
+              {language === 'en' ? 'English' : 'Francais'}
+            </Text>
+            <Switch
+              value={language === 'fr'}
+              onValueChange={v => { hapticLight(); setLanguage(v ? 'fr' : 'en'); }}
+              trackColor={{ false: colours.border, true: colours.lrt }}
+              thumbColor="white"
+              ios_backgroundColor={colours.border}
+              accessibilityLabel={t('Toggle language', 'Changer de langue')}
+            />
+          </View>
+        </Card>
+
+        {/* ── ACCESSIBILITY ── */}
+        <SectionHeader label={t('Accessibility', 'Accessibilite')} icon="accessibility-outline" colours={colours} fonts={fonts} />
+        <Card>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 }}>
+            <Ionicons name="text" size={18} color={largeText ? colours.accent : colours.muted} />
+            <Text style={{ fontSize: fonts.md, color: colours.text, flex: 1 }}>
+              {t('Larger text', 'Texte agrandi')}
+            </Text>
+            <Switch
+              value={largeText}
+              onValueChange={v => { hapticLight(); setLargeText(v); }}
+              trackColor={{ false: colours.border, true: colours.accent }}
+              thumbColor="white"
+              ios_backgroundColor={colours.border}
+              accessibilityLabel={t('Larger text', 'Texte agrandi')}
+            />
+          </View>
+          <Divider colours={colours} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 }}>
+            <Ionicons name="contrast" size={18} color={highContrast ? colours.accent : colours.muted} />
+            <Text style={{ fontSize: fonts.md, color: colours.text, flex: 1 }}>
+              {t('High contrast', 'Contraste eleve')}
+            </Text>
+            <Switch
+              value={highContrast}
+              onValueChange={v => { hapticLight(); setHighContrast(v); }}
+              trackColor={{ false: colours.border, true: colours.accent }}
+              thumbColor="white"
+              ios_backgroundColor={colours.border}
+              accessibilityLabel={t('High contrast', 'Contraste eleve')}
+            />
+          </View>
+          <Divider colours={colours} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 }}>
+            <Ionicons name="flash-off" size={18} color={reducedMotion ? colours.accent : colours.muted} />
+            <Text style={{ fontSize: fonts.md, color: colours.text, flex: 1 }}>
+              {t('Reduce motion', 'Reduire les animations')}
+            </Text>
+            <Switch
+              value={reducedMotion}
+              onValueChange={v => { hapticLight(); setReducedMotion(v); }}
+              trackColor={{ false: colours.border, true: colours.accent }}
+              thumbColor="white"
+              ios_backgroundColor={colours.border}
+              accessibilityLabel={t('Reduce motion', 'Reduire les animations')}
+            />
+          </View>
+        </Card>
+
+        {/* ── TOOLS ── */}
+        <SectionHeader label={t('Tools', 'Outils')} icon="build-outline" colours={colours} fonts={fonts} />
+        <Card>
+          <SettingsRow
+            label={t('Class Schedule', 'Horaire de cours')}
+            icon="school"
             onPress={() => setClassModalVisible(true)}
-            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14 }}
-            accessibilityRole="button"
-          >
-            <Text style={{ fontSize: fonts.md, color: colours.text }}>{t('Class Schedule', 'Horaire de cours')}</Text>
-            <Ionicons name="chevron-forward" size={16} color={colours.muted} />
-          </TouchableOpacity>
-          <View style={{ height: 1, backgroundColor: colours.border, marginHorizontal: 16 }} />
-          <TouchableOpacity
+            colours={colours}
+            fonts={fonts}
+          />
+          <Divider colours={colours} />
+          <SettingsRow
+            label={t('Commute Insights', 'Statistiques de trajet')}
+            icon="analytics"
             onPress={() => router.push('/insights' as any)}
-            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14 }}
-            accessibilityRole="button"
-          >
-            <Text style={{ fontSize: fonts.md, color: colours.text }}>{t('Commute Insights', 'Statistiques de trajet')}</Text>
-            <Ionicons name="chevron-forward" size={16} color={colours.muted} />
-          </TouchableOpacity>
-        </View>
+            colours={colours}
+            fonts={fonts}
+          />
+          <Divider colours={colours} />
+          <SettingsRow
+            label={t('Service Alerts', 'Alertes de service')}
+            icon="megaphone"
+            onPress={() => router.push('/(tabs)/alerts' as any)}
+            colours={colours}
+            fonts={fonts}
+          />
+        </Card>
 
-        {/* Bug report — simple text link */}
-        <TouchableOpacity
-          onPress={() => { setBugModalVisible(true); setBugSent(false); setBugMessage(''); setBugScreen(''); }}
-          style={{ paddingHorizontal: 20, paddingVertical: 14 }}
-          activeOpacity={0.6}
-          accessibilityRole="button"
-          accessibilityLabel={t('Report a bug', 'Signaler un bogue')}
-        >
-          <Text style={{ fontSize: fonts.md, color: colours.red }}>{t('Report a bug', 'Signaler un bogue')}</Text>
-        </TouchableOpacity>
+        {/* ── SUPPORT ── */}
+        <SectionHeader label={t('Support', 'Soutien')} icon="help-circle-outline" colours={colours} fonts={fonts} />
+        <Card>
+          <SettingsRow
+            label={t('Report a bug', 'Signaler un bogue')}
+            icon="bug"
+            onPress={() => { setBugModalVisible(true); setBugSent(false); setBugMessage(''); setBugScreen(''); }}
+            colours={colours}
+            fonts={fonts}
+          />
+          <Divider colours={colours} />
+          <SettingsRow
+            label={t('Rate RouteO', 'Evaluer RouteO')}
+            icon="star"
+            onPress={() => {
+              const storeUrl = Platform.OS === 'ios'
+                ? 'https://apps.apple.com/app/routeo/id000000000'
+                : 'https://play.google.com/store/apps/details?id=ca.routeo.app';
+              Linking.openURL(storeUrl);
+            }}
+            colours={colours}
+            fonts={fonts}
+            right={<Ionicons name="open-outline" size={16} color={colours.muted} />}
+          />
+          <Divider colours={colours} />
+          <SettingsRow
+            label={t('Privacy Policy', 'Politique de confidentialite')}
+            icon="shield-checkmark"
+            onPress={() => Linking.openURL('https://routeo.ca/privacy')}
+            colours={colours}
+            fonts={fonts}
+            right={<Ionicons name="open-outline" size={16} color={colours.muted} />}
+          />
+        </Card>
 
         {/* Footer */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40 }}>
+        <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40, alignItems: 'center' }}>
           <Text style={{ fontSize: fonts.sm, color: colours.muted }}>
             RouteO v{require('../../app.json').expo.version}
           </Text>
@@ -360,7 +526,7 @@ export default function AccountScreen() {
       {/* Bug Report Modal */}
       <Modal visible={bugModalVisible} animationType="slide" transparent onRequestClose={() => setBugModalVisible(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
-          <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40 }}>
+          <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: insets.bottom + 20 }}>
             <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 16 }} />
             {bugSent ? (
               <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 }}>
@@ -369,7 +535,9 @@ export default function AccountScreen() {
                 <TouchableOpacity
                   onPress={() => setBugModalVisible(false)}
                   style={{ marginTop: 20, backgroundColor: colours.accent, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 40 }}
-                  accessibilityRole="button">
+                  accessibilityRole="button"
+                  accessibilityLabel={t('Done', 'Fermer')}
+                >
                   <Text style={{ color: 'white', fontWeight: '600', fontSize: fonts.md }}>{t('Done', 'Fermer')}</Text>
                 </TouchableOpacity>
               </View>
@@ -384,6 +552,7 @@ export default function AccountScreen() {
                   value={bugMessage}
                   onChangeText={setBugMessage}
                   multiline
+                  accessibilityLabel={t('Bug description', 'Description du bogue')}
                 />
 
                 <Text style={{ fontSize: fonts.sm, color: colours.muted, marginBottom: 4 }}>{t('Screen', 'Ecran')}</Text>
@@ -391,12 +560,15 @@ export default function AccountScreen() {
                   {['Home', 'Map', 'Planner', 'Alerts', 'Nearby', 'Saved', 'Other'].map(s => (
                     <TouchableOpacity
                       key={s}
-                      onPress={() => setBugScreen(bugScreen === s ? '' : s)}
+                      onPress={() => { hapticLight(); setBugScreen(bugScreen === s ? '' : s); }}
                       style={{
                         paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1,
                         borderColor: bugScreen === s ? colours.red : colours.border,
                         backgroundColor: bugScreen === s ? colours.errorBg : colours.surface,
-                      }}>
+                      }}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: bugScreen === s }}
+                    >
                       <Text style={{ fontSize: fonts.sm, color: bugScreen === s ? colours.red : colours.text }}>
                         {t(s, s === 'Home' ? 'Accueil' : s === 'Map' ? 'Carte' : s === 'Planner' ? 'Planificateur' : s === 'Alerts' ? 'Alertes' : s === 'Nearby' ? 'Proximite' : s === 'Saved' ? 'Favoris' : 'Autre')}
                       </Text>
@@ -407,7 +579,10 @@ export default function AccountScreen() {
                 <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
                   <TouchableOpacity
                     onPress={() => setBugModalVisible(false)}
-                    style={{ flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
+                    style={{ flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('Cancel', 'Annuler')}
+                  >
                     <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.muted }}>{t('Cancel', 'Annuler')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -424,6 +599,7 @@ export default function AccountScreen() {
                           device_id: deviceId,
                           app_version: appVersion,
                         });
+                        hapticSuccess();
                         setBugSent(true);
                         const subject = encodeURIComponent('RouteO Bug Report');
                         const body = encodeURIComponent(`${bugMessage.trim()}\n\n---\nScreen: ${bugScreen || 'N/A'}\nDevice: ${Platform.OS} ${Platform.Version}\nDate: ${new Date().toLocaleDateString('en-CA')}\n`);
@@ -440,7 +616,10 @@ export default function AccountScreen() {
                     style={{
                       flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center',
                       backgroundColor: bugMessage.trim() ? colours.red : colours.border,
-                    }}>
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('Send bug report', 'Envoyer le rapport')}
+                  >
                     {bugSending
                       ? <ActivityIndicator color="white" size="small" />
                       : <Text style={{ fontSize: fonts.md, fontWeight: '600', color: bugMessage.trim() ? 'white' : colours.muted }}>{t('Send', 'Envoyer')}</Text>

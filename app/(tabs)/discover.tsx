@@ -3,11 +3,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import React, { useEffect, useState } from 'react';
 import {
-  ImageBackground, Linking, Platform, RefreshControl, ScrollView, StatusBar,
+  ImageBackground, Linking, RefreshControl, ScrollView, StatusBar,
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../context/AppContext';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
+import { hapticLight, hapticSuccess } from '../../lib/haptics';
 import { haversineKm } from '../../lib/geo';
 import { cardShadow as sharedCardShadow } from '../../lib/styles';
 import { Neighbourhood, NEIGHBOURHOODS } from '../../lib/neighbourhoodData';
@@ -39,6 +41,7 @@ type WeekendEvent = {
 function DiscoverScreenInner() {
   const { colours, theme, resolvedTheme, t, fonts, language } = useApp();
   const isLight = resolvedTheme === 'light';
+  const insets = useSafeAreaInsets();
 
   const cardShadow = isLight ? sharedCardShadow : {};
 
@@ -155,6 +158,7 @@ function DiscoverScreenInner() {
     setSavedIds(prev => {
       const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
       AsyncStorage.setItem(SK_SAVED_NEIGHBOURHOODS, JSON.stringify(next));
+      if (!prev.includes(id)) hapticSuccess();
       return next;
     });
   };
@@ -183,13 +187,15 @@ function DiscoverScreenInner() {
       <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
 
       {/* Tab toggle */}
-      <View style={{ flexDirection: 'row', marginHorizontal: 20, marginTop: Platform.OS === 'ios' ? 60 : 40, marginBottom: 10, borderRadius: 12, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
+      <View style={{ flexDirection: 'row', marginHorizontal: 20, marginTop: insets.top + 12, marginBottom: 10, borderRadius: 12, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
         {(['feed', 'neighbourhoods'] as const).map(tab => {
           const active = activeSection === tab;
           return (
             <TouchableOpacity
               key={tab}
-              onPress={() => setActiveSection(tab)}
+              onPress={() => { hapticLight(); setActiveSection(tab); }}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: active }}
               style={{ flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: active ? colours.tintBg : 'transparent' }}
             >
               <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: active ? colours.accent : colours.muted }}>
@@ -225,6 +231,7 @@ function DiscoverScreenInner() {
                       key={n.id}
                       activeOpacity={0.9}
                       onPress={() => { setSelected(n); setSheetVisible(true); }}
+                      accessibilityRole="button"
                       style={[{ width: 150, height: 110, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: colours.border }, cardShadow]}
                     >
                       <ImageBackground source={{ uri: n.photoUrl }} style={{ width: '100%', height: '100%', justifyContent: 'flex-end' }} resizeMode="cover">
@@ -302,6 +309,7 @@ function DiscoverScreenInner() {
                     key={ev.id}
                     activeOpacity={0.9}
                     onPress={() => ev.url && Linking.openURL(ev.url)}
+                    accessibilityRole="button"
                     style={[{ width: 200, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface }, cardShadow]}
                   >
                     {ev.image ? (
@@ -402,6 +410,7 @@ function DiscoverScreenInner() {
                   key={n.id}
                   activeOpacity={0.92}
                   onPress={() => { setSelected(n); setSheetVisible(true); }}
+                  accessibilityRole="button"
                   style={[{
                     borderRadius: 16,
                     overflow: 'hidden',

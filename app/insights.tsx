@@ -3,6 +3,8 @@ import { Platform, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'r
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { hapticLight } from '../lib/haptics';
 import { useApp } from '../context/AppContext';
 import { SK_TRIP_HISTORY } from '../lib/storageKeys';
 
@@ -37,6 +39,7 @@ function startOfWeek(d: Date): Date {
 export default function InsightsScreen() {
   const { colours, fonts, t, language } = useApp();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const isLight = colours.bg === '#f0f4f8' || colours.bg === '#ffffff';
 
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -102,11 +105,11 @@ export default function InsightsScreen() {
       <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
         {/* Header */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 20, gap: 12 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: insets.top + 12, paddingBottom: 20, gap: 12 }}>
           <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
             <Ionicons name="arrow-back" size={24} color={colours.text} />
           </TouchableOpacity>
-          <Text style={{ fontSize: fonts.xl, fontWeight: '700', color: colours.text, flex: 1 }}>
+          <Text accessibilityRole="header" style={{ fontSize: fonts.xl, fontWeight: '700', color: colours.text, flex: 1 }}>
             {t('Commute Insights', 'Statistiques de trajet')}
           </Text>
           <Ionicons name="stats-chart" size={20} color={colours.accent} />
