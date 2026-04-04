@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { SavedBoardItem } from '../lib/homeConstants';
@@ -152,23 +153,27 @@ const RouteBadge = React.memo(function RouteBadge({
   minsAway,
   isGhost,
   colours,
+  onRoutePress,
 }: {
   routeId: string;
   minsAway: number;
   isGhost: boolean;
   colours: any;
+  onRoutePress?: (routeId: string) => void;
 }) {
   const countdownColor = minsAway < 2 ? TEAL : colours.text;
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-      <View
+      <TouchableOpacity
+        onPress={() => onRoutePress?.(routeId.split('-')[0])}
+        activeOpacity={0.7}
         style={{
           minWidth: 52,
           height: 32,
           borderRadius: 12,
           backgroundColor: colours.tintBg,
           borderWidth: 1,
-          borderColor: colours.accent + '30',
+          borderColor: colours.border,
           alignItems: 'center',
           justifyContent: 'center',
           paddingHorizontal: 8,
@@ -188,7 +193,7 @@ const RouteBadge = React.memo(function RouteBadge({
             }}
           />
         )}
-      </View>
+      </TouchableOpacity>
       <Text style={{ fontSize: 15, fontWeight: '700', color: countdownColor }}>
         {formatCountdown(minsAway)}
       </Text>
@@ -203,6 +208,8 @@ const StopCard = React.memo(function StopCard({
   colours,
   isExpanded,
   onPress,
+  onStopPress,
+  onRoutePress,
   expandedArrivals,
   expandedArrivalsLoading,
   t,
@@ -211,6 +218,8 @@ const StopCard = React.memo(function StopCard({
   colours: any;
   isExpanded: boolean;
   onPress: () => void;
+  onStopPress?: (stopId: string) => void;
+  onRoutePress?: (routeId: string) => void;
   expandedArrivals: { routeId: string; headsign: string; minsAway: number; source?: string; cached?: boolean; cachedAt?: number }[];
   expandedArrivalsLoading: boolean;
   t: (en: string, fr: string) => string;
@@ -220,7 +229,9 @@ const StopCard = React.memo(function StopCard({
   return (
     <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
       <View style={{ paddingHorizontal: 16, paddingVertical: 14 }}>
-        <Text style={{ fontWeight: '700', fontSize: 16, color: colours.text }}>{stop.stopName}</Text>
+        <TouchableOpacity activeOpacity={0.6} onPress={() => onStopPress?.(stop.stopId)} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
+          <Text style={{ fontWeight: '700', fontSize: 16, color: colours.text }}>{stop.stopName}</Text>
+        </TouchableOpacity>
         <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2, marginBottom: 8 }}>
           {formatWalk(stop.walkMeters, t)}
         </Text>
@@ -239,6 +250,7 @@ const StopCard = React.memo(function StopCard({
                 minsAway={a.minsAway}
                 isGhost={ghostSet.has(a.routeId)}
                 colours={colours}
+                onRoutePress={onRoutePress}
               />
             ))}
           </View>
@@ -282,9 +294,11 @@ const StopCard = React.memo(function StopCard({
                   }}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: colours.accent, minWidth: 36 }}>
-                      {a.routeId}
-                    </Text>
+                    <TouchableOpacity onPress={() => onRoutePress?.(a.routeId.split('-')[0])} activeOpacity={0.6} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: colours.accent, minWidth: 36 }}>
+                        {a.routeId}
+                      </Text>
+                    </TouchableOpacity>
                     <Text style={{ fontSize: 13, color: colours.muted, flex: 1 }} numberOfLines={1}>
                       {a.headsign}
                     </Text>
@@ -465,6 +479,16 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
     },
     ref,
   ) => {
+    const router = useRouter();
+
+    const handleStopPress = useCallback((stopId: string) => {
+      router.push(`/stop/${stopId}` as any);
+    }, [router]);
+
+    const handleRoutePress = useCallback((routeId: string) => {
+      router.push(`/route/${routeId}` as any);
+    }, [router]);
+
     const handleExpandStop = useCallback(
       (stopId: string) => {
         onExpandStop(expandedStopId === stopId ? null : stopId);
@@ -677,10 +701,11 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                   colours={colours}
                   isExpanded={expandedStopId === stop.stopId}
                   onPress={() => handleExpandStop(stop.stopId)}
+                  onStopPress={handleStopPress}
+                  onRoutePress={handleRoutePress}
                   expandedArrivals={expandedStopId === stop.stopId ? expandedArrivals : []}
                   expandedArrivalsLoading={expandedStopId === stop.stopId && expandedArrivalsLoading}
                   t={t}
-
                 />
                 {i < peekStops.length - 1 && <Separator />}
               </React.Fragment>
@@ -698,6 +723,8 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                     colours={colours}
                     isExpanded={expandedStopId === stop.stopId}
                     onPress={() => handleExpandStop(stop.stopId)}
+                    onStopPress={handleStopPress}
+                    onRoutePress={handleRoutePress}
                     expandedArrivals={expandedStopId === stop.stopId ? expandedArrivals : []}
                     expandedArrivalsLoading={expandedStopId === stop.stopId && expandedArrivalsLoading}
                     t={t}

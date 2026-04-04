@@ -378,9 +378,11 @@ function SavedScreenInner() {
               }}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text, flex: 1 }} numberOfLines={1}>
-                  {mostUsedStop.name}
-                </Text>
+                <TouchableOpacity onPress={() => router.push(`/stop/${mostUsedStop.id}` as any)} activeOpacity={0.6} style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text }} numberOfLines={1}>
+                    {mostUsedStop.name}
+                  </Text>
+                </TouchableOpacity>
                 {cachedStops[mostUsedStop.id] ? (
                   <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted, fontStyle: 'italic' }}>
                     {t('Cached', 'En cache')} {'\u2022'} {Math.max(1, Math.round((Date.now() - cachedStops[mostUsedStop.id]) / 60000))}m {t('ago', 'pass.')}
@@ -391,7 +393,7 @@ function SavedScreenInner() {
                     backgroundColor: TEAL + '20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
                   }}>
                     <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: TEAL }} />
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: TEAL }}>LIVE</Text>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: TEAL }}>Live</Text>
                   </View>
                 )}
               </View>
@@ -401,13 +403,17 @@ function SavedScreenInner() {
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {(arrivals[mostUsedStop.id] || []).map((a, i) => (
                     <View key={`${a.routeId}-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <View style={{
-                        minWidth: 40, height: 26, borderRadius: 8, paddingHorizontal: 6,
-                        backgroundColor: colours.tintBg, borderWidth: 1, borderColor: colours.accent + '30',
-                        alignItems: 'center', justifyContent: 'center',
-                      }}>
+                      <TouchableOpacity
+                        onPress={() => router.push(`/route/${a.routeId.split('-')[0]}` as any)}
+                        activeOpacity={0.6}
+                        style={{
+                          minWidth: 40, height: 26, borderRadius: 8, paddingHorizontal: 6,
+                          backgroundColor: colours.tintBg, borderWidth: 1, borderColor: colours.border,
+                          alignItems: 'center', justifyContent: 'center',
+                        }}
+                      >
                         <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>{a.routeId}</Text>
-                      </View>
+                      </TouchableOpacity>
                       <Text style={{ fontSize: 13, fontWeight: '700', color: a.minsAway < 2 ? TEAL : colours.text }}>
                         {a.minsAway <= 0 ? '< 1' : `${a.minsAway}m`}
                       </Text>
@@ -495,12 +501,12 @@ function SavedScreenInner() {
                         ...cardShadow,
                       }}
                     >
-                      <View>
+                      <TouchableOpacity onPress={() => router.push(`/stop/${stop.id}` as any)} activeOpacity={0.6}>
                         <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }} numberOfLines={2}>
                           {stop.name}
                         </Text>
                         <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }}>#{stop.id}</Text>
-                      </View>
+                      </TouchableOpacity>
                       {arrivalsLoading ? (
                         <ActivityIndicator size="small" color={TEAL} style={{ alignSelf: 'flex-start' }} />
                       ) : stopArrivals.length > 0 ? (
@@ -508,12 +514,16 @@ function SavedScreenInner() {
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
                             {stopArrivals.slice(0, 2).map((a, i) => (
                               <View key={`${a.routeId}-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                                <View style={{
-                                  minWidth: 32, height: 22, borderRadius: 6, paddingHorizontal: 4,
-                                  backgroundColor: colours.tintBg, alignItems: 'center', justifyContent: 'center',
-                                }}>
+                                <TouchableOpacity
+                                  onPress={() => router.push(`/route/${a.routeId.split('-')[0]}` as any)}
+                                  activeOpacity={0.6}
+                                  style={{
+                                    minWidth: 32, height: 22, borderRadius: 6, paddingHorizontal: 4,
+                                    backgroundColor: colours.tintBg, alignItems: 'center', justifyContent: 'center',
+                                  }}
+                                >
                                   <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent }}>{a.routeId}</Text>
-                                </View>
+                                </TouchableOpacity>
                                 <Text style={{ fontSize: 11, fontWeight: '700', color: a.minsAway < 2 ? TEAL : colours.text }}>
                                   {a.minsAway <= 0 ? '<1' : `${a.minsAway}m`}
                                 </Text>
