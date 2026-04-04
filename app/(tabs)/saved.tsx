@@ -183,40 +183,41 @@ function SavedScreenInner() {
 
   const cardShadow = isLight ? sharedCardShadow : {};
 
-  // Shared arrival-fetching helper (L1)
+  // Shared arrival-fetching helper — single batch request
   const fetchArrivalsForStops = async (savedStops: SavedStop[]): Promise<{ map: Record<string, StopArrival[]>; cached: Record<string, number> }> => {
-    const results = await Promise.allSettled(
-      savedStops.map(async s => {
-        const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${s.id}`, { timeout: 8000 });
-        if (!resp.ok) return { stopId: s.id, arrivals: [] as StopArrival[] };
-        const data = await resp.json();
-        const now = Date.now();
-        const arr: StopArrival[] = (data.trips || [])
-          .filter((tr: any) => tr.adjustedTime > now)
-          .slice(0, 4)
-          .map((tr: any) => ({
-            routeId: tr.routeId || tr.route || '',
-            headsign: tr.headsign || tr.destination || '',
-            minsAway: Math.max(0, Math.round((tr.adjustedTime - now) / 60000)),
-          }));
-        return { stopId: s.id, arrivals: arr };
-      })
-    );
     const map: Record<string, StopArrival[]> = {};
     const cached: Record<string, number> = {};
-    await Promise.all(results.map(async (r, i) => {
-      const stopId = savedStops[i].id;
-      if (r.status === 'fulfilled' && r.value.arrivals.length > 0) {
-        map[stopId] = r.value.arrivals;
-        cacheArrivals(stopId, { arrivals: r.value.arrivals, source: 'live', stopName: savedStops[i].name });
-      } else {
-        const cachedData = await getCachedArrivals(stopId);
-        if (cachedData && cachedData.arrivals.length > 0) {
-          map[stopId] = cachedData.arrivals;
-          cached[stopId] = cachedData.cachedAt;
-        } else {
-          map[stopId] = [];
+    try {
+      const ids = savedStops.map(s => s.id).join(',');
+      const resp = await fetchWithTimeout(`${BACKEND_URL}?stops=${ids}`, { timeout: 12000 });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      const results: any[] = data.results || [];
+      for (const result of results) {
+        const stopId = String(result.stop);
+        const arr: StopArrival[] = (result.arrivals || []).slice(0, 4).map((a: any) => ({
+          routeId: a.routeId || '',
+          headsign: a.headsign || '',
+          minsAway: typeof a.minsAway === 'number' ? a.minsAway : 0,
+        }));
+        if (arr.length > 0) {
+          map[stopId] = arr;
+          const name = savedStops.find(s => s.id === stopId)?.name || '';
+          cacheArrivals(stopId, { arrivals: arr, source: 'live', stopName: name });
         }
+      }
+    } catch (e) {
+      if (__DEV__) console.warn('Batch arrivals failed:', e);
+    }
+    // Fill missing stops from cache
+    await Promise.all(savedStops.map(async s => {
+      if (map[s.id]) return;
+      const cachedData = await getCachedArrivals(s.id);
+      if (cachedData && cachedData.arrivals.length > 0) {
+        map[s.id] = cachedData.arrivals;
+        cached[s.id] = cachedData.cachedAt;
+      } else {
+        map[s.id] = [];
       }
     }));
     return { map, cached };
