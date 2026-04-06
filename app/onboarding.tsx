@@ -131,24 +131,38 @@ export default function OnboardingScreen() {
         keyboardShouldPersistTaps="handled"
         style={{ flex: 1 }}
       >
-        {/* Slide 1: Welcome */}
+        {/* Slide 1: Welcome — sell the core value */}
         <View style={{ width, flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 36 }}>
-          <Svg width={200} height={80} viewBox="0 0 200 80" style={{ marginBottom: 24, opacity: 0.85 }}>
-            <Path
-              d="M0 80 L0 55 L15 55 L15 50 L20 50 L20 45 L25 45 L25 50 L30 50 L30 55 L40 55 L40 48 L45 48 L45 42 L50 42 L50 48 L55 48 L55 55 L65 55 L65 50 L70 50 L70 40 L75 40 L75 35 L80 35 L80 30 L85 30 L85 25 L88 25 L88 20 L91 20 L91 15 L94 15 L94 10 L97 10 L97 5 L100 2 L103 5 L103 10 L106 10 L106 15 L109 15 L109 20 L112 20 L112 25 L115 25 L115 30 L120 30 L120 35 L125 35 L125 40 L130 40 L130 50 L135 50 L135 55 L145 55 L145 48 L150 48 L150 42 L155 42 L155 48 L160 48 L160 55 L170 55 L170 50 L175 50 L175 45 L180 45 L180 50 L185 50 L185 55 L200 55 L200 80 Z"
-              fill={TEAL}
-            />
-          </Svg>
           <Text style={{ fontSize: 52, fontWeight: '700', color: '#fff', marginBottom: 8 }}>
             Route<Text style={{ color: TEAL }}>O</Text>
           </Text>
           <View style={{ width: 48, height: 3, borderRadius: 2, backgroundColor: TEAL, marginBottom: 32 }} />
           <Text style={{ fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', lineHeight: 36, marginBottom: 12 }}>
-            {t('Welcome to RouteO', 'Bienvenue sur RouteO')}
+            {t('Know before you go', 'Sachez avant de partir')}
           </Text>
-          <Text style={{ fontSize: 16, color: '#8899aa', textAlign: 'center', lineHeight: 24, maxWidth: 300 }}>
-            {t("Ottawa's transit app, built for Ottawa people.", "L'appli de transport d'Ottawa, faite pour les Ottaviens.")}
+          <Text style={{ fontSize: 16, color: '#8899aa', textAlign: 'center', lineHeight: 24, maxWidth: 300, marginBottom: 28 }}>
+            {t(
+              'Live arrivals, ghost bus alerts, and reliability scores \u2014 built for Ottawa riders.',
+              'Arriv\u00e9es en direct, alertes bus fant\u00f4mes et scores de fiabilit\u00e9 \u2014 fait pour les usagers d\u2019Ottawa.',
+            )}
           </Text>
+          {/* Feature highlights */}
+          <View style={{ gap: 14, width: '100%', maxWidth: 300 }}>
+            {[
+              { icon: 'time-outline' as const, en: 'Real-time arrivals that actually update', fr: 'Arriv\u00e9es en temps r\u00e9el toujours \u00e0 jour' },
+              { icon: 'alert-circle-outline' as const, en: 'Ghost bus detection \u2014 know when a bus won\u2019t come', fr: 'D\u00e9tection de bus fant\u00f4mes \u2014 sachez quand un bus ne viendra pas' },
+              { icon: 'stats-chart-outline' as const, en: 'Route reliability scores from real data', fr: 'Scores de fiabilit\u00e9 bas\u00e9s sur des donn\u00e9es r\u00e9elles' },
+            ].map((f, i) => (
+              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: TEAL + '20', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name={f.icon} size={18} color={TEAL} />
+                </View>
+                <Text style={{ color: '#ccd6e0', fontSize: 14, flex: 1, lineHeight: 20 }}>
+                  {t(f.en, f.fr)}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
 
         {/* Slide 2: Location */}
@@ -160,14 +174,20 @@ export default function OnboardingScreen() {
           }}>
             <Ionicons name="location" size={64} color={TEAL} />
           </View>
-          <Text style={{ fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', lineHeight: 36, marginBottom: 32 }}>
-            {t('See buses near you', 'Voir les bus pres de vous')}
+          <Text style={{ fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', lineHeight: 36, marginBottom: 12 }}>
+            {t('See buses near you', 'Voir les bus pr\u00e8s de vous')}
+          </Text>
+          <Text style={{ fontSize: 14, color: '#8899aa', textAlign: 'center', lineHeight: 20, maxWidth: 280, marginBottom: 32 }}>
+            {t(
+              'We\u2019ll show nearby stops and live buses on the map.',
+              'On vous montrera les arr\u00eats proches et les bus en direct sur la carte.',
+            )}
           </Text>
           {locationGranted ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Ionicons name="checkmark-circle" size={24} color={TEAL} />
               <Text style={{ fontSize: 16, fontWeight: '700', color: TEAL }}>
-                {t('Location enabled', 'Position activee')}
+                {t('Location enabled', 'Position activ\u00e9e')}
               </Text>
             </View>
           ) : (
@@ -200,10 +220,10 @@ export default function OnboardingScreen() {
         {/* Slide 3: Add stops */}
         <View style={{ width, flex: 1, paddingHorizontal: 36, paddingTop: 100 }}>
           <Text style={{ fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', lineHeight: 36, marginBottom: 8 }}>
-            {t('What do you take most often?', 'Quel trajet prenez-vous?')}
+            {t('Save your stops', 'Enregistrez vos arr\u00eats')}
           </Text>
           <Text style={{ fontSize: 14, color: '#8899aa', textAlign: 'center', lineHeight: 20, marginBottom: 24 }}>
-            {t('You can always add more later', 'Vous pourrez en ajouter plus tard')}
+            {t('Get live arrivals, ghost alerts, and reliability for your daily stops', 'Recevez les arriv\u00e9es en direct, les alertes fant\u00f4mes et la fiabilit\u00e9 pour vos arr\u00eats quotidiens')}
           </Text>
 
           {/* Search bar */}
@@ -215,7 +235,7 @@ export default function OnboardingScreen() {
             <TextInput
               value={stopQuery}
               onChangeText={searchStops}
-              placeholder={t('Search stop name or number...', "Rechercher un arret par nom ou numero...")}
+              placeholder={t('Search stop name or number...', "Rechercher un arr\u00eat par nom ou num\u00e9ro...")}
               placeholderTextColor="#5a6a7a"
               style={{ flex: 1, color: '#fff', fontSize: 15, paddingVertical: 14 }}
               returnKeyType="search"
@@ -275,17 +295,17 @@ export default function OnboardingScreen() {
             <Ionicons name="checkmark-done" size={44} color="#7b5ea7" />
           </View>
           <Text style={{ fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', lineHeight: 36, marginBottom: 12 }}>
-            {t("You're all set!", 'Vous etes pret!')}
+            {t("You're all set!", 'Vous \u00eates pr\u00eat!')}
           </Text>
-          <Text style={{ fontSize: 16, color: '#8899aa', textAlign: 'center', lineHeight: 24, maxWidth: 300 }}>
+          <Text style={{ fontSize: 16, color: '#8899aa', textAlign: 'center', lineHeight: 24, maxWidth: 300, marginBottom: 20 }}>
             {addedStops.length > 0
               ? t(
-                  `${addedStops.length} stop${addedStops.length > 1 ? 's' : ''} saved to your board. Let's go!`,
-                  `${addedStops.length} arret${addedStops.length > 1 ? 's' : ''} enregistre${addedStops.length > 1 ? 's' : ''}. C'est parti!`,
+                  `${addedStops.length} stop${addedStops.length > 1 ? 's' : ''} saved. We'll track arrivals, flag ghost buses, and show reliability \u2014 automatically.`,
+                  `${addedStops.length} arr\u00eat${addedStops.length > 1 ? 's' : ''} enregistr\u00e9${addedStops.length > 1 ? 's' : ''}. On suit les arriv\u00e9es, signale les bus fant\u00f4mes et affiche la fiabilit\u00e9 \u2014 automatiquement.`,
                 )
               : t(
-                  'Everything Ottawa, one tap away.',
-                  'Tout Ottawa, en un seul tap.',
+                  'Ghost bus alerts, reliability scores, and live arrivals \u2014 all in one place.',
+                  'Alertes bus fant\u00f4mes, scores de fiabilit\u00e9 et arriv\u00e9es en direct \u2014 tout au m\u00eame endroit.',
                 )
             }
           </Text>

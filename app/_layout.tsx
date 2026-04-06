@@ -8,9 +8,13 @@ import { AppProvider } from '../context/AppContext';
 import { BoardProvider } from '../context/BoardContext';
 import NetworkBanner from '../components/NetworkBanner';
 import { SK_ONBOARDED, SK_CRASH_LOG } from '../lib/storageKeys';
+import { initSentry, captureException } from '../lib/sentry';
 
 // Prevent the native splash screen from auto-hiding until our animated splash starts
 SplashScreen.preventAutoHideAsync();
+
+// Initialize Sentry as early as possible (no-op if DSN is placeholder or package missing)
+initSentry();
 
 // Log startup errors to AsyncStorage for diagnostics
 function logCrash(error: unknown) {
@@ -41,6 +45,7 @@ class RootErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     logCrash(`${error.message}\n${error.stack ?? ''}\nComponent stack: ${info.componentStack ?? ''}`);
+    captureException(error);
   }
 
   render() {

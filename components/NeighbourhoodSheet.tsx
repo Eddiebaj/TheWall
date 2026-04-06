@@ -16,7 +16,7 @@ import { HAPPY_HOUR_VENUES } from '../lib/happyHourData';
 import { Neighbourhood } from '../lib/neighbourhoodData';
 import { NewsArticle, SOURCE_COLOURS, timeAgo } from '../lib/newsData';
 import { getDeviceId } from '../lib/pushNotifications';
-import { SK_MY_DEAL_VOTES } from '../lib/storageKeys';
+import { SK_MY_DEAL_VOTES, SK_DEAL_SUBMIT_PREFIX } from '../lib/storageKeys';
 import { supabase } from '../lib/supabase';
 import { toTitleCase } from '../lib/utils';
 
@@ -220,7 +220,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
     try {
       const deviceId = await getDeviceId();
       if (deviceId) {
-        const lastSubmitKey = `routeo_deal_submit_${deviceId}`;
+        const lastSubmitKey = `${SK_DEAL_SUBMIT_PREFIX}${deviceId}`;
         const lastSubmit = await AsyncStorage.getItem(lastSubmitKey);
         if (lastSubmit) {
           const elapsed = Date.now() - parseInt(lastSubmit, 10);
@@ -259,7 +259,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
       setDealDescription('');
       setDealPhoto(null);
       if (deviceId) {
-        await AsyncStorage.setItem(`routeo_deal_submit_${deviceId}`, String(Date.now()));
+        await AsyncStorage.setItem(`${SK_DEAL_SUBMIT_PREFIX}${deviceId}`, String(Date.now()));
       }
     } catch (e) {
       if (__DEV__) console.warn('submit deal failed:', e);

@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SK_SAVED_BOARD } from '../lib/storageKeys';
 import type { SavedBoardItem } from '../lib/homeConstants';
+import { trackEvent } from '../lib/analytics';
 
 interface BoardContextValue {
   savedBoard: SavedBoardItem[];
@@ -54,6 +55,7 @@ export function BoardProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { refreshBoard(); }, [refreshBoard]);
 
   const addToBoard = useCallback((item: SavedBoardItem) => {
+    trackEvent('stop_saved');
     setSavedBoard(prev => {
       const next = [...prev, item];
       persist(next);

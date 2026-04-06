@@ -203,10 +203,10 @@ export default function AccountScreen() {
     setNotifPermission(status as 'granted' | 'denied' | 'undetermined');
     if (status !== 'granted') {
       Alert.alert(
-        t('Notifications disabled', 'Notifications desactivees'),
+        t('Notifications disabled', 'Notifications d\u00e9sactiv\u00e9es'),
         t('Enable notifications in Settings.', 'Activez les notifications dans les Parametres.'),
         [
-          { text: t('Settings', 'Parametres'), onPress: () => Linking.openSettings() },
+          { text: t('Settings', 'Param\u00e8tres'), onPress: () => Linking.openSettings() },
           { text: t('Cancel', 'Annuler'), style: 'cancel' },
         ]
       );
@@ -233,7 +233,7 @@ export default function AccountScreen() {
     { key: 'tripAlerts', label: t('Trip alerts', 'Alertes de trajet'), icon: 'bus' },
     { key: 'serviceDisruptions', label: t('Service disruptions', 'Perturbations de service'), icon: 'warning' },
     { key: 'cityReminders', label: t('City reminders', 'Rappels ville'), icon: 'home' },
-    { key: 'events', label: t('Events', 'Evenements'), icon: 'calendar' },
+    { key: 'events', label: t('Events', '\u00c9v\u00e9nements'), icon: 'calendar' },
   ];
 
   const Card = ({ children, style }: { children: React.ReactNode; style?: any }) => (
@@ -258,7 +258,7 @@ export default function AccountScreen() {
             style={{ fontSize: fonts.xxl, fontWeight: '700', color: colours.text }}
             accessibilityRole="header"
           >
-            {t('Settings', 'Parametres')}
+            {t('Settings', 'Param\u00e8tres')}
           </Text>
         </View>
 
@@ -334,7 +334,7 @@ export default function AccountScreen() {
                 onPress={() => { hapticLight(); setTheme(th); }}
                 accessibilityRole="button"
                 accessibilityState={{ selected: theme === th }}
-                accessibilityLabel={th === 'dark' ? t('Dark mode', 'Mode sombre') : th === 'light' ? t('Light mode', 'Mode clair') : t('System theme', 'Theme systeme')}
+                accessibilityLabel={th === 'dark' ? t('Dark mode', 'Mode sombre') : th === 'light' ? t('Light mode', 'Mode clair') : t('System theme', 'Th\u00e8me syst\u00e8me')}
               >
                 <Ionicons
                   name={th === 'dark' ? 'moon' : th === 'light' ? 'sunny' : 'phone-portrait'}
@@ -386,12 +386,12 @@ export default function AccountScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 }}>
             <Ionicons name="language" size={18} color={colours.accent} />
             <Text style={{ fontSize: fonts.md, color: colours.text, flex: 1 }}>
-              {language === 'en' ? 'English' : 'Francais'}
+              {language === 'en' ? 'English' : 'Fran\u00e7ais'}
             </Text>
             <Switch
               value={language === 'fr'}
               onValueChange={v => { hapticLight(); setLanguage(v ? 'fr' : 'en'); }}
-              trackColor={{ false: colours.border, true: colours.lrt }}
+              trackColor={{ false: colours.border, true: colours.accent }}
               thumbColor="white"
               ios_backgroundColor={colours.border}
               accessibilityLabel={t('Toggle language', 'Changer de langue')}
@@ -400,7 +400,7 @@ export default function AccountScreen() {
         </Card>
 
         {/* ── ACCESSIBILITY ── */}
-        <SectionHeader label={t('Accessibility', 'Accessibilite')} icon="accessibility-outline" colours={colours} fonts={fonts} />
+        <SectionHeader label={t('Accessibility', 'Accessibilit\u00e9')} icon="accessibility-outline" colours={colours} fonts={fonts} />
         <Card>
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 }}>
             <Ionicons name="text" size={18} color={largeText ? colours.accent : colours.muted} />
@@ -420,7 +420,7 @@ export default function AccountScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 }}>
             <Ionicons name="contrast" size={18} color={highContrast ? colours.accent : colours.muted} />
             <Text style={{ fontSize: fonts.md, color: colours.text, flex: 1 }}>
-              {t('High contrast', 'Contraste eleve')}
+              {t('High contrast', 'Contraste \u00e9lev\u00e9')}
             </Text>
             <Switch
               value={highContrast}
@@ -428,14 +428,14 @@ export default function AccountScreen() {
               trackColor={{ false: colours.border, true: colours.accent }}
               thumbColor="white"
               ios_backgroundColor={colours.border}
-              accessibilityLabel={t('High contrast', 'Contraste eleve')}
+              accessibilityLabel={t('High contrast', 'Contraste \u00e9lev\u00e9')}
             />
           </View>
           <Divider colours={colours} />
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 }}>
             <Ionicons name="flash-off" size={18} color={reducedMotion ? colours.accent : colours.muted} />
             <Text style={{ fontSize: fonts.md, color: colours.text, flex: 1 }}>
-              {t('Reduce motion', 'Reduire les animations')}
+              {t('Reduce motion', 'R\u00e9duire les animations')}
             </Text>
             <Switch
               value={reducedMotion}
@@ -443,7 +443,7 @@ export default function AccountScreen() {
               trackColor={{ false: colours.border, true: colours.accent }}
               thumbColor="white"
               ios_backgroundColor={colours.border}
-              accessibilityLabel={t('Reduce motion', 'Reduire les animations')}
+              accessibilityLabel={t('Reduce motion', 'R\u00e9duire les animations')}
             />
           </View>
         </Card>

@@ -2686,6 +2686,41 @@ export default function MapScreen() {
         </Animated.View>
       )}
 
+      {/* First-open prompt — shown when user has no saved transit stops */}
+      {boardItems.filter(i => i.type === 'bus_stop' || i.type === 'lrt_station').length === 0 && !tappedLocation && !tripResults.length && (
+        <View style={{
+          position: 'absolute', bottom: Platform.OS === 'ios' ? 120 : 100, left: 16, right: 16, zIndex: 998,
+          backgroundColor: colours.card, borderRadius: 16, padding: 20,
+          shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 8,
+          borderWidth: 1, borderColor: colours.border,
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#00A78D20', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="bus" size={22} color="#00A78D" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colours.text, fontSize: 16, fontWeight: '700' }}>
+                {t('Add your first stop', 'Ajoutez votre premier arr\u00eat')}
+              </Text>
+              <Text style={{ color: colours.muted, fontSize: 13, marginTop: 2 }}>
+                {t('Tap a bus stop on the map or search above', 'Touchez un arr\u00eat sur la carte ou cherchez ci-dessus')}
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            onPress={() => router.push('/(tabs)/saved' as any)}
+            activeOpacity={0.85}
+            style={{ backgroundColor: '#00A78D', borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
+            accessibilityRole="button"
+            accessibilityLabel={t('Go to My Stops', 'Aller \u00e0 Mes arr\u00eats')}
+          >
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>
+              {t('Go to My Stops', 'Aller \u00e0 Mes arr\u00eats')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Nearby transit bottom sheet */}
       <NearbyTransitSheet
         ref={nearbySheetRef}

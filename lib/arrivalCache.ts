@@ -1,6 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const SK_ARRIVAL_CACHE = 'routeo_arrival_cache';
+import { SK_ARRIVAL_CACHE } from './storageKeys';
 
 export interface CachedArrivals {
   stopId: string;

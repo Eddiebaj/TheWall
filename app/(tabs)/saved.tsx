@@ -4,7 +4,7 @@ import * as Location from 'expo-location';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Dimensions, Image, Modal, Platform, RefreshControl,
+  Alert, Animated, Dimensions, Image, Modal, Platform, RefreshControl,
   ScrollView, StatusBar, Text, TouchableOpacity, View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,7 +16,8 @@ import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { haversineKm } from '../../lib/geo';
 import { cardShadow as sharedCardShadow } from '../../lib/styles';
 import { cacheArrivals, getCachedArrivals } from '../../lib/arrivalCache';
-import { SK_SAVED_PLACES, SK_TRIP_HISTORY, SK_LEAVE_NOW_ALERTS } from '../../lib/storageKeys';
+import { SK_SAVED_PLACES, SK_TRIP_HISTORY, SK_LEAVE_NOW_ALERTS, SK_ARRIVAL_CACHE } from '../../lib/storageKeys';
+import { trackEvent } from '../../lib/analytics';
 
 const BACKEND_URL = 'https://routeo-backend.vercel.app/api/arrivals';
 const TEAL = '#00A78D';
@@ -25,6 +26,28 @@ const PAD = 16;
 const GAP = 8;
 const HALF_W = (SCREEN_W - PAD * 2 - GAP) / 2;
 const FULL_W = SCREEN_W - PAD * 2;
+
+/* ── Skeleton pulse placeholder ── */
+function SkeletonPulse({ width, height, borderRadius = 8, color, style }: {
+  width: number | string; height: number; borderRadius?: number; color: string; style?: any;
+}) {
+  const opacity = React.useRef(new Animated.Value(0.3)).current;
+  React.useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.7, duration: 800, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.3, duration: 800, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [opacity]);
+  return (
+    <Animated.View
+      style={[{ width, height, borderRadius, backgroundColor: color, opacity }, style]}
+    />
+  );
+}
 
 type SavedStop = { id: string; name: string; agency?: string };
 type SavedPlace = {
@@ -74,7 +97,7 @@ function SavedScreenInner() {
   const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [leaveAlerts, setLeaveAlerts] = useState<Record<string, { route: string; stopId: string; time: string }>>({});
+  const [leaveAlerts, setLeaveAlerts] = useState<Record<string, { route: string; stopId: string; time: string; recurring?: boolean }>>({});
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const stopsRef = useRef<SavedStop[]>(stops);
   const isFetchingRef = useRef(false);
@@ -94,7 +117,7 @@ function SavedScreenInner() {
     cacheHydrated.current = true;
     (async () => {
       try {
-        const raw = await AsyncStorage.getItem('routeo_arrival_cache');
+        const raw = await AsyncStorage.getItem(SK_ARRIVAL_CACHE);
         if (!raw) return;
         const cache: Record<string, { arrivals: StopArrival[]; cachedAt: number }> = JSON.parse(raw);
         const map: Record<string, StopArrival[]> = {};
@@ -207,7 +230,7 @@ function SavedScreenInner() {
         ...leaveAlerts,
         [key]: { route: routeId, stopId, time: `${schedHour}:${String(schedMin).padStart(2, '0')}`, recurring: schedWeekdays },
       };
-      setLeaveAlerts(updated as any);
+      setLeaveAlerts(updated);
       await AsyncStorage.setItem(SK_LEAVE_NOW_ALERTS, JSON.stringify(updated));
     } catch (e) {
       if (__DEV__) console.warn('Schedule notification failed:', e);
@@ -345,6 +368,7 @@ function SavedScreenInner() {
         setGhostAlerts(ghosts);
         setReliability(rel);
         setArrivalsLoading(false);
+        trackEvent('arrival_viewed');
       }
 
       // User location for distance
@@ -407,8 +431,37 @@ function SavedScreenInner() {
       </View>
 
       {!loaded ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator size="large" color={TEAL} />
+        <View style={{ flex: 1, paddingHorizontal: PAD, paddingTop: 12 }}>
+          {/* Skeleton: most-used stop card */}
+          <View style={{
+            width: FULL_W, height: 100, borderRadius: 16, padding: 16,
+            backgroundColor: colours.card, borderWidth: 1, borderColor: colours.border,
+            marginBottom: GAP,
+          }}>
+            <SkeletonPulse width={140} height={14} borderRadius={6} color={colours.border} />
+            <SkeletonPulse width={200} height={12} borderRadius={6} color={colours.border} style={{ marginTop: 12 }} />
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
+              <SkeletonPulse width={48} height={22} borderRadius={8} color={colours.border} />
+              <SkeletonPulse width={48} height={22} borderRadius={8} color={colours.border} />
+              <SkeletonPulse width={48} height={22} borderRadius={8} color={colours.border} />
+            </View>
+          </View>
+          {/* Skeleton: two half-width grid cards */}
+          <View style={{ flexDirection: 'row', gap: GAP }}>
+            {[0, 1].map(i => (
+              <View key={i} style={{
+                width: HALF_W, height: 120, borderRadius: 16, padding: 14,
+                backgroundColor: colours.card, borderWidth: 1, borderColor: colours.border,
+              }}>
+                <SkeletonPulse width={100} height={12} borderRadius={6} color={colours.border} />
+                <SkeletonPulse width={60} height={10} borderRadius={4} color={colours.border} style={{ marginTop: 8 }} />
+                <View style={{ flexDirection: 'row', gap: 6, marginTop: 14 }}>
+                  <SkeletonPulse width={36} height={18} borderRadius={6} color={colours.border} />
+                  <SkeletonPulse width={36} height={18} borderRadius={6} color={colours.border} />
+                </View>
+              </View>
+            ))}
+          </View>
         </View>
       ) : isEmpty ? (
         /* Empty state */
@@ -458,12 +511,16 @@ function SavedScreenInner() {
                     backgroundColor: TEAL + '20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
                   }}>
                     <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: TEAL }} />
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: TEAL }}>Live</Text>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: TEAL }}>{t('Live', 'Direct')}</Text>
                   </View>
                 )}
               </View>
               {arrivalsLoading ? (
-                <ActivityIndicator size="small" color={TEAL} style={{ alignSelf: 'flex-start' }} />
+                <View style={{ flexDirection: 'row', gap: 8, alignSelf: 'flex-start' }}>
+                  <SkeletonPulse width={48} height={22} borderRadius={8} color={colours.border} />
+                  <SkeletonPulse width={48} height={22} borderRadius={8} color={colours.border} />
+                  <SkeletonPulse width={48} height={22} borderRadius={8} color={colours.border} />
+                </View>
               ) : (arrivals[mostUsedStop.id] || []).length > 0 ? (
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {(arrivals[mostUsedStop.id] || []).map((a, i) => (
@@ -485,10 +542,10 @@ function SavedScreenInner() {
                         const rKey = `${mostUsedStop.id}-${a.routeId}`;
                         return (
                           <TouchableOpacity
-                            onPress={() => { hapticLight(); setExpandedReliability(prev => prev === rKey ? null : rKey); }}
+                            onPress={() => { hapticLight(); trackEvent('reliability_tapped'); setExpandedReliability(prev => prev === rKey ? null : rKey); }}
                             activeOpacity={0.6}
                             style={{ backgroundColor: clr + '18', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}
-                            accessibilityLabel={`${rel.onTimePercent}% on time`}
+                            accessibilityLabel={t(`${rel.onTimePercent}% on time`, `${rel.onTimePercent}% \u00e0 l'heure`)}
                           >
                             <Text style={{ fontSize: 9, fontWeight: '700', color: clr }}>{rel.onTimePercent}%</Text>
                           </TouchableOpacity>
@@ -510,7 +567,7 @@ function SavedScreenInner() {
                         hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                         style={{ padding: 4 }}
                         accessibilityRole="button"
-                        accessibilityLabel={t('Set departure alert. Long press to schedule.', 'Definir une alerte. Appui long pour planifier.')}
+                        accessibilityLabel={t('Set departure alert. Long press to schedule.', 'D\u00e9finir une alerte. Appui long pour planifier.')}
                       >
                         <Ionicons
                           name={leaveAlerts[`${mostUsedStop.id}-${a.routeId}`] || leaveAlerts[`${mostUsedStop.id}-${a.routeId}-sched`] ? 'notifications' : 'notifications-outline'}
@@ -547,7 +604,8 @@ function SavedScreenInner() {
 
           {/* Ghost bus alerts */}
           {Object.entries(ghostAlerts).map(([sid, alert]) => {
-            const vanished = alert.vanishedRoutes?.map(v => v.routeId).join(', ');
+            trackEvent('ghost_alert_shown');
+            const vanished = alert.vanishedRoutes?.map(v => v.routeId).join(', ') || '?';
             const alt = alert.nextAlternative;
             const stopName = stops.find(s => s.id === sid)?.name || `#${sid}`;
             return (
@@ -638,7 +696,10 @@ function SavedScreenInner() {
                         <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }}>#{stop.id}</Text>
                       </TouchableOpacity>
                       {arrivalsLoading ? (
-                        <ActivityIndicator size="small" color={TEAL} style={{ alignSelf: 'flex-start' }} />
+                        <View style={{ flexDirection: 'row', gap: 6, alignSelf: 'flex-start' }}>
+                          <SkeletonPulse width={36} height={18} borderRadius={6} color={colours.border} />
+                          <SkeletonPulse width={36} height={18} borderRadius={6} color={colours.border} />
+                        </View>
                       ) : stopArrivals.length > 0 ? (
                         <View>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
@@ -675,7 +736,7 @@ function SavedScreenInner() {
                                   hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                                   style={{ padding: 2 }}
                                   accessibilityRole="button"
-                                  accessibilityLabel={t('Set departure alert. Long press to schedule.', 'Definir une alerte. Appui long pour planifier.')}
+                                  accessibilityLabel={t('Set departure alert. Long press to schedule.', 'D\u00e9finir une alerte. Appui long pour planifier.')}
                                 >
                                   <Ionicons
                                     name={leaveAlerts[`${stop.id}-${a.routeId}`] || leaveAlerts[`${stop.id}-${a.routeId}-sched`] ? 'notifications' : 'notifications-outline'}
@@ -789,7 +850,7 @@ function SavedScreenInner() {
 
             {/* Time picker — hour + minute */}
             <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 8 }}>
-              {t('Bus departure time', 'Heure de depart du bus')}
+              {t('Bus departure time', 'Heure de d\u00e9part du bus')}
             </Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16 }}>
               <TouchableOpacity onPress={() => setSchedHour(h => (h - 1 + 24) % 24)} style={{ padding: 8 }}>

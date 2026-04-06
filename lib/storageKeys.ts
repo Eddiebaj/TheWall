@@ -146,3 +146,12 @@ export const SK_MY_DEAL_VOTES = 'routeo_my_deal_votes';
 
 // Map layers
 export const SK_MAP_LAYERS = 'routeo_map_layers';
+
+// Arrival cache
+export const SK_ARRIVAL_CACHE = 'routeo_arrival_cache';
+
+// Community deal submission throttle (dynamic: `${SK_DEAL_SUBMIT_PREFIX}${deviceId}`)
+export const SK_DEAL_SUBMIT_PREFIX = 'routeo_deal_submit_';
+
+// Analytics
+export const SK_ANALYTICS = 'routeo_analytics';
