@@ -2779,7 +2779,7 @@ function PlannerScreenInner() {
               const allCoords: { latitude: number; longitude: number }[] = [];
               itineraries.forEach(itin => (itin.legs || []).forEach(leg => { allCoords.push(...legCoords(leg)); }));
               if (allCoords.length === 0) return null;
-              const region = getBounds(allCoords);
+              const region = getBounds(allCoords) ?? undefined;
               const selectedItin = itineraries[selectedRouteIdx] || itineraries[0];
               const legs = selectedItin.legs;
               if (!legs?.length) return null;
