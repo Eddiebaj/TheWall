@@ -387,7 +387,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
                 </View>
                 <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{v.address}</Text>
                 {(v.isActive ? v.activeDeals : v.upcomingDeals).map((d: any, j: number) => (
-                  <Text key={j} style={{ fontSize: fonts.sm, color: v.isActive ? '#00A78D' : colours.accent, marginTop: 2 }}>{d.description}</Text>
+                  <Text key={j} style={{ fontSize: fonts.sm, color: v.isActive ? '#00A78D' : colours.accent, marginTop: 2 }}>{language === 'fr' && d.description_fr ? d.description_fr : d.description}</Text>
                 ))}
               </View>
             ))}

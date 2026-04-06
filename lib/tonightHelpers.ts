@@ -39,7 +39,7 @@ type HappyHourVenue = {
   name: string;
   lat: number;
   lng: number;
-  deals: { days: number[]; start: string; end: string; description: string }[];
+  deals: { days: number[]; start: string; end: string; description: string; description_fr?: string }[];
 };
 
 type SensGame = {
@@ -77,6 +77,7 @@ export function buildTonightSummary(
   weather: { temp: number; condition: string } | null,
   sportsSchedule: TeamSchedule[],
   focus?: TonightFocus | null,
+  language: string = 'en',
 ): TonightSummary {
   const now = new Date();
   const day = now.getDay();
@@ -172,7 +173,8 @@ export function buildTonightSummary(
       .slice(0, 3)
       .map(v => {
         const deal = v.deals.find(d => d.days.includes(day) && timeStr >= d.start && timeStr <= d.end);
-        return { name: v.name, deal: deal?.description || '', venueName: venue.name };
+        const dealDesc = deal ? (language === 'fr' && deal.description_fr ? deal.description_fr : deal.description) : '';
+        return { name: v.name, deal: dealDesc, venueName: venue.name };
       });
     nearVenueBars.push(...nearby);
   }

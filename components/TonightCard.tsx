@@ -63,7 +63,7 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sp
     shouldShowTonightCard().then(ok => {
       if (!ok) return;
       if (!weather && !sensGame && events.length === 0) return;
-      const s = buildTonightSummary(sensGame, events, HAPPY_HOUR_VENUES, weather, sportsSchedule || [], focus);
+      const s = buildTonightSummary(sensGame, events, HAPPY_HOUR_VENUES, weather, sportsSchedule || [], focus, language);
       if (s.sports.length > 0 || s.events.count > 0 || s.deals.count > 0) {
         setSummary(s);
         setShow(true);

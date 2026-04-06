@@ -294,17 +294,16 @@ const isTimeInRange = (time: string, start: string, end: string): boolean => {
   return time >= start && time <= end;
 };
 
-const getVenueTodayDeals = (venue: VenuePin): { active: string[]; upcoming: string[] } => {
+const getVenueTodayDeals = (venue: VenuePin, lang: string = 'en'): { active: string[]; upcoming: string[] } => {
   const now = new Date();
   const day = now.getDay();
   const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   const todayDeals = venue.deals.filter(d => d.days.includes(day));
-  const active = todayDeals.filter(d => isTimeInRange(timeStr, d.start, d.end)).map(d => d.description);
-  const upcoming = todayDeals.filter(d => !isTimeInRange(timeStr, d.start, d.end) && timeStr < d.start).map(d => d.description);
+  const desc = (d: typeof todayDeals[0]) => lang === 'fr' && d.description_fr ? d.description_fr : d.description;
+  const active = todayDeals.filter(d => isTimeInRange(timeStr, d.start, d.end)).map(desc);
+  const upcoming = todayDeals.filter(d => !isTimeInRange(timeStr, d.start, d.end) && timeStr < d.start).map(desc);
   return { active, upcoming };
 };
-
-// TODO: Add French translations for venue deal descriptions
 const venueHasActiveOrUpcomingToday = (venue: VenuePin): boolean => {
   const { active, upcoming } = getVenueTodayDeals(venue);
   return active.length > 0 || upcoming.length > 0;
@@ -569,7 +568,7 @@ export default function MapScreen() {
               id: `hh_${v.name.replace(/\s+/g, '_').toLowerCase()}`,
               category: 'deals' as LayerKey,
               name: v.name,
-              subtitle: todayDeals[0]?.description || '',
+              subtitle: (language === 'fr' && todayDeals[0]?.description_fr) ? todayDeals[0].description_fr : (todayDeals[0]?.description || ''),
               lat: v.lat,
               lng: v.lng,
               isOpenNow: active,
@@ -680,7 +679,7 @@ export default function MapScreen() {
     const communityAsVenues: HappyHourVenue[] = communityDealPins.map(p => ({
       name: p.name, address: '', type: ['restaurant' as const],
       lat: p.lat, lng: p.lng,
-      deals: [{ days: [dayOfWeek], start: '00:00', end: '23:59', description: p.subtitle }],
+      deals: [{ days: [dayOfWeek], start: '00:00', end: '23:59', description: p.subtitle, description_fr: p.subtitle }],
     }));
     const allActiveVenues = [...activeVenues, ...communityAsVenues];
     const clusters = clusterVenues(allActiveVenues, 800);
@@ -1630,7 +1629,7 @@ export default function MapScreen() {
             if (!validCoord(v.lat, v.lng)) return null;
             const venueIcon: keyof typeof Ionicons.glyphMap = v.type.includes('bar') ? 'beer' : v.type.includes('restaurant') ? 'restaurant' : v.type.includes('club') ? 'musical-notes' : v.type.includes('fitness') ? 'barbell' : 'pint';
             const venueColor = getVenuePinColor(v);
-            const { active, upcoming } = getVenueTodayDeals(v);
+            const { active, upcoming } = getVenueTodayDeals(v, language);
             const hasDeals = active.length > 0 || upcoming.length > 0;
             const dealDesc = active.length > 0 ? active[0] : upcoming.length > 0 ? upcoming[0] : undefined;
             return (
@@ -2335,7 +2334,7 @@ export default function MapScreen() {
 
           {/* Venue sheet */}
           {selectedVenue && (() => {
-            const { active, upcoming } = getVenueTodayDeals(selectedVenue);
+            const { active, upcoming } = getVenueTodayDeals(selectedVenue, language);
             const color = getVenuePinColor(selectedVenue);
             return (
               <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 }}>
