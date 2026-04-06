@@ -17,7 +17,7 @@ jobs:
           OC_TRANSPO_API_KEY: ${{ secrets.OC_TRANSPO_API_KEY }}
         run: |
           node -e "
-          const GTFS_RT_URL = 'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt-tu/beta/v1/TripUpdates?format=json';
+          const GTFS_RT_URL = 'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt-tp/beta/v1/TripUpdates?format=json';
           const SB_URL = process.env.SUPABASE_URL;
           const SB_KEY = process.env.SUPABASE_SERVICE_KEY;
           const OC_KEY = process.env.OC_TRANSPO_API_KEY;
