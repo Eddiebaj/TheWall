@@ -12,7 +12,9 @@
       "bundleIdentifier": "com.eddie.routeo",
       "appleTeamId": "9556L24Y4A",
       "entitlements": {
-        "com.apple.security.application-groups": ["group.com.routeo.app"]
+        "com.apple.security.application-groups": [
+          "group.com.routeo.app"
+        ]
       },
       "infoPlist": {
         "NSAppTransportSecurity": {
@@ -73,7 +75,15 @@
           }
         }
       ],
-      "@bacons/apple-targets"
+      "@bacons/apple-targets",
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "routeo",
+          "project": "react-native"
+        }
+      ],
+      "@sentry/react-native"
     ],
     "experiments": {
       "typedRoutes": true

@@ -1,14 +1,12 @@
 /**
  * Sentry crash reporting helpers — lazy-loaded and null-guarded
  * for Expo Go compatibility (same pattern as pushNotifications.ts).
- *
- * Replace the placeholder DSN with your real Sentry DSN before shipping.
  */
 
 let Sentry: typeof import('@sentry/react-native') | null = null;
 try { Sentry = require('@sentry/react-native'); } catch {}
 
-const SENTRY_DSN = 'https://YOUR_SENTRY_DSN@sentry.io/YOUR_PROJECT_ID';
+const SENTRY_DSN = 'https://2a4fbb19b820e96b9395e3131f39a4ab@o4511174475120640.ingest.us.sentry.io/4511174478725120';
 
 let initialized = false;
 
