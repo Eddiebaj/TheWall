@@ -188,11 +188,22 @@ function SavedScreenInner() {
     const map: Record<string, StopArrival[]> = {};
     const cached: Record<string, number> = {};
     try {
-      const ids = savedStops.map(s => s.id).join(',');
-      const resp = await fetchWithTimeout(`${BACKEND_URL}?stops=${ids}`, { timeout: 12000 });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      const results: any[] = data.results || [];
+      // Chunk into batches of 10 (backend limit)
+      const chunks: SavedStop[][] = [];
+      for (let i = 0; i < savedStops.length; i += 10) {
+        chunks.push(savedStops.slice(i, i + 10));
+      }
+      const allResults: any[] = [];
+      const responses = await Promise.all(
+        chunks.map(chunk => {
+          const ids = chunk.map(s => s.id).join(',');
+          return fetchWithTimeout(`${BACKEND_URL}?stops=${ids}`, { timeout: 12000 }).then(r => r.ok ? r.json() : null);
+        })
+      );
+      for (const data of responses) {
+        if (data?.results) allResults.push(...data.results);
+      }
+      const results = allResults;
       for (const result of results) {
         const stopId = String(result.stop);
         const arr: StopArrival[] = (result.arrivals || []).slice(0, 4).map((a: any) => ({

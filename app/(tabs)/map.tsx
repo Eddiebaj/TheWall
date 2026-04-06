@@ -1344,6 +1344,15 @@ export default function MapScreen() {
   // Only batch on initial load; subsequent updates show all markers immediately.
   const initialBatchDone = useRef(false);
   const batchIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Reset batch flag when filters change to prevent dumping 200+ markers at once
+  const prevFilterKey = useRef('');
+  useEffect(() => {
+    const filterKey = Array.from(filters).sort().join(',');
+    if (prevFilterKey.current && filterKey !== prevFilterKey.current) {
+      initialBatchDone.current = false;
+    }
+    prevFilterKey.current = filterKey;
+  }, [filters]);
   useEffect(() => {
     if (!mapReady || filteredBuses.length === 0) { setVisibleBusCount(0); initialBatchDone.current = false; return; }
     // After initial batch, just show all markers immediately on updates
