@@ -65,43 +65,13 @@ jobs:
               console.log(entities.length + ' trip entities');
               if (entities.length === 0) return;
 
-              // 2. Extract predictions that have a Delay field
-              //    GTFS-RT Arrival.Time = scheduled time, Arrival.Delay = delay in seconds
-              //    We only care about imminent stops (-2 to +5 min from now)
+              // 2. Extract predictions from Departure field
+              //    OC Transpo uses Departure (not Arrival).
+              //    HasDelay: true  → Departure.Delay is real delay in seconds
+              //    HasDelay: false → Delay is 0 placeholder; compute from Departure.Time vs schedule
               const now = Math.floor(Date.now() / 1000);
               const predictions = [];
-
-              // Diagnostic: dump first 5 StopTimeUpdate objects with full detail
-              let diagCount = 0;
-              for (const ent of entities) {
-                if (diagCount >= 5) break;
-                const tu = ent.TripUpdate;
-                if (!tu?.Trip) continue;
-                for (const stu of (tu.StopTimeUpdate || [])) {
-                  if (diagCount >= 5) break;
-                  console.log('DIAG[' + diagCount + '] trip_id=' + tu.Trip.TripId + ' route=' + tu.Trip.RouteId + ' stop=' + stu.StopId);
-                  console.log('  Arrival:', JSON.stringify(stu.Arrival));
-                  console.log('  Departure:', JSON.stringify(stu.Departure));
-                  console.log('  Full STU keys:', Object.keys(stu));
-                  if (stu.Arrival) console.log('  Arrival keys:', Object.keys(stu.Arrival), 'Delay raw:', stu.Arrival.Delay, 'typeof:', typeof stu.Arrival.Delay);
-                  if (stu.Departure) console.log('  Departure keys:', Object.keys(stu.Departure), 'Delay raw:', stu.Departure.Delay, 'typeof:', typeof stu.Departure.Delay);
-                  diagCount++;
-                }
-              }
-
-              // Also tally delay distribution across ALL entities
-              let totalStus = 0, withDelay = 0, zeroDelay = 0, nonZeroDelay = 0, noDelayField = 0;
-              for (const ent of entities) {
-                for (const stu of (ent.TripUpdate?.StopTimeUpdate || [])) {
-                  totalStus++;
-                  const arr = stu.Arrival || {};
-                  const dep = stu.Departure || {};
-                  const d = arr.Delay ?? dep.Delay;
-                  if (d === undefined || d === null || d === '') { noDelayField++; }
-                  else { withDelay++; if (Number(d) === 0) zeroDelay++; else nonZeroDelay++; }
-                }
-              }
-              console.log('Delay distribution: total=' + totalStus + ' withDelay=' + withDelay + ' zero=' + zeroDelay + ' nonZero=' + nonZeroDelay + ' noField=' + noDelayField);
+              let statsHasDelay = 0, statsComputed = 0, statsSkipped = 0;
 
               for (const ent of entities) {
                 const tu = ent.TripUpdate;
@@ -111,27 +81,47 @@ jobs:
                 if (!routeId || !tripId) continue;
 
                 for (const stu of (tu.StopTimeUpdate || [])) {
-                  const arr = stu.Arrival || {};
-                  const dep = stu.Departure || {};
-                  // Delay field is the actual prediction (seconds from scheduled)
-                  const delaySec = parseInt(arr.Delay ?? dep.Delay ?? '');
-                  if (isNaN(delaySec)) continue;
-                  // Use Time to filter to imminent stops only
-                  const t = parseInt(arr.Time || dep.Time || 0);
-                  if (t) {
-                    const delta = t - now;
-                    if (delta < -120 || delta > 300) continue;
+                  const dep = stu.Departure;
+                  if (!dep) { statsSkipped++; continue; }
+
+                  const depTime = parseInt(dep.Time || 0);
+                  if (!depTime) { statsSkipped++; continue; }
+
+                  // Filter to imminent: -2 to +10 min from now
+                  const delta = depTime - now;
+                  if (delta < -120 || delta > 600) continue;
+
+                  if (dep.HasDelay === true) {
+                    // Explicit delay provided
+                    predictions.push({
+                      routeId, tripId,
+                      stopId: String(stu.StopId),
+                      delaySec: parseInt(dep.Delay || 0),
+                      source: 'hasDelay',
+                    });
+                    statsHasDelay++;
+                  } else {
+                    // No explicit delay — store predicted epoch, compute delta later vs schedule
+                    predictions.push({
+                      routeId, tripId,
+                      stopId: String(stu.StopId),
+                      predictedEpoch: depTime,
+                      delaySec: null,
+                      source: 'computed',
+                    });
+                    statsComputed++;
                   }
-                  predictions.push({
-                    routeId, tripId,
-                    stopId: String(stu.StopId),
-                    delaySec,
-                  });
                 }
               }
 
-              console.log(predictions.length + ' imminent predictions with delay data');
+              console.log(predictions.length + ' imminent predictions (hasDelay=' + statsHasDelay + ' computed=' + statsComputed + ' skipped=' + statsSkipped + ')');
               if (predictions.length === 0) return;
+
+              // Diagnostic: log first 5 predictions
+              for (let i = 0; i < Math.min(5, predictions.length); i++) {
+                const p = predictions[i];
+                console.log('PRED[' + i + '] route=' + p.routeId + ' trip=' + p.tripId + ' stop=' + p.stopId + ' source=' + p.source + ' delaySec=' + p.delaySec + ' predictedEpoch=' + (p.predictedEpoch || 'n/a'));
+              }
 
               // 3. Deduplicate by stop+trip and collect unique trip IDs
               const dedupMap = new Map();
@@ -168,18 +158,40 @@ jobs:
 
               console.log(Object.keys(scheduleMap).length + ' schedule matches');
 
-              // 5. Build records using delaySec from the feed directly
+              // 5. Build records — two strategies based on source
+              const isDST = new Date().toLocaleString('en-US', {
+                timeZone: 'America/Toronto', timeZoneName: 'short'
+              }).includes('EDT');
+              const offsetHours = isDST ? 4 : 5;
               const todayStr = new Date().toLocaleDateString('en-CA', {
                 timeZone: 'America/Toronto'
               });
               const records = [];
+              let statsFromDelay = 0, statsFromComputed = 0;
 
               for (const p of uniquePreds) {
                 const schedTime = scheduleMap[p.stopId + '|' + p.tripId];
                 if (!schedTime) continue;
 
-                // delaySec is from GTFS-RT Delay field: positive = late, negative = early
-                const deltaMin = Math.round(p.delaySec / 6) / 10; // 1 decimal place
+                let deltaMin;
+                if (p.delaySec !== null) {
+                  // Strategy A: explicit Delay from feed
+                  deltaMin = Math.round(p.delaySec / 6) / 10;
+                  statsFromDelay++;
+                } else {
+                  // Strategy B: compute from Departure.Time vs scheduled time
+                  const schedMins = timeToMins(schedTime);
+                  if (schedMins === 9999) continue;
+                  const schedH = Math.floor(schedMins / 60) % 24;
+                  const schedM = schedMins % 60;
+                  const schedS = schedTime.split(':').length >= 3 ? parseInt(schedTime.split(':')[2] || 0) : 0;
+                  const schedStr = todayStr + 'T' + String(schedH).padStart(2,'0') + ':' + String(schedM).padStart(2,'0') + ':' + String(schedS).padStart(2,'0') + 'Z';
+                  let schedEpoch = new Date(schedStr).getTime() / 1000 + (offsetHours * 3600);
+                  if (schedMins >= 1440) schedEpoch -= 86400;
+                  const deltaSec = p.predictedEpoch - schedEpoch;
+                  deltaMin = Math.round(deltaSec / 6) / 10;
+                  statsFromComputed++;
+                }
 
                 if (Math.abs(deltaMin) > 60) continue;
 
@@ -194,7 +206,13 @@ jobs:
                 });
               }
 
-              console.log(records.length + ' reliability records');
+              // Diagnostic: log first 5 records with their deltas
+              for (let i = 0; i < Math.min(5, records.length); i++) {
+                const r = records[i];
+                console.log('REC[' + i + '] route=' + r.route_id + ' stop=' + r.stop_id + ' sched=' + r.scheduled_time + ' delta=' + r.delta_minutes + 'min on_time=' + r.on_time);
+              }
+
+              console.log(records.length + ' reliability records (fromDelay=' + statsFromDelay + ' fromComputed=' + statsFromComputed + ')');
               if (records.length === 0) return;
 
               // 6. Upsert to route_reliability
