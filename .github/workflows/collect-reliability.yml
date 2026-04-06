@@ -122,7 +122,7 @@ jobs:
 
               // 4. Query stop_times by trip_id IN (...) — much more efficient than OR pairs
               //    Then filter by stop_id client-side
-              const CHUNK = 50;
+              const CHUNK = 20;
               const scheduleMap = {}; // 'stopId|tripId' -> arrival_time
 
               for (let i = 0; i < tripIds.length; i += CHUNK) {
