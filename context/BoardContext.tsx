@@ -5,6 +5,7 @@ import type { SavedBoardItem } from '../lib/homeConstants';
 
 interface BoardContextValue {
   savedBoard: SavedBoardItem[];
+  boardLoaded: boolean;
   addToBoard: (item: SavedBoardItem) => void;
   addToBoardIfMissing: (item: SavedBoardItem) => void;
   removeFromBoard: (index: number) => void;
@@ -14,6 +15,7 @@ interface BoardContextValue {
 
 const BoardContext = createContext<BoardContextValue>({
   savedBoard: [],
+  boardLoaded: false,
   addToBoard: () => {},
   addToBoardIfMissing: () => {},
   removeFromBoard: () => {},
@@ -32,6 +34,7 @@ function itemKey(item: SavedBoardItem): string {
 
 export function BoardProvider({ children }: { children: React.ReactNode }) {
   const [savedBoard, setSavedBoard] = useState<SavedBoardItem[]>([]);
+  const [boardLoaded, setBoardLoaded] = useState(false);
 
   const persist = useCallback((board: SavedBoardItem[]) => {
     AsyncStorage.setItem(SK_SAVED_BOARD, JSON.stringify(board)).catch(() => {});
@@ -45,6 +48,7 @@ export function BoardProvider({ children }: { children: React.ReactNode }) {
     } catch {
       setSavedBoard([]);
     }
+    setBoardLoaded(true);
   }, []);
 
   useEffect(() => { refreshBoard(); }, [refreshBoard]);
@@ -86,7 +90,7 @@ export function BoardProvider({ children }: { children: React.ReactNode }) {
   }, [persist]);
 
   return (
-    <BoardContext.Provider value={{ savedBoard, addToBoard, addToBoardIfMissing, removeFromBoard, reorderBoard, refreshBoard }}>
+    <BoardContext.Provider value={{ savedBoard, boardLoaded, addToBoard, addToBoardIfMissing, removeFromBoard, reorderBoard, refreshBoard }}>
       {children}
     </BoardContext.Provider>
   );

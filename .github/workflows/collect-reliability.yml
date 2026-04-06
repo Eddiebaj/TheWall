@@ -1,0 +1,209 @@
+name: Collect Route Reliability
+
+on:
+  schedule:
+    - cron: '*/5 * * * *' # Every 5 minutes
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Collect GTFS-RT reliability data
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          OC_TRANSPO_API_KEY: ${{ secrets.OC_TRANSPO_API_KEY }}
+        run: |
+          node -e "
+          const GTFS_RT_URL = 'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt-tu/beta/v1/TripUpdates?format=json';
+          const SB_URL = process.env.SUPABASE_URL;
+          const SB_KEY = process.env.SUPABASE_SERVICE_KEY;
+          const OC_KEY = process.env.OC_TRANSPO_API_KEY;
+
+          if (!SB_URL || !SB_KEY || !OC_KEY) {
+            console.error('Missing env vars');
+            process.exit(1);
+          }
+
+          async function sbFetch(path, opts = {}) {
+            const url = SB_URL + '/rest/v1/' + path;
+            const headers = {
+              'apikey': SB_KEY,
+              'Authorization': 'Bearer ' + SB_KEY,
+              'Content-Type': 'application/json',
+              ...opts.headers,
+            };
+            const resp = await fetch(url, { ...opts, headers });
+            if (!resp.ok) {
+              const text = await resp.text();
+              throw new Error('Supabase ' + resp.status + ': ' + text);
+            }
+            const ct = resp.headers.get('content-type') || '';
+            if (ct.includes('json')) return resp.json();
+            return null;
+          }
+
+          function timeToMins(t) {
+            if (!t) return 9999;
+            const p = t.split(':').map(Number);
+            return p[0] * 60 + (p[1] || 0);
+          }
+
+          (async () => {
+            try {
+              // 1. Fetch OC Transpo GTFS-RT feed
+              console.log('Fetching GTFS-RT feed...');
+              const rtResp = await fetch(GTFS_RT_URL, {
+                headers: { 'Ocp-Apim-Subscription-Key': OC_KEY },
+                signal: AbortSignal.timeout(15000),
+              });
+              if (!rtResp.ok) throw new Error('GTFS-RT HTTP ' + rtResp.status);
+              const rtData = await rtResp.json();
+              const entities = rtData?.Entity || [];
+              console.log(entities.length + ' trip entities');
+              if (entities.length === 0) return;
+
+              // 2. Extract imminent predictions (-2 to +5 min from now)
+              const now = Math.floor(Date.now() / 1000);
+              const predictions = [];
+
+              for (const ent of entities) {
+                const tu = ent.TripUpdate;
+                if (!tu?.Trip) continue;
+                const routeId = String(tu.Trip.RouteId || '');
+                const tripId = String(tu.Trip.TripId || '');
+                if (!routeId || !tripId) continue;
+
+                for (const stu of (tu.StopTimeUpdate || [])) {
+                  const arr = stu.Arrival || stu.Departure || {};
+                  const t = parseInt(arr.Time || 0);
+                  if (!t) continue;
+                  const delta = t - now;
+                  if (delta >= -120 && delta <= 300) {
+                    predictions.push({
+                      routeId, tripId,
+                      stopId: String(stu.StopId),
+                      predictedEpoch: t,
+                    });
+                  }
+                }
+              }
+
+              console.log(predictions.length + ' imminent predictions');
+              if (predictions.length === 0) return;
+
+              // 3. Deduplicate by stop+trip and collect unique trip IDs
+              const dedupMap = new Map();
+              for (const p of predictions) {
+                const key = p.stopId + '|' + p.tripId;
+                if (!dedupMap.has(key)) dedupMap.set(key, p);
+              }
+              const uniquePreds = [...dedupMap.values()];
+              const tripIds = [...new Set(uniquePreds.map(p => p.tripId))];
+              const stopIds = new Set(uniquePreds.map(p => p.stopId));
+
+              // 4. Query stop_times by trip_id IN (...) — much more efficient than OR pairs
+              //    Then filter by stop_id client-side
+              const CHUNK = 50;
+              const scheduleMap = {}; // 'stopId|tripId' -> arrival_time
+
+              for (let i = 0; i < tripIds.length; i += CHUNK) {
+                const chunk = tripIds.slice(i, i + CHUNK);
+                const inList = 'in.(' + chunk.map(id => '\"' + id + '\"').join(',') + ')';
+                try {
+                  const rows = await sbFetch(
+                    'stop_times?select=stop_id,trip_id,arrival_time&trip_id=' + encodeURIComponent(inList) + '&limit=5000',
+                    { headers: { 'Accept': 'application/json' } }
+                  );
+                  for (const row of (rows || [])) {
+                    if (stopIds.has(String(row.stop_id))) {
+                      scheduleMap[row.stop_id + '|' + row.trip_id] = row.arrival_time;
+                    }
+                  }
+                } catch (e) {
+                  console.warn('Schedule lookup error:', e.message);
+                }
+              }
+
+              console.log(Object.keys(scheduleMap).length + ' schedule matches');
+
+              // 5. Calculate deltas
+              const isDST = new Date().toLocaleString('en-US', {
+                timeZone: 'America/Toronto', timeZoneName: 'short'
+              }).includes('EDT');
+              const offsetHours = isDST ? 4 : 5;
+              const todayStr = new Date().toLocaleDateString('en-CA', {
+                timeZone: 'America/Toronto'
+              });
+              const records = [];
+
+              for (const p of uniquePreds) {
+                const schedTime = scheduleMap[p.stopId + '|' + p.tripId];
+                if (!schedTime) continue;
+
+                const schedMins = timeToMins(schedTime);
+                if (schedMins === 9999) continue;
+
+                const schedH = Math.floor(schedMins / 60) % 24;
+                const schedM = schedMins % 60;
+                const schedStr = todayStr + 'T' + String(schedH).padStart(2,'0') + ':' + String(schedM).padStart(2,'0') + ':00Z';
+                let schedEpoch = new Date(schedStr).getTime() / 1000 + (offsetHours * 3600);
+                if (schedMins >= 1440) schedEpoch -= 86400;
+
+                const deltaSec = p.predictedEpoch - schedEpoch;
+                const deltaMin = Math.round(deltaSec / 6) / 10; // 1 decimal place
+
+                if (Math.abs(deltaMin) > 60) continue;
+
+                records.push({
+                  route_id: p.routeId,
+                  stop_id: p.stopId,
+                  trip_id: p.tripId,
+                  scheduled_time: schedTime,
+                  delta_minutes: deltaMin,
+                  on_time: Math.abs(deltaMin) <= 3,
+                  recorded_date: todayStr,
+                });
+              }
+
+              console.log(records.length + ' reliability records');
+              if (records.length === 0) return;
+
+              // 6. Upsert to route_reliability
+              const UP_CHUNK = 200;
+              for (let i = 0; i < records.length; i += UP_CHUNK) {
+                const chunk = records.slice(i, i + UP_CHUNK);
+                try {
+                  await sbFetch('route_reliability', {
+                    method: 'POST',
+                    headers: {
+                      'Accept': 'application/json',
+                      'Prefer': 'resolution=merge-duplicates',
+                    },
+                    body: JSON.stringify(chunk),
+                  });
+                  console.log('Upserted ' + chunk.length + ' records');
+                } catch (e) {
+                  // Fallback: plain insert if unique constraint missing
+                  try {
+                    await sbFetch('route_reliability', {
+                      method: 'POST',
+                      headers: { 'Accept': 'application/json' },
+                      body: JSON.stringify(chunk),
+                    });
+                    console.log('Inserted ' + chunk.length + ' records (no dedup)');
+                  } catch (e2) {
+                    console.error('Insert failed:', e2.message);
+                  }
+                }
+              }
+
+              console.log('Done — ' + records.length + ' records');
+            } catch (e) {
+              console.error('Pipeline error:', e.message);
+              process.exit(1);
+            }
+          })();
+          "

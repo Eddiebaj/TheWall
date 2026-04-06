@@ -36,6 +36,7 @@ type SavedPlace = {
 type TripEntry = { fromLabel: string; toLabel: string; plannedAt: string; durationMins?: number; routes?: string[] };
 type StopArrival = { routeId: string; headsign: string; minsAway: number; confidence?: 'live' | 'scheduled' | 'rider-verified' };
 type GhostAlert = { vanishedRoutes: { routeId: string }[]; nextAlternative: { routeId: string; minsAway: number; headsign: string } | null };
+type RouteReliability = { onTimePercent: number; avgDelay: number; sampleSize: number };
 
 function timeAgo(dateStr: string, t: (en: string, fr: string) => string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -45,6 +46,12 @@ function timeAgo(dateStr: string, t: (en: string, fr: string) => string): string
   if (hrs < 24) return t(`${hrs}h ago`, `il y a ${hrs}h`);
   const days = Math.floor(hrs / 24);
   return t(`${days}d ago`, `il y a ${days}j`);
+}
+
+function reliabilityColor(pct: number): string {
+  if (pct >= 80) return '#27AE60';
+  if (pct >= 60) return '#F59E0B';
+  return '#EF4444';
 }
 
 function SavedScreenInner() {
@@ -60,6 +67,8 @@ function SavedScreenInner() {
   const [arrivals, setArrivals] = useState<Record<string, StopArrival[]>>({});
   const [cachedStops, setCachedStops] = useState<Record<string, number>>({});
   const [ghostAlerts, setGhostAlerts] = useState<Record<string, GhostAlert>>({});
+  const [reliability, setReliability] = useState<Record<string, Record<string, RouteReliability>>>({});
+  const [expandedReliability, setExpandedReliability] = useState<string | null>(null);
   const [arrivalsLoading, setArrivalsLoading] = useState(false);
   const [mostUsedStop, setMostUsedStop] = useState<SavedStop | null>(null);
   const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
@@ -213,10 +222,11 @@ function SavedScreenInner() {
   const cardShadow = isLight ? sharedCardShadow : {};
 
   // Shared arrival-fetching helper — single batch request
-  const fetchArrivalsForStops = async (savedStops: SavedStop[]): Promise<{ map: Record<string, StopArrival[]>; cached: Record<string, number>; ghosts: Record<string, GhostAlert> }> => {
+  const fetchArrivalsForStops = async (savedStops: SavedStop[]): Promise<{ map: Record<string, StopArrival[]>; cached: Record<string, number>; ghosts: Record<string, GhostAlert>; rel: Record<string, Record<string, RouteReliability>> }> => {
     const map: Record<string, StopArrival[]> = {};
     const cached: Record<string, number> = {};
     const ghosts: Record<string, GhostAlert> = {};
+    const rel: Record<string, Record<string, RouteReliability>> = {};
     try {
       // Chunk into batches of 10 (backend limit)
       const chunks: SavedStop[][] = [];
@@ -248,6 +258,7 @@ function SavedScreenInner() {
           cacheArrivals(stopId, { arrivals: arr, source: 'live', stopName: name });
         }
         if (result.ghostAlert) ghosts[stopId] = result.ghostAlert;
+        if (result.reliability) rel[stopId] = result.reliability;
       }
     } catch (e) {
       if (__DEV__) console.warn('Batch arrivals failed:', e);
@@ -263,7 +274,7 @@ function SavedScreenInner() {
         map[s.id] = [];
       }
     }));
-    return { map, cached, ghosts };
+    return { map, cached, ghosts, rel };
   };
 
   // Load data
@@ -328,10 +339,11 @@ function SavedScreenInner() {
       // Fetch arrivals using shared helper
       if (savedStops.length > 0) {
         setArrivalsLoading(true);
-        const { map, cached, ghosts } = await fetchArrivalsForStops(savedStops);
+        const { map, cached, ghosts, rel } = await fetchArrivalsForStops(savedStops);
         setArrivals(map);
         setCachedStops(cached);
         setGhostAlerts(ghosts);
+        setReliability(rel);
         setArrivalsLoading(false);
       }
 
@@ -361,10 +373,11 @@ function SavedScreenInner() {
         if (currentStops.length === 0) return;
         isFetchingRef.current = true;
         try {
-          const { map, cached, ghosts } = await fetchArrivalsForStops(currentStops);
+          const { map, cached, ghosts, rel } = await fetchArrivalsForStops(currentStops);
           setArrivals(map);
           setCachedStops(cached);
           setGhostAlerts(ghosts);
+          setReliability(rel);
         } finally {
           isFetchingRef.current = false;
         }
@@ -389,7 +402,7 @@ function SavedScreenInner() {
       {/* Header */}
       <View style={{ paddingHorizontal: PAD, paddingTop: insets.top + 12, paddingBottom: 12 }}>
         <Text accessibilityRole="header" style={{ fontSize: 28, fontWeight: '700', color: colours.text }}>
-          {t('Saved', 'Sauvegardes')}
+          {t('My Stops', 'Mes arr\u00eats')}
         </Text>
       </View>
 
@@ -418,7 +431,7 @@ function SavedScreenInner() {
               onPress={() => router.push({ pathname: '/(tabs)/map', params: { focusStop: mostUsedStop.id } })}
               style={{
                 width: FULL_W,
-                height: 100,
+                minHeight: 100,
                 backgroundColor: colours.card,
                 borderRadius: 16,
                 padding: 16,
@@ -466,6 +479,21 @@ function SavedScreenInner() {
                       >
                         <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>{a.routeId}</Text>
                       </TouchableOpacity>
+                      {reliability[mostUsedStop.id]?.[a.routeId] && (() => {
+                        const rel = reliability[mostUsedStop.id][a.routeId];
+                        const clr = reliabilityColor(rel.onTimePercent);
+                        const rKey = `${mostUsedStop.id}-${a.routeId}`;
+                        return (
+                          <TouchableOpacity
+                            onPress={() => { hapticLight(); setExpandedReliability(prev => prev === rKey ? null : rKey); }}
+                            activeOpacity={0.6}
+                            style={{ backgroundColor: clr + '18', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}
+                            accessibilityLabel={`${rel.onTimePercent}% on time`}
+                          >
+                            <Text style={{ fontSize: 9, fontWeight: '700', color: clr }}>{rel.onTimePercent}%</Text>
+                          </TouchableOpacity>
+                        );
+                      })()}
                       <Text style={{ fontSize: 13, fontWeight: '700', color: a.minsAway < 2 ? TEAL : colours.text }}>
                         {a.minsAway <= 0 ? '< 1' : `${a.minsAway}m`}
                       </Text>
@@ -492,6 +520,22 @@ function SavedScreenInner() {
                       </TouchableOpacity>
                     </View>
                   ))}
+                  {(arrivals[mostUsedStop.id] || []).map(a => {
+                    const rKey = `${mostUsedStop.id}-${a.routeId}`;
+                    const rel = reliability[mostUsedStop.id]?.[a.routeId];
+                    if (expandedReliability !== rKey || !rel) return null;
+                    const clr = reliabilityColor(rel.onTimePercent);
+                    return (
+                      <View key={`rel-${rKey}`} style={{ backgroundColor: clr + '10', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginTop: 4, width: '100%' }}>
+                        <Text style={{ fontSize: 11, color: colours.text }}>
+                          {t(
+                            `Route ${a.routeId} was on time ${rel.onTimePercent}% of the time over ${rel.sampleSize} observations in the last 30 days. Average delay: ${rel.avgDelay > 0 ? '+' : ''}${rel.avgDelay} min.`,
+                            `Route ${a.routeId} : à l'heure ${rel.onTimePercent}% du temps sur ${rel.sampleSize} observations (30 jours). Retard moyen : ${rel.avgDelay > 0 ? '+' : ''}${rel.avgDelay} min.`
+                          )}
+                        </Text>
+                      </View>
+                    );
+                  })}
                 </View>
               ) : (
                 <Text style={{ fontSize: 13, color: colours.muted, fontStyle: 'italic' }}>
@@ -610,6 +654,11 @@ function SavedScreenInner() {
                                 >
                                   <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent }}>{a.routeId}</Text>
                                 </TouchableOpacity>
+                                {reliability[stop.id]?.[a.routeId] && (
+                                  <Text style={{ fontSize: 8, fontWeight: '700', color: reliabilityColor(reliability[stop.id][a.routeId].onTimePercent) }}>
+                                    {reliability[stop.id][a.routeId].onTimePercent}%
+                                  </Text>
+                                )}
                                 <Text style={{ fontSize: 11, fontWeight: '700', color: a.minsAway < 2 ? TEAL : colours.text }}>
                                   {a.minsAway <= 0 ? '<1' : `${a.minsAway}m`}
                                 </Text>
