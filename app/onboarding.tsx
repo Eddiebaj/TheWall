@@ -252,6 +252,9 @@ export default function OnboardingScreen() {
                     key={s.id}
                     onPress={() => addStop(s)}
                     activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={s.name}
                     style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: '#1e2a3a' }}
                   >
                     <Ionicons name="bus-outline" size={16} color={TEAL} />
@@ -276,7 +279,7 @@ export default function OnboardingScreen() {
                   <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }} numberOfLines={1}>
                     #{s.id}
                   </Text>
-                  <TouchableOpacity onPress={() => removeStop(s.id)} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                  <TouchableOpacity onPress={() => removeStop(s.id)} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }} accessibilityRole="button" accessibilityLabel={t('Remove stop', 'Retirer l\'arret')}>
                     <Ionicons name="close-circle" size={18} color="#5a6a7a" />
                   </TouchableOpacity>
                 </View>
@@ -324,6 +327,7 @@ export default function OnboardingScreen() {
                 if (i > 2 && !canAdvanceStop) return;
                 goToSlide(i);
               }}
+              activeOpacity={0.7}
               hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
               accessibilityRole="button"
               accessibilityLabel={t(`Go to slide ${i + 1}`, `Aller a la diapositive ${i + 1}`)}
@@ -333,6 +337,7 @@ export default function OnboardingScreen() {
                 width: i === currentIndex ? 28 : 8,
                 height: 8, borderRadius: 4,
                 backgroundColor: i === currentIndex ? accent : '#1e2a3a',
+                opacity: (i > 2 && !canAdvanceStop) ? 0.3 : 1,
               }} />
             </TouchableOpacity>
           ))}
@@ -360,6 +365,7 @@ export default function OnboardingScreen() {
               <TouchableOpacity
                 style={{ paddingVertical: 14, alignItems: 'center' }}
                 onPress={() => goToSlide(2)}
+                activeOpacity={0.7}
                 accessibilityRole="button"
                 accessibilityLabel={t('Maybe later', 'Peut-etre plus tard')}
               >
@@ -428,6 +434,7 @@ export default function OnboardingScreen() {
             <TouchableOpacity
               style={{ paddingVertical: 14, alignItems: 'center' }}
               onPress={finish}
+              activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel={t('Skip onboarding', 'Passer la presentation')}
             >

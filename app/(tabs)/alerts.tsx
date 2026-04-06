@@ -171,7 +171,7 @@ function AlertsScreenInner() {
       <TouchableOpacity
         key={alert.id}
         onPress={() => { hapticLight(); setExpandedId(isExpanded ? null : alert.id); }}
-        activeOpacity={0.85}
+        activeOpacity={0.7}
         accessibilityLabel={`${alert.category} alert: ${alert.title}`}
         style={[styles.alertCard, {
           backgroundColor: colours.surface, borderColor: colours.border, borderLeftColor: catColour,
@@ -221,7 +221,13 @@ function AlertsScreenInner() {
               </Text>
             ) : null}
             {alert.link ? (
-              <TouchableOpacity onPress={() => Linking.openURL(alert.link)}>
+              <TouchableOpacity
+                onPress={() => Linking.openURL(alert.link).catch(() => {})}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="link"
+                accessibilityLabel={`${t('Open on', 'Ouvrir sur')} ${alert.agency === 'STO' ? 'STO' : 'OC Transpo'}`}
+              >
                 <Text style={{ fontSize: 11, color: colours.accent, fontWeight: '600' }}>{alert.agency === 'STO' ? 'STO' : 'OC Transpo'} \u2197</Text>
               </TouchableOpacity>
             ) : null}
@@ -254,6 +260,8 @@ function AlertsScreenInner() {
           <TouchableOpacity
             onPress={() => fetchAlerts(true)}
             style={[styles.refreshBtn, { backgroundColor: colours.surface, borderColor: colours.border }]}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
             accessibilityLabel={t('Refresh alerts', 'Rafraichir les alertes')}
           >
@@ -288,8 +296,10 @@ function AlertsScreenInner() {
             </View>
           </View>
           <TouchableOpacity
-            onPress={() => Linking.openURL('https://occasionaltransport.ca')}
+            onPress={() => Linking.openURL('https://occasionaltransport.ca').catch(() => {})}
             style={[styles.lrtCommunityBtn, { backgroundColor: colours.bg, borderColor: colours.border }]}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="link"
             accessibilityLabel={t('View LRT status on OccasionalTransport', 'Voir le statut du TLR sur OccasionalTransport')}
           >
@@ -358,9 +368,12 @@ function AlertsScreenInner() {
 
           {/* Link to full site */}
           <TouchableOpacity
-            onPress={() => Linking.openURL('https://occasionaltransport.ca')}
+            onPress={() => Linking.openURL('https://occasionaltransport.ca').catch(() => {})}
             style={{ marginTop: 8, alignItems: 'center', paddingVertical: 8 }}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="link"
+            accessibilityLabel={t('View full status on OccasionalTransport.ca', 'Voir le statut complet sur OccasionalTransport.ca')}
           >
             <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent }}>
               {t('View full status on OccasionalTransport.ca', 'Voir le statut complet sur OccasionalTransport.ca')} {'\u2197'}
@@ -387,6 +400,8 @@ function AlertsScreenInner() {
                     backgroundColor: active ? colour : colours.surface,
                     borderColor: active ? colour : colours.border,
                   }]}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
                 >

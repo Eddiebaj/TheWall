@@ -113,7 +113,7 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sp
               </Text>
             )}
           </View>
-          <TouchableOpacity onPress={dismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <TouchableOpacity onPress={dismiss} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Dismiss tonight card">
             <Ionicons name="close" size={18} color={colours.muted} />
           </TouchableOpacity>
         </View>
@@ -121,12 +121,22 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sp
         {/* Sports — hero treatment with team color accent */}
         {summary.sports.map((sport, i) => {
           const teamColor = SPORT_COLOURS[sport.icon] || colours.accent;
-          return (
-            <TouchableOpacity key={i} onPress={onPressSports} activeOpacity={onPressSports ? 0.7 : 1}
-              style={{ backgroundColor: teamColor + '0C', borderRadius: 10, padding: 10, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: teamColor }}>
+          const rowStyle = { backgroundColor: teamColor + '0C', borderRadius: 10, padding: 10, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: teamColor };
+          const content = (
+            <>
               <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{sport.label}</Text>
               <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>{sport.detail}</Text>
+            </>
+          );
+          return onPressSports ? (
+            <TouchableOpacity key={i} onPress={onPressSports} activeOpacity={0.7}
+              style={rowStyle} accessibilityRole="button" accessibilityLabel={sport.label}>
+              {content}
             </TouchableOpacity>
+          ) : (
+            <View key={i} style={rowStyle} accessibilityLabel={sport.label}>
+              {content}
+            </View>
           );
         })}
 
@@ -135,6 +145,9 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sp
           <TouchableOpacity
             onPress={summary.events.count > 0 ? onPressEvents : onPressDeals}
             activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="View events and deals"
             style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
             <Text style={{ fontSize: fonts.md, color: colours.text }}>
               {parts.join(' · ')}

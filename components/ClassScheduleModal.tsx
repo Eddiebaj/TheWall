@@ -195,6 +195,7 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
   const [commuteLoading, setCommuteLoading] = useState(false);
   const [commuteLabel, setCommuteLabel] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   // Add/edit form state
   const [name, setName] = useState('');
@@ -337,16 +338,22 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
   };
 
   const handleSave = async () => {
-    // Auto-calculate commute if not already done
-    let mins = commuteMins;
-    if (!commuteLabel) {
-      mins = await calcCommute();
+    if (saving) return;
+    setSaving(true);
+    try {
+      // Auto-calculate commute if not already done
+      let mins = commuteMins;
+      if (!commuteLabel) {
+        mins = await calcCommute();
+      }
+      const sched: ClassSchedule = { classes, commuteMins: mins };
+      await AsyncStorage.setItem(SK_CLASS_SCHEDULE, JSON.stringify(sched));
+      await AsyncStorage.setItem(SK_COMMUTE_DURATION, String(mins));
+      onSave(sched);
+      onClose();
+    } finally {
+      setSaving(false);
     }
-    const sched: ClassSchedule = { classes, commuteMins: mins };
-    await AsyncStorage.setItem(SK_CLASS_SCHEDULE, JSON.stringify(sched));
-    await AsyncStorage.setItem(SK_COMMUTE_DURATION, String(mins));
-    onSave(sched);
-    onClose();
   };
 
   const dayLabel = (d: ClassDay) => language === 'fr' ? DAY_LABELS_FR[d] : d;
@@ -357,11 +364,11 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
         {/* Header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderColor: colours.border }}>
           {step === 'list' ? (
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity onPress={onClose} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Close schedule">
               <Ionicons name="close" size={24} color={colours.text} />
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity onPress={() => setStep('list')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity onPress={() => setStep('list')} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Go back">
               <Ionicons name="arrow-back" size={24} color={colours.text} />
             </TouchableOpacity>
           )}
@@ -369,11 +376,11 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
             {step === 'list' ? t('Class Schedule', 'Horaire de cours') : (editingId ? t('Edit Class', 'Modifier le cours') : t('Add Class', 'Ajouter un cours'))}
           </Text>
           {step === 'list' ? (
-            <TouchableOpacity onPress={handleSave} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={{ fontSize: 15, fontWeight: '700', color: colours.accent }}>{t('Save', 'Sauvegarder')}</Text>
+            <TouchableOpacity onPress={handleSave} activeOpacity={0.7} disabled={saving} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Save schedule">
+              <Text style={{ fontSize: 15, fontWeight: '700', color: saving ? colours.muted : colours.accent }}>{saving ? t('Saving...', 'Sauvegarde...') : t('Save', 'Sauvegarder')}</Text>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity onPress={saveClass} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity onPress={saveClass} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={editingId ? t('Update class', 'Mettre a jour le cours') : t('Add class', 'Ajouter un cours')}>
               <Text style={{ fontSize: 15, fontWeight: '700', color: colours.accent }}>{editingId ? t('Update', 'Mettre a jour') : t('Add', 'Ajouter')}</Text>
             </TouchableOpacity>
           )}
@@ -409,7 +416,7 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
                 </View>
               </View>
               {!commuteLoading && (
-                <TouchableOpacity onPress={calcCommute} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <TouchableOpacity onPress={calcCommute} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Refresh commute time">
                   <Ionicons name="refresh" size={18} color={colours.muted} />
                 </TouchableOpacity>
               )}
@@ -428,6 +435,9 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
                       key={c.id + day}
                       onPress={() => openEdit(c)}
                       onLongPress={() => deleteClass(c.id)}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityHint="Long press to delete"
                       style={{
                         flexDirection: 'row', alignItems: 'center', gap: 10,
                         backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border,
@@ -462,6 +472,9 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
             {/* Add button */}
             <TouchableOpacity
               onPress={openAdd}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={t('Add class', 'Ajouter un cours')}
               style={{
                 flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
                 backgroundColor: colours.accent, borderRadius: 12, paddingVertical: 14, marginTop: 8,
@@ -523,6 +536,9 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
                   <TouchableOpacity
                     key={d}
                     onPress={() => toggleDay(d)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: sel }}
                     style={{
                       paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12,
                       backgroundColor: sel ? colours.accent : colours.surface,

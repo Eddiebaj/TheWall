@@ -354,7 +354,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
         if (placesError) return <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 20 }}>{t('Could not load places', 'Impossible de charger les lieux')}</Text>;
         if (places.length === 0) return <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 20 }}>{t('No places found', 'Aucun lieu trouv\u00e9')}</Text>;
         return places.map((p: any, i: number) => (
-          <TouchableOpacity key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border }} onPress={() => { if (p.place_id) Linking.openURL(`https://www.google.com/maps/place/?q=place_id:${p.place_id}`); }}>
+          <TouchableOpacity key={i} activeOpacity={0.7} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border }} onPress={() => { if (p.place_id) Linking.openURL(`https://www.google.com/maps/place/?q=place_id:${p.place_id}`).catch(() => {}); }}>
             <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: n.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="location" size={16} color={n.accent} />
             </View>
@@ -369,7 +369,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
       case 'events':
         if (nearbyEvents.length === 0) return <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 20 }}>{t('No upcoming events nearby', 'Aucun \u00e9v\u00e9nement \u00e0 proximit\u00e9')}</Text>;
         return nearbyEvents.slice(0, 10).map((e, i) => (
-          <TouchableOpacity key={i} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border }} onPress={() => Linking.openURL(e.url)}>
+          <TouchableOpacity key={i} activeOpacity={0.7} accessibilityRole="button" style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border }} onPress={() => Linking.openURL(e.url).catch(() => {})}>
             <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }} numberOfLines={2}>{e.name}</Text>
             <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{e.date}{e.time ? ` ${e.time}` : ''} · {e.venue}</Text>
           </TouchableOpacity>
@@ -383,11 +383,11 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
               <View key={i} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>{v.name}</Text>
-                  {v.isActive && <View style={{ backgroundColor: '#00A78D', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}><Text style={{ color: '#fff', fontSize: 9, fontWeight: '700' }}>{t('NOW', 'ACTIF')}</Text></View>}
+                  {v.isActive && <View style={{ backgroundColor: colours.accent, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}><Text style={{ color: '#fff', fontSize: 9, fontWeight: '700' }}>{t('NOW', 'ACTIF')}</Text></View>}
                 </View>
                 <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{v.address}</Text>
                 {(v.isActive ? v.activeDeals : v.upcomingDeals).map((d: any, j: number) => (
-                  <Text key={j} style={{ fontSize: fonts.sm, color: v.isActive ? '#00A78D' : colours.accent, marginTop: 2 }}>{language === 'fr' && d.description_fr ? d.description_fr : d.description}</Text>
+                  <Text key={j} style={{ fontSize: fonts.sm, color: colours.accent, marginTop: 2 }}>{language === 'fr' && d.description_fr ? d.description_fr : d.description}</Text>
                 ))}
               </View>
             ))}
@@ -411,9 +411,9 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                         <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text, flex: 1 }}>{d.venue_name}</Text>
                         {confirmed && (
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#00A78D' + '18', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
-                            <Ionicons name="checkmark-circle" size={12} color="#00A78D" />
-                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#00A78D' }}>{votes.up} {t('confirmed', 'confirm\u00e9')}</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colours.accent + '18', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                            <Ionicons name="checkmark-circle" size={12} color={colours.accent} />
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: colours.accent }}>{votes.up} {t('confirmed', 'confirm\u00e9')}</Text>
                           </View>
                         )}
                       </View>
@@ -422,11 +422,11 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
                         <Image source={{ uri: d.photo_url }} style={{ width: '100%', height: 120, borderRadius: 8, marginTop: 6 }} resizeMode="cover" />
                       )}
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 }}>
-                        <TouchableOpacity onPress={() => voteDeal(d.id, 'up')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                          <Ionicons name={myVote === 'up' ? 'thumbs-up' : 'thumbs-up-outline'} size={14} color={myVote === 'up' ? '#00A78D' : colours.muted} />
-                          <Text style={{ fontSize: fonts.sm, color: myVote === 'up' ? '#00A78D' : colours.muted, fontWeight: '600' }}>{votes.up}</Text>
+                        <TouchableOpacity onPress={() => voteDeal(d.id, 'up')} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Upvote deal" style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <Ionicons name={myVote === 'up' ? 'thumbs-up' : 'thumbs-up-outline'} size={14} color={myVote === 'up' ? colours.accent : colours.muted} />
+                          <Text style={{ fontSize: fonts.sm, color: myVote === 'up' ? colours.accent : colours.muted, fontWeight: '600' }}>{votes.up}</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => voteDeal(d.id, 'down')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <TouchableOpacity onPress={() => voteDeal(d.id, 'down')} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Downvote deal" style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                           <Ionicons name={myVote === 'down' ? 'thumbs-down' : 'thumbs-down-outline'} size={14} color={myVote === 'down' ? colours.orange : colours.muted} />
                           <Text style={{ fontSize: fonts.sm, color: myVote === 'down' ? colours.orange : colours.muted, fontWeight: '600' }}>{votes.down}</Text>
                         </TouchableOpacity>
@@ -438,7 +438,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
             )}
 
             {dealVoteError !== '' && (
-              <Text style={{ fontSize: 12, color: '#ff3b30', fontWeight: '600', marginTop: 8, textAlign: 'center' }}>{dealVoteError}</Text>
+              <Text style={{ fontSize: 12, color: colours.red, fontWeight: '600', marginTop: 8, textAlign: 'center' }}>{dealVoteError}</Text>
             )}
 
             {/* Submit deal button / form */}
@@ -448,7 +448,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
                   <Ionicons
                     name={dealStatus === 'approved' ? 'checkmark-circle' : dealStatus === 'rejected' ? 'close-circle' : 'time'}
                     size={28}
-                    color={dealStatus === 'approved' ? '#00A78D' : dealStatus === 'rejected' ? '#cc3b2a' : colours.accent}
+                    color={dealStatus === 'approved' ? colours.accent : dealStatus === 'rejected' ? colours.red : colours.accent}
                   />
                   <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, marginTop: 6 }}>
                     {dealStatus === 'approved'
@@ -468,6 +468,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
                       setDealStatus(null);
                       setDealModerationReason('');
                     }}
+                    activeOpacity={0.7}
                     style={{ marginTop: 12, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, backgroundColor: colours.tintBg, borderWidth: 1, borderColor: colours.accent + '30' }}
                     accessibilityRole="button"
                   >
@@ -496,31 +497,34 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
                   {dealPhoto ? (
                     <View style={{ marginBottom: 10, alignItems: 'center' }}>
                       <Image source={{ uri: dealPhoto.uri }} style={{ width: '100%', height: 160, borderRadius: 8 }} resizeMode="cover" />
-                      <TouchableOpacity onPress={() => setDealPhoto(null)} style={{ position: 'absolute', top: 6, right: 6, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' }}>
+                      <TouchableOpacity onPress={() => setDealPhoto(null)} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Remove photo" style={{ position: 'absolute', top: 6, right: 6, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' }}>
                         <Ionicons name="close" size={14} color="#fff" />
                       </TouchableOpacity>
                     </View>
                   ) : ImagePickerModule ? (
                     <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
-                      <TouchableOpacity onPress={takeDealPhoto} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: colours.border, borderStyle: 'dashed' }}>
+                      <TouchableOpacity onPress={takeDealPhoto} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Take photo" style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: colours.border, borderStyle: 'dashed' }}>
                         <Ionicons name="camera-outline" size={16} color={colours.muted} />
                         <Text style={{ fontSize: fonts.sm, color: colours.muted, fontWeight: '600' }}>{t('Camera', 'Cam\u00e9ra')}</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity onPress={pickDealPhoto} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: colours.border, borderStyle: 'dashed' }}>
+                      <TouchableOpacity onPress={pickDealPhoto} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Choose from gallery" style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: colours.border, borderStyle: 'dashed' }}>
                         <Ionicons name="image-outline" size={16} color={colours.muted} />
                         <Text style={{ fontSize: fonts.sm, color: colours.muted, fontWeight: '600' }}>{t('Gallery', 'Galerie')}</Text>
                       </TouchableOpacity>
                     </View>
                   ) : null}
                   {dealError !== '' && (
-                    <Text style={{ fontSize: 12, color: '#ff3b30', fontWeight: '600', marginBottom: 8 }}>{dealError}</Text>
+                    <Text style={{ fontSize: 12, color: colours.red, fontWeight: '600', marginBottom: 8 }}>{dealError}</Text>
                   )}
                   <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <TouchableOpacity onPress={() => setShowDealForm(false)} style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
+                    <TouchableOpacity onPress={() => setShowDealForm(false)} activeOpacity={0.7} style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
                       <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted }}>{t('Cancel', 'Annuler')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={submitDeal}
+                      activeOpacity={0.7}
+                      disabled={!dealVenueName.trim() || !dealDescription.trim() || dealSubmitting}
+                      accessibilityRole="button"
                       style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: dealVenueName.trim() && dealDescription.trim() ? n.accent : colours.border, alignItems: 'center' }}
                     >
                       {dealSubmitting
@@ -533,6 +537,8 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
               ) : (
                 <TouchableOpacity
                   onPress={() => setShowDealForm(true)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
                   style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: n.accent + '40', borderStyle: 'dashed' }}
                 >
                   <Ionicons name="add-circle-outline" size={18} color={n.accent} />
@@ -584,7 +590,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
       case 'news':
         if (filteredNews.length === 0) return <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center', marginTop: 20 }}>{t('No local news', 'Aucune nouvelle locale')}</Text>;
         return filteredNews.slice(0, 8).map((a, i) => (
-          <TouchableOpacity key={i} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border }} onPress={() => Linking.openURL(a.link)}>
+          <TouchableOpacity key={i} activeOpacity={0.7} accessibilityRole="button" style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border }} onPress={() => Linking.openURL(a.link).catch(() => {})}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
               <View style={{ backgroundColor: SOURCE_COLOURS[a.source] || colours.accent, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 }}>
                 <Text style={{ color: '#fff', fontSize: 8, fontWeight: '700' }}>{a.source}</Text>
@@ -608,7 +614,7 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
               <Text style={{ fontSize: fonts.xxl, fontWeight: '700', color: colours.text }}>{name}</Text>
               <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{description}</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={{ marginLeft: 12, backgroundColor: colours.surface, borderRadius: 20, width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colours.border }}>
+            <TouchableOpacity onPress={onClose} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Close" style={{ marginLeft: 12, backgroundColor: colours.surface, borderRadius: 20, width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colours.border }}>
               <Ionicons name="close" size={18} color={colours.text} />
             </TouchableOpacity>
           </View>
@@ -621,6 +627,10 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
                 <TouchableOpacity
                   key={tab.id}
                   onPress={() => setActiveTab(tab.id)}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: isActive }}
                   style={{
                     flexDirection: 'row', alignItems: 'center', gap: 5,
                     backgroundColor: isActive ? n.accent + '18' : colours.surface,
@@ -650,6 +660,9 @@ export default function NeighbourhoodSheet({ visible, neighbourhood, onClose, co
               onClose();
               router.push(`/(tabs)/planner?toLat=${n.lat}&toLng=${n.lng}&toLabel=${encodeURIComponent(name)}` as any);
             }}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Plan route to neighbourhood"
             style={{ backgroundColor: n.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
           >
             <Text style={{ color: '#fff', fontSize: fonts.md, fontWeight: '700' }}>{t('Plan Route', 'Planifier un trajet')}</Text>

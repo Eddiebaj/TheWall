@@ -194,6 +194,8 @@ function DiscoverScreenInner() {
             <TouchableOpacity
               key={tab}
               onPress={() => { hapticLight(); setActiveSection(tab); }}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}
               style={{ flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: active ? colours.tintBg : 'transparent' }}
@@ -229,9 +231,10 @@ function DiscoverScreenInner() {
                   return (
                     <TouchableOpacity
                       key={n.id}
-                      activeOpacity={0.9}
+                      activeOpacity={0.7}
                       onPress={() => { setSelected(n); setSheetVisible(true); }}
                       accessibilityRole="button"
+                      accessibilityLabel={name}
                       style={[{ width: 150, height: 110, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: colours.border }, cardShadow]}
                     >
                       <ImageBackground source={{ uri: n.photoUrl }} style={{ width: '100%', height: '100%', justifyContent: 'flex-end' }} resizeMode="cover">
@@ -307,9 +310,10 @@ function DiscoverScreenInner() {
                 {weekendEvents.map(ev => (
                   <TouchableOpacity
                     key={ev.id}
-                    activeOpacity={0.9}
-                    onPress={() => ev.url && Linking.openURL(ev.url)}
+                    activeOpacity={0.7}
+                    onPress={() => ev.url && Linking.openURL(ev.url).catch(() => {})}
                     accessibilityRole="button"
+                    accessibilityLabel={ev.name}
                     style={[{ width: 200, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface }, cardShadow]}
                   >
                     {ev.image ? (
@@ -326,7 +330,7 @@ function DiscoverScreenInner() {
                       <Text style={{ fontSize: 11, color: colours.muted, marginTop: 3 }} numberOfLines={1}>
                         {ev.venue}{ev.time ? ` · ${ev.time}` : ''}
                       </Text>
-                      <Text style={{ fontSize: 11, fontWeight: '600', color: '#026CDF', marginTop: 2 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: colours.accent, marginTop: 2 }}>
                         {new Date(ev.date + 'T12:00:00').toLocaleDateString(language === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'short', month: 'short', day: 'numeric' })}
                       </Text>
                     </View>
@@ -349,9 +353,11 @@ function DiscoverScreenInner() {
               newsArticles.slice(0, 5).map(article => (
                 <TouchableOpacity
                   key={article.id}
-                  onPress={() => Linking.openURL(article.link)}
+                  onPress={() => Linking.openURL(article.link).catch(() => {})}
                   style={[{ flexDirection: 'row', gap: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, marginBottom: 8 }, cardShadow]}
-                  activeOpacity={0.8}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={article.title}
                 >
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
@@ -388,7 +394,13 @@ function DiscoverScreenInner() {
                 style={{ flex: 1, paddingVertical: 12, paddingLeft: 8, fontSize: fonts.md, color: colours.text, fontWeight: '500' }}
               />
               {search.length > 0 && (
-                <TouchableOpacity onPress={() => setSearch('')}>
+                <TouchableOpacity
+                  onPress={() => setSearch('')}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('Clear search', 'Effacer la recherche')}
+                >
                   <Ionicons name="close-circle" size={18} color={colours.muted} />
                 </TouchableOpacity>
               )}
@@ -408,9 +420,10 @@ function DiscoverScreenInner() {
               return (
                 <TouchableOpacity
                   key={n.id}
-                  activeOpacity={0.92}
+                  activeOpacity={0.7}
                   onPress={() => { setSelected(n); setSheetVisible(true); }}
                   accessibilityRole="button"
+                  accessibilityLabel={name}
                   style={[{
                     borderRadius: 16,
                     overflow: 'hidden',
@@ -429,7 +442,10 @@ function DiscoverScreenInner() {
                     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.3)' }} />
                     <TouchableOpacity
                       onPress={() => toggleSave(n.id)}
+                      activeOpacity={0.7}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('Save neighbourhood', 'Enregistrer le quartier')}
                       style={{ position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 16, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}
                     >
                       <Ionicons name={isSaved ? 'bookmark' : 'bookmark-outline'} size={16} color="#fff" />

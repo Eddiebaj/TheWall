@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert, Animated, Dimensions, Image, Modal, Platform, RefreshControl,
   ScrollView, StatusBar, Text, TouchableOpacity, View
@@ -242,6 +242,14 @@ function SavedScreenInner() {
     setScheduleModal(null);
   };
 
+  // Track ghost alert shown event when ghost data changes
+  const ghostAlertKeys = useMemo(() => Object.keys(ghostAlerts).sort().join(','), [ghostAlerts]);
+  useEffect(() => {
+    if (ghostAlertKeys.length > 0) {
+      trackEvent('ghost_alert_shown');
+    }
+  }, [ghostAlertKeys]);
+
   const cardShadow = isLight ? sharedCardShadow : {};
 
   // Shared arrival-fetching helper — single batch request
@@ -479,9 +487,9 @@ function SavedScreenInner() {
         >
           {/* Most used stop */}
           {mostUsedStop && (
-            <TouchableOpacity
-              activeOpacity={0.75}
-              onPress={() => router.push({ pathname: '/(tabs)/map', params: { focusStop: mostUsedStop.id } })}
+            <View
+              accessibilityRole="button"
+              accessibilityLabel={t(`Stop ${mostUsedStop.id}`, `Arr\u00eat ${mostUsedStop.id}`)}
               style={{
                 width: FULL_W,
                 minHeight: 100,
@@ -495,8 +503,12 @@ function SavedScreenInner() {
                 ...cardShadow,
               }}
             >
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <TouchableOpacity onPress={() => router.push(`/stop/${mostUsedStop.id}` as any)} activeOpacity={0.6} style={{ flex: 1 }}>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => router.push({ pathname: '/(tabs)/map', params: { focusStop: mostUsedStop.id } })}
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}
+              >
+                <TouchableOpacity onPress={() => router.push(`/stop/${mostUsedStop.id}` as any)} activeOpacity={0.7} style={{ flex: 1 }} accessibilityRole="button" accessibilityLabel={t('View stop details', 'Voir les d\u00e9tails de l\'arr\u00eat')}>
                   <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text }} numberOfLines={1}>
                     {mostUsedStop.name}
                   </Text>
@@ -514,7 +526,7 @@ function SavedScreenInner() {
                     <Text style={{ fontSize: 10, fontWeight: '700', color: TEAL }}>{t('Live', 'Direct')}</Text>
                   </View>
                 )}
-              </View>
+              </TouchableOpacity>
               {arrivalsLoading ? (
                 <View style={{ flexDirection: 'row', gap: 8, alignSelf: 'flex-start' }}>
                   <SkeletonPulse width={48} height={22} borderRadius={8} color={colours.border} />
@@ -527,7 +539,10 @@ function SavedScreenInner() {
                     <View key={`${a.routeId}-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       <TouchableOpacity
                         onPress={() => router.push(`/route/${a.routeId.split('-')[0]}` as any)}
-                        activeOpacity={0.6}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                        accessibilityRole="button"
+                        accessibilityLabel={t(`Route ${a.routeId}`, `Route ${a.routeId}`)}
                         style={{
                           minWidth: 40, height: 26, borderRadius: 8, paddingHorizontal: 6,
                           backgroundColor: colours.tintBg, borderWidth: 1, borderColor: colours.border,
@@ -543,8 +558,10 @@ function SavedScreenInner() {
                         return (
                           <TouchableOpacity
                             onPress={() => { hapticLight(); trackEvent('reliability_tapped'); setExpandedReliability(prev => prev === rKey ? null : rKey); }}
-                            activeOpacity={0.6}
+                            activeOpacity={0.7}
+                            hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
                             style={{ backgroundColor: clr + '18', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}
+                            accessibilityRole="button"
                             accessibilityLabel={t(`${rel.onTimePercent}% on time`, `${rel.onTimePercent}% \u00e0 l'heure`)}
                           >
                             <Text style={{ fontSize: 9, fontWeight: '700', color: clr }}>{rel.onTimePercent}%</Text>
@@ -564,6 +581,7 @@ function SavedScreenInner() {
                       <TouchableOpacity
                         onPress={() => toggleLeaveAlert(mostUsedStop.id, a.routeId, a.minsAway)}
                         onLongPress={() => openScheduleModal(mostUsedStop.id, mostUsedStop.name, a.routeId)}
+                        activeOpacity={0.7}
                         hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                         style={{ padding: 4 }}
                         accessibilityRole="button"
@@ -599,24 +617,23 @@ function SavedScreenInner() {
                   {t('No upcoming arrivals', 'Aucune arrivee prochaine')}
                 </Text>
               )}
-            </TouchableOpacity>
+            </View>
           )}
 
           {/* Ghost bus alerts */}
           {Object.entries(ghostAlerts).map(([sid, alert]) => {
-            trackEvent('ghost_alert_shown');
             const vanished = alert.vanishedRoutes?.map(v => v.routeId).join(', ') || '?';
             const alt = alert.nextAlternative;
             const stopName = stops.find(s => s.id === sid)?.name || `#${sid}`;
             return (
-              <View key={`ghost-${sid}`} style={{ width: FULL_W, backgroundColor: '#FEF3C7', borderRadius: 12, padding: 12, marginBottom: GAP, borderWidth: 1, borderColor: '#F59E0B44' }}>
+              <View key={`ghost-${sid}`} style={{ width: FULL_W, backgroundColor: isLight ? '#FEF3C7' : colours.surface, borderRadius: 12, padding: 12, marginBottom: GAP, borderWidth: 1, borderColor: isLight ? '#F59E0B44' : colours.border }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <Ionicons name="warning" size={14} color="#D97706" />
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#92400E' }}>
+                  <Ionicons name="warning" size={14} color={isLight ? '#D97706' : '#F59E0B'} />
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: isLight ? '#92400E' : '#FBBF24' }}>
                     {t('Possible ghost bus', 'Bus fant\u00f4me possible')}
                   </Text>
                 </View>
-                <Text style={{ fontSize: 11, color: '#78350F' }}>
+                <Text style={{ fontSize: 11, color: isLight ? '#78350F' : colours.muted }}>
                   {t(
                     `Route ${vanished} at ${stopName} was predicted but disappeared from the feed.`,
                     `La route ${vanished} \u00e0 ${stopName} \u00e9tait pr\u00e9vue mais a disparu du flux.`
@@ -633,7 +650,9 @@ function SavedScreenInner() {
           {/* Recent trip */}
           {recentTrip && (
             <TouchableOpacity
-              activeOpacity={0.75}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={t('Repeat trip', 'R\u00e9p\u00e9ter le trajet')}
               onPress={() => router.push({
                 pathname: '/(tabs)/planner',
                 params: { fromLabel: recentTrip.fromLabel, toLabel: recentTrip.toLabel },
@@ -673,10 +692,10 @@ function SavedScreenInner() {
                 .map(stop => {
                   const stopArrivals = arrivals[stop.id] || [];
                   return (
-                    <TouchableOpacity
+                    <View
                       key={`stop-${stop.id}`}
-                      activeOpacity={0.75}
-                      onPress={() => router.push({ pathname: '/(tabs)/map', params: { focusStop: stop.id } })}
+                      accessibilityRole="button"
+                      accessibilityLabel={t(`Stop ${stop.id}`, `Arr\u00eat ${stop.id}`)}
                       style={{
                         width: HALF_W,
                         height: 120,
@@ -689,11 +708,13 @@ function SavedScreenInner() {
                         ...cardShadow,
                       }}
                     >
-                      <TouchableOpacity onPress={() => router.push(`/stop/${stop.id}` as any)} activeOpacity={0.6}>
+                      <TouchableOpacity onPress={() => router.push(`/stop/${stop.id}` as any)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('View stop details', 'Voir les d\u00e9tails de l\'arr\u00eat')}>
                         <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }} numberOfLines={2}>
                           {stop.name}
                         </Text>
-                        <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }}>#{stop.id}</Text>
+                        <TouchableOpacity onPress={() => router.push({ pathname: '/(tabs)/map', params: { focusStop: stop.id } })} activeOpacity={0.7}>
+                          <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }}>#{stop.id}</Text>
+                        </TouchableOpacity>
                       </TouchableOpacity>
                       {arrivalsLoading ? (
                         <View style={{ flexDirection: 'row', gap: 6, alignSelf: 'flex-start' }}>
@@ -707,7 +728,10 @@ function SavedScreenInner() {
                               <View key={`${a.routeId}-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                                 <TouchableOpacity
                                   onPress={() => router.push(`/route/${a.routeId.split('-')[0]}` as any)}
-                                  activeOpacity={0.6}
+                                  activeOpacity={0.7}
+                                  hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={t(`Route ${a.routeId}`, `Route ${a.routeId}`)}
                                   style={{
                                     minWidth: 32, height: 22, borderRadius: 6, paddingHorizontal: 4,
                                     backgroundColor: colours.tintBg, alignItems: 'center', justifyContent: 'center',
@@ -733,6 +757,7 @@ function SavedScreenInner() {
                                 <TouchableOpacity
                                   onPress={() => toggleLeaveAlert(stop.id, a.routeId, a.minsAway)}
                                   onLongPress={() => openScheduleModal(stop.id, stop.name, a.routeId)}
+                                  activeOpacity={0.7}
                                   hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                                   style={{ padding: 2 }}
                                   accessibilityRole="button"
@@ -758,7 +783,7 @@ function SavedScreenInner() {
                           {t('No arrivals', 'Aucune arrivee')}
                         </Text>
                       )}
-                    </TouchableOpacity>
+                    </View>
                   );
                 })}
             </View>
@@ -777,7 +802,9 @@ function SavedScreenInner() {
                 return (
                   <TouchableOpacity
                     key={`place-${place.id}`}
-                    activeOpacity={0.75}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={place.name}
                     onPress={() => router.push({
                       pathname: '/(tabs)/map',
                       params: { searchPlace: place.name, placeLat: String(place.lat || ''), placeLng: String(place.lng || '') },
@@ -853,7 +880,7 @@ function SavedScreenInner() {
               {t('Bus departure time', 'Heure de d\u00e9part du bus')}
             </Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16 }}>
-              <TouchableOpacity onPress={() => setSchedHour(h => (h - 1 + 24) % 24)} style={{ padding: 8 }}>
+              <TouchableOpacity onPress={() => setSchedHour(h => (h + 1) % 24)} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Increase hour', 'Augmenter l\'heure')} style={{ padding: 8 }}>
                 <Ionicons name="chevron-up" size={20} color={colours.muted} />
               </TouchableOpacity>
               <View style={{ backgroundColor: colours.surface, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, borderWidth: 1, borderColor: colours.border, minWidth: 60, alignItems: 'center' }}>
@@ -863,18 +890,18 @@ function SavedScreenInner() {
               <View style={{ backgroundColor: colours.surface, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, borderWidth: 1, borderColor: colours.border, minWidth: 60, alignItems: 'center' }}>
                 <Text style={{ fontSize: 24, fontWeight: '700', color: colours.text }}>{String(schedMin).padStart(2, '0')}</Text>
               </View>
-              <TouchableOpacity onPress={() => setSchedMin(m => (m + 5) % 60)} style={{ padding: 8 }}>
+              <TouchableOpacity onPress={() => setSchedMin(m => (m + 5) % 60)} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Increase minute', 'Augmenter les minutes')} style={{ padding: 8 }}>
                 <Ionicons name="chevron-up" size={20} color={colours.muted} />
               </TouchableOpacity>
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 16 }}>
-              <TouchableOpacity onPress={() => setSchedHour(h => (h + 1) % 24)} style={{ padding: 4 }}>
+              <TouchableOpacity onPress={() => setSchedHour(h => (h - 1 + 24) % 24)} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Decrease hour', 'Diminuer l\'heure')} style={{ padding: 4 }}>
                 <Ionicons name="chevron-down" size={16} color={colours.muted} />
               </TouchableOpacity>
               <View style={{ width: 60 }} />
               <View style={{ width: 20 }} />
               <View style={{ width: 60 }} />
-              <TouchableOpacity onPress={() => setSchedMin(m => (m - 5 + 60) % 60)} style={{ padding: 4 }}>
+              <TouchableOpacity onPress={() => setSchedMin(m => (m - 5 + 60) % 60)} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Decrease minute', 'Diminuer les minutes')} style={{ padding: 4 }}>
                 <Ionicons name="chevron-down" size={16} color={colours.muted} />
               </TouchableOpacity>
             </View>
@@ -886,6 +913,9 @@ function SavedScreenInner() {
             {/* Recurring toggle */}
             <TouchableOpacity
               onPress={() => setSchedWeekdays(!schedWeekdays)}
+              activeOpacity={0.7}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: schedWeekdays }}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: schedWeekdays ? '#FF9500' + '15' : colours.surface, borderWidth: 1, borderColor: schedWeekdays ? '#FF9500' + '40' : colours.border, marginBottom: 20 }}
             >
               <Ionicons name={schedWeekdays ? 'checkbox' : 'square-outline'} size={20} color={schedWeekdays ? '#FF9500' : colours.muted} />
@@ -897,10 +927,10 @@ function SavedScreenInner() {
 
             {/* Actions */}
             <View style={{ flexDirection: 'row', gap: 10 }}>
-              <TouchableOpacity onPress={() => setScheduleModal(null)} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
+              <TouchableOpacity onPress={() => setScheduleModal(null)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('Cancel', 'Annuler')} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: colours.muted }}>{t('Cancel', 'Annuler')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={confirmScheduleAlert} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: '#FF9500', alignItems: 'center' }}>
+              <TouchableOpacity onPress={confirmScheduleAlert} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('Schedule', 'Planifier')} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: '#FF9500', alignItems: 'center' }}>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>{t('Schedule', 'Planifier')}</Text>
               </TouchableOpacity>
             </View>

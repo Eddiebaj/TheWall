@@ -344,6 +344,7 @@ function PlannerScreenInner() {
   const [refreshing, setRefreshing] = useState(false);
   const [reminderModal, setReminderModal] = useState<{ itin: Itinerary; idx: number } | null>(null);
   const [reminderTime, setReminderTime] = useState<Date>(new Date());
+  const [reminderLoading, setReminderLoading] = useState(false);
   const [leaveReminders, setLeaveReminders] = useState<{ id: string; destination: string; departAt: number; notifId: string }[]>([]);
 
   // Route detail modal state
@@ -1338,7 +1339,7 @@ function PlannerScreenInner() {
       <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
         {i > 0 && <View style={{ width: 6, height: 1, backgroundColor: colours.border }} />}
         {isTransitLeg ? (
-          <TouchableOpacity onPress={() => openRouteDetail(leg)} activeOpacity={0.7}>
+          <TouchableOpacity onPress={() => openRouteDetail(leg)} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={leg.routeShortName ? `Route ${leg.routeShortName} details` : 'Route details'}>
             {pill}
           </TouchableOpacity>
         ) : pill}
@@ -1372,6 +1373,8 @@ function PlannerScreenInner() {
           borderColor: isFirst ? colours.accent : isWalkOnly ? colours.border : colours.border,
         }, cardShadow]}
         activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel={t('View trip details', 'Voir les details du trajet')}
       >
         {/* Badge — mode-specific */}
         {travelMode !== 'transit' && isFirst && (
@@ -1574,6 +1577,7 @@ function PlannerScreenInner() {
             <TouchableOpacity
               onPress={(e) => { e.stopPropagation(); setReminderModal({ itin, idx }); setReminderTime(new Date(itin.startTime - 5 * 60 * 1000)); }}
               style={{ width: 36, height: 36, borderRadius: 16, backgroundColor: colours.tintBg, borderWidth: 1, borderColor: colours.accent + '30', alignItems: 'center', justifyContent: 'center' }}
+              activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel={t('Set reminder', 'Definir un rappel')}
             >
@@ -1582,6 +1586,7 @@ function PlannerScreenInner() {
             <TouchableOpacity
               onPress={(e) => { e.stopPropagation(); hapticMedium(); setActiveTripItinerary(itin); }}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#34c759', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 }}
+              activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel={t('Start trip', 'Demarrer le trajet')}
             >
@@ -1777,6 +1782,7 @@ function PlannerScreenInner() {
                   Share.share({ message });
                 }}
                 style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }}
+                activeOpacity={0.7}
                 accessibilityRole="button"
                 accessibilityLabel={t('Share trip', 'Partager le trajet')}
               >
@@ -1795,13 +1801,14 @@ function PlannerScreenInner() {
                   setActiveTripItinerary(expandedItinerary);
                 }}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, backgroundColor: '#34c759' }}
+                activeOpacity={0.7}
                 accessibilityRole="button"
                 accessibilityLabel={t('Start active trip', 'Demarrer le trajet actif')}
               >
                 <Ionicons name="navigate" size={14} color="#fff" />
                 <Text style={{ fontSize: 13, fontWeight: '700', color: '#fff' }}>GO</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={closeExpandedModal} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Close trip details', 'Fermer les details du trajet')}>
+              <TouchableOpacity onPress={closeExpandedModal} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('Close trip details', 'Fermer les details du trajet')}>
                 <Ionicons name="close" size={18} color={colours.text} />
               </TouchableOpacity>
             </View>
@@ -1867,6 +1874,9 @@ function PlannerScreenInner() {
               <TouchableOpacity
                 onPress={() => userLocation && mapRef.current?.animateToRegion({ ...userLocation, latitudeDelta: 0.005, longitudeDelta: 0.005 }, 400)}
                 style={{ position: 'absolute', bottom: 12, right: 12, width: 36, height: 36, borderRadius: 18, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 4 }}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={t('Center on my location', 'Centrer sur ma position')}
               >
                 <Ionicons name="locate" size={18} color={colours.accent} />
               </TouchableOpacity>
@@ -1897,6 +1907,7 @@ function PlannerScreenInner() {
                     onPress={() => setExpandedLeg(isExpanded ? null : i)}
                     style={{ backgroundColor: isCurrentLeg ? color + '12' : colours.surface, borderRadius: 12, padding: 14, borderWidth: isCurrentLeg ? 1.5 : 1, borderColor: isCurrentLeg ? color : colours.border, borderLeftWidth: 4, borderLeftColor: color }}
                     activeOpacity={0.85}
+                    accessibilityRole="button"
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                       <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: color + '18', alignItems: 'center', justifyContent: 'center' }}>
@@ -2036,7 +2047,7 @@ function PlannerScreenInner() {
                       {leg.headsign && <Text style={{ fontSize: fonts.sm, color: colours.muted }} numberOfLines={1}>{leg.headsign}</Text>}
                     </View>
                   </View>
-                  <TouchableOpacity onPress={closeRouteDetail} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
+                  <TouchableOpacity onPress={closeRouteDetail} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
                     <Ionicons name="close" size={18} color={colours.text} />
                   </TouchableOpacity>
                 </View>
@@ -2230,7 +2241,7 @@ function PlannerScreenInner() {
                 blurTimer.current = setTimeout(() => setActiveInput(prev => prev === 'from' ? null : prev), 200);
               }}
             />
-            <TouchableOpacity onPress={() => useMyLocation('from')} style={{ padding: 6 }} accessibilityRole="button" accessibilityLabel={t('Use my location as start', 'Utiliser ma position comme depart')}>
+            <TouchableOpacity onPress={() => useMyLocation('from')} style={{ padding: 6 }} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Use my location as start', 'Utiliser ma position comme depart')}>
               <Ionicons name="locate" size={18} color={colours.accent} />
             </TouchableOpacity>
           </View>
@@ -2238,7 +2249,7 @@ function PlannerScreenInner() {
           {/* Divider + swap */}
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 }}>
             <View style={{ flex: 1, height: 1, backgroundColor: colours.border }} />
-            <TouchableOpacity onPress={swap} style={{ width: 28, height: 28, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center', marginHorizontal: 8 }} accessibilityRole="button" accessibilityLabel={t('Swap start and destination', 'Inverser depart et destination')}>
+            <TouchableOpacity onPress={swap} style={{ width: 28, height: 28, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center', marginHorizontal: 8 }} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Swap origin and destination', 'Inverser depart et destination')}>
               <Ionicons name="swap-vertical" size={14} color={colours.muted} />
             </TouchableOpacity>
             <View style={{ flex: 1, height: 1, backgroundColor: colours.border }} />
@@ -2269,7 +2280,7 @@ function PlannerScreenInner() {
                     blurTimer.current = setTimeout(() => setActiveInput(prev => prev === field ? null : prev), 200);
                   }}
                 />
-                <TouchableOpacity onPress={() => { setWaypoints(prev => prev.filter((_, i) => i !== idx)); setWaypointResults(prev => { const next = { ...prev }; delete next[idx]; return next; }); }} style={{ padding: 6 }} accessibilityRole="button" accessibilityLabel={t('Remove stop', 'Retirer l\'arret')}>
+                <TouchableOpacity onPress={() => { setWaypoints(prev => prev.filter((_, i) => i !== idx)); setWaypointResults(prev => { const next = { ...prev }; delete next[idx]; return next; }); }} style={{ padding: 6 }} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Remove stop', 'Retirer l\'arret')}>
                   <Ionicons name="close-circle" size={18} color={colours.muted} />
                 </TouchableOpacity>
               </View>
@@ -2283,6 +2294,9 @@ function PlannerScreenInner() {
               onPress={() => setWaypoints(prev => [...prev, { text: '', place: null }])}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 8 }}
               activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('Add stop', 'Ajouter un arret')}
             >
               <Ionicons name="add-circle-outline" size={16} color={colours.accent} />
               <Text style={{ fontSize: 13, fontWeight: '600', color: colours.accent }}>{t('Add stop', 'Ajouter un arret')}</Text>
@@ -2316,7 +2330,7 @@ function PlannerScreenInner() {
                 blurTimer.current = setTimeout(() => setActiveInput(prev => prev === 'to' ? null : prev), 200);
               }}
             />
-            <TouchableOpacity onPress={() => useMyLocation('to')} style={{ padding: 6 }} accessibilityRole="button" accessibilityLabel={t('Use my location as destination', 'Utiliser ma position comme destination')}>
+            <TouchableOpacity onPress={() => useMyLocation('to')} style={{ padding: 6 }} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Use my location as destination', 'Utiliser ma position comme destination')}>
               <Ionicons name="locate" size={18} color={colours.accent} />
             </TouchableOpacity>
           </View>
@@ -2339,6 +2353,7 @@ function PlannerScreenInner() {
                   Keyboard.dismiss();
                 }}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: i < fromResults.length - 1 ? 1 : 0, borderBottomColor: colours.border }}
+                activeOpacity={0.7}
               >
                 <Ionicons name="location-outline" size={16} color={colours.muted} />
                 <Text style={{ flex: 1, fontSize: 13, color: colours.text }} numberOfLines={2}>{shortenLabel(r.label)}</Text>
@@ -2362,6 +2377,7 @@ function PlannerScreenInner() {
                   Keyboard.dismiss();
                 }}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: i < toResults.length - 1 ? 1 : 0, borderBottomColor: colours.border }}
+                activeOpacity={0.7}
               >
                 <Ionicons name="location-outline" size={16} color={colours.muted} />
                 <Text style={{ flex: 1, fontSize: 13, color: colours.text }} numberOfLines={2}>{shortenLabel(r.label)}</Text>
@@ -2385,6 +2401,7 @@ function PlannerScreenInner() {
                     Keyboard.dismiss();
                   }}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: i < results.length - 1 ? 1 : 0, borderBottomColor: colours.border }}
+                  activeOpacity={0.7}
                 >
                   <Ionicons name="location-outline" size={16} color={colours.muted} />
                   <Text style={{ flex: 1, fontSize: 13, color: colours.text }} numberOfLines={2}>{shortenLabel(r.label)}</Text>
@@ -2409,6 +2426,7 @@ function PlannerScreenInner() {
                   key={m.key}
                   onPress={() => setTravelMode(m.key)}
                   style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: active ? colours.accent : colours.border, backgroundColor: active ? colours.tintBg : colours.surface }}
+                  activeOpacity={0.7}
                   accessibilityRole="button"
                   accessibilityLabel={t(m.label_en, m.label_fr)}
                   accessibilityState={{ selected: active }}
@@ -2426,6 +2444,7 @@ function PlannerScreenInner() {
                 AsyncStorage.setItem(SK_ACCESSIBILITY_ROUTING, String(next)).catch(() => {});
               }}
               style={{ width: 42, alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: accessibleRouting ? '#007AFF' : colours.border, backgroundColor: accessibleRouting ? colours.tintBg : colours.surface }}
+              activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel={t('Accessible routes', 'Trajets accessibles')}
               accessibilityState={{ selected: accessibleRouting }}
@@ -2455,6 +2474,8 @@ function PlannerScreenInner() {
                       key={p.key}
                       onPress={() => { setWalkPace(p.key); AsyncStorage.setItem(SK_WALK_PACE, p.key).catch(() => {}); }}
                       style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: active ? colours.accent : colours.border, backgroundColor: active ? colours.tintBg : colours.surface }}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
                       <Text style={{ fontSize: 11, fontWeight: '700', color: active ? colours.accent : colours.muted }}>{t(p.label_en, p.label_fr)}</Text>
                     </TouchableOpacity>
@@ -2475,6 +2496,7 @@ function PlannerScreenInner() {
                   key={String(ab)}
                   onPress={() => { setArriveBy(ab); savePlannerPrefs(departTime, ab); setShowTimePicker(true); }}
                   style={[{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: active ? colours.accent : colours.border, backgroundColor: active ? colours.tintBg : colours.surface }, cardShadow]}
+                  activeOpacity={0.7}
                   accessibilityRole="button"
                   accessibilityLabel={ab ? t('Arrive by', 'Arriver avant') : t('Depart at', 'Depart a')}
                   accessibilityState={{ selected: active }}
@@ -2496,6 +2518,7 @@ function PlannerScreenInner() {
               <TouchableOpacity
                 onPress={() => { const now = new Date(); setDepartTime(now); savePlannerPrefs(now, arriveBy); setShowTimePicker(false); }}
                 style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.tintBg, marginBottom: 12 }}
+                activeOpacity={0.7}
                 accessibilityRole="button"
                 accessibilityLabel={t('Set time to now', 'Mettre a maintenant')}
               >
@@ -2551,6 +2574,7 @@ function PlannerScreenInner() {
               <TouchableOpacity
                 onPress={() => setShowTimePicker(false)}
                 style={{ marginTop: 8, alignSelf: 'center', paddingHorizontal: 24, paddingVertical: 8, borderRadius: 16, backgroundColor: colours.accent }}
+                activeOpacity={0.7}
                 accessibilityRole="button"
                 accessibilityLabel={t('Done selecting time', 'Termine la selection de l\'heure')}
               >
@@ -2564,7 +2588,8 @@ function PlannerScreenInner() {
         <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
           <TouchableOpacity
             onPress={plan}
-            style={{ paddingVertical: 14, borderRadius: 12, backgroundColor: colours.accent, alignItems: 'center', justifyContent: 'center' }}
+            disabled={loading}
+            style={{ paddingVertical: 14, borderRadius: 12, backgroundColor: colours.accent, alignItems: 'center', justifyContent: 'center', opacity: loading ? 0.6 : 1 }}
             activeOpacity={0.85}
             accessibilityRole="button"
             accessibilityLabel={t('Plan Trip', 'Planifier le trajet')}
@@ -2582,7 +2607,7 @@ function PlannerScreenInner() {
             <TouchableOpacity
               onPress={fetchIsochrone}
               disabled={isoLoading}
-              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.tintBg }}
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.tintBg, opacity: isoLoading ? 0.5 : 1 }}
               activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel={t('What can I reach in 20 minutes', 'Que puis-je atteindre en 20 minutes')}
@@ -2598,7 +2623,7 @@ function PlannerScreenInner() {
                     <Ionicons name="compass-outline" size={16} color={colours.accent} />
                     <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>{t('Reachable in 20 min', 'Accessible en 20 min')}</Text>
                   </View>
-                  <TouchableOpacity onPress={() => setIsoVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Close reachable stops', 'Fermer les arrets accessibles')}>
+                  <TouchableOpacity onPress={() => setIsoVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('Close reachable stops', 'Fermer les arrets accessibles')}>
                     <Ionicons name="close-circle" size={20} color={colours.muted} />
                   </TouchableOpacity>
                 </View>
@@ -2680,6 +2705,7 @@ function PlannerScreenInner() {
             <TouchableOpacity
               onPress={plan}
               style={{ marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, backgroundColor: colours.accent }}
+              activeOpacity={0.7}
               accessibilityRole="button"
             >
               <Ionicons name="refresh" size={16} color="#fff" />
@@ -2751,6 +2777,7 @@ function PlannerScreenInner() {
                         if (y != null) mainScrollRef.current?.scrollTo({ y: itinListYOffset.current + y, animated: true });
                       }}
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: colours.tintBg, borderWidth: 1, borderColor: colours.accent + '30' }}
+                      activeOpacity={0.7}
                       accessibilityRole="button"
                     >
                       <Ionicons name={pill.icon} size={13} color={colours.accent} />
@@ -2874,6 +2901,8 @@ function PlannerScreenInner() {
                             if (coords.length > 1) routeMapRef.current?.fitToCoordinates(coords, { edgePadding: { top: 40, right: 40, bottom: 40, left: 40 }, animated: true });
                           }}
                           style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: ri === selectedRouteIdx ? colours.accent : colours.surface, borderWidth: 1, borderColor: ri === selectedRouteIdx ? colours.accent : colours.border }}
+                          activeOpacity={0.7}
+                          accessibilityRole="button"
                         >
                           <Text style={{ fontSize: 11, fontWeight: '700', color: ri === selectedRouteIdx ? 'white' : colours.muted }}>
                             {t('Route', 'Trajet')} {ri + 1}
@@ -2915,6 +2944,7 @@ function PlannerScreenInner() {
                             });
                           }}
                           style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}
+                          activeOpacity={0.7}
                           accessibilityRole="button"
                           accessibilityLabel="Uber"
                         >
@@ -2925,6 +2955,7 @@ function PlannerScreenInner() {
                             Linking.openURL('https://velogo.ca').catch(() => {});
                           }}
                           style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}
+                          activeOpacity={0.7}
                           accessibilityRole="button"
                           accessibilityLabel={t('Bike Share', 'Velo-partage')}
                         >
@@ -2990,6 +3021,7 @@ function PlannerScreenInner() {
                   <TouchableOpacity
                     onPress={() => setTravelMode('walking')}
                     style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: walkAlt.walkMins <= walkAlt.transitMins + 5 ? '#00A78D' : colours.surface, borderWidth: 1, borderColor: walkAlt.walkMins <= walkAlt.transitMins + 5 ? '#00A78D' : colours.border, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+                    activeOpacity={0.7}
                     accessibilityRole="button"
                     accessibilityLabel={t('Walk there', 'Y aller a pied')}>
                     <Ionicons name="walk-outline" size={14} color={walkAlt.walkMins <= walkAlt.transitMins + 5 ? 'white' : colours.text} />
@@ -2998,6 +3030,7 @@ function PlannerScreenInner() {
                   <TouchableOpacity
                     onPress={() => setWalkAlt(null)}
                     style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+                    activeOpacity={0.7}
                     accessibilityRole="button"
                     accessibilityLabel={t('Show bus routes', 'Afficher les bus')}>
                     <Ionicons name="bus-outline" size={14} color={colours.text} />
@@ -3083,7 +3116,7 @@ function PlannerScreenInner() {
                     {t('Recent Trips', 'Trajets recents')}
                   </Text>
                   {tripHistory.length > 3 && (
-                    <TouchableOpacity onPress={() => setShowHistory(!showHistory)} activeOpacity={0.7}>
+                    <TouchableOpacity onPress={() => setShowHistory(!showHistory)} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button">
                       <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accent }}>
                         {showHistory ? t('Show less', 'Voir moins') : t('Show all', 'Voir tout')}
                       </Text>
@@ -3128,6 +3161,9 @@ function PlannerScreenInner() {
                         }}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         style={{ width: 28, height: 28, borderRadius: 16, backgroundColor: colours.border, alignItems: 'center', justifyContent: 'center' }}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('Delete trip', 'Supprimer le trajet')}
                       >
                         <Ionicons name="close" size={14} color={colours.muted} />
                       </TouchableOpacity>
@@ -3190,22 +3226,26 @@ function PlannerScreenInner() {
                 {/* Buttons */}
                 <TouchableOpacity
                   onPress={async () => {
+                    if (reminderLoading) return;
                     if (!Notifications) {
                       Alert.alert(t('Notifications unavailable', 'Notifications non disponibles'));
                       return;
                     }
-                    const permitted = await requestNotifPermission();
-                    if (!permitted) {
-                      Alert.alert(t('Permission required', 'Permission requise'), t('Enable notifications in Settings.', 'Activez les notifications dans Reglages.'));
-                      return;
-                    }
-                    const now = Date.now();
-                    const triggerMs = reminderTime.getTime() - now;
-                    if (triggerMs <= 0) {
-                      Alert.alert(t('Time has passed', 'L\'heure est passee'), t('This departure time is in the past.', 'Cette heure de depart est passee.'));
-                      return;
-                    }
+                    setReminderLoading(true);
                     try {
+                      const permitted = await requestNotifPermission();
+                      if (!permitted) {
+                        Alert.alert(t('Permission required', 'Permission requise'), t('Enable notifications in Settings.', 'Activez les notifications dans Reglages.'));
+                        setReminderLoading(false);
+                        return;
+                      }
+                      const now = Date.now();
+                      const triggerMs = reminderTime.getTime() - now;
+                      if (triggerMs <= 0) {
+                        Alert.alert(t('Time has passed', 'L\'heure est passee'), t('This departure time is in the past.', 'Cette heure de depart est passee.'));
+                        setReminderLoading(false);
+                        return;
+                      }
                       const notifId = await Notifications.scheduleNotificationAsync({
                         content: {
                           title: t('Time to leave!', 'C\'est l\'heure de partir!'),
@@ -3229,19 +3269,27 @@ function PlannerScreenInner() {
                     } catch (e) {
                       if (__DEV__) console.warn('Failed to schedule leave reminder:', e);
                       Alert.alert(t('Error', 'Erreur'), t('Could not set reminder.', 'Impossible de definir le rappel.'));
+                    } finally {
+                      setReminderLoading(false);
                     }
                   }}
-                  style={{ backgroundColor: colours.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 10 }}
+                  disabled={reminderLoading}
+                  style={{ backgroundColor: colours.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 10, opacity: reminderLoading ? 0.6 : 1 }}
+                  activeOpacity={0.7}
                   accessibilityRole="button"
                 >
-                  <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>
-                    {t('Set Reminder', 'Definir le rappel')}
-                  </Text>
+                  {reminderLoading
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>
+                        {t('Set Reminder', 'Definir le rappel')}
+                      </Text>
+                  }
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   onPress={() => setReminderModal(null)}
                   style={{ borderRadius: 12, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: colours.border }}
+                  activeOpacity={0.7}
                   accessibilityRole="button"
                 >
                   <Text style={{ color: colours.muted, fontSize: 15, fontWeight: '600' }}>

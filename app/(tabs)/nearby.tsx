@@ -426,7 +426,7 @@ function ExploreScreenInner() {
           elevation: 2,
         }}
         onPress={() => navigateToPlanner(place)}
-        activeOpacity={0.92}
+        activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityLabel={`${place.name}, ${formatDistance(place.distance)}`}
       >
@@ -436,7 +436,7 @@ function ExploreScreenInner() {
           style={{
             width: '100%',
             height: 120,
-            backgroundColor: hasPhoto ? '#1a1a2a' : colours.surface,
+            backgroundColor: hasPhoto ? colours.card : colours.surface,
           }}
           resizeMode="cover"
         >
@@ -451,6 +451,7 @@ function ExploreScreenInner() {
               onPress={() => toggleSavePlace(place)}
               style={{ backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 17, width: 34, height: 34, alignItems: 'center', justifyContent: 'center' }}
               activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               accessibilityRole="button"
               accessibilityLabel={savedPlaceIds.has(place.id) ? t('Unsave place', 'Retirer le lieu') : t('Save place', 'Sauvegarder le lieu')}
             >
@@ -571,7 +572,11 @@ function ExploreScreenInner() {
         <Text style={{ color: colours.red, fontSize: fonts.md, textAlign: 'center', lineHeight: 22 }}>{locationError}</Text>
         <TouchableOpacity
           style={{ marginTop: 16, backgroundColor: colours.accent, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 10 }}
-          onPress={() => Linking.openSettings()}>
+          onPress={() => Linking.openSettings().catch(() => {})}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={t('Open settings', 'Ouvrir les param\u00e8tres')}
+        >
           <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>{t('Open Settings', 'Ouvrir les param\u00e8tres')}</Text>
         </TouchableOpacity>
       </View>
@@ -630,7 +635,13 @@ function ExploreScreenInner() {
             style={{ flex: 1, fontSize: fonts.sm, color: colours.text }}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <TouchableOpacity
+              onPress={() => setSearchQuery('')}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+            >
               <Ionicons name="close-circle" size={15} color={colours.muted} />
             </TouchableOpacity>
           )}
@@ -650,8 +661,11 @@ function ExploreScreenInner() {
                 borderColor: selectedCategory.id === cat.id ? cat.color : colours.border,
               }}
               onPress={() => { hapticLight(); setSelectedCategory(cat); setSearchQuery(''); }}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               accessibilityRole="button"
               accessibilityLabel={catLabel(cat)}
+              accessibilityState={{ selected: selectedCategory.id === cat.id }}
             >
               <Ionicons name={cat.icon as any} size={12} color={selectedCategory.id === cat.id ? cat.color : colours.muted} />
               <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: selectedCategory.id === cat.id ? cat.color : colours.muted }}>
@@ -675,8 +689,11 @@ function ExploreScreenInner() {
                 borderColor: sortBy === opt.id ? colours.accent : colours.border,
               }}
               onPress={() => { hapticLight(); setSortBy(opt.id); }}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               accessibilityRole="button"
               accessibilityLabel={language === 'fr' ? opt.label_fr : opt.label_en}
+              accessibilityState={{ selected: sortBy === opt.id }}
             >
               <Ionicons name={opt.icon as any} size={11} color={sortBy === opt.id ? colours.accent : colours.muted} />
               <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: sortBy === opt.id ? colours.accent : colours.muted }}>
@@ -702,8 +719,11 @@ function ExploreScreenInner() {
                   borderColor: isActive ? colours.accentAlt : colours.border,
                 }}
                 onPress={() => { hapticLight(); setMaxDistance(opt.value); }}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 accessibilityRole="button"
                 accessibilityLabel={language === 'fr' ? opt.label_fr : opt.label}
+                accessibilityState={{ selected: isActive }}
               >
                 {opt.value === 0 && <Ionicons name="globe-outline" size={11} color={isActive ? colours.accentAlt : colours.muted} />}
                 <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: isActive ? colours.accentAlt : colours.muted }}>

@@ -102,6 +102,7 @@ function SettingsRow({ label, icon, onPress, colours, fonts, right }: {
   return (
     <TouchableOpacity
       onPress={() => { hapticLight(); onPress(); }}
+      activeOpacity={0.7}
       style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 }}
       accessibilityRole="button"
       accessibilityLabel={label}
@@ -280,7 +281,8 @@ export default function AccountScreen() {
         <Card>
           {notifPermission === 'denied' && (
             <TouchableOpacity
-              onPress={() => { hapticMedium(); Linking.openSettings(); }}
+              onPress={() => { hapticMedium(); Linking.openSettings().catch(() => {}); }}
+              activeOpacity={0.7}
               style={{ backgroundColor: colours.warnBg, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}
               accessibilityRole="button"
               accessibilityLabel={t('Open settings to enable notifications', 'Ouvrir les parametres pour activer les notifications')}
@@ -332,6 +334,8 @@ export default function AccountScreen() {
                   borderColor: theme === th ? colours.accent : colours.border,
                 }}
                 onPress={() => { hapticLight(); setTheme(th); }}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 accessibilityRole="button"
                 accessibilityState={{ selected: theme === th }}
                 accessibilityLabel={th === 'dark' ? t('Dark mode', 'Mode sombre') : th === 'light' ? t('Light mode', 'Mode clair') : t('System theme', 'Th\u00e8me syst\u00e8me')}
@@ -360,6 +364,8 @@ export default function AccountScreen() {
                 <TouchableOpacity
                   key={pid}
                   onPress={() => { hapticLight(); setPalette(pid); }}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   style={{
                     flexDirection: 'row', alignItems: 'center', gap: 6,
                     paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10,
@@ -486,6 +492,7 @@ export default function AccountScreen() {
             colours={colours}
             fonts={fonts}
           />
+          {/* TODO: Uncomment when real App Store / Play Store IDs are available
           <Divider colours={colours} />
           <SettingsRow
             label={t('Rate RouteO', 'Evaluer RouteO')}
@@ -494,17 +501,18 @@ export default function AccountScreen() {
               const storeUrl = Platform.OS === 'ios'
                 ? 'https://apps.apple.com/app/routeo/id000000000'
                 : 'https://play.google.com/store/apps/details?id=ca.routeo.app';
-              Linking.openURL(storeUrl);
+              Linking.openURL(storeUrl).catch(() => {});
             }}
             colours={colours}
             fonts={fonts}
             right={<Ionicons name="open-outline" size={16} color={colours.muted} />}
           />
+          */}
           <Divider colours={colours} />
           <SettingsRow
             label={t('Privacy Policy', 'Politique de confidentialite')}
             icon="shield-checkmark"
-            onPress={() => Linking.openURL('https://routeo.ca/privacy')}
+            onPress={() => Linking.openURL('https://routeo.ca/privacy').catch(() => {})}
             colours={colours}
             fonts={fonts}
             right={<Ionicons name="open-outline" size={16} color={colours.muted} />}
@@ -534,6 +542,7 @@ export default function AccountScreen() {
                 <Text style={{ fontSize: fonts.xl, fontWeight: '700', color: colours.text, marginTop: 12 }}>{t('Sent', 'Envoye')}</Text>
                 <TouchableOpacity
                   onPress={() => setBugModalVisible(false)}
+                  activeOpacity={0.7}
                   style={{ marginTop: 20, backgroundColor: colours.accent, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 40 }}
                   accessibilityRole="button"
                   accessibilityLabel={t('Done', 'Fermer')}
@@ -561,6 +570,8 @@ export default function AccountScreen() {
                     <TouchableOpacity
                       key={s}
                       onPress={() => { hapticLight(); setBugScreen(bugScreen === s ? '' : s); }}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       style={{
                         paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1,
                         borderColor: bugScreen === s ? colours.red : colours.border,
@@ -579,6 +590,7 @@ export default function AccountScreen() {
                 <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
                   <TouchableOpacity
                     onPress={() => setBugModalVisible(false)}
+                    activeOpacity={0.7}
                     style={{ flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}
                     accessibilityRole="button"
                     accessibilityLabel={t('Cancel', 'Annuler')}
@@ -613,9 +625,12 @@ export default function AccountScreen() {
                       }
                       setBugSending(false);
                     }}
+                    disabled={!bugMessage.trim()}
+                    activeOpacity={0.7}
                     style={{
                       flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center',
                       backgroundColor: bugMessage.trim() ? colours.red : colours.border,
+                      opacity: bugMessage.trim() ? 1 : 0.5,
                     }}
                     accessibilityRole="button"
                     accessibilityLabel={t('Send bug report', 'Envoyer le rapport')}
