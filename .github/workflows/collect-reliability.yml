@@ -71,14 +71,37 @@ jobs:
               const now = Math.floor(Date.now() / 1000);
               const predictions = [];
 
-              // Log a sample entity for diagnostics
-              if (entities[0]) {
-                const sample = entities[0].TripUpdate;
-                const sampleStu = (sample?.StopTimeUpdate || [])[0];
-                console.log('Sample StopTimeUpdate keys:', sampleStu ? Object.keys(sampleStu) : 'none');
-                if (sampleStu?.Arrival) console.log('Sample Arrival keys:', Object.keys(sampleStu.Arrival));
-                if (sampleStu?.Departure) console.log('Sample Departure keys:', Object.keys(sampleStu.Departure));
+              // Diagnostic: dump first 5 StopTimeUpdate objects with full detail
+              let diagCount = 0;
+              for (const ent of entities) {
+                if (diagCount >= 5) break;
+                const tu = ent.TripUpdate;
+                if (!tu?.Trip) continue;
+                for (const stu of (tu.StopTimeUpdate || [])) {
+                  if (diagCount >= 5) break;
+                  console.log('DIAG[' + diagCount + '] trip_id=' + tu.Trip.TripId + ' route=' + tu.Trip.RouteId + ' stop=' + stu.StopId);
+                  console.log('  Arrival:', JSON.stringify(stu.Arrival));
+                  console.log('  Departure:', JSON.stringify(stu.Departure));
+                  console.log('  Full STU keys:', Object.keys(stu));
+                  if (stu.Arrival) console.log('  Arrival keys:', Object.keys(stu.Arrival), 'Delay raw:', stu.Arrival.Delay, 'typeof:', typeof stu.Arrival.Delay);
+                  if (stu.Departure) console.log('  Departure keys:', Object.keys(stu.Departure), 'Delay raw:', stu.Departure.Delay, 'typeof:', typeof stu.Departure.Delay);
+                  diagCount++;
+                }
               }
+
+              // Also tally delay distribution across ALL entities
+              let totalStus = 0, withDelay = 0, zeroDelay = 0, nonZeroDelay = 0, noDelayField = 0;
+              for (const ent of entities) {
+                for (const stu of (ent.TripUpdate?.StopTimeUpdate || [])) {
+                  totalStus++;
+                  const arr = stu.Arrival || {};
+                  const dep = stu.Departure || {};
+                  const d = arr.Delay ?? dep.Delay;
+                  if (d === undefined || d === null || d === '') { noDelayField++; }
+                  else { withDelay++; if (Number(d) === 0) zeroDelay++; else nonZeroDelay++; }
+                }
+              }
+              console.log('Delay distribution: total=' + totalStus + ' withDelay=' + withDelay + ' zero=' + zeroDelay + ' nonZero=' + nonZeroDelay + ' noField=' + noDelayField);
 
               for (const ent of entities) {
                 const tu = ent.TripUpdate;
