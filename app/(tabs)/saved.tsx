@@ -34,7 +34,8 @@ type SavedPlace = {
   lat?: number; lng?: number;
 };
 type TripEntry = { fromLabel: string; toLabel: string; plannedAt: string; durationMins?: number; routes?: string[] };
-type StopArrival = { routeId: string; headsign: string; minsAway: number };
+type StopArrival = { routeId: string; headsign: string; minsAway: number; confidence?: 'live' | 'scheduled' | 'rider-verified' };
+type GhostAlert = { vanishedRoutes: { routeId: string }[]; nextAlternative: { routeId: string; minsAway: number; headsign: string } | null };
 
 function timeAgo(dateStr: string, t: (en: string, fr: string) => string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -58,6 +59,7 @@ function SavedScreenInner() {
   const [recentTrip, setRecentTrip] = useState<TripEntry | null>(null);
   const [arrivals, setArrivals] = useState<Record<string, StopArrival[]>>({});
   const [cachedStops, setCachedStops] = useState<Record<string, number>>({});
+  const [ghostAlerts, setGhostAlerts] = useState<Record<string, GhostAlert>>({});
   const [arrivalsLoading, setArrivalsLoading] = useState(false);
   const [mostUsedStop, setMostUsedStop] = useState<SavedStop | null>(null);
   const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
@@ -74,6 +76,33 @@ function SavedScreenInner() {
     AsyncStorage.getItem(SK_LEAVE_NOW_ALERTS).then(raw => {
       if (raw) try { setLeaveAlerts(JSON.parse(raw)); } catch {}
     }).catch(() => {});
+  }, []);
+
+  // Instant cache hydration — show last-known arrivals before network fetch
+  const cacheHydrated = useRef(false);
+  useEffect(() => {
+    if (cacheHydrated.current) return;
+    cacheHydrated.current = true;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem('routeo_arrival_cache');
+        if (!raw) return;
+        const cache: Record<string, { arrivals: StopArrival[]; cachedAt: number }> = JSON.parse(raw);
+        const map: Record<string, StopArrival[]> = {};
+        const cached: Record<string, number> = {};
+        const fiveMinAgo = Date.now() - 5 * 60 * 1000;
+        for (const [stopId, entry] of Object.entries(cache)) {
+          if (entry.cachedAt > fiveMinAgo && entry.arrivals?.length > 0) {
+            map[stopId] = entry.arrivals;
+            cached[stopId] = entry.cachedAt;
+          }
+        }
+        if (Object.keys(map).length > 0) {
+          setArrivals(prev => Object.keys(prev).length === 0 ? map : prev);
+          setCachedStops(prev => Object.keys(prev).length === 0 ? cached : prev);
+        }
+      } catch {}
+    })();
   }, []);
 
   const toggleLeaveAlert = async (stopId: string, routeId: string, minsAway: number) => {
@@ -184,9 +213,10 @@ function SavedScreenInner() {
   const cardShadow = isLight ? sharedCardShadow : {};
 
   // Shared arrival-fetching helper — single batch request
-  const fetchArrivalsForStops = async (savedStops: SavedStop[]): Promise<{ map: Record<string, StopArrival[]>; cached: Record<string, number> }> => {
+  const fetchArrivalsForStops = async (savedStops: SavedStop[]): Promise<{ map: Record<string, StopArrival[]>; cached: Record<string, number>; ghosts: Record<string, GhostAlert> }> => {
     const map: Record<string, StopArrival[]> = {};
     const cached: Record<string, number> = {};
+    const ghosts: Record<string, GhostAlert> = {};
     try {
       // Chunk into batches of 10 (backend limit)
       const chunks: SavedStop[][] = [];
@@ -210,12 +240,14 @@ function SavedScreenInner() {
           routeId: a.routeId || '',
           headsign: a.headsign || '',
           minsAway: typeof a.minsAway === 'number' ? a.minsAway : 0,
+          confidence: a.confidence || 'scheduled',
         }));
         if (arr.length > 0) {
           map[stopId] = arr;
           const name = savedStops.find(s => s.id === stopId)?.name || '';
           cacheArrivals(stopId, { arrivals: arr, source: 'live', stopName: name });
         }
+        if (result.ghostAlert) ghosts[stopId] = result.ghostAlert;
       }
     } catch (e) {
       if (__DEV__) console.warn('Batch arrivals failed:', e);
@@ -231,7 +263,7 @@ function SavedScreenInner() {
         map[s.id] = [];
       }
     }));
-    return { map, cached };
+    return { map, cached, ghosts };
   };
 
   // Load data
@@ -296,9 +328,10 @@ function SavedScreenInner() {
       // Fetch arrivals using shared helper
       if (savedStops.length > 0) {
         setArrivalsLoading(true);
-        const { map, cached } = await fetchArrivalsForStops(savedStops);
+        const { map, cached, ghosts } = await fetchArrivalsForStops(savedStops);
         setArrivals(map);
         setCachedStops(cached);
+        setGhostAlerts(ghosts);
         setArrivalsLoading(false);
       }
 
@@ -328,9 +361,10 @@ function SavedScreenInner() {
         if (currentStops.length === 0) return;
         isFetchingRef.current = true;
         try {
-          const { map, cached } = await fetchArrivalsForStops(currentStops);
+          const { map, cached, ghosts } = await fetchArrivalsForStops(currentStops);
           setArrivals(map);
           setCachedStops(cached);
+          setGhostAlerts(ghosts);
         } finally {
           isFetchingRef.current = false;
         }
@@ -435,6 +469,13 @@ function SavedScreenInner() {
                       <Text style={{ fontSize: 13, fontWeight: '700', color: a.minsAway < 2 ? TEAL : colours.text }}>
                         {a.minsAway <= 0 ? '< 1' : `${a.minsAway}m`}
                       </Text>
+                      {a.confidence && (
+                        <View style={{ backgroundColor: a.confidence === 'live' ? '#27AE6022' : a.confidence === 'rider-verified' ? '#3B82F622' : colours.border + '66', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
+                          <Text style={{ fontSize: 9, fontWeight: '600', color: a.confidence === 'live' ? '#27AE60' : a.confidence === 'rider-verified' ? '#3B82F6' : colours.muted }}>
+                            {a.confidence === 'live' ? t('Live', 'Direct') : a.confidence === 'rider-verified' ? t('Verified', 'V\u00e9rifi\u00e9') : t('Sched.', 'Horaire')}
+                          </Text>
+                        </View>
+                      )}
                       <TouchableOpacity
                         onPress={() => toggleLeaveAlert(mostUsedStop.id, a.routeId, a.minsAway)}
                         onLongPress={() => openScheduleModal(mostUsedStop.id, mostUsedStop.name, a.routeId)}
@@ -459,6 +500,33 @@ function SavedScreenInner() {
               )}
             </TouchableOpacity>
           )}
+
+          {/* Ghost bus alerts */}
+          {Object.entries(ghostAlerts).map(([sid, alert]) => {
+            const vanished = alert.vanishedRoutes?.map(v => v.routeId).join(', ');
+            const alt = alert.nextAlternative;
+            const stopName = stops.find(s => s.id === sid)?.name || `#${sid}`;
+            return (
+              <View key={`ghost-${sid}`} style={{ width: FULL_W, backgroundColor: '#FEF3C7', borderRadius: 12, padding: 12, marginBottom: GAP, borderWidth: 1, borderColor: '#F59E0B44' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <Ionicons name="warning" size={14} color="#D97706" />
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#92400E' }}>
+                    {t('Possible ghost bus', 'Bus fant\u00f4me possible')}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 11, color: '#78350F' }}>
+                  {t(
+                    `Route ${vanished} at ${stopName} was predicted but disappeared from the feed.`,
+                    `La route ${vanished} \u00e0 ${stopName} \u00e9tait pr\u00e9vue mais a disparu du flux.`
+                  )}
+                  {alt ? ' ' + t(
+                    `Next option: Route ${alt.routeId} in ${alt.minsAway}m`,
+                    `Prochaine option : route ${alt.routeId} dans ${alt.minsAway}m`
+                  ) : ''}
+                </Text>
+              </View>
+            );
+          })}
 
           {/* Recent trip */}
           {recentTrip && (
@@ -545,6 +613,13 @@ function SavedScreenInner() {
                                 <Text style={{ fontSize: 11, fontWeight: '700', color: a.minsAway < 2 ? TEAL : colours.text }}>
                                   {a.minsAway <= 0 ? '<1' : `${a.minsAway}m`}
                                 </Text>
+                                {a.confidence && a.confidence !== 'scheduled' && (
+                                  <View style={{ backgroundColor: a.confidence === 'live' ? '#27AE6022' : '#3B82F622', borderRadius: 3, paddingHorizontal: 3, paddingVertical: 0.5 }}>
+                                    <Text style={{ fontSize: 8, fontWeight: '600', color: a.confidence === 'live' ? '#27AE60' : '#3B82F6' }}>
+                                      {a.confidence === 'live' ? t('Live', 'Direct') : t('Verified', 'V\u00e9rifi\u00e9')}
+                                    </Text>
+                                  </View>
+                                )}
                                 <TouchableOpacity
                                   onPress={() => toggleLeaveAlert(stop.id, a.routeId, a.minsAway)}
                                   onLongPress={() => openScheduleModal(stop.id, stop.name, a.routeId)}
