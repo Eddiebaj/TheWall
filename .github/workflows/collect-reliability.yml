@@ -65,9 +65,20 @@ jobs:
               console.log(entities.length + ' trip entities');
               if (entities.length === 0) return;
 
-              // 2. Extract imminent predictions (-2 to +5 min from now)
+              // 2. Extract predictions that have a Delay field
+              //    GTFS-RT Arrival.Time = scheduled time, Arrival.Delay = delay in seconds
+              //    We only care about imminent stops (-2 to +5 min from now)
               const now = Math.floor(Date.now() / 1000);
               const predictions = [];
+
+              // Log a sample entity for diagnostics
+              if (entities[0]) {
+                const sample = entities[0].TripUpdate;
+                const sampleStu = (sample?.StopTimeUpdate || [])[0];
+                console.log('Sample StopTimeUpdate keys:', sampleStu ? Object.keys(sampleStu) : 'none');
+                if (sampleStu?.Arrival) console.log('Sample Arrival keys:', Object.keys(sampleStu.Arrival));
+                if (sampleStu?.Departure) console.log('Sample Departure keys:', Object.keys(sampleStu.Departure));
+              }
 
               for (const ent of entities) {
                 const tu = ent.TripUpdate;
@@ -77,21 +88,26 @@ jobs:
                 if (!routeId || !tripId) continue;
 
                 for (const stu of (tu.StopTimeUpdate || [])) {
-                  const arr = stu.Arrival || stu.Departure || {};
-                  const t = parseInt(arr.Time || 0);
-                  if (!t) continue;
-                  const delta = t - now;
-                  if (delta >= -120 && delta <= 300) {
-                    predictions.push({
-                      routeId, tripId,
-                      stopId: String(stu.StopId),
-                      predictedEpoch: t,
-                    });
+                  const arr = stu.Arrival || {};
+                  const dep = stu.Departure || {};
+                  // Delay field is the actual prediction (seconds from scheduled)
+                  const delaySec = parseInt(arr.Delay ?? dep.Delay ?? '');
+                  if (isNaN(delaySec)) continue;
+                  // Use Time to filter to imminent stops only
+                  const t = parseInt(arr.Time || dep.Time || 0);
+                  if (t) {
+                    const delta = t - now;
+                    if (delta < -120 || delta > 300) continue;
                   }
+                  predictions.push({
+                    routeId, tripId,
+                    stopId: String(stu.StopId),
+                    delaySec,
+                  });
                 }
               }
 
-              console.log(predictions.length + ' imminent predictions');
+              console.log(predictions.length + ' imminent predictions with delay data');
               if (predictions.length === 0) return;
 
               // 3. Deduplicate by stop+trip and collect unique trip IDs
@@ -129,11 +145,7 @@ jobs:
 
               console.log(Object.keys(scheduleMap).length + ' schedule matches');
 
-              // 5. Calculate deltas
-              const isDST = new Date().toLocaleString('en-US', {
-                timeZone: 'America/Toronto', timeZoneName: 'short'
-              }).includes('EDT');
-              const offsetHours = isDST ? 4 : 5;
+              // 5. Build records using delaySec from the feed directly
               const todayStr = new Date().toLocaleDateString('en-CA', {
                 timeZone: 'America/Toronto'
               });
@@ -143,17 +155,8 @@ jobs:
                 const schedTime = scheduleMap[p.stopId + '|' + p.tripId];
                 if (!schedTime) continue;
 
-                const schedMins = timeToMins(schedTime);
-                if (schedMins === 9999) continue;
-
-                const schedH = Math.floor(schedMins / 60) % 24;
-                const schedM = schedMins % 60;
-                const schedStr = todayStr + 'T' + String(schedH).padStart(2,'0') + ':' + String(schedM).padStart(2,'0') + ':00Z';
-                let schedEpoch = new Date(schedStr).getTime() / 1000 + (offsetHours * 3600);
-                if (schedMins >= 1440) schedEpoch -= 86400;
-
-                const deltaSec = p.predictedEpoch - schedEpoch;
-                const deltaMin = Math.round(deltaSec / 6) / 10; // 1 decimal place
+                // delaySec is from GTFS-RT Delay field: positive = late, negative = early
+                const deltaMin = Math.round(p.delaySec / 6) / 10; // 1 decimal place
 
                 if (Math.abs(deltaMin) > 60) continue;
 
