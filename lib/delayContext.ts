@@ -32,7 +32,6 @@ export function getDelayContext(
 ): DelayContext | null {
   if (delayMinutes <= 5) return null;
 
-  // 1. ALERT — active alert mentioning this route (exclude construction — handled in step 4)
   const routeAlert = alerts.find(a => {
     if (!a.routes?.includes(routeId)) return false;
     if (a.category === 'accessibility') return false;
@@ -52,7 +51,6 @@ export function getDelayContext(
     };
   }
 
-  // 2. WEATHER — extreme cold or precipitation
   if (weather) {
     if (weather.temp <= -15) {
       return {
@@ -79,7 +77,6 @@ export function getDelayContext(
     }
   }
 
-  // 3. EVENT — Sens home game + route serves downtown/CTC area
   if (DOWNTOWN_ROUTES.has(routeId) && sensGameTonight) {
     return {
       reason: 'event',
@@ -92,7 +89,6 @@ export function getDelayContext(
     };
   }
 
-  // 4. CONSTRUCTION — keyword scan alerts for construction/detour
   const constructionAlert = alerts.find(a => {
     if (!a.routes?.includes(routeId)) return false;
     const text = `${a.title || ''} ${a.description || ''}`;
@@ -110,7 +106,6 @@ export function getDelayContext(
     };
   }
 
-  // 5. UNKNOWN — only for significant delays
   if (delayMinutes > 10) {
     return {
       reason: 'unknown',

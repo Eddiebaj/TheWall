@@ -13,7 +13,7 @@ import { useApp, PALETTE_LABELS, PaletteId } from '../../context/AppContext';
 import { useBoard } from '../../context/BoardContext';
 import { supabase } from '../../lib/supabase';
 import { registerPushToken, syncSubscriptions } from '../../lib/pushNotifications';
-import { SK_NOTIF_SETTINGS } from '../../lib/storageKeys';
+import { SK_NOTIF_SETTINGS, SK_DEVICE_ID } from '../../lib/storageKeys';
 import { useRouter } from 'expo-router';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { cardShadow as sharedCardShadow } from '../../lib/styles';
@@ -603,7 +603,7 @@ export default function AccountScreen() {
                       setBugSending(true);
                       try {
                         let deviceId: string | null = null;
-                        try { deviceId = await AsyncStorage.getItem('routeo_device_id'); } catch (e) { if (__DEV__) console.warn(e); }
+                        try { deviceId = await AsyncStorage.getItem(SK_DEVICE_ID); } catch (e) { if (__DEV__) console.warn(e); }
                         const appVersion = `RouteO ${Platform.OS} ${Platform.Version}`;
                         await supabase.from('bug_reports').insert({
                           message: bugMessage.trim(),

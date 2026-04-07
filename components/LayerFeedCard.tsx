@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Share, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { MapPin, LAYER_CONFIG, LAYER_ICONS, LayerKey } from '../lib/mapLayers';
+import { MapPin, LAYER_CONFIG, LAYER_ICONS } from '../lib/mapLayers';
 import { useApp } from '../context/AppContext';
 
 interface LayerFeedCardProps {

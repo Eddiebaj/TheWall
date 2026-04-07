@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Platform, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { hapticLight } from '../lib/haptics';
 import { useApp } from '../context/AppContext';
 import { SK_TRIP_HISTORY } from '../lib/storageKeys';
 

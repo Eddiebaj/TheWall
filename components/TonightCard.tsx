@@ -7,7 +7,7 @@ import { CAMPUSES } from '../lib/campusData';
 import { HAPPY_HOUR_VENUES } from '../lib/happyHourData';
 import { NEIGHBOURHOODS, Neighbourhood } from '../lib/neighbourhoodData';
 import { SK_CAMPUS, SK_TONIGHT_DISMISSED } from '../lib/storageKeys';
-import { buildTonightSummary, shouldShowTonightCard, SportEntry, TonightFocus, TonightSummary } from '../lib/tonightHelpers';
+import { buildTonightSummary, shouldShowTonightCard, TonightFocus, TonightSummary } from '../lib/tonightHelpers';
 import { haversineKm } from '../lib/geo';
 
 const SPORT_COLOURS: Record<string, string> = {

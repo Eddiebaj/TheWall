@@ -78,14 +78,12 @@ function DiscoverScreenInner() {
       const cached = await AsyncStorage.getItem(SK_NEWS_CACHE);
       if (cached) { try { setNewsArticles(JSON.parse(cached).articles || []); } catch (e) { if (__DEV__) console.warn(e); } }
     });
-    // Get user location
     Location.requestForegroundPermissionsAsync().then(async ({ status }) => {
       if (status === 'granted') {
         const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
         setUserLoc({ lat: loc.coords.latitude, lng: loc.coords.longitude });
       }
     }).catch(() => {});
-    // Fetch community deals
     Promise.resolve(supabase.from('community_deals').select('*').order('submitted_at', { ascending: false }).limit(10))
       .then(({ data, error }) => {
         if (error) { if (__DEV__) console.warn('Supabase deals error:', error); }
@@ -93,7 +91,6 @@ function DiscoverScreenInner() {
         setDealsLoading(false);
       })
       .catch(() => { setDealsLoading(false); });
-    // Fetch weekend events
     fetchWeekendEvents();
   }, []);
 

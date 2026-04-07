@@ -12,7 +12,7 @@ import { CampusConfig, getNextDeparture, isLibraryOpen } from '../lib/campusData
 import {
   BACKEND_URL, GAS_URL,
   SavedBoardItem, GhostReports, CATEGORY_COLOUR,
-  TEAM_LOGOS, CAMPUS_LOGOS, fmtTime, fmtAbsTime, isStoStop,
+  TEAM_LOGOS, CAMPUS_LOGOS, fmtAbsTime, isStoStop,
 } from '../lib/homeConstants';
 
 

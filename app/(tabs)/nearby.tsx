@@ -3,7 +3,7 @@ import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, ImageBackground, Linking, Platform,
+  ActivityIndicator, ImageBackground, Linking,
   RefreshControl, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -97,7 +97,6 @@ function ExploreScreenInner() {
   const [selectedCategory, setSelectedCategory] = useState(
     CATEGORIES.find(c => c.id === category) || CATEGORIES[0]
   );
-  // Update category when deep-link param changes
   useEffect(() => {
     if (category) {
       const match = CATEGORIES.find(c => c.id === category);
@@ -118,7 +117,6 @@ function ExploreScreenInner() {
   const [savedPlaceIds, setSavedPlaceIds] = useState<Set<string>>(new Set());
   const [failedPhotos, setFailedPhotos] = useState<Set<string>>(new Set());
 
-  // Load saved place IDs on mount
   useEffect(() => {
     AsyncStorage.getItem(SK_SAVED_PLACES).then(val => {
       try {
@@ -155,10 +153,8 @@ function ExploreScreenInner() {
 
   useEffect(() => { getLocation(); }, []);
 
-  // Fetch when location or category changes (NOT sortBy)
   useEffect(() => { if (location) fetchPlaces(); }, [location, selectedCategory]);
 
-  // Re-sort in memory when sortBy changes
   const sortedAllPlaces = useMemo(() => {
     if (allPlaces.length === 0) return allPlaces;
     const sorted = [...allPlaces];
@@ -182,7 +178,6 @@ function ExploreScreenInner() {
     return sorted;
   }, [allPlaces, sortBy]);
 
-  // Load stops from Supabase when location is available
   useEffect(() => {
     if (!location || nearbyStops.length > 0) return;
     const delta = 0.04; // ~4km bounding box
@@ -199,7 +194,6 @@ function ExploreScreenInner() {
       .catch((e: unknown) => { if (__DEV__) console.warn('Supabase stops query failed:', e); });
   }, [location]);
 
-  // Find nearest stop + next arrival for each place
   useEffect(() => {
     if (nearbyStops.length === 0 || filteredPlaces.length === 0) return;
     const placesToFetch = filteredPlaces.filter(p => !transitFetchedRef.current.has(p.id));
@@ -207,11 +201,9 @@ function ExploreScreenInner() {
 
     const fetchTransit = async () => {
       const updates: { [placeId: string]: NearbyTransit } = {};
-      // Process up to 8 places at a time to avoid hammering the API
       const batch = placesToFetch.slice(0, 8);
       await Promise.all(batch.map(async (place) => {
         transitFetchedRef.current.add(place.id);
-        // Find nearest stop
         let nearest: StopCoord | null = null;
         let nearestDist = Infinity;
         for (const stop of nearbyStops) {
@@ -242,12 +234,10 @@ function ExploreScreenInner() {
     fetchTransit();
   }, [nearbyStops, filteredPlaces]);
 
-  // Re-filter client-side when distance cap, search query, or sorted places change
   useEffect(() => {
     applyFilters(sortedAllPlaces, searchQuery, maxDistance);
   }, [searchQuery, maxDistance, sortedAllPlaces]);
 
-  // Keyword-triggered Google Places search when local filter returns no results
   const keywordTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (keywordTimer.current) clearTimeout(keywordTimer.current);
@@ -255,7 +245,6 @@ function ExploreScreenInner() {
     const q = searchQuery.toLowerCase();
     const hasKeyword = Object.keys(KEYWORD_CATEGORIES).some(k => q.includes(k) || k.includes(q));
     if (!hasKeyword && q.length < 3) return;
-    // Debounce 600ms then search Google Places by keyword
     keywordTimer.current = setTimeout(async () => {
       setLoading(true);
       try {
@@ -294,7 +283,6 @@ function ExploreScreenInner() {
     if (distCap > 0) result = result.filter(p => p.distance <= distCap);
     if (query.trim()) {
       const q = query.toLowerCase();
-      // Check if query matches a keyword category for expanded search
       const expandedTerms = Object.entries(KEYWORD_CATEGORIES)
         .filter(([key]) => q.includes(key) || key.includes(q))
         .flatMap(([, terms]) => terms);
@@ -340,7 +328,6 @@ function ExploreScreenInner() {
         ? ['shopping_mall', 'clothing_store', 'shoe_store', 'jewelry_store', 'department_store']
         : [selectedCategory.id];
 
-      // Fetch all types in parallel (H8)
       const allResponses = await Promise.all(
         types.map(type => {
           const url = `https://routeo-backend.vercel.app/api/places?action=nearby&location=${location.lat},${location.lng}&radius=${FETCH_RADIUS}&type=${type}`;
@@ -370,13 +357,10 @@ function ExploreScreenInner() {
         });
       }
 
-      // Sort by default (distance); useMemo sortedAllPlaces handles re-sort
       results.sort((a, b) => a.distance - b.distance);
 
       setAllPlaces(results);
       applyFilters(results, searchQuery, maxDistance);
-      // Don't reset searchQuery when fetching (M10 partially: only reset on category change)
-      // Reset transit cache for new category
       transitFetchedRef.current.clear();
       setTransitMap({});
     } catch {

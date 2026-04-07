@@ -1,6 +1,4 @@
 // Shared constants, types, and helpers used by home screen components
-import { CampusConfig } from './campusData';
-
 // API URLs
 export const BACKEND_URL = 'https://routeo-backend.vercel.app/api/arrivals';
 export const GAS_URL = 'https://routeo-backend.vercel.app/api/city?type=gas';

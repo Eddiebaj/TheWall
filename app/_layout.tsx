@@ -16,7 +16,6 @@ SplashScreen.preventAutoHideAsync();
 // Initialize Sentry as early as possible (no-op if DSN is placeholder or package missing)
 initSentry();
 
-// Log startup errors to AsyncStorage for diagnostics
 function logCrash(error: unknown) {
   try {
     const msg = error instanceof Error
@@ -83,7 +82,6 @@ function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Hide the native splash now that our animated splash is showing
     SplashScreen.hideAsync();
     // Fade in 400ms -> hold 600ms -> fade out 300ms
     Animated.sequence([

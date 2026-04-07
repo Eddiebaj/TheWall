@@ -28,10 +28,10 @@ export class ScreenErrorBoundary extends React.Component<Props, State> {
       return (
         <View style={{ flex: 1, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
           <Text style={{ fontSize: fonts.sm, color: colours.muted, textAlign: 'center', marginBottom: 16 }}>
-            Something went wrong
+            Something went wrong{'\n'}Une erreur est survenue
           </Text>
           <TouchableOpacity onPress={() => this.setState({ hasError: false })}>
-            <Text style={{ fontSize: fonts.sm, color: colours.accent }}>Try again</Text>
+            <Text style={{ fontSize: fonts.sm, color: colours.accent }}>Try again / R&#xE9;essayer</Text>
           </TouchableOpacity>
         </View>
       );

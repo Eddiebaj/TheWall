@@ -27,7 +27,7 @@ import BottomSheet from '@gorhom/bottom-sheet';
 import NearbyTransitSheet, { NearbyStop } from '../../components/NearbyTransitSheet';
 import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { hapticLight, hapticMedium, hapticSuccess } from '../../lib/haptics';
+import { hapticLight, hapticMedium } from '../../lib/haptics';
 import { cacheArrivals, getCachedArrivals } from '../../lib/arrivalCache';
 import type { ServiceTile } from '../../components/ServicesGrid';
 
@@ -416,15 +416,13 @@ export default function MapScreen() {
   const [busEtaInfo, setBusEtaInfo] = useState<{ mins: number; stopName: string; stopId: string } | null>(null);
   const [trackingBus, setTrackingBus] = useState<Bus | null>(null);
 
-  // Tapped location ("Route here" feature)
   const [tappedLocation, setTappedLocation] = useState<{ lat: number; lng: number; address: string } | null>(null);
   const tappedLocationRef = useRef<{ lat: number; lng: number; address: string } | null>(null);
-  // Keep ref in sync with state so stable callbacks can read latest value
+  // Keep ref in sync so stable callbacks can read latest value
   useEffect(() => { tappedLocationRef.current = tappedLocation; }, [tappedLocation]);
   const tappedAnim = useRef(new Animated.Value(0)).current;
   const router = useRouter();
 
-  // Community contribute modal
   const [contributeVisible, setContributeVisible] = useState(false);
   const [contribName, setContribName] = useState('');
   const [contribType, setContribType] = useState('');
@@ -433,14 +431,12 @@ export default function MapScreen() {
   const [contribSending, setContribSending] = useState(false);
   const [contribSent, setContribSent] = useState(false);
 
-  // Inline trip planning
   const [tripResults, setTripResults] = useState<TripItinerary[]>([]);
   const [tripLoading, setTripLoading] = useState(false);
   const [tripDestLabel, setTripDestLabel] = useState('');
   const [tripDest, setTripDest] = useState<{ lat: number; lng: number } | null>(null);
   const [activeTripItinerary, setActiveTripItinerary] = useState<TripItinerary | null>(null);
 
-  // Nearby transit sheet
   const nearbySheetRef = useRef<BottomSheet>(null);
   const [nearbyStops, setNearbyStops] = useState<NearbyStop[]>([]);
   const [nearbyLoading, setNearbyLoading] = useState(false);
@@ -448,19 +444,16 @@ export default function MapScreen() {
   const [expandedArrivals, setExpandedArrivals] = useState<{ routeId: string; headsign: string; minsAway: number; source?: string }[]>([]);
   const [expandedArrivalsLoading, setExpandedArrivalsLoading] = useState(false);
 
-  // City layers
   const [activeLayers, setActiveLayers] = useState<Record<LayerKey, boolean>>(DEFAULT_LAYERS);
   const [layerPins, setLayerPins] = useState<Partial<Record<LayerKey, MapPin[]>>>({});
   const [selectedPin, setSelectedPin] = useState<MapPin | null>(null);
 
-  // Sheet data: saved board, alerts, weather, events
   const [sheetAlerts, setSheetAlerts] = useState<any[]>([]);
   const [sheetWeather, setSheetWeather] = useState<{ temp: number; condition: string; icon: string } | null>(null);
   const [sheetEvents, setSheetEvents] = useState<{ name: string; date: string; time?: string; venue: string; lat?: number; lng?: number }[]>([]);
   const [sheetSensGame, setSheetSensGame] = useState<any>(null);
   const [sheetDeals, setSheetDeals] = useState<{ id: string; venue_name: string; deal_text: string; day_of_week: number }[]>([]);
 
-  // Discovery mode — Google Places nearby search
   const [discoveryCategory, setDiscoveryCategory] = useState<string | null>(null);
   const [discoveryResults, setDiscoveryResults] = useState<DiscoveryResult[]>([]);
   const [discoveryLoading, setDiscoveryLoading] = useState(false);
@@ -470,17 +463,14 @@ export default function MapScreen() {
   const layerFetchedAt = useRef<Partial<Record<LayerKey, number>>>({});
   const pinCardAnim = useRef(new Animated.Value(0)).current;
 
-  // Load layer preferences on mount
   useEffect(() => {
     loadLayerPrefs().then(prefs => setActiveLayers(prefs));
   }, []);
 
-  // Animate pin card on selection + fetch live Foursquare data if available
   useEffect(() => {
     if (selectedPin) {
       pinCardAnim.setValue(0);
       Animated.timing(pinCardAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
-      // Fetch fresh venue detail from Foursquare in background
       if (selectedPin.fsqId) {
         fetchWithTimeout(`${CITY_URL}?type=venue_detail&fsqId=${selectedPin.fsqId}`)
           .then(r => r.ok ? r.json() : null)
@@ -519,8 +509,8 @@ export default function MapScreen() {
         const now = new Date().toISOString().replace(/\.\d+Z/, 'Z');
         const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/ebevents?action=ticketmaster&city=Ottawa&size=30&startDateTime=${encodeURIComponent(now)}`);
         if (r.ok) {
-          const data = await r.json();
-          const evts = data.events || [];
+          const eventsResult = await r.json();
+          const evts = eventsResult.events || [];
           pins = evts
             .filter((e: any) => e.lat != null && e.lng != null)
             .map((e: any) => ({
@@ -535,11 +525,9 @@ export default function MapScreen() {
               photoUrl: e.imageUrl,
               source: 'ticketmaster' as const,
             }));
-          // Also update sheetEvents for TonightCard
           setSheetEvents(evts.map((e: any) => ({ name: e.name, date: e.date, time: e.time, venue: e.venue, lat: e.lat, lng: e.lng })));
         }
       } else if (layer === 'deals') {
-        // Community deals from Supabase
         const { data: deals } = await supabase
           .from('community_deals')
           .select('id, venue_name, deal_description, lat, lng, photo_url, category')
@@ -555,7 +543,6 @@ export default function MapScreen() {
           photoUrl: d.photo_url,
           source: 'community' as const,
         }));
-        // Hardcoded happy hour venues with active/upcoming deals today
         const now = new Date();
         const day = now.getDay();
         const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -581,7 +568,6 @@ export default function MapScreen() {
           });
         pins = [...venuePins, ...communityPins];
       } else if (layer === 'ghost_buses') {
-        // Fetch recent ghost bus reports grouped by stop, join with stops table for lat/lng
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
         const { data: reports } = await supabase
           .from('stop_reports')
@@ -589,14 +575,12 @@ export default function MapScreen() {
           .neq('category', 'confirmed_arrived')
           .gte('created_at', oneHourAgo);
         if (reports && reports.length > 0) {
-          // Group by stop_id
           const byStop: Record<string, { routes: Set<string>; count: number }> = {};
           for (const r of reports) {
             if (!byStop[r.stop_id]) byStop[r.stop_id] = { routes: new Set(), count: 0 };
             byStop[r.stop_id].count++;
             if (r.route_id) byStop[r.stop_id].routes.add(r.route_id);
           }
-          // Get stop coordinates
           const stopIds = Object.keys(byStop);
           const { data: stops } = await supabase
             .from('stops')
@@ -643,38 +627,31 @@ export default function MapScreen() {
     if (newLayers[key] && isStale) { fetchLayerData(key); }
   };
 
-  // Happening Now: time-sensitive pins within 500m
   const happeningNow = useMemo(() => {
     if (!layerPins) return [];
     const timeLayers: LayerKey[] = ['events', 'deals'];
     const allPins = timeLayers.flatMap(k => (activeLayers[k] ? (layerPins[k] || []) : []));
-    // Filter to within ~500m of map center
     const R = 0.0045; // ~500m in degrees
     return allPins.filter(p =>
       Math.abs(p.lat - region.latitude) < R && Math.abs(p.lng - region.longitude) < R
     ).slice(0, 10);
   }, [layerPins, activeLayers, region.latitude, region.longitude]);
 
-  // Current time info for heat zones + deal states (refreshes with region changes)
   const ottawaNow = useMemo(() => {
     const now = new Date();
     const dayOfWeek = parseInt(now.toLocaleDateString('en-CA', { weekday: 'narrow', timeZone: 'America/Toronto' }).replace(/[^0-6]/, '0'), 10);
-    // getDay() works fine for numeric day
     const d = new Date(now.toLocaleString('en-CA', { timeZone: 'America/Toronto' }));
     const currentMins = d.getHours() * 60 + d.getMinutes();
     return { dayOfWeek: d.getDay(), currentMins };
   }, [region]); // re-evaluate when map moves (rough timer proxy)
 
-  // Heat zones from happy hours, sports, events
   const heatZones = useMemo(() => {
     const zones: HeatZone[] = [];
     const { dayOfWeek, currentMins } = ottawaNow;
 
-    // Happy hour zones — find active venues and cluster them
     const activeVenues = HAPPY_HOUR_VENUES.filter(v =>
       getActiveDeals(v, dayOfWeek, currentMins).length > 0
     );
-    // Include community deals as virtual venues for clustering
     const communityDealPins = (layerPins?.deals ?? []).filter(p => p.id.startsWith('deal_'));
     const communityAsVenues: HappyHourVenue[] = communityDealPins.map(p => ({
       name: p.name, address: '', type: ['restaurant' as const],
@@ -697,7 +674,7 @@ export default function MapScreen() {
       });
     });
 
-    // Sports game zone
+
     if (sheetSensGame?.state === 'pre' || sheetSensGame?.state === 'live') {
       zones.push({
         id: 'sens-game',
@@ -711,7 +688,6 @@ export default function MapScreen() {
       });
     }
 
-    // Event zones from Ticketmaster (events starting within 3 hours)
     const now = Date.now();
     (sheetEvents ?? []).forEach(e => {
       if (!e.lat || !e.lng || !e.date) return;
@@ -734,7 +710,6 @@ export default function MapScreen() {
     return zones;
   }, [ottawaNow, sheetSensGame, sheetEvents, layerPins, t]);
 
-  // Count active deals nearby for chip badge
   const activeDealsNearby = useMemo(() => {
     const { dayOfWeek, currentMins } = ottawaNow;
     const R = 0.045; // ~5km
@@ -750,18 +725,18 @@ export default function MapScreen() {
       const bareId = routeId.split('-')[0];
       const agencyParam = agency === 'STO' ? '&agency=STO' : '';
       if (__DEV__) console.log(`[RouteShape] fetching shape for routeId="${routeId}" bareId="${bareId}" agency="${agency}"`);
-      const resp = await fetchWithTimeout(
+      const r = await fetchWithTimeout(
         `https://routeo-backend.vercel.app/api/route?id=${encodeURIComponent(bareId)}&action=shape${agencyParam}`,
         { timeout: 8000 }
       );
-      if (!resp.ok) {
-        if (__DEV__) console.log(`[RouteShape] backend returned ${resp.status}`);
+      if (!r.ok) {
+        if (__DEV__) console.log(`[RouteShape] backend returned ${r.status}`);
         return;
       }
-      const data = await resp.json();
-      if (__DEV__) console.log(`[RouteShape] route=${data?.routeId} received ${data?.shape?.length ?? 0} points`);
-      if (data?.shape?.length) {
-        setSelectedRouteShape(data.shape);
+      const shapeResult = await r.json();
+      if (__DEV__) console.log(`[RouteShape] route=${shapeResult?.routeId} received ${shapeResult?.shape?.length ?? 0} points`);
+      if (shapeResult?.shape?.length) {
+        setSelectedRouteShape(shapeResult.shape);
       } else {
         if (__DEV__) console.log(`[RouteShape] no shape returned for route ${bareId}`);
       }
@@ -772,11 +747,9 @@ export default function MapScreen() {
 
   const openSheet = useCallback((bus?: Bus, event?: MapEvent, clusterEvs?: MapEvent[], venue?: VenuePin) => {
     if (bus) hapticMedium(); else hapticLight();
-    // Dismiss tapped location card if open
     if (tappedLocationRef.current) { setTappedLocation(null); tappedAnim.setValue(0); }
     setSelectedBus(bus || null); setSelectedEvent(event || null); setSelectedCluster(clusterEvs || null); setSelectedVenue(venue || null);
     if (!bus && !event && !clusterEvs && !venue) {
-      // saved pin — selectedSavedPin is already set
     } else {
       setSelectedSavedPin(null);
     }
@@ -801,7 +774,6 @@ export default function MapScreen() {
   const tappedTranslate = tappedAnim.interpolate({ inputRange: [0, 1], outputRange: [200, 0] });
 
   const handleMapTap = useCallback(async (e: any) => {
-    // If a sheet is open, dismiss it instead
     if (selectedBus || selectedEvent || selectedCluster || selectedVenue || selectedSavedPin || searchedPlace) {
       hideSheet();
       return;
@@ -810,10 +782,8 @@ export default function MapScreen() {
     if (!coord) return;
     const { latitude, longitude } = coord;
     if (!validCoord(latitude, longitude)) return;
-    // Show card immediately with "Loading address..."
     setTappedLocation({ lat: latitude, lng: longitude, address: '' });
     Animated.spring(tappedAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
-    // Reverse geocode
     try {
       const results = await Location.reverseGeocodeAsync({ latitude, longitude });
       if (results?.[0]) {
@@ -839,7 +809,6 @@ export default function MapScreen() {
     setTripResults([]);
     setTripDestLabel(destLabel);
     setTripDest({ lat: destLat, lng: destLng });
-    // Dismiss other sheets
     hideSheet();
     dismissTapped();
     try {
@@ -849,13 +818,13 @@ export default function MapScreen() {
       const now = new Date();
       const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       const date = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${now.getFullYear()}`;
-      const resp = await fetchWithTimeout(
+      const r = await fetchWithTimeout(
         `https://routeo-backend.vercel.app/api/plan?fromLat=${loc.coords.latitude}&fromLng=${loc.coords.longitude}&fromLabel=Current+Location&toLat=${destLat}&toLng=${destLng}&toLabel=${encodeURIComponent(destLabel)}&time=${time}&date=${date}&arriveBy=false&mode=transit&maxWalk=1000`,
         { timeout: 12000 }
       );
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const data = await resp.json();
-      const itins: TripItinerary[] = data.itineraries || [];
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const planResult = await r.json();
+      const itins: TripItinerary[] = planResult.itineraries || [];
       setTripResults(itins);
     } catch (e) { if (__DEV__) console.warn('Inline trip plan failed:', e); }
     setTripLoading(false);
@@ -867,7 +836,6 @@ export default function MapScreen() {
     setTripDestLabel('');
   }, []);
 
-  // Nearby stops fetch
   const fetchNearbyStops = useCallback(async () => {
     setNearbyLoading(true);
     try {
@@ -889,13 +857,11 @@ export default function MapScreen() {
 
       if (!stops || stops.length === 0) { setNearbyStops([]); setNearbyLoading(false); return; }
 
-      // Sort by distance
       const sorted = stops
         .map(s => ({ ...s, dist: haversineKm(uLat, uLng, s.stop_lat, s.stop_lon) * 1000 }))
         .sort((a, b) => a.dist - b.dist)
         .slice(0, 10);
 
-      // Build initial stops with loading arrivals
       const initial: NearbyStop[] = sorted.map(s => ({
         stopId: s.stop_id,
         stopName: s.stop_name || `Stop #${s.stop_id}`,
@@ -906,12 +872,11 @@ export default function MapScreen() {
       setNearbyStops(initial);
       setNearbyLoading(false);
 
-      // Fetch arrivals for each stop in parallel
       const results = await Promise.allSettled(
         sorted.map(async s => {
-          const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${s.stop_id}`, { timeout: 8000 });
-          if (!resp.ok) return { stopId: s.stop_id, arrivals: [] };
-          const data = await resp.json();
+          const r = await fetchWithTimeout(`${BACKEND_URL}?stop=${s.stop_id}`, { timeout: 8000 });
+          if (!r.ok) return { stopId: s.stop_id, arrivals: [] };
+          const data = await r.json();
           const now = Date.now();
           const arrivals = (data.trips || [])
             .filter((tr: any) => tr.adjustedTime > now)
@@ -925,7 +890,6 @@ export default function MapScreen() {
         })
       );
 
-      // Cache successful results & fall back to cache on failure
       const updatedStops = await Promise.all(initial.map(async (stop) => {
         const idx = sorted.findIndex(s => s.stop_id === stop.stopId);
         const result = idx >= 0 ? results[idx] : undefined;
@@ -933,7 +897,6 @@ export default function MapScreen() {
           cacheArrivals(stop.stopId, { arrivals: result.value.arrivals, source: 'live', stopName: stop.stopName });
           return { ...stop, arrivals: result.value.arrivals, arrivalsLoading: false };
         }
-        // Fetch failed or empty — try cache
         const cached = await getCachedArrivals(stop.stopId);
         if (cached && cached.arrivals.length > 0) {
           return { ...stop, arrivals: cached.arrivals, arrivalsLoading: false, cached: true, cachedAt: cached.cachedAt };
@@ -947,15 +910,14 @@ export default function MapScreen() {
     }
   }, []);
 
-  // Fetch expanded stop arrivals
   const handleExpandStop = useCallback(async (stopId: string | null) => {
     setExpandedStopId(stopId);
     if (!stopId) { setExpandedArrivals([]); return; }
     setExpandedArrivalsLoading(true);
     try {
-      const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${stopId}`, { timeout: 8000 });
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const data = await resp.json();
+      const r = await fetchWithTimeout(`${BACKEND_URL}?stop=${stopId}`, { timeout: 8000 });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const data = await r.json();
       const now = Date.now();
       const arrivals = (data.trips || [])
         .filter((tr: any) => tr.adjustedTime > now)
@@ -970,7 +932,6 @@ export default function MapScreen() {
       cacheArrivals(stopId, { arrivals, source: 'expanded', stopName: null });
     } catch (e) {
       if (__DEV__) console.warn('Expanded arrivals fetch failed:', e);
-      // Fall back to cached arrivals
       const cached = await getCachedArrivals(stopId);
       if (cached && cached.arrivals.length > 0) {
         setExpandedArrivals(cached.arrivals.map((a: any) => ({ ...a, cached: true, cachedAt: cached.cachedAt })));
@@ -981,18 +942,14 @@ export default function MapScreen() {
     setExpandedArrivalsLoading(false);
   }, []);
 
-  // Initial nearby stops fetch
   useEffect(() => { fetchNearbyStops(); }, [fetchNearbyStops]);
 
-  // Sheet data fetching
   useEffect(() => {
-    // Alerts
     fetchWithTimeout('https://routeo-backend.vercel.app/api/alerts', { timeout: 8000 })
       .then(r => r.ok ? r.json() : { alerts: [] })
       .then(data => { setSheetAlerts(data?.alerts || []); })
       .catch(() => {});
 
-    // Weather
     fetchWithTimeout('https://api.open-meteo.com/v1/forecast?latitude=45.4215&longitude=-75.6972&current=temperature_2m,weather_code&timezone=America/Toronto', { timeout: 6000 })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -1006,7 +963,6 @@ export default function MapScreen() {
       })
       .catch(() => {});
 
-    // Sens game
     fetchWithTimeout('https://api-web.nhle.com/v1/schedule/now', { timeout: 6000 })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -1033,7 +989,6 @@ export default function MapScreen() {
       })
       .catch(() => {});
 
-    // Community deals
     supabase.from('community_deals').select('id, venue_name, deal_text, day_of_week')
       .order('submitted_at', { ascending: false }).limit(10)
       .then(({ data }: { data: any }) => { if (data) setSheetDeals(data); })
@@ -1060,13 +1015,11 @@ export default function MapScreen() {
     dismissTapped();
   }, [tappedLocation, dismissTapped]);
 
-  // Calculate ETA from bus to user's nearest stop on that route
   useEffect(() => {
     if (!selectedBus || selectedRouteShape.length < 2) { setBusEtaInfo(null); return; }
     let cancelled = false;
     (async () => {
       try {
-        // Get user location
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted' || cancelled) return;
         const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
@@ -1074,7 +1027,6 @@ export default function MapScreen() {
         const uLat = loc.coords.latitude;
         const uLng = loc.coords.longitude;
 
-        // Query stops near the user that are on this route
         const delta = 0.02; // ~2km bounding box
         const routeNum = selectedBus.routeId.split('-')[0];
         const { data: nearbyStops } = await supabase
@@ -1087,7 +1039,6 @@ export default function MapScreen() {
           .limit(200);
         if (cancelled || !nearbyStops || nearbyStops.length === 0) return;
 
-        // Find nearest stop to user
         let bestStop: { stop_id: string; stop_name: string; stop_lat: number; stop_lon: number } | null = null;
         let bestDist = Infinity;
         for (const s of nearbyStops) {
@@ -1096,17 +1047,14 @@ export default function MapScreen() {
         }
         if (!bestStop || bestDist > 1.5) return; // Too far from any stop
 
-        // Find bus position and stop position along route shape
         const busPos = distAlongShape(selectedRouteShape, selectedBus.lat, selectedBus.lng);
         const stopPos = distAlongShape(selectedRouteShape, bestStop.stop_lat, bestStop.stop_lon);
 
-        // Only show if bus is approaching the stop (bus index < stop index along shape)
         if (stopPos.index <= busPos.index) return;
 
         const distKm = stopPos.cumDist - busPos.cumDist;
         if (distKm <= 0 || distKm > 30) return;
 
-        // Express routes (95, 97, 98) average ~40km/h, others ~25km/h
         const EXPRESS_ROUTES = new Set(['95', '97', '98', '99']);
         const avgSpeed = EXPRESS_ROUTES.has(routeNum) ? 40 : 25;
         const etaMins = Math.max(1, Math.round((distKm / avgSpeed) * 60));
@@ -1122,11 +1070,10 @@ export default function MapScreen() {
 
   const fetchBuses = async () => {
     try {
-      const resp = await fetchWithTimeout(`${VEHICLES_URL}?t=${Date.now()}`, { headers: { 'Accept': 'application/json' } });
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const data = await resp.json();
-      const incoming: Bus[] = data.vehicles || [];
-      // Stable merge: reuse existing bus objects when position hasn't changed
+      const r = await fetchWithTimeout(`${VEHICLES_URL}?t=${Date.now()}`, { headers: { 'Accept': 'application/json' } });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const vehiclesResult = await r.json();
+      const incoming: Bus[] = vehiclesResult.vehicles || [];
       setBuses(prev => {
         const prevMap = new Map(prev.map(b => [b.id, b]));
         return incoming.map(b => {
@@ -1166,17 +1113,14 @@ export default function MapScreen() {
     };
   }, []);
 
-  // Handle deep-link highlightRoute param
   useEffect(() => {
     if (deepLinkParams.highlightRoute) {
       const routeId = deepLinkParams.highlightRoute as string;
-      // Switch filter to bus so the route is visible
       setFilters(new Set(['bus']));
       setSearchText(routeId);
     }
   }, [deepLinkParams.highlightRoute]);
 
-  // Debounce latitudeDelta so clusters don't recompute on every zoom frame
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedDelta(region.latitudeDelta), 400);
     return () => clearTimeout(timer);
@@ -1188,12 +1132,10 @@ export default function MapScreen() {
     fetchAllEvents().then(evs => {
       setEvents(evs);
       setEventsLoading(false);
-      // Feed events to bottom sheet TonightCard
       setSheetEvents(evs.map(e => ({ name: e.name, date: e.date, time: e.time, venue: e.venue })));
     });
   }, [showEvents]);
 
-  // Load saved stops, routes, places when "saved" filter first activated
   useEffect(() => {
     if (savedLoaded) return;
     const load = async () => {
@@ -1201,7 +1143,6 @@ export default function MapScreen() {
       const routeIdSet = new Set<string>();
       const seenStopIds = new Set<string>();
       try {
-        // Saved routes (trip planner)
         const routesRaw = await AsyncStorage.getItem(SK_SAVED_ROUTES);
         if (routesRaw) {
           const routes: SavedRoute[] = JSON.parse(routesRaw);
@@ -1215,7 +1156,6 @@ export default function MapScreen() {
             }
           }
         }
-        // Saved board stops (from context) + legacy favs
         const favsRaw = await AsyncStorage.getItem(SK_FAVS);
         const stopIds: { id: string; name: string }[] = [];
         for (const item of boardItems) {
@@ -1237,11 +1177,10 @@ export default function MapScreen() {
             }
           } catch (e) { if (__DEV__) console.warn(e); }
         }
-        // Fetch coordinates and route IDs for all saved stops (parallel)
         const stopResults = await Promise.allSettled(stopIds.map(async (stop) => {
-          const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${stop.id}`, { timeout: 10000 });
-          if (!resp.ok) return null;
-          const data = await resp.json();
+          const r = await fetchWithTimeout(`${BACKEND_URL}?stop=${stop.id}`, { timeout: 10000 });
+          if (!r.ok) return null;
+          const data = await r.json();
           return { stop, data };
         }));
         for (const result of stopResults) {
@@ -1255,7 +1194,6 @@ export default function MapScreen() {
             if (base) routeIdSet.add(base);
           }
         }
-        // Saved places (from Explore tab)
         const placesRaw = await AsyncStorage.getItem(SK_SAVED_PLACES);
         if (placesRaw) {
           try {
@@ -1267,7 +1205,6 @@ export default function MapScreen() {
             }
           } catch (e) { if (__DEV__) console.warn(e); }
         }
-        // Saved neighbourhoods
         const nbRaw = await AsyncStorage.getItem(SK_SAVED_NEIGHBOURHOODS);
         if (nbRaw) {
           try {
@@ -1305,7 +1242,6 @@ export default function MapScreen() {
   const hasAll = filters.has('all');
   const hasSaved = filters.has('saved');
   const showBuses = hasAll || filters.has('bus') || hasSaved;
-  // Zoom level thresholds for bus visibility
   const zoomTooFar = region.latitudeDelta > 0.05;
   const zoomNeighborhood = region.latitudeDelta >= 0.02 && region.latitudeDelta <= 0.05;
 
@@ -1321,10 +1257,8 @@ export default function MapScreen() {
   }, [region]);
 
   const filteredBuses = useMemo(() => {
-    // Hide all buses when zoomed out to city-wide view
     if (!showBuses || zoomTooFar) return [];
     let result = buses.filter((b: Bus) => {
-      // Viewport culling
       if (b.lat < viewBounds.minLat || b.lat > viewBounds.maxLat ||
           b.lng < viewBounds.minLng || b.lng > viewBounds.maxLng) return false;
       if (hasSaved && !hasAll && !filters.has('bus')) {
@@ -1334,7 +1268,6 @@ export default function MapScreen() {
       if (!hasAll && filters.has('bus')) return !isLRT(b.routeId);
       return true;
     });
-    // Cap at 25 markers when at neighborhood zoom level
     if (zoomNeighborhood && result.length > 25) result = result.slice(0, 25);
     return result;
   }, [showBuses, zoomTooFar, zoomNeighborhood, buses, hasAll, hasSaved, filters, savedRouteIds, viewBounds]);
@@ -1354,7 +1287,6 @@ export default function MapScreen() {
   }, [filters]);
   useEffect(() => {
     if (!mapReady || filteredBuses.length === 0) { setVisibleBusCount(0); initialBatchDone.current = false; return; }
-    // After initial batch, just show all markers immediately on updates
     if (initialBatchDone.current) {
       setVisibleBusCount(filteredBuses.length);
       return;
@@ -1434,15 +1366,14 @@ export default function MapScreen() {
 
   const centerOnOttawa = () => mapRef.current?.animateToRegion(OTTAWA_REGION, 600);
 
-  // Google Places autocomplete search (proxied through backend)
   const searchPlaces = useCallback(async (query: string) => {
     if (query.length < 3) { setPlaceSuggestions([]); return; }
     try {
       const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=autocomplete&input=${encodeURIComponent(query)}&location=45.4215,-75.6972&radius=50000`);
       if (!r.ok) throw new Error('HTTP ' + r.status);
-      const data = await r.json();
-      if (data.predictions) {
-        setPlaceSuggestions(data.predictions.slice(0, 5).map((p: any) => ({
+      const autocompleteResult = await r.json();
+      if (autocompleteResult.predictions) {
+        setPlaceSuggestions(autocompleteResult.predictions.slice(0, 5).map((p: any) => ({
           placeId: p.place_id,
           name: p.structured_formatting?.main_text || p.description,
           address: p.structured_formatting?.secondary_text || '',
@@ -1458,19 +1389,18 @@ export default function MapScreen() {
     try {
       const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=details&place_id=${suggestion.placeId}&fields=geometry,name,formatted_address`);
       if (!r.ok) throw new Error('HTTP ' + r.status);
-      const data = await r.json();
-      if (data.result?.geometry?.location) {
-        const { lat, lng } = data.result.geometry.location;
+      const detailsResult = await r.json();
+      if (detailsResult.result?.geometry?.location) {
+        const { lat, lng } = detailsResult.result.geometry.location;
         const place = {
           placeId: suggestion.placeId,
-          name: data.result.name || suggestion.name,
-          address: data.result.formatted_address || suggestion.address,
+          name: detailsResult.result.name || suggestion.name,
+          address: detailsResult.result.formatted_address || suggestion.address,
           lat, lng,
         };
         setSearchedPlace(place);
         setSearchText(place.name);
         mapRef.current?.animateToRegion({ latitude: lat, longitude: lng, latitudeDelta: 0.005, longitudeDelta: 0.005 }, 600);
-        // Open sheet for this place
         setSelectedBus(null); setSelectedEvent(null); setSelectedCluster(null); setSelectedVenue(null); setSelectedSavedPin(null); setSelectedRouteShape([]);
         Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
       }
@@ -1490,7 +1420,6 @@ export default function MapScreen() {
     try {
       const lat = region.latitude;
       const lng = region.longitude;
-      // Calculate visible radius from region span, capped at 50km
       const radius = Math.min(Math.round((region.latitudeDelta / 2) * 111000), 50000);
       const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=nearby&location=${lat},${lng}&radius=${radius}&type=${placeType}`);
       if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -1511,7 +1440,6 @@ export default function MapScreen() {
     setDiscoveryResults([]);
   }, []);
 
-  // Re-fetch discovery results when region changes while a category is active
   const discoveryDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!discoveryCategory || !DISCOVER_PLACE_TYPES[discoveryCategory]) return;
@@ -1524,7 +1452,6 @@ export default function MapScreen() {
 
   const hasSheet = selectedBus || selectedEvent || selectedCluster || selectedVenue || selectedSavedPin || searchedPlace;
 
-  // Upcoming events (today + next 2 days) + clustering
   const upcomingDates = useMemo(() => {
     const dates = new Set<string>();
     const now = new Date();
@@ -1851,7 +1778,6 @@ export default function MapScreen() {
                       setDiscoveryCategory(f.key);
                       searchDiscovery(DISCOVER_PLACE_TYPES[f.key]);
                     }
-                    // Also toggle the filter so venue pins show
                     if (!filters.has(f.key)) {
                       setFilters(prev => { const next = new Set(prev); next.delete('all'); next.add(f.key); return next; });
                     }
@@ -2048,7 +1974,6 @@ export default function MapScreen() {
                           deal_text: `[${contribType}] ${contribInfo.trim()}${contribAddress.trim() ? ` | ${contribAddress.trim()}` : ''}`,
                           approved: false,
                         });
-                        // Notify backend about new submission
                         fetchWithTimeout('https://routeo-backend.vercel.app/api/community?action=deal.notify', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
@@ -2381,7 +2306,6 @@ export default function MapScreen() {
                     </Text>
                     <Text style={{ fontSize: fonts.sm, color: colours.muted, marginBottom: 6 }}>{selectedVenue.address}</Text>
                     {active.length > 0 && (() => {
-                      // Find the soonest closing deal for "Open til X"
                       const day = new Date().getDay();
                       const todayDeals = selectedVenue.deals.filter(d => d.days.includes(day));
                       const activeDeals = todayDeals.filter(d => {

@@ -1,50 +1,43 @@
-# Welcome to your Expo app 👋
+# RouteO
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Ottawa/Gatineau transit and city companion app. Cross-border OC Transpo + STO support with real-time arrivals, ghost bus detection, reliability scoring, and trip planning.
 
-## Get started
+## Tech Stack
 
-1. Install dependencies
+- **Frontend**: React Native + Expo SDK 54, Expo Router v6
+- **Backend**: 12 Vercel serverless functions (Node.js)
+- **Database**: Supabase (PostgreSQL) — stops, GTFS static data, crowding reports, reliability metrics, community deals, push subscriptions
+- **Routing**: OpenTripPlanner (self-hosted, OC Transpo + STO GTFS)
+- **Real-time**: OC Transpo GTFS-RT (Azure API), STO GTFS-RT (protobuf)
+- **Monitoring**: Sentry (crash reporting), UptimeRobot (endpoint health)
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Run Locally
 
 ```bash
-npm run reset-project
+npm install
+npx expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Requires environment variables for OC Transpo API key, Supabase credentials, and Google Places API key. See `lib/supabase.ts` and the backend repo for configuration.
 
-## Learn more
+## Project Structure
 
-To learn more about developing your project with Expo, look at the following resources:
+```
+app/
+  (tabs)/          Tab screens: map, saved, planner, alerts, nearby, account, discover
+  onboarding.tsx   5-screen first-run flow
+  _layout.tsx      Root navigation + splash screen
+components/        Extracted UI: NeighbourhoodSheet, ClassScheduleModal, TonightCard, etc.
+lib/               Shared logic: campusData, neighbourhoodData, delayContext, storageKeys
+context/           AppContext (theme, language, accessibility)
+supabase/
+  migrations/      SQL migration files for Supabase tables
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Data Sources
 
-## Join the community
+OC Transpo GTFS-RT, STO GTFS-RT, Open-Meteo weather, Ticketmaster, Eventbrite (via backend), NHL API, ESPN, VeloGo bike share, Ottawa ArcGIS (parks, road closures, garbage), Google Places, ReCollect (waste calendar), Nominatim geocoding.
 
-Join our community of developers creating universal apps.
+## Backend
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Separate repo. 12 serverless functions: arrivals, alerts, vehicles, news, places, plan, gas, events, route detail, community actions, crowding, cron refresh. GTFS data refreshed weekly via GitHub Actions.

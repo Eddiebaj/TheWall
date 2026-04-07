@@ -12,7 +12,6 @@ import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { hapticLight } from '../../lib/haptics';
 import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
 
-// Constants
 const ALERTS_URL = 'https://routeo-backend.vercel.app/api/alerts';
 const LRT_URL = 'https://routeo-backend.vercel.app/api/alerts?action=lrt';
 
@@ -36,8 +35,6 @@ type LrtData = {
   line1: LrtLine; line2: LrtLine; line4: LrtLine;
   incidents: LrtIncident[]; fetchedAt: string;
 };
-
-// Standalone components (outside main component to avoid re-creation)
 
 function StationPill({ station, lineColor }: { station: LrtStation; lineColor: string }) {
   return (
@@ -78,7 +75,6 @@ function LineRow({ label, line, color, fonts, colours, t }: {
   );
 }
 
-// Main Screen
 function AlertsScreenInner() {
   const { colours, fonts, t, theme, resolvedTheme } = useApp();
 
@@ -135,7 +131,6 @@ function AlertsScreenInner() {
     return () => { if (lrtInterval.current) clearInterval(lrtInterval.current); };
   }, []));
 
-  // Derived data (memoized)
   const { activeAlerts, accessibilityAlerts, elevatorAlerts, categories, filtered, criticalCount, hasAlerts, statusColor } = useMemo(() => {
     const _activeAlerts = alerts.filter(a => a.category !== 'accessibility');
     const _accessibilityAlerts = alerts.filter(a => a.category === 'accessibility');
@@ -163,7 +158,6 @@ function AlertsScreenInner() {
     };
   }, [alerts, activeFilter]);
 
-  // Render alert card
   const renderAlertCard = (alert: ServiceAlert) => {
     const catColour = CATEGORY_COLOUR[alert.category] || colours.accent;
     const isExpanded = expandedId === alert.id;

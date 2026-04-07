@@ -4,7 +4,7 @@ import * as Location from 'expo-location';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, Animated, Dimensions, Image, Modal, Platform, RefreshControl,
+  Alert, Animated, Dimensions, Image, Modal, RefreshControl,
   ScrollView, StatusBar, Text, TouchableOpacity, View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -103,7 +103,6 @@ function SavedScreenInner() {
   const isFetchingRef = useRef(false);
   useEffect(() => { stopsRef.current = stops; }, [stops]);
 
-  // Load saved leave-now alerts
   useEffect(() => {
     AsyncStorage.getItem(SK_LEAVE_NOW_ALERTS).then(raw => {
       if (raw) try { setLeaveAlerts(JSON.parse(raw)); } catch {}
@@ -174,7 +173,6 @@ function SavedScreenInner() {
     await AsyncStorage.setItem(SK_LEAVE_NOW_ALERTS, JSON.stringify(updated));
   };
 
-  // Schedule future departure alert
   const [scheduleModal, setScheduleModal] = useState<{ stopId: string; stopName: string; routeId: string } | null>(null);
   const [schedHour, setSchedHour] = useState(8);
   const [schedMin, setSchedMin] = useState(0);
@@ -195,7 +193,6 @@ function SavedScreenInner() {
       const Notifs = require('expo-notifications');
 
       if (schedWeekdays) {
-        // Schedule recurring weekday notifications (Mon-Fri)
         for (let dayOfWeek = 2; dayOfWeek <= 6; dayOfWeek++) {
           await Notifs.scheduleNotificationAsync({
             content: {
@@ -208,7 +205,6 @@ function SavedScreenInner() {
           });
         }
       } else {
-        // Schedule one-time notification
         const target = new Date();
         target.setHours(schedHour, Math.max(0, schedMin - 3), 0, 0);
         if (target.getTime() <= Date.now()) target.setDate(target.getDate() + 1);
@@ -242,7 +238,6 @@ function SavedScreenInner() {
     setScheduleModal(null);
   };
 
-  // Track ghost alert shown event when ghost data changes
   const ghostAlertKeys = useMemo(() => Object.keys(ghostAlerts).sort().join(','), [ghostAlerts]);
   useEffect(() => {
     if (ghostAlertKeys.length > 0) {
@@ -252,14 +247,12 @@ function SavedScreenInner() {
 
   const cardShadow = isLight ? sharedCardShadow : {};
 
-  // Shared arrival-fetching helper — single batch request
   const fetchArrivalsForStops = async (savedStops: SavedStop[]): Promise<{ map: Record<string, StopArrival[]>; cached: Record<string, number>; ghosts: Record<string, GhostAlert>; rel: Record<string, Record<string, RouteReliability>> }> => {
     const map: Record<string, StopArrival[]> = {};
     const cached: Record<string, number> = {};
     const ghosts: Record<string, GhostAlert> = {};
     const rel: Record<string, Record<string, RouteReliability>> = {};
     try {
-      // Chunk into batches of 10 (backend limit)
       const chunks: SavedStop[][] = [];
       for (let i = 0; i < savedStops.length; i += 10) {
         chunks.push(savedStops.slice(i, i + 10));
@@ -294,7 +287,6 @@ function SavedScreenInner() {
     } catch (e) {
       if (__DEV__) console.warn('Batch arrivals failed:', e);
     }
-    // Fill missing stops from cache
     await Promise.all(savedStops.map(async s => {
       if (map[s.id]) return;
       const cachedData = await getCachedArrivals(s.id);
@@ -308,7 +300,6 @@ function SavedScreenInner() {
     return { map, cached, ghosts, rel };
   };
 
-  // Load data
   const loadData = useCallback(async () => {
     try {
       const [placesRaw, tripRaw] = await Promise.all([
@@ -316,7 +307,6 @@ function SavedScreenInner() {
         AsyncStorage.getItem(SK_TRIP_HISTORY),
       ]);
 
-      // Stops from board context
       const savedStops: SavedStop[] = [];
       for (const item of boardItems) {
         if (item.type === 'bus_stop' || item.type === 'lrt_station') {
@@ -325,12 +315,10 @@ function SavedScreenInner() {
       }
       setStops(savedStops);
 
-      // Places
       if (placesRaw) {
         try { setPlaces(JSON.parse(placesRaw)); } catch (e) { if (__DEV__) console.warn(e); }
       }
 
-      // Recent trip
       if (tripRaw) {
         try {
           const trips: TripEntry[] = JSON.parse(tripRaw);
@@ -367,7 +355,6 @@ function SavedScreenInner() {
 
       setLoaded(true);
 
-      // Fetch arrivals using shared helper
       if (savedStops.length > 0) {
         setArrivalsLoading(true);
         const { map, cached, ghosts, rel } = await fetchArrivalsForStops(savedStops);
@@ -379,7 +366,6 @@ function SavedScreenInner() {
         trackEvent('arrival_viewed');
       }
 
-      // User location for distance
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status === 'granted') {
@@ -393,7 +379,6 @@ function SavedScreenInner() {
     }
   }, [boardItems]);
 
-  // Reload data + restart interval when tab gains focus
   useFocusEffect(
     useCallback(() => {
       loadData();

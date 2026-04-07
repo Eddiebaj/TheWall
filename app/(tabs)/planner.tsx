@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { hapticLight, hapticMedium, hapticSuccess, hapticSelection } from '../../lib/haptics';
+import { hapticLight, hapticMedium } from '../../lib/haptics';
 let Notifications: typeof import('expo-notifications') | null = null;
 try { Notifications = require('expo-notifications'); } catch {}
 import { useLocalSearchParams } from 'expo-router';
@@ -10,7 +10,7 @@ import { toTitleCase, decodePolyline } from '../../lib/utils';
 import { haversineKm } from '../../lib/geo';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Dimensions, FlatList, Image, Keyboard, KeyboardAvoidingView,
+  ActivityIndicator, Alert, FlatList, Image, Keyboard, KeyboardAvoidingView,
   Linking, Modal, NativeScrollEvent, NativeSyntheticEvent, Platform, RefreshControl, ScrollView, Share,
   Text,
   TextInput, TouchableOpacity, useWindowDimensions, View
@@ -347,7 +347,6 @@ function PlannerScreenInner() {
   const [reminderLoading, setReminderLoading] = useState(false);
   const [leaveReminders, setLeaveReminders] = useState<{ id: string; destination: string; departAt: number; notifId: string }[]>([]);
 
-  // Route detail modal state
   const [routeDetailLeg, setRouteDetailLeg] = useState<Leg | null>(null);
   const [routeDetailStops, setRouteDetailStops] = useState<{ stop_id: string; stop_name: string; arrival_time: string }[]>([]);
   const [routeDetailDepartures, setRouteDetailDepartures] = useState<string[]>([]);
@@ -365,7 +364,6 @@ function PlannerScreenInner() {
   const mainScrollRef = useRef<ScrollView>(null);
   const itinListYOffset = useRef(0);
 
-  // Route map state
   const [showRouteMap, setShowRouteMap] = useState(false);
   const [selectedRouteIdx, setSelectedRouteIdx] = useState(0);
   const routeMapRef = useRef<any>(null);
@@ -374,7 +372,6 @@ function PlannerScreenInner() {
   const cardShadow = isLight ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 } : { shadowColor: '#ffffff', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 };
 
 
-  // Load saved routes + trip history
   useEffect(() => {
     AsyncStorage.getItem(SAVED_ROUTES_KEY).then(val => {
       try { if (val) setSavedRoutes(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved routes failed:', e); }
@@ -382,7 +379,6 @@ function PlannerScreenInner() {
     AsyncStorage.getItem(SK_TRIP_HISTORY).then(val => {
       try { if (val) setTripHistory(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse trip history failed:', e); }
     }).catch(() => {});
-    // Load leave reminders and clean up past ones
     AsyncStorage.getItem(SK_LEAVE_REMINDERS).then(val => {
       try {
         if (!val) return;
@@ -395,19 +391,15 @@ function PlannerScreenInner() {
         setLeaveReminders(active);
       } catch (e) { if (__DEV__) console.warn('JSON parse leave reminders failed:', e); }
     }).catch(() => {});
-    // Load accessibility routing preference
     AsyncStorage.getItem(SK_ACCESSIBILITY_ROUTING).then(val => {
       if (val === 'true') setAccessibleRouting(true);
     }).catch(() => {});
-    // Load walk distance preference
     AsyncStorage.getItem(SK_WALK_PREFERENCE).then(val => {
       if (val) { const n = parseInt(val, 10); if (n === 500 || n === 1000 || n === 2000) setWalkPreference(n); }
     }).catch(() => {});
-    // Load walk pace preference
     AsyncStorage.getItem(SK_WALK_PACE).then(val => {
       if (val === 'slow' || val === 'fast') setWalkPace(val);
     }).catch(() => {});
-    // Load reduced motion preference
     AsyncStorage.getItem(SK_MOTION).then(val => {
       if (val === 'true') setReducedMotion(true);
     }).catch(() => {});
@@ -420,12 +412,11 @@ function PlannerScreenInner() {
     AsyncStorage.getItem(SK_CLASS_SCHEDULE).then(val => {
       try { if (val) setPlannerSchedule(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn(e); }
     }).catch(() => {});
-    // Check for Sens game tonight
     fetchWithTimeout('https://api-web.nhle.com/v1/schedule/now').then(async r => {
       if (!r.ok) return;
-      const data = await r.json();
+      const scheduleResult = await r.json();
       const today = new Date().toLocaleDateString('en-CA');
-      const todayEntry = (data.gameWeek || []).find((d: any) => d.date === today);
+      const todayEntry = (scheduleResult.gameWeek || []).find((d: any) => d.date === today);
       const game = (todayEntry?.games || []).find((g: any) =>
         g.awayTeam?.abbrev === 'OTT' || g.homeTeam?.abbrev === 'OTT'
       );
@@ -433,7 +424,6 @@ function PlannerScreenInner() {
     }).catch(() => {});
   }, []);
 
-  // Fetch alerts for transfer warnings
   useEffect(() => {
     fetchWithTimeout('https://routeo-backend.vercel.app/api/alerts')
       .then(r => r.ok ? r.json() : null)
@@ -441,7 +431,6 @@ function PlannerScreenInner() {
       .catch(() => {});
   }, []);
 
-  // Load planner prefs
   useEffect(() => {
     AsyncStorage.getItem(SK_PLANNER_PREFS).then(val => {
       try {
@@ -457,7 +446,6 @@ function PlannerScreenInner() {
     }).catch(() => {});
   }, []);
 
-  // Save planner prefs when they change
   const savePlannerPrefs = useCallback((time: Date, ab: boolean) => {
     AsyncStorage.setItem(SK_PLANNER_PREFS, JSON.stringify({
       hour: time.getHours(),
@@ -466,7 +454,6 @@ function PlannerScreenInner() {
     })).catch(() => {});
   }, []);
 
-  // Cleanup location subscription on unmount
   useEffect(() => {
     return () => {
       locationSubRef.current?.remove();
@@ -475,8 +462,6 @@ function PlannerScreenInner() {
     };
   }, []);
 
-  // Handle deep-link params from home screen
-  // Auto-plan immediately when arriving from a saved route or schedule GO
   useEffect(() => {
     if (params.toLabel && params.toLat) {
       const to: PlaceResult = {
@@ -486,7 +471,6 @@ function PlannerScreenInner() {
         lng: parseFloat(params.toLng as string),
       };
 
-      // Handle arriveBy + time params (from class schedule GO button)
       if (params.time && params.date) {
         const [month, day, year] = (params.date as string).split('-').map(Number);
         const [h, m] = (params.time as string).split(':').map(Number);
@@ -497,7 +481,6 @@ function PlannerScreenInner() {
       }
 
       if (params.fromLabel && params.fromLat) {
-        // Both from + to provided (saved route with known origin) — plan immediately
         const from: PlaceResult = {
           placeId: 'saved',
           label: params.fromLabel as string,
@@ -506,10 +489,8 @@ function PlannerScreenInner() {
         };
         setFromPlace(from); setFromText(shortenLabel(from.label));
         setToPlace(to); setToText(shortenLabel(to.label));
-        // Auto-trigger plan after state settles
         setTimeout(() => planWithPlaces(from, to), 200);
       } else {
-        // No origin — get current location then auto-plan
         setToPlace(to); setToText(shortenLabel(to.label));
         (async () => {
           try {
@@ -524,7 +505,6 @@ function PlannerScreenInner() {
             const label = geo[0] ? [geo[0].name, geo[0].street, geo[0].city].filter(Boolean).join(', ') : 'My Location';
             const from: PlaceResult = { placeId: 'current', label, lat, lng };
             setFromPlace(from); setFromText(shortenLabel(label));
-            // Auto-trigger plan — longer delay for arriveBy state to settle
             setTimeout(() => planWithPlaces(from, to), 200);
           } catch (e) { if (__DEV__) console.warn('get current location failed:', e); }
         })();
@@ -532,19 +512,17 @@ function PlannerScreenInner() {
     }
   }, [params.toLabel, params.toLat]);
 
-  // Handle deep-link text params
   useEffect(() => {
     if (params.from || params.to) {
-      // Only handle text-only deep links (no lat/lng already handled above)
       if (params.toLabel || params.toLat) return;
       const geocodeAndFill = async () => {
         try {
           if (params.from) {
             const fromStr = params.from as string;
             setFromText(fromStr);
-            const resp = await fetchWithTimeout(`${PLACES_URL}?action=autocomplete-geocode&input=${encodeURIComponent(fromStr)}`);
-            if (resp.ok) {
-              const data = await resp.json();
+            const r = await fetchWithTimeout(`${PLACES_URL}?action=autocomplete-geocode&input=${encodeURIComponent(fromStr)}`);
+            if (r.ok) {
+              const data = await r.json();
               const result = data.results?.[0];
               if (result) {
                 const from: PlaceResult = { placeId: result.placeId || 'deeplink', label: result.label || fromStr, lat: result.lat, lng: result.lng };
@@ -556,9 +534,9 @@ function PlannerScreenInner() {
           if (params.to) {
             const toStr = params.to as string;
             setToText(toStr);
-            const resp = await fetchWithTimeout(`${PLACES_URL}?action=autocomplete-geocode&input=${encodeURIComponent(toStr)}`);
-            if (resp.ok) {
-              const data = await resp.json();
+            const r = await fetchWithTimeout(`${PLACES_URL}?action=autocomplete-geocode&input=${encodeURIComponent(toStr)}`);
+            if (r.ok) {
+              const data = await r.json();
               const result = data.results?.[0];
               if (result) {
                 const to: PlaceResult = { placeId: result.placeId || 'deeplink', label: result.label || toStr, lat: result.lat, lng: result.lng };
@@ -573,7 +551,6 @@ function PlannerScreenInner() {
     }
   }, [params.from, params.to]);
 
-  // Autocomplete
   const autocomplete = useCallback(async (text: string, field: 'from' | 'to' | `waypoint_${number}`) => {
     if (text.length < 2) {
       if (field === 'from') setFromResults([]);
@@ -584,10 +561,10 @@ function PlannerScreenInner() {
     }
     setAutoLoading(true);
     try {
-      const resp = await fetchWithTimeout(`${PLACES_URL}?action=autocomplete-geocode&input=${encodeURIComponent(text)}`);
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const data = await resp.json();
-      const results: PlaceResult[] = data.results || [];
+      const r = await fetchWithTimeout(`${PLACES_URL}?action=autocomplete-geocode&input=${encodeURIComponent(text)}`);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const geocodeResult = await r.json();
+      const results: PlaceResult[] = geocodeResult.results || [];
       if (field === 'from') setFromResults(results);
       else if (field === 'to') setToResults(results);
       else setWaypointResults(prev => ({ ...prev, [parseInt(field.split('_')[1])]: results }));
@@ -598,10 +575,10 @@ function PlannerScreenInner() {
   const resolvePlace = async (place: PlaceResult): Promise<PlaceResult> => {
     if (place.lat && place.lng) return place;
     try {
-      const resp = await fetchWithTimeout(`${PLACES_URL}?action=geocode&input=${encodeURIComponent(place.label)}`);
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const data = await resp.json();
-      const result = data.results?.[0];
+      const r = await fetchWithTimeout(`${PLACES_URL}?action=geocode&input=${encodeURIComponent(place.label)}`);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const geocodeResult = await r.json();
+      const result = geocodeResult.results?.[0];
       if (result?.lat) return { ...place, lat: result.lat, lng: result.lng, label: result.label };
     } catch (e) { if (__DEV__) console.warn('geocode resolve failed:', e); }
     return place;
@@ -629,12 +606,10 @@ function PlannerScreenInner() {
     setFromResults([]); setToResults([]);
   };
 
-  // Plan core
   const planWithPlaces = useCallback(async (resolvedFrom: PlaceResult, resolvedTo: PlaceResult) => {
     if (!resolvedFrom?.lat || !resolvedTo?.lat) return;
     setLoading(true); setError(''); setSearched(true); setItineraries([]); setShowRouteMap(false); setSelectedRouteIdx(0); setAccessibilityWarning(false);
 
-    // Use override from schedule GO button if set, then clear it
     const override = timeOverride.current;
     const useArriveBy = override ? override.arriveBy : arriveBy;
     const d = override ? override.time : departTime;
@@ -652,12 +627,11 @@ function PlannerScreenInner() {
     const url = `${PLAN_URL}?fromLat=${resolvedFrom.lat}&fromLng=${resolvedFrom.lng}&fromLabel=${encodeURIComponent(resolvedFrom.label)}&toLat=${resolvedTo.lat}&toLng=${resolvedTo.lng}&toLabel=${encodeURIComponent(resolvedTo.label)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=${useArriveBy}&mode=${travelMode}${accessibleRouting ? '&wheelchair=true' : ''}${travelMode === 'transit' ? `&maxWalk=${walkPreference}&walkSpeed=${walkPace}` : ''}${travelMode === 'walking' ? `&walkSpeed=${walkPace}` : ''}`;
 
     try {
-      const resp = await fetchWithTimeout(url);
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const data = await resp.json();
+      const r = await fetchWithTimeout(url);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const data = await r.json();
       if (data.accessibilityWarning) setAccessibilityWarning(true);
 
-      // For arriveBy schedule trips, also fetch earlier options (30min earlier)
       let earlierItins: any[] = [];
       if (useArriveBy && travelMode === 'transit') {
         try {
@@ -678,12 +652,10 @@ function PlannerScreenInner() {
       if (data.error) { setError(data.error); }
       else if (!data.itineraries?.length && !earlierItins.length) { setError(t('No routes found. Try a different time or destination.', 'Aucun trajet trouv\u00e9. Essayez une autre heure ou destination.')); }
       else {
-        // Merge earlier + primary results
         const allItins = [...(data.itineraries || []), ...earlierItins];
 
         if (travelMode === 'transit') {
           try {
-            // Filter out insane routes: any itinerary with a single transfer wait >60 min
             const sane = allItins.filter((itin: any) => {
               const legs = itin.legs || [];
               for (let i = 1; i < legs.length; i++) {
@@ -701,14 +673,11 @@ function PlannerScreenInner() {
             const getRouteKey = (itin: any) => (itin.legs || [])
               .map((l: any) => l.mode === 'WALK' ? 'WALK' : (l.routeShortName || l.mode))
               .join('→');
-            // Track route keys with their latest kept departure time
             const seenRouteKeys = new Map<string, number>();
             const deduped = pool.filter((itin: any, idx: number) => {
-              // Time-based dedup: skip if within 2 min of an earlier itinerary
               for (let j = 0; j < idx; j++) {
                 if (Math.abs((itin.startTime ?? 0) - (pool[j].startTime ?? 0)) < 120000) return false;
               }
-              // Route-sequence dedup: only deduplicate if departures are within 5 min
               const rk = getRouteKey(itin);
               const prevTime = seenRouteKeys.get(rk);
               if (prevTime !== undefined && Math.abs((itin.startTime ?? 0) - prevTime) < 300000) return false;
@@ -716,7 +685,6 @@ function PlannerScreenInner() {
               return true;
             });
 
-            // Sort: transit first, then by departure time (earliest first)
             const sorted = [...deduped].sort((a: any, b: any) => {
               const aWalkOnly = Array.isArray(a.legs) && a.legs.length > 0 && a.legs.every((l: any) => l.mode === 'WALK');
               const bWalkOnly = Array.isArray(b.legs) && b.legs.length > 0 && b.legs.every((l: any) => l.mode === 'WALK');
@@ -733,16 +701,12 @@ function PlannerScreenInner() {
               || bestWalkDuration <= 1200
               || bestWalkEnd <= bestTransitEnd + 1200000;
 
-            // For arriveBy: tag the best "comfortable" option (arrives with most buffer)
             if (useArriveBy && transitItins.length > 0) {
               const targetMs = d.getTime();
-              // Best = earliest arrival among those arriving before target (most buffer)
-              // Already sorted by departure — first one that arrives before target is best
               let bestIdx = 0;
               for (let i = 0; i < transitItins.length; i++) {
                 if ((transitItins[i].endTime ?? Infinity) <= targetMs) { bestIdx = i; break; }
               }
-              // Tag for rendering — move the best option to index 0
               if (bestIdx > 0) {
                 const [best] = transitItins.splice(bestIdx, 1);
                 transitItins.unshift(best);
@@ -754,11 +718,9 @@ function PlannerScreenInner() {
             setItineraries(allItins);
           }
         } else {
-          // Non-transit modes (driving, bicycling, walking): show best result only
           setItineraries((data.itineraries || []).slice(0, 1));
         }
       }
-      // Auto-save to trip history
       if (data.itineraries?.length) {
         const bestItin = data.itineraries[0];
         const totalDistM = (bestItin.legs || []).reduce((sum: number, l: Leg) => sum + (l.distance || 0), 0);
@@ -771,7 +733,6 @@ function PlannerScreenInner() {
           plannedAt: new Date().toISOString(),
         };
         setTripHistory(prev => {
-          // Deduplicate: if same from/to exists, move it to top with updated timestamp
           const existingIdx = prev.findIndex(p => p.fromLabel === record.fromLabel && p.toLabel === record.toLabel);
           if (existingIdx >= 0) {
             const updated = [...prev];
@@ -793,7 +754,6 @@ function PlannerScreenInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [arriveBy, departTime, accessibleRouting, walkPreference, walkPace, travelMode]);
 
-  // Plan trip
   const plan = async () => {
     hapticLight();
     Keyboard.dismiss();
@@ -827,7 +787,6 @@ function PlannerScreenInner() {
       return;
     }
 
-    // Resolve waypoints
     const resolvedWaypoints: PlaceResult[] = [];
     for (const wp of waypoints) {
       let resolved = wp.place;
@@ -844,9 +803,6 @@ function PlannerScreenInner() {
       if (resolved?.lat) resolvedWaypoints.push(resolved);
     }
 
-    // All modes now use the OTP planner in-app
-
-    // Multi-stop: chain OTP requests through waypoints
     if (resolvedWaypoints.length > 0) {
       const stops = [resolvedFrom, ...resolvedWaypoints, resolvedTo];
       setLoading(true); setError(''); setSearched(true); setItineraries([]); setAccessibilityWarning(false);
@@ -866,9 +822,9 @@ function PlannerScreenInner() {
           const day = String(arrivalTime.getDate()).padStart(2,'0');
           const dateStr = `${month}-${day}-${arrivalTime.getFullYear()}`;
           const url = `${PLAN_URL}?fromLat=${from.lat}&fromLng=${from.lng}&fromLabel=${encodeURIComponent(from.label)}&toLat=${to.lat}&toLng=${to.lng}&toLabel=${encodeURIComponent(to.label)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=false&mode=${travelMode}${accessibleRouting ? '&wheelchair=true' : ''}`;
-          const resp = await fetchWithTimeout(url);
-          if (!resp.ok) throw new Error(`Leg ${i + 1}: HTTP ${resp.status}`);
-          const data = await resp.json();
+          const r = await fetchWithTimeout(url);
+          if (!r.ok) throw new Error(`Leg ${i + 1}: HTTP ${r.status}`);
+          const data = await r.json();
           if (data.error || !data.itineraries?.length) {
             setError(t(`No route found for leg ${i + 1}: ${from.label} → ${to.label}`, `Aucun trajet pour le troncon ${i + 1}: ${from.label} → ${to.label}`));
             setLoading(false);
@@ -885,7 +841,6 @@ function PlannerScreenInner() {
         }
         const combined: Itinerary = { duration: totalDuration, startTime, endTime, transfers: totalTransfers, walkDistance: totalWalkDistance, legs: allLegs };
         setItineraries([combined]);
-        // Save to trip history
         const multiDistM = allLegs.reduce((sum: number, l: Leg) => sum + (l.distance || 0), 0);
         const record: TripRecord = {
           id: `trip_${Date.now()}`,
@@ -919,7 +874,6 @@ function PlannerScreenInner() {
     planWithPlaces(resolvedFrom, resolvedTo);
   };
 
-  // Auto re-plan when travel mode, walk pace, or departure time changes (if a trip was already planned)
   useEffect(() => {
     if (searched && fromPlace?.lat && toPlace?.lat && !loading) {
       planWithPlaces(fromPlace, toPlace);
@@ -927,7 +881,6 @@ function PlannerScreenInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [travelMode, walkPace]);
 
-  // Auto re-plan when departure time changes while time picker closes
   const prevDepartTimeRef = useRef(departTime.getTime());
   useEffect(() => {
     if (showTimePicker) return; // Only re-plan after picker closes
@@ -939,10 +892,8 @@ function PlannerScreenInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showTimePicker, departTime]);
 
-  // Fetch transfer reliability
   const fetchTransferReliability = useCallback(async (itins: Itinerary[]) => {
     try {
-      // Collect all transit route IDs involved in transfers
       const routeIds = new Set<string>();
       for (const itin of itins) {
         const legs = itin.legs || [];
@@ -979,14 +930,12 @@ function PlannerScreenInner() {
     } catch { setTransferReliability({}); }
   }, []);
 
-  // Fetch reliability data whenever itineraries change
   useEffect(() => {
     if (itineraries.length > 0) fetchTransferReliability(itineraries);
     else setTransferReliability({});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itineraries]);
 
-  // Walk or Wait comparison
   useEffect(() => {
     if (travelMode !== 'transit' || itineraries.length === 0 || !fromPlace?.lat || !toPlace?.lat) {
       setWalkAlt(null);
@@ -996,7 +945,6 @@ function PlannerScreenInner() {
     const transitMins = Math.round((bestTransit.duration || 0) / 60);
     if (transitMins < 15) { setWalkAlt(null); return; }
 
-    // Calculate wait time (first walk leg duration before first transit leg)
     const legs = bestTransit.legs || [];
     const firstTransitIdx = legs.findIndex(l => l.mode !== 'WALK');
     const transitWait = firstTransitIdx > 0 ? Math.round(legs[0].duration / 60) : 0;
@@ -1004,7 +952,6 @@ function PlannerScreenInner() {
     let cancelled = false;
     (async () => {
       try {
-        // Fetch walk-only route
         const now = new Date();
         const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
         const month = String(now.getMonth() + 1).padStart(2,'0');
@@ -1021,7 +968,6 @@ function PlannerScreenInner() {
         const walkMins = Math.round((walkItin.duration || 0) / 60);
         if (walkMins > 45) { setWalkAlt(null); return; }
 
-        // Fetch current weather
         let temp: number | null = null;
         let precip = false;
         try {
@@ -1042,7 +988,6 @@ function PlannerScreenInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itineraries, travelMode]);
 
-  // Save / unsave route
   const isRouteSaved = useMemo(() => {
     if (!fromPlace || !toPlace) return false;
     return savedRoutes.some(r =>
@@ -1077,7 +1022,6 @@ function PlannerScreenInner() {
     await AsyncStorage.setItem(SAVED_ROUTES_KEY, JSON.stringify(updated));
   };
 
-  // Isochrone: What can I reach?
   const [isoStops, setIsoStops] = useState<{ name: string; travelTime: number; routes: string[] }[]>([]);
   const [isoLoading, setIsoLoading] = useState(false);
   const [isoVisible, setIsoVisible] = useState(false);
@@ -1094,15 +1038,12 @@ function PlannerScreenInner() {
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const { latitude: lat, longitude: lng } = pos.coords;
 
-      // Use OTP isochrone endpoint to find reachable stops within 20 min
       const d = new Date();
       const timeStr = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
       const month = String(d.getMonth() + 1).padStart(2,'0');
       const day = String(d.getDate()).padStart(2,'0');
       const dateStr = `${month}-${day}-${d.getFullYear()}`;
 
-      // Query multiple nearby destinations to simulate isochrone
-      // We'll use the plan API to check reachable stops by querying known LRT + major bus stops
       const nearbyStops = [
         { name: 'Rideau Centre', lat: 45.4259, lng: -75.6920 },
         { name: "Tunney's Pasture", lat: 45.4032, lng: -75.7360 },
@@ -1137,9 +1078,9 @@ function PlannerScreenInner() {
         const promises = batch.map(async (stop) => {
           try {
             const url = `${PLAN_URL}?fromLat=${lat}&fromLng=${lng}&fromLabel=Me&toLat=${stop.lat}&toLng=${stop.lng}&toLabel=${encodeURIComponent(stop.name)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=false`;
-            const resp = await fetchWithTimeout(url);
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            const data = await resp.json();
+            const r = await fetchWithTimeout(url);
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            const data = await r.json();
             if (data.itineraries && data.itineraries.length > 0) {
               const best = data.itineraries[0];
               const durationMins = Math.round(best.duration / 60);
@@ -1161,7 +1102,6 @@ function PlannerScreenInner() {
       results.sort((a, b) => a.travelTime - b.travelTime);
       setIsoStops(results);
 
-      // Fetch nearby places within isochrone coverage
       setIsoPlacesLoading(true);
       setIsoPlaces([]);
       try {
@@ -1192,7 +1132,6 @@ function PlannerScreenInner() {
     setIsoLoading(false);
   };
 
-  // Route detail modal
   const openRouteDetail = useCallback(async (leg: Leg) => {
     if (!leg.routeShortName) return;
     setRouteDetailLeg(leg);
@@ -1208,25 +1147,18 @@ function PlannerScreenInner() {
     const agencyParam = isSTO ? '&agency=STO' : '';
     const boardingStopName = leg.from?.name || '';
 
-    // Fetch route detail (stops), shape, departures, and live bus in parallel
     const [detailRes, shapeRes, vehiclesRes] = await Promise.allSettled([
-      // Route detail — full stop list
       fetchWithTimeout(`https://routeo-backend.vercel.app/api/route?id=${encodeURIComponent(routeNum)}${agencyParam}`, { timeout: 8000 }),
-      // Route shape
       fetchWithTimeout(`https://routeo-backend.vercel.app/api/route?id=${encodeURIComponent(routeNum)}&action=shape${agencyParam}`, { timeout: 8000 }),
-      // Live vehicles
       fetchWithTimeout(`https://routeo-backend.vercel.app/api/vehicles?t=${Date.now()}`, { timeout: 8000 }),
     ]);
 
-    // Process route detail — find matching direction by headsign, build stop list with times
     if (detailRes.status === 'fulfilled' && detailRes.value.ok) {
       try {
         const data = await detailRes.value.json();
         const dirs = data.directions || [];
-        // Match direction by headsign
         const dir = dirs.find((d: any) => d.headsign === leg.headsign) || dirs[0];
         if (dir?.stops?.length) {
-          // Fetch stop names from Supabase
           let nameMap = new Map<string, string>();
           try {
             const { data: stopRows, error: stopErr } = await supabase
@@ -1238,7 +1170,6 @@ function PlannerScreenInner() {
             }
           } catch (e) { if (__DEV__) console.warn('Supabase stop name fetch failed:', e); }
 
-          // Build ordered stop list — fetch scheduled times for these stops on this route
           const now = new Date();
           const nowMins = now.getHours() * 60 + now.getMinutes();
           const stops = dir.stops.map((sid: string) => ({
@@ -1248,7 +1179,6 @@ function PlannerScreenInner() {
           }));
           setRouteDetailStops(stops);
 
-          // Fetch next departures at the boarding stop
           const boardingStopId = dir.stops.find((sid: string) => {
             const name = nameMap.get(sid) || '';
             return name.toLowerCase().includes(boardingStopName.toLowerCase().split('(')[0].trim().slice(0, 10));
@@ -1282,7 +1212,6 @@ function PlannerScreenInner() {
       } catch (e) { if (__DEV__) console.warn('Route detail parse failed:', e); }
     }
 
-    // Process shape
     if (shapeRes.status === 'fulfilled' && shapeRes.value.ok) {
       try {
         const data = await shapeRes.value.json();
@@ -1290,7 +1219,6 @@ function PlannerScreenInner() {
       } catch (e) { if (__DEV__) console.warn(e); }
     }
 
-    // Process live bus
     if (vehiclesRes.status === 'fulfilled' && vehiclesRes.value.ok) {
       try {
         const data = await vehiclesRes.value.json();
@@ -1319,7 +1247,6 @@ function PlannerScreenInner() {
     setRouteDetailShape([]);
   }, []);
 
-  // Render helpers
   const renderLegPill = (leg: Leg, i: number) => {
     const color = LEG_COLOURS[leg.mode] || colours.accent;
     const icon = LEG_ICONS[leg.mode] || 'bus';
@@ -1347,7 +1274,6 @@ function PlannerScreenInner() {
     );
   };
 
-  // Detect cross-border trips (OC Transpo + STO)
   const hasCrossBorderTrip = (itin: Itinerary): boolean => {
     const agencies = new Set((itin.legs || []).map(leg => leg.agencyId).filter(Boolean));
     return agencies.has('1:STO') && agencies.has('2:1');
@@ -1402,7 +1328,6 @@ function PlannerScreenInner() {
               );
             }
           }
-          // "LATER" badge for depart-by mode: show if this route departs 10+ min after fastest
           const firstTransit = itineraries.find(it => (it.legs || []).some(l => l.mode !== 'WALK'));
           if (!arriveBy && firstTransit && (itin.startTime - firstTransit.startTime) >= 600000) {
             return (
@@ -1472,7 +1397,6 @@ function PlannerScreenInner() {
           const transferStop = prevLeg.to?.name || '';
           const warnings: { text: string; textFr: string; color: string }[] = [];
 
-          // Very tight transfer (<3 min) — always warn
           if (connectionMin < 3) {
             warnings.push({
               text: `Very tight transfer — consider the next departure`,
@@ -1480,7 +1404,6 @@ function PlannerScreenInner() {
               color: '#cc3b2a',
             });
           }
-          // Tight + unreliable (<5 min AND <80% on time)
           else if (connectionMin < 5 && reliability && reliability.onTimePercent < 80) {
             warnings.push({
               text: `Tight transfer at ${transferStop} — Route ${incomingRoute} was late ${100 - reliability.onTimePercent}% of the time this week`,
@@ -1488,7 +1411,6 @@ function PlannerScreenInner() {
               color: '#F59E0B',
             });
           }
-          // Route unreliable (<60% on time)
           if (reliability && reliability.onTimePercent < 60 && !warnings.some(w => w.color === '#cc3b2a')) {
             warnings.push({
               text: `Route ${incomingRoute} has been unreliable this week (${reliability.onTimePercent}% on time)`,
@@ -1496,7 +1418,6 @@ function PlannerScreenInner() {
               color: '#F59E0B',
             });
           }
-          // Alert on connecting route
           if (hasAlert) {
             warnings.push({
               text: `Alert on connecting Route ${connectingRoute} at ${transferStop}`,
@@ -1504,7 +1425,6 @@ function PlannerScreenInner() {
               color: '#cc3b2a',
             });
           }
-          // Long wait (>15 min)
           if (connectionMin > 15) {
             warnings.push({
               text: `Long wait — ${connectionMin} min at ${transferStop}`,
@@ -1512,7 +1432,6 @@ function PlannerScreenInner() {
               color: '#ff9500',
             });
           }
-          // Tight transfer (3-5 min, no reliability data or good reliability)
           if (connectionMin <= 3 && warnings.length === 0) {
             warnings.push({
               text: `Tight transfer — ${connectionMin} min`,
@@ -1599,7 +1518,6 @@ function PlannerScreenInner() {
     );
   };
 
-  // Transit trip notifications
   const requestNotifPermission = async (): Promise<boolean> => {
     if (!Notifications) return false;
     const { status: existing } = await Notifications.getPermissionsAsync();
@@ -1630,7 +1548,6 @@ function PlannerScreenInner() {
       if (leg.mode === 'WALK') continue;
 
       const boardingMs = leg.startTime;
-      // Fire 2 min before boarding — enough time to walk to the stop
       const fireAt = boardingMs - 2 * 60 * 1000;
       if (fireAt <= now) continue; // leg is imminent or past — skip
 
@@ -1659,7 +1576,6 @@ function PlannerScreenInner() {
         ids.push(id);
       } catch (e) { if (__DEV__) console.warn('schedule departure notification failed:', e); }
 
-      // Also fire a heads-up at boarding time itself ("time to board")
       try {
         const id2 = await Notifications.scheduleNotificationAsync({
           content: {
@@ -1677,7 +1593,6 @@ function PlannerScreenInner() {
       } catch (e) { if (__DEV__) console.warn('schedule boarding notification failed:', e); }
     }
 
-    // Arrival notification
     const arrivalFireAt = itin.endTime - 60 * 1000;
     if (arrivalFireAt > now) {
       try {
@@ -1700,7 +1615,6 @@ function PlannerScreenInner() {
     transitNotifIds.current = ids;
   };
 
-  // Live tracking
   const stopTracking = () => {
     locationSubRef.current?.remove();
     locationSubRef.current = null;
@@ -1722,7 +1636,6 @@ function PlannerScreenInner() {
       if (status !== 'granted') return;
       setTracking(true);
       setActiveLeg(0);
-      // Schedule turn-by-turn transit notifications
       scheduleTransitNotifications(itin);
       locationSubRef.current = await Location.watchPositionAsync(
         { accuracy: Location.Accuracy.BestForNavigation, distanceInterval: 5 },
@@ -2016,9 +1929,6 @@ function PlannerScreenInner() {
     );
   };
 
-  // (time picker is now inline — no modal needed)
-
-  // Main render
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colours.bg }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       {renderExpandedItinerary()}
@@ -2124,7 +2034,6 @@ function PlannerScreenInner() {
                           const cleanName = toTitleCase(stop.stop_name.replace(/\s*\(\d+\)$/, ''));
                           const isBoard = cleanName.toLowerCase().includes(boardName.toLowerCase().slice(0, 10)) || stop.stop_id === (leg.from?.name?.match(/\((\d+)\)/)?.[1] || '');
                           const isAlight = cleanName.toLowerCase().includes(alightName.toLowerCase().slice(0, 10)) || stop.stop_id === (leg.to?.name?.match(/\((\d+)\)/)?.[1] || '');
-                          // Determine if this stop is past (before boarding stop)
                           const boardIdx = routeDetailStops.findIndex(s => {
                             const cn = toTitleCase(s.stop_name.replace(/\s*\(\d+\)$/, ''));
                             return cn.toLowerCase().includes(boardName.toLowerCase().slice(0, 10));
@@ -2836,7 +2745,6 @@ function PlannerScreenInner() {
                       const isWalk = leg.mode === 'WALK';
                       const isSTO = leg.agencyId?.includes('STO');
                       const baseColor = isWalk ? '#9aaabb' : (isSTO ? '#00A78D' : '#CE1126');
-                      // Apply opacity via hex alpha suffix instead of style
                       const color = isSelected ? baseColor : baseColor + '33';
                       return (
                         <Polyline
