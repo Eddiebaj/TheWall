@@ -519,7 +519,7 @@ function SavedScreenInner() {
                   <SkeletonPulse width={48} height={22} borderRadius={8} color={colours.border} />
                 </View>
               ) : (arrivals[mostUsedStop.id] || []).length > 0 ? (
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                <View accessibilityLiveRegion="polite" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {(arrivals[mostUsedStop.id] || []).map((a, i) => (
                     <View key={`${a.routeId}-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       <TouchableOpacity
@@ -707,7 +707,7 @@ function SavedScreenInner() {
                           <SkeletonPulse width={36} height={18} borderRadius={6} color={colours.border} />
                         </View>
                       ) : stopArrivals.length > 0 ? (
-                        <View>
+                        <View accessibilityLiveRegion="polite">
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
                             {stopArrivals.slice(0, 2).map((a, i) => (
                               <View key={`${a.routeId}-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>

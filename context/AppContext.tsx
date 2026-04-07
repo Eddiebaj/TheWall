@@ -151,30 +151,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }).catch(() => {});
   }, []);
 
-  const setTheme = (t: Theme) => {
+  const setTheme = useCallback((t: Theme) => {
     setThemeState(t);
     AsyncStorage.setItem(SK_THEME, t);
-  };
-  const setLargeText = (v: boolean) => {
+  }, []);
+  const setLargeText = useCallback((v: boolean) => {
     setLargeTextState(v);
     AsyncStorage.setItem(SK_LARGE_TEXT, String(v));
-  };
-  const setHighContrast = (v: boolean) => {
+  }, []);
+  const setHighContrast = useCallback((v: boolean) => {
     setHighContrastState(v);
     AsyncStorage.setItem(SK_CONTRAST, String(v));
-  };
-  const setReducedMotion = (v: boolean) => {
+  }, []);
+  const setReducedMotion = useCallback((v: boolean) => {
     setReducedMotionState(v);
     AsyncStorage.setItem(SK_MOTION, String(v));
-  };
-  const setLanguage = (l: Language) => {
+  }, []);
+  const setLanguage = useCallback((l: Language) => {
     setLanguageState(l);
     AsyncStorage.setItem(SK_LANGUAGE, l);
-  };
-  const setPalette = (p: PaletteId) => {
+  }, []);
+  const setPalette = useCallback((p: PaletteId) => {
     setPaletteState(p);
     AsyncStorage.setItem(SK_PALETTE, p);
-  };
+  }, []);
 
   const resolvedTheme = theme === 'system'
     ? (systemScheme === 'light' ? 'light' : 'dark')
@@ -193,16 +193,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const t = useCallback((en: string, fr: string) => language === 'fr' ? fr : en, [language]);
 
+  const value = useMemo(() => ({
+    theme, setTheme, resolvedTheme,
+    palette, setPalette,
+    largeText, setLargeText,
+    highContrast, setHighContrast,
+    reducedMotion, setReducedMotion,
+    language, setLanguage,
+    t, fonts, colours,
+  }), [theme, resolvedTheme, palette, largeText, highContrast, reducedMotion, language, t, fonts, colours,
+       setTheme, setPalette, setLargeText, setHighContrast, setReducedMotion, setLanguage]);
+
   return (
-    <AppContext.Provider value={{
-      theme, setTheme, resolvedTheme,
-      palette, setPalette,
-      largeText, setLargeText,
-      highContrast, setHighContrast,
-      reducedMotion, setReducedMotion,
-      language, setLanguage,
-      t, fonts, colours,
-    }}>
+    <AppContext.Provider value={value}>
       {children}
     </AppContext.Provider>
   );

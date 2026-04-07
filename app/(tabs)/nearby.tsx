@@ -1,9 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, ImageBackground, Linking,
+  ActivityIndicator, FlatList, ImageBackground, Linking,
   RefreshControl, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -392,7 +392,7 @@ function ExploreScreenInner() {
     return language === 'fr' ? opt.label_fr : opt.label_en;
   };
 
-  const renderPlaceCard = (place: Place, index: number) => {
+  const renderPlaceCard = useCallback((place: Place, index: number) => {
     const hasPhoto = !!place.photoRef && !failedPhotos.has(place.id);
     const transit = transitMap[place.id];
     return (
@@ -547,7 +547,7 @@ function ExploreScreenInner() {
         )}
       </TouchableOpacity>
     );
-  };
+  }, [colours, fonts, isLight, selectedCategory, savedPlaceIds, transitMap, failedPhotos, language, t, formatDistance, navigateToPlanner, toggleSavePlace, getPhotoUrl]);
 
   const renderContent = () => {
     if (locationError) return (
@@ -592,17 +592,20 @@ function ExploreScreenInner() {
       </View>
     );
     return (
-      <ScrollView
+      <FlatList
+        data={filteredPlaces}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item, index }) => renderPlaceCard(item, index)}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100, paddingTop: 8 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colours.accent} />}
-      >
-        <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, marginBottom: 10 }}>
-          {filteredPlaces.length} {catLabel(selectedCategory).toLowerCase()} · {sortLabel()}
-          {maxDistance > 0 ? ` · ${t(`within ${formatDistance(maxDistance)}`, `dans ${formatDistance(maxDistance)}`)}` : ''}
-        </Text>
-        {filteredPlaces.map((place, index) => renderPlaceCard(place, index))}
-      </ScrollView>
+        ListHeaderComponent={
+          <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, marginBottom: 10 }}>
+            {filteredPlaces.length} {catLabel(selectedCategory).toLowerCase()} · {sortLabel()}
+            {maxDistance > 0 ? ` · ${t(`within ${formatDistance(maxDistance)}`, `dans ${formatDistance(maxDistance)}`)}` : ''}
+          </Text>
+        }
+      />
     );
   };
 

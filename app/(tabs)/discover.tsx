@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ImageBackground, Linking, RefreshControl, ScrollView, StatusBar,
   Text, TextInput, TouchableOpacity, View,
@@ -84,7 +84,7 @@ function DiscoverScreenInner() {
         setUserLoc({ lat: loc.coords.latitude, lng: loc.coords.longitude });
       }
     }).catch(() => {});
-    Promise.resolve(supabase.from('community_deals').select('*').order('submitted_at', { ascending: false }).limit(10))
+    Promise.resolve(supabase.from('community_deals').select('*').gte('submitted_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()).order('submitted_at', { ascending: false }).limit(10))
       .then(({ data, error }) => {
         if (error) { if (__DEV__) console.warn('Supabase deals error:', error); }
         else if (data) { setCommunityDeals(data); }
@@ -128,7 +128,7 @@ function DiscoverScreenInner() {
     setRefreshing(true);
     try {
       await Promise.all([
-        supabase.from('community_deals').select('*').order('submitted_at', { ascending: false }).limit(10)
+        supabase.from('community_deals').select('*').gte('submitted_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()).order('submitted_at', { ascending: false }).limit(10)
           .then(({ data }) => { if (data) setCommunityDeals(data); return null; }),
         fetchWeekendEvents(),
         fetchWithTimeout('https://routeo-backend.vercel.app/api/news').then(async resp => {
@@ -161,9 +161,9 @@ function DiscoverScreenInner() {
   };
 
   // Trending: sort neighbourhoods by proximity
-  const trendingNeighbourhoods = userLoc
+  const trendingNeighbourhoods = useMemo(() => userLoc
     ? [...NEIGHBOURHOODS].sort((a, b) => haversineKm(userLoc.lat, userLoc.lng, a.lat, a.lng) - haversineKm(userLoc.lat, userLoc.lng, b.lat, b.lng)).slice(0, 5)
-    : NEIGHBOURHOODS.slice(0, 5);
+    : NEIGHBOURHOODS.slice(0, 5), [userLoc]);
 
   const filtered = NEIGHBOURHOODS.filter(n => {
     if (!search.trim()) return true;

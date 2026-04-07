@@ -2743,12 +2743,17 @@ export default function MapScreen() {
           t={t}
           onConfirmArrival={async (routeId, stopName) => {
             try {
+              const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
+              const dedupKey = `routeo_ghost_${stopName}_${routeId}_${today}`;
+              const already = await AsyncStorage.getItem(dedupKey);
+              if (already) return;
               const { getDeviceId } = require('../../lib/pushNotifications');
               const deviceId = await getDeviceId();
               fetchWithTimeout('https://routeo-backend.vercel.app/api/community?action=ghost.report', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ stop_id: stopName, route_id: routeId, report_type: 'confirmed_arrived', notes: '', device_id: deviceId }),
               }).catch(() => {});
+              AsyncStorage.setItem(dedupKey, '1').catch(() => {});
             } catch (e) { if (__DEV__) console.warn(e); }
           }}
         />
