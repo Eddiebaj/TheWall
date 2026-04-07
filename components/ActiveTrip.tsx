@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert, Animated, Dimensions, Modal, Platform, ScrollView, Share, Text, TouchableOpacity, View,
+  Alert, Animated, Modal, ScrollView, Share, Text, TouchableOpacity, View, useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fetchWithTimeout } from '../lib/fetchWithTimeout';
 import { toTitleCase, decodePolyline } from '../lib/utils';
 
@@ -92,12 +93,13 @@ type ActiveTripProps = {
   onConfirmArrival?: (routeId: string, stopId: string) => void;
 };
 
-const SCREEN_HEIGHT = Dimensions.get('window').height;
-
 export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, reducedMotion, batterySaver, alerts, onConfirmArrival }: ActiveTripProps) {
+  const insets = useSafeAreaInsets();
+  const { height: screenHeight } = useWindowDimensions();
   const [activeLeg, setActiveLeg] = useState(0);
   const [now, setNow] = useState(Date.now());
   const [userCoords, setUserCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [gpsAvailable, setGpsAvailable] = useState(true);
   const [liveArrival, setLiveArrival] = useState<number | null>(null);
   const [transferWarning, setTransferWarning] = useState<string | null>(null);
   const [getOffAlert, setGetOffAlert] = useState(false);
@@ -163,12 +165,13 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
 
   // Location tracking
   useEffect(() => {
-    if (!visible || !Location) return;
+    if (!visible || !Location) { if (!Location) setGpsAvailable(false); return; }
     let sub: any = null;
     (async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') return;
+        if (status !== 'granted') { setGpsAvailable(false); return; }
+        setGpsAvailable(true);
         sub = await Location.watchPositionAsync(
           { accuracy: batterySaver ? Location.Accuracy.Balanced : Location.Accuracy.BestForNavigation, distanceInterval: batterySaver ? 30 : 10 },
           (pos: any) => {
@@ -565,7 +568,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={handleEnd}>
       <View style={{ flex: 1, backgroundColor: colours.bg }}>
         {/* Safe area spacer */}
-        <View style={{ height: Platform.OS === 'ios' ? 56 : 36 }} />
+        <View style={{ height: insets.top + 12 }} />
 
         {/* Compact header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 8 }}>
@@ -606,7 +609,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
         </View>
 
         {/* Map section — 50% screen height */}
-        <View style={{ height: SCREEN_HEIGHT * 0.50, overflow: 'hidden' }}>
+        <View style={{ height: screenHeight * 0.50, overflow: 'hidden' }}>
           {MapView ? (
             <MapView
               ref={mapRef}
@@ -784,6 +787,15 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
         {/* Bottom action area */}
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 0 }}>
           {/* Warning banners */}
+          {!gpsAvailable && (
+            <View style={{ marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.orange + '22', borderWidth: 1, borderColor: colours.orange, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
+              <Ionicons name="location-outline" size={16} color={colours.orange} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.orange }}>{t('Location unavailable', 'Position indisponible')}</Text>
+                <Text style={{ fontSize: 10, color: colours.orange, marginTop: 1 }}>{t('Auto-advance and alerts need location access', 'L\'avancement auto et les alertes necessitent la localisation')}</Text>
+              </View>
+            </View>
+          )}
           {transferWarning && (
             <View style={{ marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.orange + '22', borderWidth: 1, borderColor: colours.orange, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
               <Ionicons name="warning" size={16} color={colours.orange} />

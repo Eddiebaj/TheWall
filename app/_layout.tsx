@@ -7,8 +7,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppProvider } from '../context/AppContext';
 import { BoardProvider } from '../context/BoardContext';
 import NetworkBanner from '../components/NetworkBanner';
-import { SK_ONBOARDED, SK_CRASH_LOG } from '../lib/storageKeys';
+import { SK_ONBOARDED, SK_CRASH_LOG, SK_LANGUAGE } from '../lib/storageKeys';
 import { initSentry, captureException } from '../lib/sentry';
+import { refreshCommuteNotification } from '../lib/commuteNotifications';
 
 // Prevent the native splash screen from auto-hiding until our animated splash starts
 SplashScreen.preventAutoHideAsync();
@@ -121,6 +122,10 @@ function RootNav() {
     Promise.all([storagePromise, animationPromise]).then(([dest]) => {
       setShowSplash(false);
       setDestination(dest);
+      // Refresh morning commute notification with latest route data
+      AsyncStorage.getItem(SK_LANGUAGE)
+        .then(lang => refreshCommuteNotification(lang || 'en'))
+        .catch(() => {});
     });
   }, []);
 
@@ -177,8 +182,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logo: {
-    width: 120,
-    height: 120,
+    width: 160,
+    height: 160,
   },
   container: {
     flex: 1,

@@ -83,7 +83,6 @@ function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen name="nearby" options={{ href: null }} />
       <Tabs.Screen name="discover" options={{ href: null }} />
       <Tabs.Screen name="alerts" options={{ href: null }} />
     </Tabs>

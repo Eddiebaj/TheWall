@@ -145,8 +145,18 @@ export default function BusTrackingModal({
         setBusLoading(false);
         return;
       }
-      // Pick the first match (could refine by headsign or nearest)
-      const found = matches[0];
+      // Pick the closest bus to the user or the stop
+      let found = matches[0];
+      if (matches.length > 1) {
+        const refLat = userRegion.latitude;
+        const refLng = userRegion.longitude;
+        const dist = (v: Bus) => Math.sqrt(
+          Math.pow((v.lat - refLat) * 111000, 2) +
+          Math.pow((v.lng - refLng) * 111000 * Math.cos(refLat * Math.PI / 180), 2)
+        );
+        matches.sort((a, b) => dist(a) - dist(b));
+        found = matches[0];
+      }
       const isFirstLoad = !hasLoadedBus.current;
 
       setBus(found);
@@ -411,7 +421,18 @@ export default function BusTrackingModal({
             </View>
 
             {busLoading ? renderSkeleton() : bus ? (
-              <View>
+              <View
+                accessible
+                accessibilityLabel={(() => {
+                  const cd = computeCountdown(liveEta ?? minsAway, Date.now());
+                  const eta = t(cd.text, cd.textFr);
+                  return t(
+                    `Route ${routeId.split('-')[0]} to ${headsign || stopName}, arriving in ${eta}. Live tracking active.`,
+                    `Route ${routeId.split('-')[0]} vers ${headsign || stopName}, arrive dans ${eta}. Suivi en direct actif.`
+                  );
+                })()}
+                accessibilityRole="summary"
+              >
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                     <View style={{
@@ -419,7 +440,7 @@ export default function BusTrackingModal({
                       backgroundColor: accentColor,
                       alignItems: 'center', justifyContent: 'center',
                     }}>
-                      <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>
+                      <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }} accessibilityElementsHidden>
                         {routeId.split('-')[0]}
                       </Text>
                     </View>
@@ -428,25 +449,25 @@ export default function BusTrackingModal({
                         {t('Route', 'Route')} {routeId.split('-')[0]}
                       </Text>
                       <Text style={{ fontSize: fonts.sm, color: colours.muted }}>
-                        {headsign ? `→ ${headsign}` : t('En route', 'En route')}
+                        {headsign ? `\u2192 ${headsign}` : t('En route', 'En route')}
                       </Text>
                     </View>
                   </View>
-                  <View style={{ alignItems: 'flex-end' }}>
+                  <View style={{ alignItems: 'flex-end' }} accessibilityLabel={t('Arrival countdown', 'Compte a rebours')}>
                     <Text style={{ fontSize: 22, fontWeight: '700', color: (liveEta ?? minsAway) <= 2 ? colours.red : accentColor }}>
                       {(() => { const cd = computeCountdown(liveEta ?? minsAway, Date.now()); return t(cd.text, cd.textFr); })()}
                     </Text>
-                    <Text style={{ fontSize: 10, color: colours.muted }}>{t('to stop', 'à l\'arrêt')}</Text>
+                    <Text style={{ fontSize: 10, color: colours.muted }}>{t('to stop', '\u00e0 l\'arr\u00eat')}</Text>
                   </View>
                 </View>
 
                 {/* Progress bar */}
-                <View style={{ paddingHorizontal: 20, paddingBottom: 16 }}>
+                <View style={{ paddingHorizontal: 20, paddingBottom: 16 }} accessibilityLabel={t(`Bus between stop ${bus.fromStop} and stop ${bus.toStop}`, `Bus entre arr\u00eat ${bus.fromStop} et arr\u00eat ${bus.toStop}`)}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Stop', 'Arrêt')} #{bus.fromStop}</Text>
-                    <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Stop', 'Arrêt')} #{bus.toStop}</Text>
+                    <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Stop', 'Arr\u00eat')} #{bus.fromStop}</Text>
+                    <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Stop', 'Arr\u00eat')} #{bus.toStop}</Text>
                   </View>
-                  <View style={{ height: 6, backgroundColor: colours.border, borderRadius: 3 }}>
+                  <View style={{ height: 6, backgroundColor: colours.border, borderRadius: 3 }} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.min(100, bus.progress ?? 0) }}>
                     <View style={{
                       height: 6, borderRadius: 3, backgroundColor: accentColor,
                       width: `${Math.min(100, bus.progress ?? 0)}%` as `${number}%`,
@@ -474,13 +495,13 @@ export default function BusTrackingModal({
                 </View>
               </View>
             ) : (
-              <View style={{ alignItems: 'center', paddingVertical: 24 }}>
+              <View style={{ alignItems: 'center', paddingVertical: 24 }} accessible accessibilityRole="alert" accessibilityLabel={t('Bus not found on network. It may not have departed yet.', 'Bus introuvable sur le r\u00e9seau. Il n\'est peut-\u00eatre pas encore parti.')}>
                 <Ionicons name="bus-outline" size={32} color={colours.muted} />
                 <Text style={{ color: colours.muted, fontSize: fonts.md, marginTop: 8 }}>
-                  {t('Bus not found on network', 'Bus introuvable sur le réseau')}
+                  {t('Bus not found on network', 'Bus introuvable sur le r\u00e9seau')}
                 </Text>
                 <Text style={{ color: colours.muted, fontSize: fonts.sm, marginTop: 4 }}>
-                  {t('It may not have departed yet', 'Il n\'est peut-être pas encore parti')}
+                  {t('It may not have departed yet', 'Il n\'est peut-\u00eatre pas encore parti')}
                 </Text>
               </View>
             )}

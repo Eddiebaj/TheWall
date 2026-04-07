@@ -20,7 +20,9 @@
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false
         },
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "RouteO lets you attach a photo when submitting a community deal.",
+        "NSCameraUsageDescription": "RouteO lets you take a photo when submitting a community deal."
       }
     },
     "android": {
@@ -48,7 +50,7 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/icon.png",
-          "imageWidth": 160,
+          "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#000000"
         }
@@ -66,6 +68,7 @@
           "locationWhenInUsePermission": "RouteO needs your location to show nearby stops and transit options."
         }
       ],
+      "expo-image-picker",
       "@react-native-community/datetimepicker",
       [
         "expo-build-properties",

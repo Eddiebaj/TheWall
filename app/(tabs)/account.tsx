@@ -6,8 +6,9 @@ import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView,
     StatusBar, Switch, Text, TextInput,
-    TouchableOpacity, View
+    TouchableOpacity, View,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp, PALETTE_LABELS, PaletteId } from '../../context/AppContext';
 import { useBoard } from '../../context/BoardContext';
@@ -21,6 +22,12 @@ import { hapticLight, hapticMedium, hapticSuccess } from '../../lib/haptics';
 import ClassScheduleModal from '../../components/ClassScheduleModal';
 import { ClassSchedule } from '../../lib/scheduleData';
 import { SK_CLASS_SCHEDULE } from '../../lib/storageKeys';
+import {
+  CommuteAlertSettings,
+  getCommuteAlertSettings,
+  saveCommuteAlertSettings,
+  refreshCommuteNotification,
+} from '../../lib/commuteNotifications';
 
 type NotifSettings = {
   tripAlerts: boolean;
@@ -135,6 +142,8 @@ export default function AccountScreen() {
 
   const [notifSettings, setNotifSettings] = useState<NotifSettings>(DEFAULT_NOTIF_SETTINGS);
   const [notifPermission, setNotifPermission] = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
+  const [commuteAlert, setCommuteAlert] = useState<CommuteAlertSettings>({ enabled: false, hour: 7, minute: 15 });
+  const [commuteTimePickerVisible, setCommuteTimePickerVisible] = useState(false);
   const [ghostStats, setGhostStats] = useState<{ totalThisWeek: number; mostAffectedRoute: string | null; mostAffectedCount: number } | null>(null);
 
   const [bugModalVisible, setBugModalVisible] = useState(false);
@@ -166,6 +175,7 @@ export default function AccountScreen() {
       }
     }).catch(e => { if (__DEV__) console.warn('AsyncStorage notif read error:', e); });
     if (Notifications) Notifications.getPermissionsAsync().then(({ status }) => setNotifPermission(status as 'granted' | 'denied' | 'undetermined')).catch(e => { if (__DEV__) console.warn('Notification permission check failed:', e); });
+    getCommuteAlertSettings().then(setCommuteAlert).catch(() => {});
   }, []);
 
   const saveNotifSettings = async (updated: NotifSettings) => {
@@ -313,6 +323,89 @@ export default function AccountScreen() {
               </View>
             </View>
           ))}
+        </Card>
+
+        {/* ── MORNING COMMUTE ── */}
+        <Card>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 }}>
+            <Ionicons name="sunny-outline" size={18} color={commuteAlert.enabled ? colours.accent : colours.muted} />
+            <Text style={{ fontSize: fonts.md, color: commuteAlert.enabled ? colours.text : colours.muted, flex: 1 }}>
+              {t('Morning commute alert', 'Alerte trajet du matin')}
+            </Text>
+            <Switch
+              value={commuteAlert.enabled}
+              onValueChange={async (v) => {
+                if (v) {
+                  const granted = await requestPermissionIfNeeded();
+                  if (!granted) return;
+                }
+                hapticLight();
+                const updated = { ...commuteAlert, enabled: v };
+                setCommuteAlert(updated);
+                saveCommuteAlertSettings(updated, language);
+              }}
+              trackColor={{ false: colours.border, true: colours.accent }}
+              thumbColor="white"
+              ios_backgroundColor={colours.border}
+              accessibilityLabel={t('Morning commute alert', 'Alerte trajet du matin')}
+            />
+          </View>
+          {commuteAlert.enabled && (
+            <>
+              <Divider colours={colours} />
+              <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
+                <Text style={{ fontSize: fonts.sm, color: colours.muted, marginBottom: 8 }}>
+                  {t('Daily notification time', 'Heure de notification quotidienne')}
+                </Text>
+                {Platform.OS === 'ios' ? (
+                  <DateTimePicker
+                    value={(() => { const d = new Date(); d.setHours(commuteAlert.hour, commuteAlert.minute, 0, 0); return d; })()}
+                    mode="time"
+                    display="compact"
+                    minuteInterval={5}
+                    onChange={(_, date) => {
+                      if (!date) return;
+                      const updated = { ...commuteAlert, hour: date.getHours(), minute: date.getMinutes() };
+                      setCommuteAlert(updated);
+                      saveCommuteAlertSettings(updated, language);
+                    }}
+                    style={{ alignSelf: 'flex-start' }}
+                  />
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => setCommuteTimePickerVisible(true)}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' }}>
+                      <Ionicons name="time-outline" size={16} color={colours.accent} />
+                      <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>
+                        {`${commuteAlert.hour.toString().padStart(2, '0')}:${commuteAlert.minute.toString().padStart(2, '0')}`}
+                      </Text>
+                    </TouchableOpacity>
+                    {commuteTimePickerVisible && (
+                      <DateTimePicker
+                        value={(() => { const d = new Date(); d.setHours(commuteAlert.hour, commuteAlert.minute, 0, 0); return d; })()}
+                        mode="time"
+                        display="spinner"
+                        minuteInterval={5}
+                        onChange={(_, date) => {
+                          setCommuteTimePickerVisible(false);
+                          if (!date) return;
+                          const updated = { ...commuteAlert, hour: date.getHours(), minute: date.getMinutes() };
+                          setCommuteAlert(updated);
+                          saveCommuteAlertSettings(updated, language);
+                        }}
+                      />
+                    )}
+                  </>
+                )}
+                <Text style={{ fontSize: fonts.sm - 1, color: colours.muted, marginTop: 6 }}>
+                  {t('Get a daily reminder to check live arrivals for your frequent routes before heading out.',
+                     'Recevez un rappel quotidien pour consulter les arrivees en direct de vos trajets frequents.')}
+                </Text>
+              </View>
+            </>
+          )}
         </Card>
 
         {/* ── APPEARANCE ── */}

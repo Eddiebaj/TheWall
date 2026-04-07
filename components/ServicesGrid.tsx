@@ -14,8 +14,8 @@ export const SERVICES_TABS: ServicesTab[] = [
       { id: 'sports',      label_en: 'Sports',       label_fr: 'Sports',        icon: 'trophy-outline',   accent: '#c8102e', action: 'alert',    target: 'sports' },
       { id: 'social',      label_en: 'Social',       label_fr: 'Social',        icon: 'beer',             accent: '#7b5ea7', action: 'alert',    target: 'social' },
       { id: 'tm_events',   label_en: 'Events',       label_fr: '\u00C9v\u00E9nements',    icon: 'ticket',           accent: '#026CDF', action: 'navigate', target: '/(tabs)/events?source=ticketmaster' },
-      { id: 'eats_nearby', label_en: 'Eats',         label_fr: 'Restos',        icon: 'restaurant',       accent: '#cc3b2a', action: 'navigate', target: '/(tabs)/nearby?category=restaurant' },
-      { id: 'coffee',      label_en: 'Coffee',       label_fr: 'Caf\u00E9',          icon: 'cafe',             accent: '#c0852a', action: 'navigate', target: '/(tabs)/nearby?category=cafe' },
+      { id: 'eats_nearby', label_en: 'Eats',         label_fr: 'Restos',        icon: 'restaurant',       accent: '#cc3b2a', action: 'navigate', target: '/(tabs)/map?layer=restaurants' },
+      { id: 'coffee',      label_en: 'Coffee',       label_fr: 'Caf\u00E9',          icon: 'cafe',             accent: '#c0852a', action: 'navigate', target: '/(tabs)/map?layer=coffee' },
     ],
   },
   {

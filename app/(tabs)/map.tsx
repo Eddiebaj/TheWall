@@ -17,20 +17,19 @@ const Circle = (RNMaps as any)?.Circle ?? null;
 type Region = import('react-native-maps').Region;
 import { useApp } from '../../context/AppContext';
 import { useBoard } from '../../context/BoardContext';
-import { SK_SAVED_ROUTES, SK_FAVS, SK_SAVED_NEIGHBOURHOODS, SK_SAVED_PLACES } from '../../lib/storageKeys';
+import stopsearchData from './stopsearch.json';
+import { SK_SAVED_ROUTES, SK_FAVS, SK_SAVED_PLACES } from '../../lib/storageKeys';
 import { supabase } from '../../lib/supabase';
-import { NEIGHBOURHOODS } from '../../lib/neighbourhoodData';
 import { HAPPY_HOUR_VENUES, HappyHourVenue } from '../../lib/happyHourData';
-import ActiveTrip from '../../components/ActiveTrip';
 import BusTrackingModal from '../../components/BusTrackingModal';
 import BottomSheet from '@gorhom/bottom-sheet';
 import NearbyTransitSheet, { NearbyStop } from '../../components/NearbyTransitSheet';
 import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hapticLight, hapticMedium } from '../../lib/haptics';
+import * as ImagePicker from 'expo-image-picker';
+import { getDeviceId } from '../../lib/pushNotifications';
 import { cacheArrivals, getCachedArrivals } from '../../lib/arrivalCache';
-import type { ServiceTile } from '../../components/ServicesGrid';
-
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { haversineKm } from '../../lib/geo';
 import { LAYER_CONFIG, LAYER_ICONS, DEFAULT_LAYERS, MapPin, LayerKey, saveLayerPrefs, loadLayerPrefs } from '../../lib/mapLayers';
@@ -39,35 +38,9 @@ const VEHICLES_URL    = 'https://routeo-backend.vercel.app/api/vehicles';
 const BACKEND_URL     = 'https://routeo-backend.vercel.app/api/arrivals';
 const CITY_URL        = 'https://routeo-backend.vercel.app/api/city';
 
-function weatherCodeToText(code: number): string {
-  if (code === 0) return 'Clear';
-  if (code <= 3) return 'Partly cloudy';
-  if (code <= 49) return 'Fog';
-  if (code <= 59) return 'Drizzle';
-  if (code <= 69) return 'Rain';
-  if (code <= 79) return 'Snow';
-  if (code <= 82) return 'Rain showers';
-  if (code <= 86) return 'Snow showers';
-  if (code >= 95) return 'Thunderstorm';
-  return 'Cloudy';
-}
-
-function weatherCodeToIcon(code: number): string {
-  if (code === 0) return 'sunny';
-  if (code <= 3) return 'partly-sunny';
-  if (code <= 49) return 'cloudy';
-  if (code <= 59) return 'rainy';
-  if (code <= 69) return 'rainy';
-  if (code <= 79) return 'snow';
-  if (code <= 82) return 'rainy';
-  if (code <= 86) return 'snow';
-  if (code >= 95) return 'thunderstorm';
-  return 'cloudy';
-}
-
 type SavedRoute = { id: string; fromLabel: string; toLabel: string; fromLat: number; fromLng: number; toLat: number; toLng: number };
 type SavedFav = { id: string; name: string; icon: string };
-type SavedPin = { id: string; name: string; lat: number; lng: number; kind: 'stop' | 'route_from' | 'route_to' | 'neighbourhood' | 'place'; routeLabel?: string; vicinity?: string };
+type SavedPin = { id: string; name: string; lat: number; lng: number; kind: 'stop' | 'route_from' | 'route_to' | 'place'; routeLabel?: string; vicinity?: string };
 
 const OTTAWA_REGION: Region = {
   latitude: 45.4215, longitude: -75.6972,
@@ -80,25 +53,6 @@ type Bus = {
   agency?: 'OC_TRANSPO' | 'STO';
 };
 
-type MapEvent = {
-  id: string; name: string; date: string; time?: string;
-  venue: string; address?: string; url: string;
-  image?: string; category?: string; free?: boolean;
-  source: 'ticketmaster';
-  lat?: number; lng?: number;
-};
-
-type DiscoveryResult = { id: string; name: string; address: string; lat: number; lng: number; rating?: number };
-
-type TripLeg = {
-  mode: string; startTime: number; endTime: number; duration: number; distance: number;
-  from: { name: string; lat: number; lon: number }; to: { name: string; lat: number; lon: number };
-  agencyId?: string; routeShortName: string | null; routeLongName: string | null;
-  headsign: string | null; intermediateStops: string[];
-  steps: { distance: number; relativeDirection: string; streetName: string; instruction?: string | null }[];
-  legGeometry?: { points: string };
-};
-type TripItinerary = { duration: number; startTime: number; endTime: number; transfers: number; walkDistance: number; legs: TripLeg[] };
 
 const ROUTE_COLOURS: { [key: string]: string } = {
   '1': '#00A78D', '2': '#7b5ea7', '4': '#004890', '7': '#cc3b2a',
@@ -116,18 +70,6 @@ const isLRT = (routeId: string) => {
 
 const validCoord = (lat: any, lng: any) => lat != null && lng != null && !isNaN(lat) && !isNaN(lng);
 
-// Heat zones
-interface HeatZone {
-  id: string;
-  type: 'happy_hour' | 'sports' | 'event';
-  lat: number;
-  lng: number;
-  radius: number;
-  color: string;
-  strokeColor: string;
-  count?: number;
-  label: string;
-}
 
 export type VenueState = 'active' | 'soon' | 'upcoming' | 'closed';
 
@@ -248,13 +190,6 @@ const PlaceMarker = React.memo(({ coordinate, icon, color, title, description, o
   );
 });
 
-const CATEGORY_COLORS: { [key: string]: string } = {
-  'Music': '#6c3fc7', 'Food & Drink': '#1a7a4a', 'Arts & Culture': '#b5450b',
-  'Health': '#0077b6', 'Sports': '#004890', 'Business': '#444',
-  'Community': '#0077a0', 'Family': '#e67e22', 'Science & Tech': '#2c3e7a',
-  'Hobbies': '#7b5ea7',
-};
-const getCatColor = (cat?: string) => CATEGORY_COLORS[cat || ''] || '#555';
 
 type VenuePin = HappyHourVenue;
 
@@ -275,16 +210,6 @@ const VENUE_PINS: VenuePin[] = HAPPY_HOUR_VENUES;
 
 const VENUE_COLORS = { food: '#E67E22', happy_hour: '#8E44AD', clubs: '#E91E63', fitness: '#2ECC71' };
 
-const DISCOVER_PLACE_TYPES: Record<string, string> = {
-  food: 'restaurant', coffee: 'cafe', bars: 'bar', gyms: 'gym', grocery: 'supermarket',
-};
-const DISC_CAT_META: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string }> = {
-  food: { icon: 'restaurant', color: '#E67E22' },
-  coffee: { icon: 'cafe', color: '#795548' },
-  bars: { icon: 'beer', color: '#8E44AD' },
-  gyms: { icon: 'barbell', color: '#2ECC71' },
-  grocery: { icon: 'cart', color: '#3498db' },
-};
 
 const venueTypeColor = (tp: string): string =>
   tp === 'fitness' ? VENUE_COLORS.fitness : tp === 'club' ? VENUE_COLORS.clubs : tp === 'restaurant' ? VENUE_COLORS.food : VENUE_COLORS.happy_hour;
@@ -315,72 +240,11 @@ const getTodayStr = () => {
   return now.toLocaleDateString('en-CA', { timeZone: 'America/Toronto' }); // YYYY-MM-DD in ET
 };
 
-// Grid-based clustering
-type Cluster = {
-  id: string;
-  lat: number; lng: number;
-  events: MapEvent[];
-  count: number;
-};
-
-const clusterEvents = (events: MapEvent[], delta: number): Cluster[] => {
-  // Grid cell size scales with zoom level
-  const gridSize = delta * 0.15;
-  const cells: { [key: string]: MapEvent[] } = {};
-  for (const ev of events) {
-    if (!ev.lat || !ev.lng) continue;
-    const cellX = Math.floor(ev.lng / gridSize);
-    const cellY = Math.floor(ev.lat / gridSize);
-    const key = `${cellX}_${cellY}`;
-    if (!cells[key]) cells[key] = [];
-    cells[key].push(ev);
-  }
-  return Object.entries(cells).map(([key, evs]) => {
-    const avgLat = evs.reduce((s, e) => s + (e.lat || 0), 0) / evs.length;
-    const avgLng = evs.reduce((s, e) => s + (e.lng || 0), 0) / evs.length;
-    return { id: 'cluster_' + key, lat: avgLat, lng: avgLng, events: evs, count: evs.length };
-  });
-};
-
-// Module-level event cache (persists for app session)
-let _eventsCache: MapEvent[] | null = null;
-let _eventsCacheTime = 0;
-const CACHE_TTL = 60 * 60 * 1000; // 1 hour
-
-const fetchAllEvents = async (): Promise<MapEvent[]> => {
-  if (_eventsCache && Date.now() - _eventsCacheTime < CACHE_TTL) return _eventsCache;
-
-  let events: MapEvent[] = [];
-  try {
-    const tmResp = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/ebevents?action=ticketmaster&city=Ottawa&radius=50&size=50`);
-    if (tmResp.ok) {
-      const d = await tmResp.json();
-      const tmEvents: MapEvent[] = (d._embedded?.events || []).map((e: any) => ({
-        id: 'tm_' + e.id,
-        name: e.name,
-        date: e.dates?.start?.localDate || '',
-        time: e.dates?.start?.localTime?.slice(0, 5) || '',
-        venue: e._embedded?.venues?.[0]?.name || '',
-        address: e._embedded?.venues?.[0]?.address?.line1 || '',
-        url: e.url,
-        image: e.images?.find((img: any) => img.ratio === '16_9' && img.width > 500)?.url || e.images?.[0]?.url,
-        category: e.classifications?.[0]?.segment?.name,
-        source: 'ticketmaster' as const,
-        lat: parseFloat(e._embedded?.venues?.[0]?.location?.latitude),
-        lng: parseFloat(e._embedded?.venues?.[0]?.location?.longitude),
-      })).filter((e: MapEvent) => e.lat && e.lng && !isNaN(e.lat) && !isNaN(e.lng));
-      events.push(...tmEvents);
-    }
-  } catch (_) { if (__DEV__) console.warn('fetch events failed:', _); }
-  _eventsCache = events;
-  _eventsCacheTime = Date.now();
-  return events;
-};
 
 
 export default function MapScreen() {
   const { colours, theme, resolvedTheme, t, fonts, language } = useApp();
-  const { savedBoard: boardItems } = useBoard();
+  const { savedBoard: boardItems, addToBoardIfMissing } = useBoard();
   const insets = useSafeAreaInsets();
   const isLight = resolvedTheme === 'light';
   const mapRef = useRef<any>(null);
@@ -390,17 +254,12 @@ export default function MapScreen() {
   const [busLoading, setBusLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState('');
   const [selectedBus, setSelectedBus] = useState<Bus | null>(null);
-  const [selectedEvent, setSelectedEvent] = useState<MapEvent | null>(null);
   const [selectedVenue, setSelectedVenue] = useState<VenuePin | null>(null);
   const [filters, setFilters] = useState<Set<string>>(new Set(['all']));
   const [searchText, setSearchText] = useState('');
-  const [placeSuggestions, setPlaceSuggestions] = useState<{ placeId: string; name: string; address: string }[]>([]);
-  const [searchedPlace, setSearchedPlace] = useState<{ placeId: string; name: string; address: string; lat: number; lng: number } | null>(null);
+  const [placeSuggestions, setPlaceSuggestions] = useState<{ placeId: string; name: string; address: string; stopId?: string }[]>([]);
+  const [searchedPlace, setSearchedPlace] = useState<{ placeId: string; name: string; address: string; lat: number; lng: number; stopId?: string } | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [showEvents, setShowEvents] = useState(false);
-  const [events, setEvents] = useState<MapEvent[]>([]);
-  const [eventsLoading, setEventsLoading] = useState(false);
-  const [selectedCluster, setSelectedCluster] = useState<MapEvent[] | null>(null);
   const [region, setRegion] = useState<Region>(OTTAWA_REGION);
   const [debouncedDelta, setDebouncedDelta] = useState(OTTAWA_REGION.latitudeDelta);
   const appIsActive = useRef(true);
@@ -428,14 +287,10 @@ export default function MapScreen() {
   const [contribType, setContribType] = useState('');
   const [contribInfo, setContribInfo] = useState('');
   const [contribAddress, setContribAddress] = useState('');
+  const [contribPhoto, setContribPhoto] = useState<string | null>(null);
   const [contribSending, setContribSending] = useState(false);
   const [contribSent, setContribSent] = useState(false);
-
-  const [tripResults, setTripResults] = useState<TripItinerary[]>([]);
-  const [tripLoading, setTripLoading] = useState(false);
-  const [tripDestLabel, setTripDestLabel] = useState('');
-  const [tripDest, setTripDest] = useState<{ lat: number; lng: number } | null>(null);
-  const [activeTripItinerary, setActiveTripItinerary] = useState<TripItinerary | null>(null);
+  const [contribError, setContribError] = useState<string | null>(null);
 
   const nearbySheetRef = useRef<BottomSheet>(null);
   const [nearbyStops, setNearbyStops] = useState<NearbyStop[]>([]);
@@ -449,14 +304,7 @@ export default function MapScreen() {
   const [selectedPin, setSelectedPin] = useState<MapPin | null>(null);
 
   const [sheetAlerts, setSheetAlerts] = useState<any[]>([]);
-  const [sheetWeather, setSheetWeather] = useState<{ temp: number; condition: string; icon: string } | null>(null);
-  const [sheetEvents, setSheetEvents] = useState<{ name: string; date: string; time?: string; venue: string; lat?: number; lng?: number }[]>([]);
-  const [sheetSensGame, setSheetSensGame] = useState<any>(null);
   const [sheetDeals, setSheetDeals] = useState<{ id: string; venue_name: string; deal_text: string; day_of_week: number }[]>([]);
-
-  const [discoveryCategory, setDiscoveryCategory] = useState<string | null>(null);
-  const [discoveryResults, setDiscoveryResults] = useState<DiscoveryResult[]>([]);
-  const [discoveryLoading, setDiscoveryLoading] = useState(false);
 
   const sheetAnim = useRef(new Animated.Value(0)).current;
   const [loadingLayers, setLoadingLayers] = useState<Set<LayerKey>>(new Set());
@@ -505,28 +353,6 @@ export default function MapScreen() {
       } else if (layer === 'construction') {
         const r = await fetchWithTimeout(`${CITY}?type=construction`);
         if (r.ok) pins = await r.json();
-      } else if (layer === 'events') {
-        const now = new Date().toISOString().replace(/\.\d+Z/, 'Z');
-        const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/ebevents?action=ticketmaster&city=Ottawa&size=30&startDateTime=${encodeURIComponent(now)}`);
-        if (r.ok) {
-          const eventsResult = await r.json();
-          const evts = eventsResult.events || [];
-          pins = evts
-            .filter((e: any) => e.lat != null && e.lng != null)
-            .map((e: any) => ({
-              id: `event_${e.id}`,
-              category: 'events' as LayerKey,
-              name: e.name,
-              subtitle: e.venue || '',
-              lat: e.lat,
-              lng: e.lng,
-              time: e.date,
-              url: e.url,
-              photoUrl: e.imageUrl,
-              source: 'ticketmaster' as const,
-            }));
-          setSheetEvents(evts.map((e: any) => ({ name: e.name, date: e.date, time: e.time, venue: e.venue, lat: e.lat, lng: e.lng })));
-        }
       } else if (layer === 'deals') {
         const { data: deals } = await supabase
           .from('community_deals')
@@ -598,9 +424,6 @@ export default function MapScreen() {
             }));
           }
         }
-      } else if (layer === 'bike_share') {
-        const r = await fetchWithTimeout(`${CITY}?type=bike_share`);
-        if (r.ok) pins = await r.json();
       } else if (layer === 'coffee' || layer === 'grocery' || layer === 'pharmacy' || layer === 'gyms') {
         const r = await fetchWithTimeout(`${CITY}?type=foursquare&lat=${lat}&lng=${lng}&category=${layer}&radius=1500`);
         if (r.ok) pins = await r.json();
@@ -629,7 +452,7 @@ export default function MapScreen() {
 
   const happeningNow = useMemo(() => {
     if (!layerPins) return [];
-    const timeLayers: LayerKey[] = ['events', 'deals'];
+    const timeLayers: LayerKey[] = ['deals'];
     const allPins = timeLayers.flatMap(k => (activeLayers[k] ? (layerPins[k] || []) : []));
     const R = 0.0045; // ~500m in degrees
     return allPins.filter(p =>
@@ -646,7 +469,7 @@ export default function MapScreen() {
   }, [region]); // re-evaluate when map moves (rough timer proxy)
 
   const heatZones = useMemo(() => {
-    const zones: HeatZone[] = [];
+    const zones: { id: string; lat: number; lng: number; radius: number; color: string; strokeColor: string; count?: number; label: string }[] = [];
     const { dayOfWeek, currentMins } = ottawaNow;
 
     const activeVenues = HAPPY_HOUR_VENUES.filter(v =>
@@ -663,7 +486,6 @@ export default function MapScreen() {
     clusters.forEach(cluster => {
       zones.push({
         id: `happy-${cluster.centroidLat.toFixed(4)}-${cluster.centroidLng.toFixed(4)}`,
-        type: 'happy_hour',
         lat: cluster.centroidLat,
         lng: cluster.centroidLng,
         radius: 300 + (cluster.count * 50),
@@ -674,41 +496,8 @@ export default function MapScreen() {
       });
     });
 
-
-    if (sheetSensGame?.state === 'pre' || sheetSensGame?.state === 'live') {
-      zones.push({
-        id: 'sens-game',
-        type: 'sports',
-        lat: 45.2969,
-        lng: -75.9272,
-        radius: 600,
-        color: 'rgba(200, 16, 46, 0.12)',
-        strokeColor: 'rgba(200, 16, 46, 0.3)',
-        label: t('Sens game tonight', 'Match des Sens ce soir'),
-      });
-    }
-
-    const now = Date.now();
-    (sheetEvents ?? []).forEach(e => {
-      if (!e.lat || !e.lng || !e.date) return;
-      const eventDate = new Date(`${e.date}T${e.time || '19:00'}`);
-      const hoursUntil = (eventDate.getTime() - now) / (1000 * 60 * 60);
-      if (hoursUntil >= -1 && hoursUntil <= 3) {
-        zones.push({
-          id: `event-${e.date}-${e.venue}`,
-          type: 'event',
-          lat: e.lat,
-          lng: e.lng,
-          radius: 400,
-          color: 'rgba(155, 89, 182, 0.12)',
-          strokeColor: 'rgba(155, 89, 182, 0.3)',
-          label: e.name,
-        });
-      }
-    });
-
     return zones;
-  }, [ottawaNow, sheetSensGame, sheetEvents, layerPins, t]);
+  }, [ottawaNow, layerPins]);
 
   const activeDealsNearby = useMemo(() => {
     const { dayOfWeek, currentMins } = ottawaNow;
@@ -745,12 +534,11 @@ export default function MapScreen() {
     }
   }, []);
 
-  const openSheet = useCallback((bus?: Bus, event?: MapEvent, clusterEvs?: MapEvent[], venue?: VenuePin) => {
+  const openSheet = useCallback((bus?: Bus, venue?: VenuePin) => {
     if (bus) hapticMedium(); else hapticLight();
     if (tappedLocationRef.current) { setTappedLocation(null); tappedAnim.setValue(0); }
-    setSelectedBus(bus || null); setSelectedEvent(event || null); setSelectedCluster(clusterEvs || null); setSelectedVenue(venue || null);
-    if (!bus && !event && !clusterEvs && !venue) {
-    } else {
+    setSelectedBus(bus || null); setSelectedVenue(venue || null);
+    if (bus || venue) {
       setSelectedSavedPin(null);
     }
     if (bus?.routeId) {
@@ -765,7 +553,7 @@ export default function MapScreen() {
   const hideSheet = useCallback(() => {
     hapticLight();
     Animated.spring(sheetAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start(() => {
-      setSelectedBus(null); setSelectedEvent(null); setSelectedCluster(null); setSelectedVenue(null); setSelectedSavedPin(null);
+      setSelectedBus(null); setSelectedVenue(null); setSelectedSavedPin(null);
       setSelectedRouteShape([]); setBusEtaInfo(null);
     });
   }, [sheetAnim]);
@@ -774,7 +562,7 @@ export default function MapScreen() {
   const tappedTranslate = tappedAnim.interpolate({ inputRange: [0, 1], outputRange: [200, 0] });
 
   const handleMapTap = useCallback(async (e: any) => {
-    if (selectedBus || selectedEvent || selectedCluster || selectedVenue || selectedSavedPin || searchedPlace) {
+    if (selectedBus || selectedVenue || selectedSavedPin || searchedPlace) {
       hideSheet();
       return;
     }
@@ -796,45 +584,13 @@ export default function MapScreen() {
     } catch {
       setTappedLocation(prev => prev ? { ...prev, address: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}` } : null);
     }
-  }, [selectedBus, selectedEvent, selectedCluster, selectedVenue, selectedSavedPin, searchedPlace, hideSheet, tappedAnim]);
+  }, [selectedBus, selectedVenue, selectedSavedPin, searchedPlace, hideSheet, tappedAnim]);
 
   const dismissTapped = useCallback(() => {
     Animated.spring(tappedAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start(() => {
       setTappedLocation(null);
     });
   }, [tappedAnim]);
-
-  const fetchInlineTrip = useCallback(async (destLat: number, destLng: number, destLabel: string) => {
-    setTripLoading(true);
-    setTripResults([]);
-    setTripDestLabel(destLabel);
-    setTripDest({ lat: destLat, lng: destLng });
-    hideSheet();
-    dismissTapped();
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') { setTripLoading(false); return; }
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const now = new Date();
-      const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      const date = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${now.getFullYear()}`;
-      const r = await fetchWithTimeout(
-        `https://routeo-backend.vercel.app/api/plan?fromLat=${loc.coords.latitude}&fromLng=${loc.coords.longitude}&fromLabel=Current+Location&toLat=${destLat}&toLng=${destLng}&toLabel=${encodeURIComponent(destLabel)}&time=${time}&date=${date}&arriveBy=false&mode=transit&maxWalk=1000`,
-        { timeout: 12000 }
-      );
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const planResult = await r.json();
-      const itins: TripItinerary[] = planResult.itineraries || [];
-      setTripResults(itins);
-    } catch (e) { if (__DEV__) console.warn('Inline trip plan failed:', e); }
-    setTripLoading(false);
-  }, [hideSheet, dismissTapped]);
-
-  const clearTripResults = useCallback(() => {
-    setTripResults([]);
-    setTripDest(null);
-    setTripDestLabel('');
-  }, []);
 
   const fetchNearbyStops = useCallback(async () => {
     setNearbyLoading(true);
@@ -950,45 +706,6 @@ export default function MapScreen() {
       .then(data => { setSheetAlerts(data?.alerts || []); })
       .catch(() => {});
 
-    fetchWithTimeout('https://api.open-meteo.com/v1/forecast?latitude=45.4215&longitude=-75.6972&current=temperature_2m,weather_code&timezone=America/Toronto', { timeout: 6000 })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data?.current) {
-          const code = data.current.weather_code ?? 0;
-          const temp = Math.round(data.current.temperature_2m ?? 0);
-          const condition = weatherCodeToText(code);
-          const icon = weatherCodeToIcon(code);
-          setSheetWeather({ temp, condition, icon });
-        }
-      })
-      .catch(() => {});
-
-    fetchWithTimeout('https://api-web.nhle.com/v1/schedule/now', { timeout: 6000 })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (!data?.gameWeek) return;
-        const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
-        for (const day of data.gameWeek) {
-          if (day.date !== todayStr) continue;
-          for (const g of day.games || []) {
-            if (g.homeTeam?.abbrev === 'OTT' || g.awayTeam?.abbrev === 'OTT') {
-              const state = g.gameState === 'LIVE' || g.gameState === 'CRIT' ? 'live' : g.gameState === 'FUT' || g.gameState === 'PRE' ? 'pre' : 'none';
-              setSheetSensGame({
-                state,
-                homeAbbr: g.homeTeam?.abbrev,
-                awayAbbr: g.awayTeam?.abbrev,
-                homeScore: g.homeTeam?.score,
-                awayScore: g.awayTeam?.score,
-                opponentAbbr: g.homeTeam?.abbrev === 'OTT' ? g.awayTeam?.abbrev : g.homeTeam?.abbrev,
-                startTime: g.startTimeUTC,
-              });
-              return;
-            }
-          }
-        }
-      })
-      .catch(() => {});
-
     supabase.from('community_deals').select('id, venue_name, deal_text, day_of_week')
       .order('submitted_at', { ascending: false }).limit(10)
       .then(({ data }: { data: any }) => { if (data) setSheetDeals(data); })
@@ -998,8 +715,9 @@ export default function MapScreen() {
   const routeToTapped = useCallback(() => {
     if (!tappedLocation) return;
     const label = tappedLocation.address || `${tappedLocation.lat.toFixed(5)}, ${tappedLocation.lng.toFixed(5)}`;
-    fetchInlineTrip(tappedLocation.lat, tappedLocation.lng, label);
-  }, [tappedLocation, fetchInlineTrip]);
+    dismissTapped();
+    router.push({ pathname: '/(tabs)/planner', params: { toLabel: label, toLat: String(tappedLocation.lat), toLng: String(tappedLocation.lng) } } as any);
+  }, [tappedLocation, dismissTapped, router]);
 
   const dropPinAtTapped = useCallback(async () => {
     if (!tappedLocation) return;
@@ -1122,19 +840,18 @@ export default function MapScreen() {
   }, [deepLinkParams.highlightRoute]);
 
   useEffect(() => {
+    if (deepLinkParams.layer) {
+      const layerKey = deepLinkParams.layer as LayerKey;
+      if (layerKey in activeLayers && !activeLayers[layerKey]) {
+        toggleLayer(layerKey);
+      }
+    }
+  }, [deepLinkParams.layer]);
+
+  useEffect(() => {
     const timer = setTimeout(() => setDebouncedDelta(region.latitudeDelta), 400);
     return () => clearTimeout(timer);
   }, [region.latitudeDelta]);
-
-  useEffect(() => {
-    if (!showEvents) return;
-    setEventsLoading(true);
-    fetchAllEvents().then(evs => {
-      setEvents(evs);
-      setEventsLoading(false);
-      setSheetEvents(evs.map(e => ({ name: e.name, date: e.date, time: e.time, venue: e.venue })));
-    });
-  }, [showEvents]);
 
   useEffect(() => {
     if (savedLoaded) return;
@@ -1201,18 +918,6 @@ export default function MapScreen() {
             for (const sp of savedPlaces) {
               if (sp.lat && sp.lng && validCoord(sp.lat, sp.lng)) {
                 pins.push({ id: `place_${sp.id}`, name: sp.name, lat: sp.lat, lng: sp.lng, kind: 'place', vicinity: sp.vicinity });
-              }
-            }
-          } catch (e) { if (__DEV__) console.warn(e); }
-        }
-        const nbRaw = await AsyncStorage.getItem(SK_SAVED_NEIGHBOURHOODS);
-        if (nbRaw) {
-          try {
-            const savedNbIds: string[] = JSON.parse(nbRaw);
-            for (const nbId of savedNbIds) {
-              const nb = NEIGHBOURHOODS.find(n => n.id === nbId);
-              if (nb) {
-                pins.push({ id: `nb_${nb.id}`, name: nb.name_en, lat: nb.lat, lng: nb.lng, kind: 'neighbourhood' });
               }
             }
           } catch (e) { if (__DEV__) console.warn(e); }
@@ -1368,41 +1073,65 @@ export default function MapScreen() {
 
   const searchPlaces = useCallback(async (query: string) => {
     if (query.length < 3) { setPlaceSuggestions([]); return; }
+    // Match transit stops locally
+    const q = query.toLowerCase();
+    const stopMatches = (stopsearchData as { id: string; name: string }[])
+      .filter(s => s.name.toLowerCase().includes(q) || s.id === query)
+      .slice(0, 3)
+      .map(s => ({ placeId: `stop_${s.id}`, name: toTitleCase(s.name), address: `${t('Stop', 'Arr\u00eat')} #${s.id}`, stopId: s.id }));
     try {
       const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=autocomplete&input=${encodeURIComponent(query)}&location=45.4215,-75.6972&radius=50000`);
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const autocompleteResult = await r.json();
-      if (autocompleteResult.predictions) {
-        setPlaceSuggestions(autocompleteResult.predictions.slice(0, 5).map((p: any) => ({
-          placeId: p.place_id,
-          name: p.structured_formatting?.main_text || p.description,
-          address: p.structured_formatting?.secondary_text || '',
-        })));
-      }
-    } catch (_) { setPlaceSuggestions([]); }
-  }, []);
+      const placeMatches = (autocompleteResult.predictions || []).slice(0, 5).map((p: any) => ({
+        placeId: p.place_id,
+        name: p.structured_formatting?.main_text || p.description,
+        address: p.structured_formatting?.secondary_text || '',
+      }));
+      setPlaceSuggestions([...stopMatches, ...placeMatches].slice(0, 6));
+    } catch (_) { setPlaceSuggestions(stopMatches.length > 0 ? stopMatches : []); }
+  }, [t]);
 
-  const selectPlace = useCallback(async (suggestion: { placeId: string; name: string; address: string }) => {
+  const selectPlace = useCallback(async (suggestion: { placeId: string; name: string; address: string; stopId?: string }) => {
     hapticLight();
     Keyboard.dismiss();
     setPlaceSuggestions([]);
     try {
-      const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=details&place_id=${suggestion.placeId}&fields=geometry,name,formatted_address`);
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const detailsResult = await r.json();
-      if (detailsResult.result?.geometry?.location) {
-        const { lat, lng } = detailsResult.result.geometry.location;
-        const place = {
-          placeId: suggestion.placeId,
-          name: detailsResult.result.name || suggestion.name,
-          address: detailsResult.result.formatted_address || suggestion.address,
-          lat, lng,
-        };
+      if (suggestion.stopId) {
+        // Transit stop — geocode by stop name
+        const geoR = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=geocode&address=${encodeURIComponent(suggestion.name + ', Ottawa, ON')}`);
+        let lat = 45.4215, lng = -75.6972; // fallback to Ottawa centre
+        if (geoR.ok) {
+          const geoData = await geoR.json();
+          if (geoData.results?.[0]?.geometry?.location) {
+            lat = geoData.results[0].geometry.location.lat;
+            lng = geoData.results[0].geometry.location.lng;
+          }
+        }
+        const place = { placeId: suggestion.placeId, name: suggestion.name, address: suggestion.address, lat, lng, stopId: suggestion.stopId };
         setSearchedPlace(place);
-        setSearchText(place.name);
+        setSearchText(suggestion.name);
         mapRef.current?.animateToRegion({ latitude: lat, longitude: lng, latitudeDelta: 0.005, longitudeDelta: 0.005 }, 600);
-        setSelectedBus(null); setSelectedEvent(null); setSelectedCluster(null); setSelectedVenue(null); setSelectedSavedPin(null); setSelectedRouteShape([]);
+        setSelectedBus(null); setSelectedVenue(null); setSelectedSavedPin(null); setSelectedRouteShape([]);
         Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
+      } else {
+        const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=details&place_id=${suggestion.placeId}&fields=geometry,name,formatted_address`);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const detailsResult = await r.json();
+        if (detailsResult.result?.geometry?.location) {
+          const { lat, lng } = detailsResult.result.geometry.location;
+          const place = {
+            placeId: suggestion.placeId,
+            name: detailsResult.result.name || suggestion.name,
+            address: detailsResult.result.formatted_address || suggestion.address,
+            lat, lng,
+          };
+          setSearchedPlace(place);
+          setSearchText(place.name);
+          mapRef.current?.animateToRegion({ latitude: lat, longitude: lng, latitudeDelta: 0.005, longitudeDelta: 0.005 }, 600);
+          setSelectedBus(null); setSelectedVenue(null); setSelectedSavedPin(null); setSelectedRouteShape([]);
+          Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
+        }
       }
     } catch (_) { if (__DEV__) console.warn('Place details failed:', _); }
   }, [sheetAnim]);
@@ -1414,56 +1143,7 @@ export default function MapScreen() {
     hideSheet();
   }, []);
 
-  const searchDiscovery = useCallback(async (placeType: string) => {
-    setDiscoveryLoading(true);
-    setDiscoveryResults([]);
-    try {
-      const lat = region.latitude;
-      const lng = region.longitude;
-      const radius = Math.min(Math.round((region.latitudeDelta / 2) * 111000), 50000);
-      const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=nearby&location=${lat},${lng}&radius=${radius}&type=${placeType}`);
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const data = await r.json();
-      if (data.results) {
-        setDiscoveryResults(data.results.slice(0, 20).map((p: any) => ({
-          id: p.place_id, name: p.name, address: p.vicinity || '',
-          lat: p.geometry?.location?.lat, lng: p.geometry?.location?.lng,
-          rating: p.rating,
-        })).filter((p: any) => validCoord(p.lat, p.lng)));
-      }
-    } catch (e) { if (__DEV__) console.warn('Discovery search failed:', e); }
-    setDiscoveryLoading(false);
-  }, [region.latitude, region.longitude, region.latitudeDelta]);
-
-  const clearDiscovery = useCallback(() => {
-    setDiscoveryCategory(null);
-    setDiscoveryResults([]);
-  }, []);
-
-  const discoveryDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (!discoveryCategory || !DISCOVER_PLACE_TYPES[discoveryCategory]) return;
-    if (discoveryDebounceRef.current) clearTimeout(discoveryDebounceRef.current);
-    discoveryDebounceRef.current = setTimeout(() => {
-      searchDiscovery(DISCOVER_PLACE_TYPES[discoveryCategory]);
-    }, 500);
-    return () => { if (discoveryDebounceRef.current) clearTimeout(discoveryDebounceRef.current); };
-  }, [region.latitude, region.longitude, region.latitudeDelta, discoveryCategory, searchDiscovery]);
-
-  const hasSheet = selectedBus || selectedEvent || selectedCluster || selectedVenue || selectedSavedPin || searchedPlace;
-
-  const upcomingDates = useMemo(() => {
-    const dates = new Set<string>();
-    const now = new Date();
-    for (let i = 0; i < 3; i++) {
-      const d = new Date(now);
-      d.setDate(d.getDate() + i);
-      dates.add(d.toLocaleDateString('en-CA', { timeZone: 'America/Toronto' }));
-    }
-    return dates;
-  }, []);
-  const todayEvents = useMemo(() => events.filter(e => upcomingDates.has(e.date)), [events, upcomingDates]);
-  const clusters = useMemo(() => clusterEvents(todayEvents, debouncedDelta), [todayEvents, debouncedDelta]);
+  const hasSheet = selectedBus || selectedVenue || selectedSavedPin || searchedPlace;
 
   return (
     <ScreenErrorBoundary colours={colours} fonts={fonts}>
@@ -1506,35 +1186,12 @@ export default function MapScreen() {
             <BusMarker key={bus.id} bus={bus} onPress={openSheet} />
           ))}
 
-          {/* Event cluster markers */}
-          {showEvents && (hasAll || filters.has('bus')) && clusters.map((cluster) => {
-            if (!cluster || !validCoord(cluster.lat, cluster.lng)) return null;
-            const single = cluster.count === 1 && cluster.events?.[0] ? cluster.events[0] : null;
-            const title = single
-              ? (single.name || 'Event')
-              : `${cluster.count} events`;
-            const desc = single
-              ? (single.venue || '')
-              : (cluster.events || []).map(e => e?.name || '').slice(0, 3).join(', ');
-            return (
-              <PlaceMarker
-                key={cluster.id}
-                coordinate={{ latitude: cluster.lat, longitude: cluster.lng }}
-                icon="calendar"
-                color="#026CDF"
-                title={title}
-                description={desc}
-                onPress={() => single ? openSheet(undefined, single) : openSheet(undefined, undefined, cluster.events)}
-              />
-            );
-          })}
-
           {/* Saved pin markers */}
           {hasSaved && savedPins.map((pin) => {
             if (!validCoord(pin.lat, pin.lng)) return null;
-            const pinIcon: keyof typeof Ionicons.glyphMap = pin.kind === 'stop' ? 'bus' : pin.kind === 'place' ? 'location' : pin.kind === 'neighbourhood' ? 'home' : pin.kind === 'route_from' ? 'navigate' : 'flag';
-            const pinColor = pin.kind === 'stop' ? '#e74c3c' : pin.kind === 'place' ? '#e8a020' : pin.kind === 'neighbourhood' ? '#7b5ea7' : pin.kind === 'route_from' ? '#22c55e' : '#3498db';
-            const kindLabel = pin.kind === 'stop' ? t('Stop', 'Arr\u00eat') : pin.kind === 'place' ? t('Place', 'Lieu') : pin.kind === 'neighbourhood' ? t('Neighbourhood', 'Quartier') : pin.kind === 'route_from' ? t('Origin', 'Origine') : t('Destination', 'Destination');
+            const pinIcon: keyof typeof Ionicons.glyphMap = pin.kind === 'stop' ? 'bus' : pin.kind === 'place' ? 'location' : pin.kind === 'route_from' ? 'navigate' : 'flag';
+            const pinColor = pin.kind === 'stop' ? '#e74c3c' : pin.kind === 'place' ? '#e8a020' : pin.kind === 'route_from' ? '#22c55e' : '#3498db';
+            const kindLabel = pin.kind === 'stop' ? t('Stop', 'Arr\u00eat') : pin.kind === 'place' ? t('Place', 'Lieu') : pin.kind === 'route_from' ? t('Origin', 'Origine') : t('Destination', 'Destination');
             return (
               <PlaceMarker
                 key={pin.id}
@@ -1567,7 +1224,7 @@ export default function MapScreen() {
                 color={venueColor}
                 title={hasDeals ? v.name : undefined}
                 description={dealDesc}
-                onPress={() => openSheet(undefined, undefined, undefined, v)}
+                onPress={() => openSheet(undefined, v)}
               />
             );
           })}
@@ -1595,34 +1252,11 @@ export default function MapScreen() {
             title={searchedPlace.name}
             description={searchedPlace.address}
             onPress={() => {
-              setSelectedBus(null); setSelectedEvent(null); setSelectedCluster(null); setSelectedVenue(null); setSelectedSavedPin(null); setSelectedRouteShape([]);
+              setSelectedBus(null); setSelectedVenue(null); setSelectedSavedPin(null); setSelectedRouteShape([]);
               Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
             }}
           />
         )}
-
-        {/* Discovery result markers */}
-        {discoveryResults.map(dr => {
-          const meta = DISC_CAT_META[discoveryCategory || ''] || { icon: 'location' as const, color: '#E67E22' };
-          return (
-            <PlaceMarker
-              key={`disc_${dr.id}`}
-              coordinate={{ latitude: dr.lat, longitude: dr.lng }}
-              icon={meta.icon}
-              color={meta.color}
-              title={dr.name}
-              description={dr.address}
-              onPress={() => {
-                mapRef.current?.animateToRegion({ latitude: dr.lat, longitude: dr.lng, latitudeDelta: 0.005, longitudeDelta: 0.005 }, 400);
-                setSearchedPlace({ placeId: dr.id, name: dr.name, address: dr.address, lat: dr.lat, lng: dr.lng });
-                setSearchText(dr.name);
-                clearDiscovery();
-                setSelectedBus(null); setSelectedEvent(null); setSelectedCluster(null); setSelectedVenue(null); setSelectedSavedPin(null); setSelectedRouteShape([]);
-                Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
-              }}
-            />
-          );
-        })}
 
         {/* Tapped location marker */}
         {tappedLocation && Marker && (
@@ -1736,7 +1370,7 @@ export default function MapScreen() {
                   activeOpacity={0.7}
                   style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: colours.border }}
                   onPress={() => selectPlace(s)}>
-                  <Ionicons name="location-outline" size={16} color={colours.accent} style={{ marginRight: 10 }} />
+                  <Ionicons name={s.stopId ? 'bus-outline' : 'location-outline'} size={16} color={s.stopId ? '#CE1126' : colours.accent} style={{ marginRight: 10 }} />
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 13, fontWeight: '600', color: colours.text }} numberOfLines={1}>{s.name}</Text>
                     <Text style={{ fontSize: 11, color: colours.muted }} numberOfLines={1}>{s.address}</Text>
@@ -1756,31 +1390,14 @@ export default function MapScreen() {
             { key: 'grocery', label_en: 'Grocery', label_fr: 'Epicerie', icon: 'cart-outline' as const, color: '#3498db' },
             { key: 'saved', label_en: 'Saved', label_fr: 'Favoris', icon: 'heart' as const, color: '#e74c3c' },
           ] as const).map(f => {
-            const isDiscovery = f.key in DISCOVER_PLACE_TYPES;
-            const active = isDiscovery ? discoveryCategory === f.key
-              : filters.has(f.key);
+            const active = filters.has(f.key);
             const bg = active ? f.color : colours.surface;
             const border = active ? f.color : colours.border;
             return (
               <TouchableOpacity key={f.key}
                 activeOpacity={0.7}
                 style={{ borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: bg, borderWidth: 1, borderColor: border, flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                onPress={() => {
-                  if (isDiscovery) {
-                    if (discoveryCategory === f.key) {
-                      clearDiscovery();
-                    } else {
-                      setDiscoveryCategory(f.key);
-                      searchDiscovery(DISCOVER_PLACE_TYPES[f.key]);
-                    }
-                    if (!filters.has(f.key)) {
-                      setFilters(prev => { const next = new Set(prev); next.delete('all'); next.add(f.key); return next; });
-                    }
-                  } else {
-                    if (discoveryCategory) clearDiscovery();
-                    toggleFilter(f.key);
-                  }
-                }}
+                onPress={() => toggleFilter(f.key)}
                 accessibilityRole="button"
                 accessibilityLabel={t(`Filter by ${f.label_en}`, `Filtrer par ${f.label_fr}`)}
                 accessibilityState={{ selected: active }}>
@@ -1836,7 +1453,7 @@ export default function MapScreen() {
       </ScrollView>
 
       {/* Floating action buttons */}
-      <View style={{ position: 'absolute', bottom: (tripResults.length > 0 || tripLoading) ? 380 : hasSheet ? 300 : (discoveryCategory && discoveryResults.length > 0) ? 320 : tappedLocation ? 160 : Platform.OS === 'ios' ? 24 : 16, right: 16, gap: 10, alignItems: 'center' }}>
+      <View style={{ position: 'absolute', bottom: hasSheet ? 300 : tappedLocation ? 160 : Platform.OS === 'ios' ? 24 : 16, right: 16, gap: 10, alignItems: 'center' }}>
         <TouchableOpacity
           activeOpacity={0.7}
           style={{
@@ -1845,7 +1462,7 @@ export default function MapScreen() {
             shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6,
             shadowOffset: { width: 0, height: 2 }, elevation: 4,
           }}
-          onPress={() => { setContributeVisible(true); setContribSent(false); setContribName(''); setContribType(''); setContribInfo(''); setContribAddress(''); }}
+          onPress={() => { setContributeVisible(true); setContribSent(false); setContribError(null); setContribName(''); setContribType(''); setContribInfo(''); setContribAddress(''); setContribPhoto(null); }}
           accessibilityRole="button"
           accessibilityLabel={t('Add a place or deal', 'Ajouter un lieu ou une offre')}>
           <Ionicons name="add" size={24} color="#fff" />
@@ -1936,12 +1553,54 @@ export default function MapScreen() {
 
                 <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 4 }}>{t('Address', 'Adresse')} ({t('optional', 'optionnel')})</Text>
                 <TextInput
-                  style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colours.text, marginBottom: 16 }}
+                  style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colours.text, marginBottom: 12 }}
                   placeholder={t('e.g. 575 Bank St', 'ex. 575 rue Bank')}
                   placeholderTextColor={colours.muted}
                   value={contribAddress}
                   onChangeText={setContribAddress}
                 />
+
+                {/* Photo picker */}
+                <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 4 }}>{t('Photo', 'Photo')} ({t('optional', 'optionnel')})</Text>
+                {contribPhoto ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                    <Image source={{ uri: contribPhoto }} style={{ width: 60, height: 60, borderRadius: 10 }} />
+                    <TouchableOpacity activeOpacity={0.7} onPress={() => setContribPhoto(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Ionicons name="close-circle" size={22} color={colours.muted} />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={async () => {
+                        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+                        if (status !== 'granted') { Alert.alert(t('Camera access needed', 'Acces camera requis')); return; }
+                        const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7, base64: true });
+                        if (!result.canceled && result.assets[0]?.base64) setContribPhoto(`data:image/jpeg;base64,${result.assets[0].base64}`);
+                      }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
+                      <Ionicons name="camera-outline" size={16} color={colours.text} />
+                      <Text style={{ fontSize: 13, color: colours.text }}>{t('Camera', 'Camera')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={async () => {
+                        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                        if (status !== 'granted') { Alert.alert(t('Photo library access needed', 'Acces photos requis')); return; }
+                        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7, base64: true });
+                        if (!result.canceled && result.assets[0]?.base64) setContribPhoto(`data:image/jpeg;base64,${result.assets[0].base64}`);
+                      }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
+                      <Ionicons name="image-outline" size={16} color={colours.text} />
+                      <Text style={{ fontSize: 13, color: colours.text }}>{t('Gallery', 'Galerie')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {contribError && (
+                  <Text style={{ fontSize: 13, color: '#e94560', marginBottom: 8 }}>{contribError}</Text>
+                )}
 
                 <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
                   <TouchableOpacity
@@ -1952,34 +1611,52 @@ export default function MapScreen() {
                   </TouchableOpacity>
                   <TouchableOpacity
                     activeOpacity={0.7}
-                    disabled={!contribName.trim() || !contribType.trim() || !contribInfo.trim()}
+                    disabled={!contribName.trim() || !contribType.trim() || !contribInfo.trim() || contribSending}
                     onPress={async () => {
                       if (!contribName.trim() || !contribType.trim() || !contribInfo.trim()) return;
                       setContribSending(true);
+                      setContribError(null);
                       try {
-                        await supabase.from('community_deals').insert({
-                          venue_name: contribName.trim(),
-                          deal_text: `[${contribType}] ${contribInfo.trim()}${contribAddress.trim() ? ` | ${contribAddress.trim()}` : ''}`,
-                          approved: false,
-                        });
-                        fetchWithTimeout('https://routeo-backend.vercel.app/api/community?action=deal.notify', {
+                        const deviceId = await getDeviceId();
+                        const photoBase64 = contribPhoto ? contribPhoto.replace(/^data:image\/\w+;base64,/, '') : null;
+                        const description = `[${contribType}] ${contribInfo.trim()}${contribAddress.trim() ? ` | ${contribAddress.trim()}` : ''}`;
+                        const r = await fetchWithTimeout('https://routeo-backend.vercel.app/api/community?action=deal.submit', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ venue_name: contribName.trim(), deal_type: contribType, deal_description: contribInfo.trim(), address: contribAddress.trim() || null }),
-                        }).catch(() => {});
-                        setContribSent(true);
+                          body: JSON.stringify({
+                            venue_name: contribName.trim(),
+                            deal_description: description,
+                            neighbourhood_id: 'ottawa',
+                            device_id: deviceId,
+                            day_of_week: new Date().getDay(),
+                            ...(photoBase64 ? { photo_base64: photoBase64 } : {}),
+                          }),
+                          timeout: 30000,
+                        });
+                        if (!r.ok) {
+                          const err = await r.json().catch(() => ({ error: 'Unknown error' }));
+                          if (r.status === 429) {
+                            setContribError(t('Please wait before submitting again', 'Veuillez patienter avant de soumettre a nouveau'));
+                          } else {
+                            setContribError(err.error || t('Submission failed', 'Echec de la soumission'));
+                          }
+                        } else {
+                          const data = await r.json();
+                          if (data.status === 'rejected') {
+                            setContribError(t('This deal was not approved — please check the content and try again', 'Cette offre n\'a pas ete approuvee — verifiez le contenu et reessayez'));
+                          } else {
+                            setContribSent(true);
+                          }
+                        }
                       } catch (e) {
                         if (__DEV__) console.warn('contribute submit failed:', e);
-                        Alert.alert(
-                          t('Submission Failed', 'Echec de la soumission'),
-                          t('Deal submission failed — check your connection', 'Echec de la soumission — vérifiez votre connexion')
-                        );
+                        setContribError(t('Deal submission failed — check your connection', 'Echec de la soumission — verifiez votre connexion'));
                       }
                       setContribSending(false);
                     }}
                     style={{
                       flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center',
-                      backgroundColor: contribName.trim() && contribType.trim() && contribInfo.trim() ? '#7b5ea7' : colours.border,
+                      backgroundColor: contribName.trim() && contribType.trim() && contribInfo.trim() && !contribSending ? '#7b5ea7' : colours.border,
                     }}>
                     {contribSending
                       ? <ActivityIndicator color="white" size="small" />
@@ -2041,78 +1718,6 @@ export default function MapScreen() {
             </TouchableOpacity>
           </View>
         </Animated.View>
-      )}
-
-      {/* Discovery results sheet */}
-      {discoveryCategory && discoveryResults.length > 0 && !hasSheet && (
-        <View style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0,
-          backgroundColor: colours.surface,
-          borderTopLeftRadius: 24, borderTopRightRadius: 24,
-          borderWidth: 1, borderColor: colours.border,
-          maxHeight: '40%',
-          paddingBottom: 34,
-          shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12,
-          shadowOffset: { width: 0, height: -3 }, elevation: 10,
-        }}>
-          <View style={{ alignItems: 'center', paddingTop: 12, paddingBottom: 4 }}>
-            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border }} />
-          </View>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 8 }}>
-            <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text }}>
-              {discoveryResults.length} {t('Results', 'Resultats')}
-            </Text>
-            <TouchableOpacity activeOpacity={0.7} onPress={clearDiscovery} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Clear results', 'Effacer les resultats')}>
-              <Ionicons name="close-circle" size={22} color={colours.muted} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView showsVerticalScrollIndicator={false} style={{ paddingHorizontal: 20 }}>
-            {discoveryResults.map(dr => {
-              const meta = DISC_CAT_META[discoveryCategory || ''] || { icon: 'location' as const, color: '#E67E22' };
-              return (
-                <TouchableOpacity
-                  key={dr.id}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colours.border, gap: 12 }}
-                  onPress={() => {
-                    mapRef.current?.animateToRegion({ latitude: dr.lat, longitude: dr.lng, latitudeDelta: 0.005, longitudeDelta: 0.005 }, 400);
-                    setSearchedPlace({ placeId: dr.id, name: dr.name, address: dr.address, lat: dr.lat, lng: dr.lng });
-                    setSearchText(dr.name);
-                    clearDiscovery();
-                    setSelectedBus(null); setSelectedEvent(null); setSelectedCluster(null); setSelectedVenue(null); setSelectedSavedPin(null); setSelectedRouteShape([]);
-                    Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
-                  }}
-                >
-                  <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: meta.color + '18', alignItems: 'center', justifyContent: 'center' }}>
-                    <Ionicons name={meta.icon} size={18} color={meta.color} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }} numberOfLines={1}>{dr.name}</Text>
-                    <Text style={{ fontSize: 12, color: colours.muted }} numberOfLines={1}>{dr.address}</Text>
-                  </View>
-                  {dr.rating != null && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                      <Ionicons name="star" size={12} color="#f5a623" />
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: colours.text }}>{dr.rating}</Text>
-                    </View>
-                  )}
-                  <Ionicons name="chevron-forward" size={14} color={colours.muted} />
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-      )}
-
-      {/* Discovery loading indicator */}
-      {discoveryLoading && !hasSheet && (
-        <View style={{ position: 'absolute', bottom: 60, left: 0, right: 0, alignItems: 'center' }}>
-          <View style={{ backgroundColor: colours.surface, borderRadius: 20, paddingHorizontal: 20, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: colours.border, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 }}>
-            <ActivityIndicator color={colours.accent} size="small" />
-            <Text style={{ fontSize: 13, color: colours.text, fontWeight: '600' }}>{t('Searching nearby...', 'Recherche a proximite...')}</Text>
-          </View>
-        </View>
       )}
 
       {/* Bottom sheet */}
@@ -2195,82 +1800,6 @@ export default function MapScreen() {
               </View>
             </View>
           ); })()}
-
-          {/* Event sheet */}
-          {selectedEvent && (
-            <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <View style={{ flex: 1, marginRight: 12 }}>
-                  {/* Source + category badge */}
-                  <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
-                    <View style={{ backgroundColor: (selectedEvent.source === 'ticketmaster' ? '#026CDF' : getCatColor(selectedEvent.category)) + '22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: (selectedEvent.source === 'ticketmaster' ? '#026CDF' : getCatColor(selectedEvent.category)) + '44' }}>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: selectedEvent.source === 'ticketmaster' ? '#026CDF' : getCatColor(selectedEvent.category) }}>
-                        {selectedEvent.source === 'ticketmaster' ? 'Ticketmaster' : (selectedEvent.category || 'Community')}
-                      </Text>
-                    </View>
-                    {selectedEvent.free && (
-                      <View style={{ backgroundColor: '#2d7a3a22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: '#2d7a3a44' }}>
-                        <Text style={{ fontSize: 10, fontWeight: '700', color: '#2d7a3a' }}>{t('FREE', 'GRATUIT')}</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text, marginBottom: 4 }} numberOfLines={3}>
-                    {selectedEvent.name}
-                  </Text>
-                  {selectedEvent.date && (
-                    <Text style={{ fontSize: fonts.sm, color: colours.accent, fontWeight: '600', marginBottom: 2 }}>
-                      {new Date(selectedEvent.date + 'T12:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })}
-                      {selectedEvent.time ? ` · ${selectedEvent.time}` : ''}
-                    </Text>
-                  )}
-                  {selectedEvent.venue ? <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{selectedEvent.venue}</Text> : null}
-                  {selectedEvent.address ? <Text style={{ fontSize: 11, color: colours.muted, marginTop: 1 }} numberOfLines={1}>{selectedEvent.address}</Text> : null}
-                </View>
-                <TouchableOpacity activeOpacity={0.7} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} onPress={hideSheet} accessibilityRole="button" accessibilityLabel={t('Close panel', 'Fermer le panneau')}>
-                  <Ionicons name="close" size={16} color={colours.text} />
-                </TouchableOpacity>
-              </View>
-              {selectedEvent.url && (
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => Linking.openURL(selectedEvent.url).catch(() => {})}
-                  style={{ marginTop: 14, backgroundColor: selectedEvent.source === 'ticketmaster' ? '#026CDF' : getCatColor(selectedEvent.category), borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
-                  accessibilityRole="link"
-                  accessibilityLabel={selectedEvent.source === 'ticketmaster' ? t('Get tickets', 'Acheter des billets') : t('View event', 'Voir l\'evenement')}>
-                  <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>
-                    {selectedEvent.source === 'ticketmaster' ? t('Get Tickets', 'Acheter des billets') : t('View Event', 'Voir l\'evenement')} →
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
-          {/* Cluster sheet — list of events in this area */}
-          {selectedCluster && (
-            <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text }}>
-                  {selectedCluster.length} {t('Events Here', 'evenements ici')}
-                </Text>
-                <TouchableOpacity activeOpacity={0.7} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} onPress={hideSheet} accessibilityRole="button" accessibilityLabel={t('Close panel', 'Fermer le panneau')}>
-                  <Ionicons name="close" size={16} color={colours.text} />
-                </TouchableOpacity>
-              </View>
-              <ScrollView style={{ maxHeight: 240 }} showsVerticalScrollIndicator={false}>
-                {selectedCluster.map((ev) => (
-                  <TouchableOpacity key={ev.id} activeOpacity={0.7} onPress={() => ev.url && Linking.openURL(ev.url).catch(() => {})}
-                    style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border, gap: 10 }}
-                    accessibilityRole="button">
-                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: ev.source === 'ticketmaster' ? '#026CDF' : getCatColor(ev.category), flexShrink: 0 }} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }} numberOfLines={1}>{ev.name}</Text>
-                      <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{ev.venue}{ev.time ? ` · ${ev.time}` : ''}</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={14} color={colours.muted} />
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
 
           {/* Venue sheet */}
           {selectedVenue && (() => {
@@ -2372,13 +1901,15 @@ export default function MapScreen() {
           })()}
 
           {/* Searched place sheet */}
-          {searchedPlace && !selectedBus && !selectedEvent && !selectedCluster && !selectedVenue && !selectedSavedPin && (
+          {searchedPlace && !selectedBus && !selectedVenue && !selectedSavedPin && (
             <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <View style={{ flex: 1, marginRight: 12 }}>
                   <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
-                    <View style={{ backgroundColor: colours.accentAlt + '22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: colours.accentAlt + '44' }}>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: colours.accentAlt }}>{t('Place', 'Lieu')}</Text>
+                    <View style={{ backgroundColor: (searchedPlace.stopId ? '#CE1126' : colours.accentAlt) + '22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: (searchedPlace.stopId ? '#CE1126' : colours.accentAlt) + '44' }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: searchedPlace.stopId ? '#CE1126' : colours.accentAlt }}>
+                        {searchedPlace.stopId ? t('Stop', 'Arr\u00eat') : t('Place', 'Lieu')}
+                      </Text>
                     </View>
                   </View>
                   <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text, marginBottom: 4 }}>
@@ -2390,15 +1921,31 @@ export default function MapScreen() {
                   <Ionicons name="close" size={16} color={colours.text} />
                 </TouchableOpacity>
               </View>
+              {searchedPlace.stopId && (
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    addToBoardIfMissing({ type: 'bus_stop', id: searchedPlace.stopId!, name: searchedPlace.name });
+                    hapticLight();
+                  }}
+                  style={{ marginTop: 14, backgroundColor: '#00A78D', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('Save to My Stops', 'Ajouter a Mes arr\u00eats')}>
+                  <Ionicons name="bookmark-outline" size={16} color="white" />
+                  <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>
+                    {t('Save to My Stops', 'Ajouter a Mes arr\u00eats')}
+                  </Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 activeOpacity={0.7}
-                onPress={() => { fetchInlineTrip(searchedPlace.lat, searchedPlace.lng, searchedPlace.name); }}
-                style={{ marginTop: 14, backgroundColor: '#3498db', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+                onPress={() => { router.push({ pathname: '/(tabs)/planner', params: { toLabel: searchedPlace.name, toLat: String(searchedPlace.lat), toLng: String(searchedPlace.lng) } } as any); }}
+                style={{ marginTop: searchedPlace.stopId ? 8 : 14, backgroundColor: '#3498db', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
                 accessibilityRole="button"
                 accessibilityLabel={t('Route here', 'M\'y rendre')}>
                 <Ionicons name="navigate" size={16} color="white" />
                 <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>
-                  {t('Route here', 'M\'y rendre')} →
+                  {t('Route here', 'M\'y rendre')} \u2192
                 </Text>
               </TouchableOpacity>
             </View>
@@ -2410,9 +1957,9 @@ export default function MapScreen() {
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <View style={{ flex: 1, marginRight: 12 }}>
                   <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
-                    <View style={{ backgroundColor: (selectedSavedPin.kind === 'stop' ? '#e74c3c' : selectedSavedPin.kind === 'place' ? '#e8a020' : selectedSavedPin.kind === 'neighbourhood' ? '#7b5ea7' : '#22c55e') + '22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: (selectedSavedPin.kind === 'stop' ? '#e74c3c' : selectedSavedPin.kind === 'place' ? '#e8a020' : selectedSavedPin.kind === 'neighbourhood' ? '#7b5ea7' : '#22c55e') + '44' }}>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: selectedSavedPin.kind === 'stop' ? '#e74c3c' : selectedSavedPin.kind === 'place' ? '#e8a020' : selectedSavedPin.kind === 'neighbourhood' ? '#7b5ea7' : '#22c55e' }}>
-                        {selectedSavedPin.kind === 'stop' ? t('Saved Stop', 'Arret favori') : selectedSavedPin.kind === 'place' ? t('Saved Place', 'Lieu favori') : selectedSavedPin.kind === 'neighbourhood' ? t('Neighbourhood', 'Quartier') : t('Saved Route', 'Trajet favori')}
+                    <View style={{ backgroundColor: (selectedSavedPin.kind === 'stop' ? '#e74c3c' : selectedSavedPin.kind === 'place' ? '#e8a020' : '#22c55e') + '22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: (selectedSavedPin.kind === 'stop' ? '#e74c3c' : selectedSavedPin.kind === 'place' ? '#e8a020' : '#22c55e') + '44' }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: selectedSavedPin.kind === 'stop' ? '#e74c3c' : selectedSavedPin.kind === 'place' ? '#e8a020' : '#22c55e' }}>
+                        {selectedSavedPin.kind === 'stop' ? t('Saved Stop', 'Arret favori') : selectedSavedPin.kind === 'place' ? t('Saved Place', 'Lieu favori') : t('Saved Route', 'Trajet favori')}
                       </Text>
                     </View>
                   </View>
@@ -2440,7 +1987,7 @@ export default function MapScreen() {
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${selectedSavedPin.lat},${selectedSavedPin.lng}`).catch(() => {})}
-                style={{ marginTop: 14, backgroundColor: selectedSavedPin.kind === 'stop' ? '#e74c3c' : selectedSavedPin.kind === 'place' ? '#e8a020' : selectedSavedPin.kind === 'neighbourhood' ? '#7b5ea7' : '#22c55e', borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
+                style={{ marginTop: 14, backgroundColor: selectedSavedPin.kind === 'stop' ? '#e74c3c' : selectedSavedPin.kind === 'place' ? '#e8a020' : '#22c55e', borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
                 accessibilityRole="link"
                 accessibilityLabel={t('Open in Maps', 'Ouvrir dans Maps')}>
                 <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>
@@ -2451,133 +1998,6 @@ export default function MapScreen() {
           )}
         </Animated.View>
       )}
-      {/* Inline trip results sheet */}
-      {(tripResults.length > 0 || tripLoading) && !activeTripItinerary && (
-        <View style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0,
-          backgroundColor: colours.surface,
-          borderTopLeftRadius: 24, borderTopRightRadius: 24,
-          borderWidth: 1, borderColor: colours.border,
-          paddingBottom: 34,
-          shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12,
-          shadowOffset: { width: 0, height: -3 }, elevation: 10,
-        }}>
-          <View style={{ alignItems: 'center', paddingTop: 12, paddingBottom: 4 }}>
-            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border }} />
-          </View>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 8 }}>
-            <View style={{ flex: 1, marginRight: 12 }}>
-              <Text style={{ fontSize: 12, color: colours.muted, fontWeight: '600' }}>{t('Routes to', 'Itineraires vers')}</Text>
-              <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text }} numberOfLines={1}>{tripDestLabel}</Text>
-            </View>
-            <TouchableOpacity activeOpacity={0.7} onPress={clearTripResults} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
-              <Ionicons name="close" size={16} color={colours.text} />
-            </TouchableOpacity>
-          </View>
-
-          {tripLoading ? (
-            <View style={{ alignItems: 'center', paddingVertical: 32 }}>
-              <ActivityIndicator color={colours.accent} size="large" />
-              <Text style={{ color: colours.muted, fontSize: fonts.sm, marginTop: 10 }}>{t('Finding routes...', 'Recherche d\'itineraires...')}</Text>
-            </View>
-          ) : tripResults.length === 0 ? (
-            <View style={{ alignItems: 'center', paddingVertical: 24, paddingHorizontal: 20 }}>
-              <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center' }}>{t('No routes found. Try the full planner for more options.', 'Aucun itineraire trouve. Essayez le planificateur complet.')}</Text>
-            </View>
-          ) : (
-            <ScrollView style={{ maxHeight: 320, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
-              {tripResults.slice(0, 3).map((itin, i) => {
-                const depTime = new Date(itin.startTime);
-                const arrTime = new Date(itin.endTime);
-                const fmt = (d: Date) => `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
-                const durationMin = Math.round(itin.duration / 60);
-                const walkMin = Math.round(itin.walkDistance / 80);
-                const transitLegs = itin.legs.filter(l => l.mode !== 'WALK');
-                return (
-                  <View key={i} style={{ backgroundColor: colours.bg, borderRadius: 16, borderWidth: 1, borderColor: colours.border, padding: 14, marginBottom: 10 }}>
-                    {/* Time + duration row */}
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
-                        {fmt(depTime)} → {fmt(arrTime)}
-                      </Text>
-                      <View style={{ backgroundColor: colours.tintBg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accent }}>{durationMin} min</Text>
-                      </View>
-                    </View>
-                    {/* Route pills */}
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                      {itin.legs.map((leg, li) => {
-                        if (leg.mode === 'WALK') {
-                          return (
-                            <View key={li} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                              <Ionicons name="walk" size={14} color={colours.muted} />
-                              <Text style={{ fontSize: 11, color: colours.muted }}>{Math.round(leg.distance)}m</Text>
-                            </View>
-                          );
-                        }
-                        const isSTO = leg.agencyId?.includes('STO') || leg.agencyId?.includes('sto');
-                        const bg = isSTO ? '#00A78D' : '#CE1126';
-                        return (
-                          <View key={li} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                            {li > 0 && itin.legs[li - 1]?.mode !== 'WALK' && <Ionicons name="arrow-forward" size={10} color={colours.muted} />}
-                            <View style={{ backgroundColor: bg, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
-                              <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{leg.routeShortName || leg.mode}</Text>
-                            </View>
-                            {leg.headsign && <Text style={{ fontSize: 11, color: colours.muted }} numberOfLines={1}>{leg.headsign}</Text>}
-                          </View>
-                        );
-                      })}
-                    </View>
-                    {/* Details row */}
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                        {itin.transfers > 0 && (
-                          <Text style={{ fontSize: 11, color: colours.muted }}>
-                            {itin.transfers} {t('transfer', 'correspondance')}{itin.transfers > 1 ? 's' : ''}
-                          </Text>
-                        )}
-                        <Text style={{ fontSize: 11, color: colours.muted }}>
-                          {walkMin} min {t('walk', 'marche')}
-                        </Text>
-                      </View>
-                      <TouchableOpacity
-                        activeOpacity={0.7}
-                        onPress={() => setActiveTripItinerary(itin)}
-                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#34c759', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 }}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        accessibilityRole="button"
-                        accessibilityLabel={t('Start trip', 'Demarrer le trajet')}>
-                        <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>GO</Text>
-                        <Ionicons name="arrow-forward" size={12} color="#fff" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                );
-              })}
-
-              {/* See all / More options link */}
-              {tripDest && (
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => {
-                    clearTripResults();
-                    router.push({ pathname: '/(tabs)/planner', params: { toLabel: tripDestLabel, toLat: String(tripDest.lat), toLng: String(tripDest.lng) } } as any);
-                  }}
-                  style={{ alignSelf: 'center', paddingVertical: 12, paddingHorizontal: 20 }}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  accessibilityRole="button">
-                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>
-                    {tripResults.length > 3
-                      ? t(`See all ${tripResults.length} routes`, `Voir les ${tripResults.length} itineraires`) + ' →'
-                      : t('More options', 'Plus d\'options') + ' →'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </ScrollView>
-          )}
-        </View>
-      )}
-
       {/* Selected layer pin card */}
       {selectedPin && (
         <Animated.View style={{
@@ -2636,7 +2056,7 @@ export default function MapScreen() {
       )}
 
       {/* First-open prompt — shown when user has no saved transit stops */}
-      {boardItems.filter(i => i.type === 'bus_stop' || i.type === 'lrt_station').length === 0 && !tappedLocation && !tripResults.length && (
+      {boardItems.filter(i => i.type === 'bus_stop' || i.type === 'lrt_station').length === 0 && !tappedLocation && (
         <View style={{
           position: 'absolute', bottom: Platform.OS === 'ios' ? 120 : 100, left: 16, right: 16, zIndex: 998,
           backgroundColor: colours.card, borderRadius: 16, padding: 20,
@@ -2680,34 +2100,13 @@ export default function MapScreen() {
         nearbyStops={nearbyStops}
         nearbyLoading={nearbyLoading}
         onRefreshLocation={fetchNearbyStops}
-        savedBoard={boardItems}
-        onBoardCardPress={() => {}}
-        boardCardProps={{
-          cardShadow: {},
-          garbageEvents: [],
-          alerts: sheetAlerts,
-          sensGame: sheetSensGame,
-          timeFormat: 'relative',
-          campusData: null,
-        }}
         expandedStopId={expandedStopId}
         onExpandStop={handleExpandStop}
         expandedArrivals={expandedArrivals}
         expandedArrivalsLoading={expandedArrivalsLoading}
         activeAlertCount={sheetAlerts.length}
         hasDisruption={sheetAlerts.some((a: any) => a.category === 'lrt' || (a.title || '').toLowerCase().includes('o-train'))}
-        weather={sheetWeather}
-        sensGame={sheetSensGame}
-        events={sheetEvents}
-        onServiceTileTap={(tile: ServiceTile) => {
-          if (tile.action === 'navigate' && tile.target) {
-            router.push(tile.target as any);
-          } else if (tile.action === 'link' && tile.target) {
-            Linking.openURL(tile.target).catch(() => {});
-          }
-        }}
         communityDeals={sheetDeals}
-        onPlanTrip={() => router.push('/(tabs)/planner' as any)}
         activeLayers={activeLayers}
         layerPins={layerPins}
         onToggleLayer={toggleLayer}
@@ -2720,32 +2119,6 @@ export default function MapScreen() {
           router.push('/(tabs)/discover' as any);
         }}
       />
-
-      {/* ActiveTrip overlay */}
-      {activeTripItinerary && (
-        <ActiveTrip
-          visible={!!activeTripItinerary}
-          itinerary={activeTripItinerary}
-          onEnd={() => { setActiveTripItinerary(null); clearTripResults(); }}
-          colours={colours}
-          t={t}
-          onConfirmArrival={async (routeId, stopName) => {
-            try {
-              const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
-              const dedupKey = `routeo_ghost_${stopName}_${routeId}_${today}`;
-              const already = await AsyncStorage.getItem(dedupKey);
-              if (already) return;
-              const { getDeviceId } = require('../../lib/pushNotifications');
-              const deviceId = await getDeviceId();
-              fetchWithTimeout('https://routeo-backend.vercel.app/api/community?action=ghost.report', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ stop_id: stopName, route_id: routeId, report_type: 'confirmed_arrived', notes: '', device_id: deviceId }),
-              }).catch(() => {});
-              AsyncStorage.setItem(dedupKey, '1').catch(() => {});
-            } catch (e) { if (__DEV__) console.warn(e); }
-          }}
-        />
-      )}
 
       <BusTrackingModal
         visible={!!trackingBus}

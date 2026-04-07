@@ -1,6 +1,5 @@
-import React, { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useMemo } from 'react';
 import {
-  Alert,
   View,
   Text,
   TouchableOpacity,
@@ -12,15 +11,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
-import { SavedBoardItem } from '../lib/homeConstants';
-import { SavedBoardCard } from './SavedCards';
 import { SK_LEAVE_NOW_ALERTS } from '../lib/storageKeys';
 import { LAYER_CONFIG, LAYER_ICONS, LayerKey, MapPin } from '../lib/mapLayers';
 import { LayerFeedCard } from './LayerFeedCard';
 import { writeWidgetData, getTopSavedStopId } from '../lib/widgetData';
-import TonightCard from './TonightCard';
-import type { ServiceTile } from './ServicesGrid';
-import { CampusConfig } from '../lib/campusData';
 let Notifications: typeof import('expo-notifications') | null = null;
 try { Notifications = require('expo-notifications'); } catch {}
 
@@ -37,8 +31,6 @@ export interface NearbyStop {
   cachedAt?: number;
 }
 
-type SensGame = { state: 'live' | 'pre' | 'none'; period?: string; homeAbbr?: string; awayAbbr?: string; homeScore?: number; awayScore?: number; startTime?: string; opponentAbbr?: string } | null;
-
 interface NearbyTransitSheetProps {
   colours: { bg: string; text: string; muted: string; accent: string; surface: string; border: string; lrt: string; red: string; [key: string]: string };
   fonts: { sm: number; md: number; lg: number; xl: number; xxl: number };
@@ -50,18 +42,6 @@ interface NearbyTransitSheetProps {
   nearbyLoading: boolean;
   onRefreshLocation: () => void;
 
-  // Board data (for mid state)
-  savedBoard: SavedBoardItem[];
-  onBoardCardPress: (item: SavedBoardItem) => void;
-  boardCardProps: {
-    cardShadow: Record<string, unknown>;
-    garbageEvents: { date: string; flags: string[] }[];
-    alerts: { id: number; title: string; description: string; routes: string[]; category: string }[];
-    sensGame: SensGame;
-    timeFormat: 'relative' | 'absolute';
-    campusData: CampusConfig | null;
-  };
-
   // Arrivals expansion
   expandedStopId: string | null;
   onExpandStop: (stopId: string | null) => void;
@@ -72,22 +52,8 @@ interface NearbyTransitSheetProps {
   activeAlertCount: number;
   hasDisruption: boolean;
 
-  // Weather (State 3)
-  weather: { temp: number; condition: string; icon: string } | null;
-  onWeatherPress?: () => void;
-
-  // Tonight card (State 3)
-  sensGame: SensGame;
-  events: { name: string; date: string; time?: string; venue: string }[];
-
-  // Services (State 3)
-  onServiceTileTap: (tile: ServiceTile) => void;
-
-  // Community deals (State 3)
+  // Community deals
   communityDeals: { id: string; venue_name: string; deal_text: string; day_of_week: number }[];
-
-  // Navigation
-  onPlanTrip: () => void;
 
   // City layers
   activeLayers?: Record<LayerKey, boolean>;
@@ -122,14 +88,6 @@ function formatCountdown(mins: number): string {
 
 
 
-function weatherIconName(icon: string): string {
-  if (icon.includes('snow')) return 'snow-outline';
-  if (icon.includes('rain') || icon.includes('drizzle')) return 'rainy-outline';
-  if (icon.includes('cloud') || icon.includes('overcast')) return 'cloudy-outline';
-  if (icon.includes('thunder') || icon.includes('storm')) return 'thunderstorm-outline';
-  if (icon.includes('clear') || icon.includes('sunny')) return 'sunny-outline';
-  return 'partly-sunny-outline';
-}
 
 // Skeleton card
 
@@ -389,41 +347,6 @@ const StopCard = React.memo(function StopCard({
   );
 });
 
-// Weather row
-
-const WeatherRow = React.memo(function WeatherRow({ weather, colours, t, onPress }: {
-  weather: { temp: number; condition: string; icon: string };
-  colours: any;
-  t: (en: string, fr: string) => string;
-  onPress?: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      activeOpacity={0.7}
-      onPress={onPress}
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        gap: 12,
-      }}
-    >
-      <View style={{
-        width: 40, height: 40, borderRadius: 20,
-        backgroundColor: '#4A90D9' + '15',
-        alignItems: 'center', justifyContent: 'center',
-      }}>
-        <Ionicons name={weatherIconName(weather.icon) as any} size={20} color="#4A90D9" />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 16, fontWeight: '700', color: colours.text }}>{weather.temp}°C</Text>
-        <Text style={{ fontSize: 12, color: colours.muted }}>{weather.condition}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={16} color={colours.muted} />
-    </TouchableOpacity>
-  );
-});
 
 // Shared layout helpers (stable references)
 
@@ -453,22 +376,13 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
       nearbyStops,
       nearbyLoading,
       onRefreshLocation,
-      savedBoard,
-      onBoardCardPress,
-      boardCardProps,
       expandedStopId,
       onExpandStop,
       expandedArrivals,
       expandedArrivalsLoading,
       activeAlertCount,
       hasDisruption,
-      weather,
-      onWeatherPress,
-      sensGame,
-      events,
-      onServiceTileTap,
       communityDeals,
-      onPlanTrip,
       activeLayers,
       layerPins,
       onToggleLayer,
@@ -533,12 +447,6 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
 
 
     const peekStops = nearbyStops.slice(0, 4);
-
-    // Board stops only (bus_stop + lrt_station)
-    const boardStops = useMemo(
-      () => savedBoard.filter(item => item.type === 'bus_stop' || item.type === 'lrt_station'),
-      [savedBoard],
-    );
 
     const Separator = useCallback(() => <SheetSeparator colours={colours} />, [colours]);
     const SectionHeader = useCallback(({ label }: { label: string }) => <SheetSectionHeader label={label} colours={colours} />, [colours]);
@@ -731,80 +639,6 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                   />
                 </React.Fragment>
               ))}
-            </>
-          )}
-
-          {/* Saved board stops */}
-          {boardStops.length > 0 && (
-            <>
-              <Separator />
-              <SectionHeader label={t('Saved', 'Enregistres')} />
-              {boardStops.map((item, i) => (
-                <View key={`board-${i}`} style={{ paddingHorizontal: 16, paddingVertical: 4 }}>
-                  <SavedBoardCard
-                    item={item}
-                    colours={colours}
-                    fonts={fonts}
-                    t={t}
-                    onPress={() => onBoardCardPress(item)}
-                    drag={() => {}}
-                    isActive={false}
-                    cardShadow={boardCardProps.cardShadow}
-                    garbageEvents={boardCardProps.garbageEvents}
-                    alerts={boardCardProps.alerts}
-                    sensGame={boardCardProps.sensGame}
-                    timeFormat={boardCardProps.timeFormat}
-                    campusData={boardCardProps.campusData}
-                  />
-                </View>
-              ))}
-            </>
-          )}
-
-          {/* Plan a trip button */}
-          <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12 }}>
-            <TouchableOpacity
-              onPress={onPlanTrip}
-              activeOpacity={0.8}
-              style={{
-                backgroundColor: TEAL,
-                borderRadius: 16,
-                paddingVertical: 14,
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexDirection: 'row',
-                gap: 8,
-              }}
-              accessibilityLabel={t('Plan a trip', 'Planifier un trajet')}
-            >
-              <Ionicons name="navigate" size={16} color="#fff" />
-              <Text style={{ fontWeight: '700', fontSize: 15, color: '#fff' }}>
-                {t('Plan a trip', 'Planifier un trajet')}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Ottawa life */}
-          <Separator />
-
-          {/* Tonight card */}
-          <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
-            <TonightCard
-              colours={colours}
-              fonts={fonts}
-              cardShadow={boardCardProps.cardShadow}
-              sensGame={sensGame}
-              events={events}
-              weather={weather}
-            />
-          </View>
-
-          {/* Weather row */}
-          {weather && (
-            <>
-              <Separator />
-              <SectionHeader label={t('Weather', 'Meteo')} />
-              <WeatherRow weather={weather} colours={colours} t={t} onPress={onWeatherPress} />
             </>
           )}
 

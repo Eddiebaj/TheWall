@@ -44,7 +44,7 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
   const itemId = 'id' in item ? item.id : item.type;
 
   useEffect(() => {
-    if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'saved_team' || item.type === 'campus' || item.type === 'news' || item.type === 'neighbourhood' || item.type === 'class_schedule') { setPreviewLoading(false); return; }
+    if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'saved_team' || item.type === 'campus' || item.type === 'news' || item.type === 'class_schedule') { setPreviewLoading(false); return; }
     if (item.type === 'gas_prices') {
       setPreviewLoading(false);
       return;
@@ -170,29 +170,11 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
     );
   }
 
-  if (item.type === 'discover') {
-    return (
-      <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
-        <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{t('Discover', 'Decouvrir')}</Text>
-        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>{t('Discover Ottawa', 'Decouvrir Ottawa')}</Text>
-      </TouchableOpacity>
-    );
-  }
-
   if (item.type === 'news') {
     return (
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{t('News', 'Nouvelles')}</Text>
         <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>{t('Local News', 'Nouvelles locales')}</Text>
-      </TouchableOpacity>
-    );
-  }
-
-  if (item.type === 'neighbourhood') {
-    return (
-      <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
-        <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{t('Area', 'Quartier')}</Text>
-        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }} numberOfLines={2}>{t(item.name_en, item.name_fr)}</Text>
       </TouchableOpacity>
     );
   }
