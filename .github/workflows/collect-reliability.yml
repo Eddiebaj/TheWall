@@ -21,4 +21,6 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           OC_TRANSPO_API_KEY: ${{ secrets.OC_TRANSPO_API_KEY }}
+          STO_API_KEY: ${{ secrets.STO_API_KEY }}
+          STO_PRIVATE_KEY: ${{ secrets.STO_PRIVATE_KEY }}
         run: node scripts/collect-reliability.js

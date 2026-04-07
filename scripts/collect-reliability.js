@@ -9,15 +9,30 @@
  */
 
 const GtfsRealtimeBindings = require('gtfs-realtime-bindings');
+const crypto = require('crypto');
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_KEY;
 const OC_KEY = process.env.OC_TRANSPO_API_KEY;
+const STO_API_KEY = process.env.STO_API_KEY;
+const STO_PRIVATE_KEY = process.env.STO_PRIVATE_KEY;
 
 const OC_FEED_URL =
   'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt-tp/beta/v1/TripUpdates?format=json';
-const STO_FEED_URL =
-  'https://sto.ca/sites/default/files/opendata/gtfs_rt/TripUpdates.pb';
+
+function buildStoUrl() {
+  if (!STO_API_KEY || !STO_PRIVATE_KEY) return null;
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const mo = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(now.getUTCDate()).padStart(2, '0');
+  const h = String(now.getUTCHours()).padStart(2, '0');
+  const mi = String(now.getUTCMinutes()).padStart(2, '0');
+  const dateIso = `${y}${mo}${d}T${h}${mi}Z`;
+  const salted = STO_PRIVATE_KEY + dateIso;
+  const hash = crypto.createHash('sha256').update(salted, 'utf8').digest('hex').toUpperCase();
+  return `https://gtfs.sto.ca/download.php?hash=${hash}&file=trip&key=${STO_API_KEY}`;
+}
 
 if (!SB_URL || !SB_KEY || !OC_KEY) {
   console.error('Missing env vars');
@@ -259,8 +274,13 @@ async function collectOC(now, todayStr, offsetHours) {
 // ---------------------------------------------------------------------------
 
 async function collectSTO(now, todayStr, offsetHours) {
+  const stoUrl = buildStoUrl();
+  if (!stoUrl) {
+    console.log('[STO] Skipped — STO_API_KEY or STO_PRIVATE_KEY not set');
+    return;
+  }
   console.log('[STO] Fetching GTFS-RT feed...');
-  const r = await fetch(STO_FEED_URL, {
+  const r = await fetch(stoUrl, {
     signal: AbortSignal.timeout(15000),
   });
   if (!r.ok) throw new Error('STO GTFS-RT HTTP ' + r.status);
