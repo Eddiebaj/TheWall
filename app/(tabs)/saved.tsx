@@ -590,17 +590,18 @@ function SavedScreenInner() {
                         onLongPress={() => openScheduleModal(mostUsedStop.id, mostUsedStop.name, a.routeId)}
                         activeOpacity={0.7}
                         hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-                        style={{ padding: 4 }}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 2, padding: 4 }}
                         accessibilityRole="button"
-                        accessibilityLabel={t('Set departure alert. Long press to schedule.', 'D\u00e9finir une alerte. Appui long pour planifier.')}
+                        accessibilityLabel={t('Set departure alert. Hold for schedule.', 'D\u00e9finir une alerte. Maintenir pour planifier.')}
                       >
                         <Ionicons
                           name={leaveAlerts[`${mostUsedStop.id}-${a.routeId}`] || leaveAlerts[`${mostUsedStop.id}-${a.routeId}-sched`] ? 'notifications' : 'notifications-outline'}
                           size={16}
                           color={leaveAlerts[`${mostUsedStop.id}-${a.routeId}`] || leaveAlerts[`${mostUsedStop.id}-${a.routeId}-sched`] ? '#FF9500' : colours.muted}
                         />
+                        <Ionicons name="calendar-outline" size={10} color={colours.muted} />
                       </TouchableOpacity>
-                      {reliability[mostUsedStop.id]?.[a.routeId] && (
+                      {reliability[mostUsedStop.id]?.[a.routeId] && reliability[mostUsedStop.id][a.routeId].sampleSize >= 10 && (
                         <TouchableOpacity
                           onPress={() => { hapticLight(); trackEvent('reliability_tapped'); setExpandedReliability(prev => prev === `${mostUsedStop.id}-${a.routeId}` ? null : `${mostUsedStop.id}-${a.routeId}`); }}
                           activeOpacity={0.7}
@@ -617,7 +618,7 @@ function SavedScreenInner() {
                   {(arrivals[mostUsedStop.id] || []).map(a => {
                     const rKey = `${mostUsedStop.id}-${a.routeId}`;
                     const rel = reliability[mostUsedStop.id]?.[a.routeId];
-                    if (expandedReliability !== rKey || !rel) return null;
+                    if (expandedReliability !== rKey || !rel || rel.sampleSize < 10) return null;
                     const clr = reliabilityColor(rel.onTimePercent);
                     return (
                       <View key={`rel-${rKey}`} style={{ backgroundColor: clr + '10', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginTop: 4, width: '100%' }}>
@@ -780,15 +781,16 @@ function SavedScreenInner() {
                                   onLongPress={() => openScheduleModal(stop.id, stop.name, a.routeId)}
                                   activeOpacity={0.7}
                                   hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-                                  style={{ padding: 2 }}
+                                  style={{ flexDirection: 'row', alignItems: 'center', gap: 2, padding: 2 }}
                                   accessibilityRole="button"
-                                  accessibilityLabel={t('Set departure alert. Long press to schedule.', 'D\u00e9finir une alerte. Appui long pour planifier.')}
+                                  accessibilityLabel={t('Set departure alert. Hold for schedule.', 'D\u00e9finir une alerte. Maintenir pour planifier.')}
                                 >
                                   <Ionicons
                                     name={leaveAlerts[`${stop.id}-${a.routeId}`] || leaveAlerts[`${stop.id}-${a.routeId}-sched`] ? 'notifications' : 'notifications-outline'}
                                     size={14}
                                     color={leaveAlerts[`${stop.id}-${a.routeId}`] || leaveAlerts[`${stop.id}-${a.routeId}-sched`] ? '#FF9500' : colours.muted}
                                   />
+                                  <Ionicons name="calendar-outline" size={9} color={colours.muted} />
                                 </TouchableOpacity>
                               </View>
                             ))}

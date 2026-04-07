@@ -323,8 +323,7 @@ export default function OnboardingScreen() {
             <TouchableOpacity
               key={i}
               onPress={() => {
-                // Block navigation past stop slide if no stops added
-                if (i > 2 && !canAdvanceStop) return;
+                // Allow all dot navigation (skip is now available on stop slide)
                 goToSlide(i);
               }}
               activeOpacity={0.7}
@@ -337,7 +336,7 @@ export default function OnboardingScreen() {
                 width: i === currentIndex ? 28 : 8,
                 height: 8, borderRadius: 4,
                 backgroundColor: i === currentIndex ? accent : '#1e2a3a',
-                opacity: (i > 2 && !canAdvanceStop) ? 0.3 : 1,
+                opacity: 1,
               }} />
             </TouchableOpacity>
           ))}
@@ -376,25 +375,38 @@ export default function OnboardingScreen() {
             )}
           </>
         ) : isStopSlide ? (
-          /* Stop slide: Next disabled until at least 1 stop added */
-          <TouchableOpacity
-            style={{
-              backgroundColor: canAdvanceStop ? '#004890' : '#1e2a3a',
-              borderRadius: 16, paddingVertical: 16,
-              alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8,
-              opacity: canAdvanceStop ? 1 : 0.5,
-            }}
-            onPress={() => canAdvanceStop && goToSlide(3)}
-            disabled={!canAdvanceStop}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel={t('Next', 'Suivant')}
-          >
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 17 }}>
-              {t('Next', 'Suivant')}
-            </Text>
-            <Ionicons name="arrow-forward" size={18} color="#fff" />
-          </TouchableOpacity>
+          /* Stop slide: Next + Skip */
+          <>
+            <TouchableOpacity
+              style={{
+                backgroundColor: canAdvanceStop ? '#004890' : '#1e2a3a',
+                borderRadius: 16, paddingVertical: 16,
+                alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8,
+                opacity: canAdvanceStop ? 1 : 0.5,
+              }}
+              onPress={() => canAdvanceStop && goToSlide(3)}
+              disabled={!canAdvanceStop}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={t('Next', 'Suivant')}
+            >
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 17 }}>
+                {t('Next', 'Suivant')}
+              </Text>
+              <Ionicons name="arrow-forward" size={18} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ paddingVertical: 14, alignItems: 'center' }}
+              onPress={finish}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={t('Skip adding stops', 'Passer l\'ajout d\'arrets')}
+            >
+              <Text style={{ color: '#5a6a7a', fontSize: 14, fontWeight: '600' }}>
+                {t('Maybe later', 'Peut-être plus tard')}
+              </Text>
+            </TouchableOpacity>
+          </>
         ) : isLast ? (
           /* Final slide: Get Started */
           <TouchableOpacity
