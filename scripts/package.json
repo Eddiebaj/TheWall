@@ -1,0 +1,6 @@
+{
+  "private": true,
+  "dependencies": {
+    "gtfs-realtime-bindings": "^1.1.1"
+  }
+}
