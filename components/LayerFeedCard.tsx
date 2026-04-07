@@ -69,7 +69,7 @@ export const LayerFeedCard = React.memo(function LayerFeedCard({ pin, onRoute, o
 });
 
 const styles = StyleSheet.create({
-  card: { borderLeftWidth: 4, borderRadius: 12, padding: 12, marginHorizontal: 16, marginBottom: 8 },
+  card: { borderLeftWidth: 4, borderRadius: 14, padding: 12, marginHorizontal: 16, marginBottom: 8 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   badge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 20, gap: 3 },
   badgeText: { fontSize: 10, fontWeight: '700' },

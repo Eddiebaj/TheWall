@@ -95,7 +95,7 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sp
     <View style={[{
       marginHorizontal: 20,
       marginBottom: 16,
-      borderRadius: 16,
+      borderRadius: 14,
       borderWidth: 1,
       borderColor: colours.border,
       backgroundColor: colours.surface,

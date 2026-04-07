@@ -11,6 +11,7 @@ import { AlertCardSkeleton } from '../../components/Shimmer';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { hapticLight } from '../../lib/haptics';
 import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
+import { cardShadow as sharedCardShadow } from '../../lib/styles';
 
 const ALERTS_URL = 'https://routeo-backend.vercel.app/api/alerts';
 const LRT_URL = 'https://routeo-backend.vercel.app/api/alerts?action=lrt';
@@ -90,9 +91,7 @@ function AlertsScreenInner() {
 
   const isLight = resolvedTheme === 'light';
   const insets = useSafeAreaInsets();
-  const cardShadow = isLight
-    ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 }
-    : {};
+  const cardShadow = sharedCardShadow;
 
   const fetchAlerts = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -415,10 +414,11 @@ function AlertsScreenInner() {
             <View>{[0,1,2].map(i => <AlertCardSkeleton key={i} colours={colours} />)}</View>
           ) : filtered.length === 0 ? (
             <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+              <Ionicons name="checkmark-circle-outline" size={40} color={colours.accent} style={{ marginBottom: 8 }} />
               <Text style={{ fontSize: fonts.sm, color: colours.muted, textAlign: 'center', lineHeight: 20 }}>
                 {activeFilter
                   ? t(`No ${activeFilter === 'elevators' ? 'elevator' : activeFilter} alerts right now.`, `Aucune alerte ${activeFilter === 'elevators' ? 'ascenseur' : activeFilter} en ce moment.`)
-                  : t('No active service alerts on OC Transpo.', 'Aucune alerte de service active sur OC Transpo.')
+                  : t('All clear — no active service alerts', 'Tout est en ordre — aucune alerte active')
                 }
               </Text>
             </View>

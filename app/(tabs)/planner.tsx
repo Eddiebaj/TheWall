@@ -1408,14 +1408,14 @@ function PlannerScreenInner() {
             warnings.push({
               text: `Tight transfer at ${transferStop} — Route ${incomingRoute} was late ${100 - reliability.onTimePercent}% of the time this week`,
               textFr: `Correspondance serree a ${transferStop} — Route ${incomingRoute} etait en retard ${100 - reliability.onTimePercent}% du temps cette semaine`,
-              color: '#F59E0B',
+              color: colours.warn,
             });
           }
           if (reliability && reliability.onTimePercent < 60 && !warnings.some(w => w.color === '#cc3b2a')) {
             warnings.push({
               text: `Route ${incomingRoute} has been unreliable this week (${reliability.onTimePercent}% on time)`,
               textFr: `Route ${incomingRoute} a ete peu fiable cette semaine (${reliability.onTimePercent}% a l'heure)`,
-              color: '#F59E0B',
+              color: colours.warn,
             });
           }
           if (hasAlert) {
@@ -1450,7 +1450,7 @@ function PlannerScreenInner() {
                   <Text style={{ fontSize: 12, fontWeight: '600', color: w.color, flex: 1 }}>{t(w.text, w.textFr)}</Text>
                 </View>
               ))}
-              {!warnings.some(w => w.color === '#cc3b2a' || w.color === '#F59E0B') && connectionMin <= 5 && (
+              {!warnings.some(w => w.color === '#cc3b2a' || w.color === colours.warn) && connectionMin <= 5 && (
                 <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }}>{t(`${transferStop} → Route ${connectingRoute || ''}`, `${transferStop} → Route ${connectingRoute || ''}`)}</Text>
               )}
             </View>
@@ -1818,7 +1818,7 @@ function PlannerScreenInner() {
                 <View key={i}>
                   <TouchableOpacity
                     onPress={() => setExpandedLeg(isExpanded ? null : i)}
-                    style={{ backgroundColor: isCurrentLeg ? color + '12' : colours.surface, borderRadius: 12, padding: 14, borderWidth: isCurrentLeg ? 1.5 : 1, borderColor: isCurrentLeg ? color : colours.border, borderLeftWidth: 4, borderLeftColor: color }}
+                    style={{ backgroundColor: isCurrentLeg ? color + '12' : colours.surface, borderRadius: 14, padding: 14, borderWidth: isCurrentLeg ? 1.5 : 1, borderColor: isCurrentLeg ? color : colours.border, borderLeftWidth: 4, borderLeftColor: color }}
                     activeOpacity={0.85}
                     accessibilityRole="button"
                   >
@@ -2609,7 +2609,8 @@ function PlannerScreenInner() {
           <View style={{ paddingHorizontal: 20, paddingTop: 12 }}>{[0,1,2].map(i => <ItinerarySkeleton key={i} colours={colours} />)}</View>
         ) : !loading && searched && error ? (
           <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 }}>
-            <Text style={{ color: colours.muted, fontSize: 14, fontWeight: '600', textAlign: 'center' }}>{t('No routes found', 'Aucun trajet trouv\u00e9')}</Text>
+            <Ionicons name="navigate-outline" size={40} color={colours.muted} style={{ marginBottom: 8 }} />
+            <Text style={{ color: colours.muted, fontSize: 14, fontWeight: '600', textAlign: 'center' }}>{t('No routes found. Try adjusting your start or destination.', 'Aucun itin\u00e9raire trouv\u00e9. Essayez de modifier votre d\u00e9part ou destination.')}</Text>
             <Text style={{ color: colours.muted, fontSize: 13, marginTop: 6, textAlign: 'center' }}>{error}</Text>
             <TouchableOpacity
               onPress={plan}

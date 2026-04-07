@@ -68,7 +68,7 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
     return () => { cancelled = true; };
   }, [item.type, itemId]);
 
-  const cardBase = [{ width: 152, height: 148, borderRadius: 16, padding: 12, backgroundColor: isActive ? colours.tintBg : colours.surface, borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, justifyContent: 'space-between' as const }, cardShadow];
+  const cardBase = [{ width: 152, height: 148, borderRadius: 14, padding: 12, backgroundColor: isActive ? colours.tintBg : colours.surface, borderWidth: 1, borderColor: isActive ? colours.accent : colours.border, justifyContent: 'space-between' as const }, cardShadow];
 
   if (item.type === 'garbage') {
     const next = garbageEvents[0];
@@ -232,7 +232,7 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
   if (item.type === 'external_link') {
     const label = t(item.label_en, item.label_fr);
     return (
-      <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 16, padding: 14, backgroundColor: isActive ? item.accent + '22' : colours.surface, borderWidth: 1, borderTopWidth: 3, borderColor: isActive ? item.accent : colours.border, borderTopColor: item.accent, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
+      <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 14, padding: 14, backgroundColor: isActive ? item.accent + '22' : colours.surface, borderWidth: 1, borderTopWidth: 3, borderColor: isActive ? item.accent : colours.border, borderTopColor: item.accent, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: item.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
           <Ionicons name={item.icon as any} size={18} color={item.accent} />
         </View>
@@ -253,7 +253,7 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
     const nextShuttle = campus?.shuttles?.[0] ? getNextDeparture(campus.shuttles[0].departures) : null;
     const lib = campus?.libraries?.[0] ? isLibraryOpen(campus.libraries[0]) : null;
     return (
-      <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 16, padding: 14, backgroundColor: isActive ? accent + '22' : colours.surface, borderWidth: 1, borderTopWidth: 3, borderColor: isActive ? accent : colours.border, borderTopColor: accent, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
+      <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 14, padding: 14, backgroundColor: isActive ? accent + '22' : colours.surface, borderWidth: 1, borderTopWidth: 3, borderColor: isActive ? accent : colours.border, borderTopColor: accent, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         {campus && CAMPUS_LOGOS[campus.id] ? (
           <Image source={CAMPUS_LOGOS[campus.id]} style={{ width: 44, height: 44, borderRadius: 8 }} resizeMode="contain" />
         ) : (
@@ -292,7 +292,7 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
   const isLRT = item.type === 'lrt_station';
   const isLive = previewSource === 'gtfs-rt' || previewSource === 'sto-gtfs-rt';
   const isSTO = ('agency' in item && item.agency === 'STO') || isStoStop(item.id);
-  const stoBlue = '#0072bc';
+  const stoBlue = '#00A78D';
   const stopRouteIds = preview.map(a => (a.routeId || '').split('-')[0]);
   const activeAlerts = alerts.filter(a => a.category !== 'accessibility');
   const matchingAlertRoutes = activeAlerts.flatMap(a => (a.routes || []).filter(r => stopRouteIds.includes(r)));
@@ -322,8 +322,8 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
           <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text, flex: 1, lineHeight: 16 }} numberOfLines={2}>{toTitleCase(item.name)}</Text>
           {!previewLoading && preview.length > 0 && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-              <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: isLive ? (isSTO ? stoBlue : '#22c55e') : colours.muted }} />
-              <Text style={{ fontSize: 8, fontWeight: '700', color: isLive ? (isSTO ? stoBlue : '#22c55e') : colours.muted }}>{isLive ? t('LIVE', 'DIRECT') : t('SCHED', 'HORAIRE')}</Text>
+              <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: isLive ? (isSTO ? stoBlue : colours.live) : colours.muted }} />
+              <Text style={{ fontSize: 8, fontWeight: '700', color: isLive ? (isSTO ? stoBlue : colours.live) : colours.muted }}>{isLive ? t('LIVE', 'DIRECT') : t('SCHED', 'HORAIRE')}</Text>
             </View>
           )}
         </View>
@@ -378,7 +378,7 @@ export const SavedStopCard = React.memo(function SavedStopCard({ fav, isActive, 
   const [previewSource, setPreviewSource] = useState<'gtfs-rt' | 'gtfs-static' | 'sto-gtfs-rt' | null>(null);
   const [previewFetchedAt, setPreviewFetchedAt] = useState(Date.now());
   const isSTO = isStoStop(fav.id);
-  const stopColor = isSTO ? '#0072bc' : colours.accent;
+  const stopColor = isSTO ? '#00A78D' : colours.accent;
   useEffect(() => {
     let cancelled = false;
     const fetchPreview = async () => {
@@ -398,11 +398,11 @@ export const SavedStopCard = React.memo(function SavedStopCard({ fav, isActive, 
     return () => { cancelled = true; };
   }, [fav.id]);
   const isLive = previewSource === 'gtfs-rt' || previewSource === 'sto-gtfs-rt';
-  const liveColor = isSTO ? '#0072bc' : '#22c55e';
+  const liveColor = isSTO ? '#00A78D' : colours.live;
   return (
-    <TouchableOpacity style={[{ width: 152, height: 148, borderRadius: 16, padding: 12, backgroundColor: isActive ? stopColor : colours.surface, borderWidth: 1, borderColor: isActive ? stopColor : colours.border, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
+    <TouchableOpacity style={[{ width: 152, height: 148, borderRadius: 14, padding: 12, backgroundColor: isActive ? stopColor : colours.surface, borderWidth: 1, borderColor: isActive ? stopColor : colours.border, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <Text style={{ fontSize: 10, fontWeight: '600', color: isActive ? 'rgba(255,255,255,0.7)' : (isSTO ? '#0072bc' : colours.muted) }}>{isSTO ? 'STO' : t('Stop', 'Arr\u00eat')}</Text>
+        <Text style={{ fontSize: 10, fontWeight: '600', color: isActive ? 'rgba(255,255,255,0.7)' : (isSTO ? '#00A78D' : colours.muted) }}>{isSTO ? 'STO' : t('Stop', 'Arr\u00eat')}</Text>
         {!previewLoading && preview.length > 0 && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
             <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: isLive ? liveColor : (isActive ? 'rgba(255,255,255,0.5)' : colours.muted) }} />
@@ -433,7 +433,7 @@ export const SavedPlaceCard = React.memo(function SavedPlaceCard({ place, colour
   const photoUrl = place.photoRef ? `https://routeo-backend.vercel.app/api/places?action=photo&photo_reference=${place.photoRef}&maxwidth=400` : null;
   const label = language === 'fr' ? place.categoryLabel_fr : place.categoryLabel_en;
   return (
-    <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 16, overflow: 'hidden', backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }, cardShadow]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
+    <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 14, overflow: 'hidden', backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }, cardShadow]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
       <ImageBackground source={photoUrl ? { uri: photoUrl } : undefined} style={{ width: '100%', height: 100, backgroundColor: place.categoryColor + '18', alignItems: photoUrl ? undefined : 'center', justifyContent: photoUrl ? undefined : 'center' }} resizeMode="cover">
         {!photoUrl && <Ionicons name={place.categoryIcon} size={28} color={place.categoryColor} />}
         <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: place.categoryColor, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>

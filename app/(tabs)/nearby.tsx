@@ -310,8 +310,8 @@ function ExploreScreenInner() {
       setLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
     } catch {
       setLocationError(t(
-        'Could not get your location. Please try again.',
-        'Impossible d\'obtenir votre position. Veuillez r\u00e9essayer.'
+        'Location unavailable \u2014 check your settings',
+        'Position indisponible \u2014 v\u00e9rifiez vos param\u00e8tres'
       ));
     }
   };
@@ -399,7 +399,7 @@ function ExploreScreenInner() {
       <TouchableOpacity
         key={place.id}
         style={{
-          borderRadius: 12,
+          borderRadius: 14,
           marginBottom: 10,
           overflow: 'hidden',
           backgroundColor: colours.surface,
@@ -580,10 +580,13 @@ function ExploreScreenInner() {
     );
     if (filteredPlaces.length === 0) return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 }}>
+        <Ionicons name="search-outline" size={40} color={colours.muted} style={{ marginBottom: 8 }} />
         <Text style={{ color: colours.muted, fontSize: fonts.sm, textAlign: 'center' }}>
           {searchQuery
             ? t(`No results for "${searchQuery}"`, `Aucun r\u00e9sultat pour "${searchQuery}"`)
-            : t(`No ${catLabel(selectedCategory).toLowerCase()} found nearby`, `Aucun(e) ${catLabel(selectedCategory).toLowerCase()} trouv\u00e9(e) \u00e0 proximit\u00e9`)
+            : maxDistance > 0
+              ? t(`No ${catLabel(selectedCategory).toLowerCase()} within ${formatDistance(maxDistance)}. Try expanding your search.`, `Aucun(e) ${catLabel(selectedCategory).toLowerCase()} dans ${formatDistance(maxDistance)}. Essayez d'\u00e9largir votre recherche.`)
+              : t(`No ${catLabel(selectedCategory).toLowerCase()} found nearby. Try a different category or check back later.`, `Aucun(e) ${catLabel(selectedCategory).toLowerCase()} \u00e0 proximit\u00e9. Essayez une autre cat\u00e9gorie ou revenez plus tard.`)
           }
         </Text>
       </View>

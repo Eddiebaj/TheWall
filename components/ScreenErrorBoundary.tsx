@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 interface Props {
   children: React.ReactNode;
@@ -27,11 +28,26 @@ export class ScreenErrorBoundary extends React.Component<Props, State> {
       const { colours, fonts } = this.props;
       return (
         <View style={{ flex: 1, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-          <Text style={{ fontSize: fonts.sm, color: colours.muted, textAlign: 'center', marginBottom: 16 }}>
-            Something went wrong{'\n'}Une erreur est survenue
+          <Ionicons name="warning-outline" size={48} color="#F59E0B" />
+          <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text, textAlign: 'center', marginTop: 16, marginBottom: 8 }}>
+            Something went wrong
           </Text>
-          <TouchableOpacity onPress={() => this.setState({ hasError: false })}>
-            <Text style={{ fontSize: fonts.sm, color: colours.accent }}>Try again / R&#xE9;essayer</Text>
+          <Text style={{ fontSize: fonts.sm, color: colours.muted, textAlign: 'center', marginBottom: 24 }}>
+            Une erreur est survenue
+          </Text>
+          <TouchableOpacity
+            onPress={() => this.setState({ hasError: false })}
+            style={{
+              backgroundColor: colours.accent,
+              borderRadius: 12,
+              paddingVertical: 12,
+              paddingHorizontal: 24,
+            }}
+            accessibilityRole="button"
+          >
+            <Text style={{ fontSize: fonts.md, fontWeight: '600', color: '#fff' }}>
+              Try again / R{'\u00E9'}essayer
+            </Text>
           </TouchableOpacity>
         </View>
       );

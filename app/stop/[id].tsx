@@ -8,6 +8,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { toTitleCase } from '../../lib/utils';
+import { cardShadow as sharedCardShadow } from '../../lib/styles';
 
 const BACKEND_URL = 'https://routeo-backend.vercel.app/api/arrivals';
 
@@ -60,9 +61,7 @@ export default function StopScreen() {
 
   const isLive = source === 'gtfs-rt' || source === 'sto-gtfs-rt';
   const isLight = colours.bg === '#f0f4f8';
-  const cardShadow = isLight
-    ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 }
-    : {};
+  const cardShadow = sharedCardShadow;
 
   const renderArrival = ({ item }: { item: Arrival }) => {
     const mins = Math.round(item.minsAway);
@@ -123,8 +122,8 @@ export default function StopScreen() {
         </View>
         {isLive && (
           <View style={styles.liveTag}>
-            <View style={[styles.liveDot, { backgroundColor: '#22c55e' }]} />
-            <Text style={[styles.liveText, { fontSize: fonts.sm }]}>
+            <View style={[styles.liveDot, { backgroundColor: colours.live }]} />
+            <Text style={[styles.liveText, { fontSize: fonts.sm, color: colours.live }]}>
               {t('Real-time', 'Temps reel')}
             </Text>
           </View>
@@ -183,7 +182,7 @@ const styles = StyleSheet.create({
   stopId: { fontWeight: '600' },
   liveTag: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   liveDot: { width: 8, height: 8, borderRadius: 4 },
-  liveText: { color: '#22c55e', fontWeight: '600' },
+  liveText: { fontWeight: '600' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, padding: 40 },
   loadingText: { marginTop: 8 },
   errorText: { textAlign: 'center', fontWeight: '500' },

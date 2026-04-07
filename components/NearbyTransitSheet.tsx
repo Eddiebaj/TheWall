@@ -829,20 +829,20 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                         padding: 12,
                         borderRadius: 12,
                         borderWidth: 1,
-                        borderColor: isToday ? '#2ecc7140' : colours.border,
-                        backgroundColor: isToday ? '#2ecc7108' : colours.surface,
+                        borderColor: isToday ? '#22c55e40' : colours.border,
+                        backgroundColor: isToday ? '#22c55e08' : colours.surface,
                         marginBottom: 8,
                       }}
                     >
-                      <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: isToday ? '#2ecc7118' : colours.tintBg, alignItems: 'center', justifyContent: 'center' }}>
-                        <Ionicons name="pricetag" size={16} color={isToday ? '#2ecc71' : colours.accent} />
+                      <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: isToday ? '#22c55e18' : colours.tintBg, alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="pricetag" size={16} color={isToday ? '#22c55e' : colours.accent} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }} numberOfLines={1}>{deal.venue_name}</Text>
                         <Text style={{ fontSize: 12, color: colours.muted, marginTop: 1 }} numberOfLines={1}>{deal.deal_text}</Text>
                       </View>
-                      <View style={{ backgroundColor: isToday ? '#2ecc7118' : colours.bg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: isToday ? '#2ecc7140' : colours.border }}>
-                        <Text style={{ fontSize: 10, fontWeight: '700', color: isToday ? '#2ecc71' : colours.muted }}>
+                      <View style={{ backgroundColor: isToday ? '#22c55e18' : colours.bg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: isToday ? '#22c55e40' : colours.border }}>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: isToday ? '#22c55e' : colours.muted }}>
                           {isToday ? t('TODAY', "AUJOURD'HUI") : dayNames[deal.day_of_week]}
                         </Text>
                       </View>

@@ -43,6 +43,9 @@ const DARK_COLOURS = {
   tintBg:   '#0f2420',
   warnBg:   '#1f1a0d',
   errorBg:  '#1f100e',
+  live:     '#22c55e',
+  warn:     '#F59E0B',
+  warnText: '#FBBF24',
 };
 
 const LIGHT_COLOURS = {
@@ -62,6 +65,9 @@ const LIGHT_COLOURS = {
   tintBg:   '#e8f5f2',
   warnBg:   '#fdf6e8',
   errorBg:  '#fceeed',
+  live:     '#22c55e',
+  warn:     '#F59E0B',
+  warnText: '#92400E',
 };
 
 const HIGH_CONTRAST_DARK = {
@@ -73,6 +79,9 @@ const HIGH_CONTRAST_DARK = {
   tintBg:  '#0a2e24',
   warnBg:  '#2a2010',
   errorBg: '#2a1210',
+  live:    '#22c55e',
+  warn:    '#F59E0B',
+  warnText:'#FBBF24',
 };
 
 const HIGH_CONTRAST_LIGHT = {
@@ -84,6 +93,9 @@ const HIGH_CONTRAST_LIGHT = {
   tintBg:  '#d9f0ec',
   warnBg:  '#f5edd4',
   errorBg: '#f5dbd9',
+  live:    '#22c55e',
+  warn:    '#F59E0B',
+  warnText:'#92400E',
 };
 
 // Palette accent overrides (applied on top of dark/light base)

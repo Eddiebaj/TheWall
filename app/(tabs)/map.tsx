@@ -1533,7 +1533,7 @@ export default function MapScreen() {
           {hasSaved && savedPins.map((pin) => {
             if (!validCoord(pin.lat, pin.lng)) return null;
             const pinIcon: keyof typeof Ionicons.glyphMap = pin.kind === 'stop' ? 'bus' : pin.kind === 'place' ? 'location' : pin.kind === 'neighbourhood' ? 'home' : pin.kind === 'route_from' ? 'navigate' : 'flag';
-            const pinColor = pin.kind === 'stop' ? '#e74c3c' : pin.kind === 'place' ? '#e8a020' : pin.kind === 'neighbourhood' ? '#7b5ea7' : pin.kind === 'route_from' ? '#2ecc71' : '#3498db';
+            const pinColor = pin.kind === 'stop' ? '#e74c3c' : pin.kind === 'place' ? '#e8a020' : pin.kind === 'neighbourhood' ? '#7b5ea7' : pin.kind === 'route_from' ? '#22c55e' : '#3498db';
             const kindLabel = pin.kind === 'stop' ? t('Stop', 'Arr\u00eat') : pin.kind === 'place' ? t('Place', 'Lieu') : pin.kind === 'neighbourhood' ? t('Neighbourhood', 'Quartier') : pin.kind === 'route_from' ? t('Origin', 'Origine') : t('Destination', 'Destination');
             return (
               <PlaceMarker
@@ -1984,7 +1984,7 @@ export default function MapScreen() {
                         if (__DEV__) console.warn('contribute submit failed:', e);
                         Alert.alert(
                           t('Submission Failed', 'Echec de la soumission'),
-                          t('Could not submit your deal. Please try again later.', 'Impossible de soumettre votre offre. Veuillez reessayer plus tard.')
+                          t('Deal submission failed — check your connection', 'Echec de la soumission — vérifiez votre connexion')
                         );
                       }
                       setContribSending(false);
@@ -2190,7 +2190,7 @@ export default function MapScreen() {
                   </View>
                 )}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
-                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#22c55e' }} />
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colours.live }} />
                   <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{agencyLabel}</Text>
                 </View>
                 <TouchableOpacity
@@ -2422,8 +2422,8 @@ export default function MapScreen() {
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <View style={{ flex: 1, marginRight: 12 }}>
                   <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
-                    <View style={{ backgroundColor: (selectedSavedPin.kind === 'stop' ? '#e74c3c' : selectedSavedPin.kind === 'place' ? '#e8a020' : selectedSavedPin.kind === 'neighbourhood' ? '#7b5ea7' : '#2ecc71') + '22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: (selectedSavedPin.kind === 'stop' ? '#e74c3c' : selectedSavedPin.kind === 'place' ? '#e8a020' : selectedSavedPin.kind === 'neighbourhood' ? '#7b5ea7' : '#2ecc71') + '44' }}>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: selectedSavedPin.kind === 'stop' ? '#e74c3c' : selectedSavedPin.kind === 'place' ? '#e8a020' : selectedSavedPin.kind === 'neighbourhood' ? '#7b5ea7' : '#2ecc71' }}>
+                    <View style={{ backgroundColor: (selectedSavedPin.kind === 'stop' ? '#e74c3c' : selectedSavedPin.kind === 'place' ? '#e8a020' : selectedSavedPin.kind === 'neighbourhood' ? '#7b5ea7' : '#22c55e') + '22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: (selectedSavedPin.kind === 'stop' ? '#e74c3c' : selectedSavedPin.kind === 'place' ? '#e8a020' : selectedSavedPin.kind === 'neighbourhood' ? '#7b5ea7' : '#22c55e') + '44' }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: selectedSavedPin.kind === 'stop' ? '#e74c3c' : selectedSavedPin.kind === 'place' ? '#e8a020' : selectedSavedPin.kind === 'neighbourhood' ? '#7b5ea7' : '#22c55e' }}>
                         {selectedSavedPin.kind === 'stop' ? t('Saved Stop', 'Arret favori') : selectedSavedPin.kind === 'place' ? t('Saved Place', 'Lieu favori') : selectedSavedPin.kind === 'neighbourhood' ? t('Neighbourhood', 'Quartier') : t('Saved Route', 'Trajet favori')}
                       </Text>
                     </View>
@@ -2452,7 +2452,7 @@ export default function MapScreen() {
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${selectedSavedPin.lat},${selectedSavedPin.lng}`).catch(() => {})}
-                style={{ marginTop: 14, backgroundColor: selectedSavedPin.kind === 'stop' ? '#e74c3c' : selectedSavedPin.kind === 'place' ? '#e8a020' : selectedSavedPin.kind === 'neighbourhood' ? '#7b5ea7' : '#2ecc71', borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
+                style={{ marginTop: 14, backgroundColor: selectedSavedPin.kind === 'stop' ? '#e74c3c' : selectedSavedPin.kind === 'place' ? '#e8a020' : selectedSavedPin.kind === 'neighbourhood' ? '#7b5ea7' : '#22c55e', borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
                 accessibilityRole="link"
                 accessibilityLabel={t('Open in Maps', 'Ouvrir dans Maps')}>
                 <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>

@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
+import { cardShadow as sharedCardShadow } from '../../lib/styles';
 
 const ROUTE_URL = 'https://routeo-backend.vercel.app/api/route';
 
@@ -87,7 +88,7 @@ export default function RouteScreen() {
   };
 
   const dir = directions[selectedDir];
-  const cardShadow = isLight ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 } : {};
+  const cardShadow = sharedCardShadow;
 
   return (
     <View style={{ flex: 1, backgroundColor: colours.bg }}>
@@ -269,7 +270,7 @@ export default function RouteScreen() {
                             <View style={{ gap: 4 }}>
                               {stopFreq.currentMin != null && (
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#2ecc71' }} />
+                                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colours.live }} />
                                   <Text style={{ fontSize: 12, color: colours.text }}>
                                     {t('Current', 'Actuel')}: <Text style={{ fontWeight: '700' }}>{t(`every ${stopFreq.currentMin} min`, `aux ${stopFreq.currentMin} min`)}</Text>
                                     {' '}({stopFreq.tripsInWindow} {t('trips', 'trajets')})

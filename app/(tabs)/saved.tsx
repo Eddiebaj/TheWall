@@ -161,7 +161,7 @@ function SavedScreenInner() {
         if (__DEV__) console.warn('Notification scheduling failed:', e);
         Alert.alert(
           t('Notification Error', 'Erreur de notification'),
-          t('Could not schedule notification. Please check your notification permissions.', 'Impossible de planifier la notification. Veuillez verifier vos permissions de notification.')
+          t('Notification permission needed', 'Permission de notification requise')
         );
         return;
       }
@@ -232,7 +232,7 @@ function SavedScreenInner() {
       if (__DEV__) console.warn('Schedule notification failed:', e);
       Alert.alert(
         t('Notification Error', 'Erreur de notification'),
-        t('Could not schedule notification. Please check your notification permissions.', 'Impossible de planifier la notification. Veuillez verifier vos permissions de notification.')
+        t('Notification permission needed', 'Permission de notification requise')
       );
     }
     setScheduleModal(null);
@@ -611,10 +611,10 @@ function SavedScreenInner() {
             const alt = alert.nextAlternative;
             const stopName = stops.find(s => s.id === sid)?.name || `#${sid}`;
             return (
-              <View key={`ghost-${sid}`} style={{ width: FULL_W, backgroundColor: isLight ? '#FEF3C7' : colours.surface, borderRadius: 12, padding: 12, marginBottom: GAP, borderWidth: 1, borderColor: isLight ? '#F59E0B44' : colours.border }}>
+              <View key={`ghost-${sid}`} style={{ width: FULL_W, backgroundColor: isLight ? '#FEF3C7' : colours.surface, borderRadius: 12, padding: 12, marginBottom: GAP, borderWidth: 1, borderColor: isLight ? colours.warn + '44' : colours.border }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <Ionicons name="warning" size={14} color={isLight ? '#D97706' : '#F59E0B'} />
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: isLight ? '#92400E' : '#FBBF24' }}>
+                  <Ionicons name="warning" size={14} color={isLight ? '#D97706' : colours.warn} />
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: colours.warnText }}>
                     {t('Possible ghost bus', 'Bus fant\u00f4me possible')}
                   </Text>
                 </View>

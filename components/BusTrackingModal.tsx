@@ -456,8 +456,8 @@ export default function BusTrackingModal({
                   {/* Live indicator */}
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#22c55e' }} />
-                      <Text style={{ fontSize: fonts.sm, color: '#22c55e', fontWeight: '700' }}>
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colours.live }} />
+                      <Text style={{ fontSize: fonts.sm, color: colours.live, fontWeight: '700' }}>
                         {t('Live tracking', 'Suivi en direct')}
                       </Text>
                     </View>

@@ -269,17 +269,17 @@ function DiscoverScreenInner() {
                 return (
                   <View
                     key={deal.id}
-                    style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: isToday ? '#2ecc71' + '40' : colours.border, backgroundColor: isToday ? '#2ecc7108' : colours.surface, marginBottom: 8 }, cardShadow]}
+                    style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: isToday ? '#22c55e' + '40' : colours.border, backgroundColor: isToday ? '#22c55e08' : colours.surface, marginBottom: 8 }, cardShadow]}
                   >
-                    <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: isToday ? '#2ecc71' + '18' : colours.tintBg, alignItems: 'center', justifyContent: 'center' }}>
-                      <Ionicons name="pricetag" size={16} color={isToday ? '#2ecc71' : colours.accent} />
+                    <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: isToday ? '#22c55e' + '18' : colours.tintBg, alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="pricetag" size={16} color={isToday ? '#22c55e' : colours.accent} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }} numberOfLines={1}>{deal.venue_name}</Text>
                       <Text style={{ fontSize: 12, color: colours.muted, marginTop: 1 }} numberOfLines={1}>{deal.deal_text}</Text>
                     </View>
-                    <View style={{ backgroundColor: isToday ? '#2ecc71' + '18' : colours.bg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: isToday ? '#2ecc71' + '40' : colours.border }}>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: isToday ? '#2ecc71' : colours.muted }}>
+                    <View style={{ backgroundColor: isToday ? '#22c55e' + '18' : colours.bg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: isToday ? '#22c55e' + '40' : colours.border }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: isToday ? '#22c55e' : colours.muted }}>
                         {isToday ? t('TODAY', 'AUJOURD\'HUI') : dayNames[deal.day_of_week]}
                       </Text>
                     </View>
@@ -299,9 +299,12 @@ function DiscoverScreenInner() {
                 <HorizontalCardsSkeleton colours={colours} count={3} />
               </View>
             ) : weekendEvents.length === 0 ? (
-              <Text style={{ fontSize: fonts.sm, color: colours.muted, paddingVertical: 12 }}>
-                {t('No events this weekend', 'Aucun \u00e9v\u00e9nement ce weekend')}
-              </Text>
+              <View style={{ alignItems: 'center', paddingVertical: 12 }}>
+                <Ionicons name="calendar-outline" size={32} color={colours.muted} style={{ marginBottom: 6 }} />
+                <Text style={{ fontSize: fonts.sm, color: colours.muted }}>
+                  {t('No events this weekend', 'Aucun \u00e9v\u00e9nement ce weekend')}
+                </Text>
+              </View>
             ) : (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
                 {weekendEvents.map(ev => (
@@ -343,9 +346,12 @@ function DiscoverScreenInner() {
               {t('Latest News', 'Derni\u00e8res nouvelles')}
             </Text>
             {newsArticles.length === 0 ? (
-              <Text style={{ fontSize: fonts.sm, color: colours.muted, paddingVertical: 12 }}>
-                {t('No news available', 'Aucune nouvelle disponible')}
-              </Text>
+              <View style={{ alignItems: 'center', paddingVertical: 12 }}>
+                <Ionicons name="newspaper-outline" size={32} color={colours.muted} style={{ marginBottom: 6 }} />
+                <Text style={{ fontSize: fonts.sm, color: colours.muted }}>
+                  {t('No news available', 'Aucune nouvelle disponible')}
+                </Text>
+              </View>
             ) : (
               newsArticles.slice(0, 5).map(article => (
                 <TouchableOpacity
