@@ -551,6 +551,22 @@ function PlannerScreenInner() {
     }
   }, [params.from, params.to]);
 
+  useEffect(() => {
+    if (fromPlace || params.toLabel || params.from) return;
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const { latitude: lat, longitude: lng } = pos.coords;
+        const geo = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+        const label = geo[0] ? [geo[0].name, geo[0].street, geo[0].city].filter(Boolean).join(', ') : t('My Location', 'Ma position');
+        setFromPlace({ placeId: 'current', label, lat, lng });
+        setFromText(shortenLabel(label));
+      } catch (e) { if (__DEV__) console.warn('default location failed:', e); }
+    })();
+  }, []);
+
   const autocomplete = useCallback(async (text: string, field: 'from' | 'to' | `waypoint_${number}`) => {
     if (text.length < 2) {
       if (field === 'from') setFromResults([]);

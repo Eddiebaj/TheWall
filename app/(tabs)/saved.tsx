@@ -97,6 +97,7 @@ function SavedScreenInner() {
   const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [serviceAlerts, setServiceAlerts] = useState<{ id: number; title: string; routes: string[]; category: string }[]>([]);
   const [leaveAlerts, setLeaveAlerts] = useState<Record<string, { route: string; stopId: string; time: string; recurring?: boolean }>>({});
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const stopsRef = useRef<SavedStop[]>(stops);
@@ -364,6 +365,22 @@ function SavedScreenInner() {
         setReliability(rel);
         setArrivalsLoading(false);
         trackEvent('arrival_viewed');
+
+        // Fetch service alerts relevant to saved routes
+        try {
+          const alertResp = await fetchWithTimeout('https://routeo-backend.vercel.app/api/alerts', { timeout: 10000 });
+          if (alertResp.ok) {
+            const alertData = await alertResp.json();
+            const allAlerts = alertData.alerts || [];
+            const savedRouteIds = new Set(
+              Object.values(map).flat().map((a: any) => a.routeId.split('-')[0])
+            );
+            const relevant = allAlerts.filter((a: any) =>
+              a.routes?.some((r: string) => savedRouteIds.has(r))
+            );
+            setServiceAlerts(relevant);
+          }
+        } catch (e) { if (__DEV__) console.warn('alert fetch failed:', e); }
       }
 
       try {
@@ -470,6 +487,35 @@ function SavedScreenInner() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={TEAL} />}
           contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: insets.bottom + 100 }}
         >
+          {/* Service alert banner */}
+          {serviceAlerts.length > 0 && (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => router.push('/(tabs)/alerts' as any)}
+              accessibilityRole="button"
+              accessibilityLabel={t(`${serviceAlerts.length} service alerts affecting your routes`, `${serviceAlerts.length} alertes affectant vos lignes`)}
+              style={{
+                width: FULL_W, flexDirection: 'row', alignItems: 'center', gap: 10,
+                backgroundColor: isLight ? '#FEE2E2' : colours.errorBg,
+                borderRadius: 12, padding: 12, marginBottom: GAP,
+                borderWidth: 1, borderColor: isLight ? '#FECACA' : colours.red + '44',
+              }}
+            >
+              <Ionicons name="alert-circle" size={20} color={colours.red} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.red }}>
+                  {serviceAlerts.length} {serviceAlerts.length === 1
+                    ? t('alert on your routes', 'alerte sur vos lignes')
+                    : t('alerts on your routes', 'alertes sur vos lignes')}
+                </Text>
+                <Text style={{ fontSize: 11, color: isLight ? '#991B1B' : colours.muted, marginTop: 1 }} numberOfLines={1}>
+                  {serviceAlerts[0].title}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colours.red} />
+            </TouchableOpacity>
+          )}
+
           {/* Most used stop */}
           {mostUsedStop && (
             <View
@@ -536,33 +582,9 @@ function SavedScreenInner() {
                       >
                         <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>{a.routeId}</Text>
                       </TouchableOpacity>
-                      {reliability[mostUsedStop.id]?.[a.routeId] && (() => {
-                        const rel = reliability[mostUsedStop.id][a.routeId];
-                        const clr = reliabilityColor(rel.onTimePercent);
-                        const rKey = `${mostUsedStop.id}-${a.routeId}`;
-                        return (
-                          <TouchableOpacity
-                            onPress={() => { hapticLight(); trackEvent('reliability_tapped'); setExpandedReliability(prev => prev === rKey ? null : rKey); }}
-                            activeOpacity={0.7}
-                            hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
-                            style={{ backgroundColor: clr + '18', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}
-                            accessibilityRole="button"
-                            accessibilityLabel={t(`${rel.onTimePercent}% on time`, `${rel.onTimePercent}% \u00e0 l'heure`)}
-                          >
-                            <Text style={{ fontSize: 9, fontWeight: '700', color: clr }}>{rel.onTimePercent}%</Text>
-                          </TouchableOpacity>
-                        );
-                      })()}
                       <Text style={{ fontSize: 13, fontWeight: '700', color: a.minsAway < 2 ? TEAL : colours.text }}>
                         {a.minsAway <= 0 ? '< 1' : `${a.minsAway}m`}
                       </Text>
-                      {a.confidence && (
-                        <View style={{ backgroundColor: a.confidence === 'live' ? '#27AE6022' : a.confidence === 'rider-verified' ? '#3B82F622' : colours.border + '66', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
-                          <Text style={{ fontSize: 9, fontWeight: '600', color: a.confidence === 'live' ? '#27AE60' : a.confidence === 'rider-verified' ? '#3B82F6' : colours.muted }}>
-                            {a.confidence === 'live' ? t('Live', 'Direct') : a.confidence === 'rider-verified' ? t('Verified', 'V\u00e9rifi\u00e9') : t('Sched.', 'Horaire')}
-                          </Text>
-                        </View>
-                      )}
                       <TouchableOpacity
                         onPress={() => toggleLeaveAlert(mostUsedStop.id, a.routeId, a.minsAway)}
                         onLongPress={() => openScheduleModal(mostUsedStop.id, mostUsedStop.name, a.routeId)}
@@ -578,6 +600,18 @@ function SavedScreenInner() {
                           color={leaveAlerts[`${mostUsedStop.id}-${a.routeId}`] || leaveAlerts[`${mostUsedStop.id}-${a.routeId}-sched`] ? '#FF9500' : colours.muted}
                         />
                       </TouchableOpacity>
+                      {reliability[mostUsedStop.id]?.[a.routeId] && (
+                        <TouchableOpacity
+                          onPress={() => { hapticLight(); trackEvent('reliability_tapped'); setExpandedReliability(prev => prev === `${mostUsedStop.id}-${a.routeId}` ? null : `${mostUsedStop.id}-${a.routeId}`); }}
+                          activeOpacity={0.7}
+                          hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                          style={{ padding: 2 }}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('Show reliability info', 'Voir la fiabilit\u00e9')}
+                        >
+                          <Ionicons name="information-circle-outline" size={15} color={colours.muted} />
+                        </TouchableOpacity>
+                      )}
                     </View>
                   ))}
                   {(arrivals[mostUsedStop.id] || []).map(a => {
@@ -615,19 +649,33 @@ function SavedScreenInner() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                   <Ionicons name="warning" size={14} color={isLight ? '#D97706' : colours.warn} />
                   <Text style={{ fontSize: 12, fontWeight: '700', color: colours.warnText }}>
-                    {t('Possible ghost bus', 'Bus fant\u00f4me possible')}
+                    {t('Bus may not be coming', 'Le bus pourrait ne pas venir')}
                   </Text>
                 </View>
                 <Text style={{ fontSize: 11, color: isLight ? '#78350F' : colours.muted }}>
                   {t(
-                    `Route ${vanished} at ${stopName} was predicted but disappeared from the feed.`,
-                    `La route ${vanished} \u00e0 ${stopName} \u00e9tait pr\u00e9vue mais a disparu du flux.`
+                    `Route ${vanished} at ${stopName} dropped off the tracker.`,
+                    `La route ${vanished} \u00e0 ${stopName} a disparu du suivi.`
                   )}
-                  {alt ? ' ' + t(
-                    `Next option: Route ${alt.routeId} in ${alt.minsAway}m`,
-                    `Prochaine option : route ${alt.routeId} dans ${alt.minsAway}m`
-                  ) : ''}
                 </Text>
+                {alt ? (
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => router.push(`/route/${alt.routeId}` as any)}
+                    accessibilityRole="link"
+                    accessibilityLabel={t(
+                      `Next option: Route ${alt.routeId} in ${alt.minsAway} min`,
+                      `Prochaine option : route ${alt.routeId} dans ${alt.minsAway} min`
+                    )}
+                  >
+                    <Text style={{ fontSize: 11, color: isLight ? '#D97706' : colours.warn, fontWeight: '600', marginTop: 4 }}>
+                      {t(
+                        `Next option: Route ${alt.routeId} in ${alt.minsAway} min \u2192`,
+                        `Prochaine option : route ${alt.routeId} dans ${alt.minsAway} min \u2192`
+                      )}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
             );
           })}
@@ -724,21 +772,9 @@ function SavedScreenInner() {
                                 >
                                   <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent }}>{a.routeId}</Text>
                                 </TouchableOpacity>
-                                {reliability[stop.id]?.[a.routeId] && (
-                                  <Text style={{ fontSize: 8, fontWeight: '700', color: reliabilityColor(reliability[stop.id][a.routeId].onTimePercent) }}>
-                                    {reliability[stop.id][a.routeId].onTimePercent}%
-                                  </Text>
-                                )}
                                 <Text style={{ fontSize: 11, fontWeight: '700', color: a.minsAway < 2 ? TEAL : colours.text }}>
                                   {a.minsAway <= 0 ? '<1' : `${a.minsAway}m`}
                                 </Text>
-                                {a.confidence && a.confidence !== 'scheduled' && (
-                                  <View style={{ backgroundColor: a.confidence === 'live' ? '#27AE6022' : '#3B82F622', borderRadius: 3, paddingHorizontal: 3, paddingVertical: 0.5 }}>
-                                    <Text style={{ fontSize: 8, fontWeight: '600', color: a.confidence === 'live' ? '#27AE60' : '#3B82F6' }}>
-                                      {a.confidence === 'live' ? t('Live', 'Direct') : t('Verified', 'V\u00e9rifi\u00e9')}
-                                    </Text>
-                                  </View>
-                                )}
                                 <TouchableOpacity
                                   onPress={() => toggleLeaveAlert(stop.id, a.routeId, a.minsAway)}
                                   onLongPress={() => openScheduleModal(stop.id, stop.name, a.routeId)}

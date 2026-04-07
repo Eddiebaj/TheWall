@@ -1752,17 +1752,12 @@ export default function MapScreen() {
           {([
             { key: 'all', label_en: 'All', label_fr: 'Tous', icon: 'apps-outline' as const, color: colours.accent },
             { key: 'bus', label_en: 'Bus', label_fr: 'Bus', icon: 'bus-outline' as const, color: '#CE1126' },
-            { key: 'food', label_en: 'Food', label_fr: 'Restos', icon: 'restaurant-outline' as const, color: '#E67E22' },
-            { key: 'coffee', label_en: 'Coffee', label_fr: 'Cafe', icon: 'cafe-outline' as const, color: '#795548' },
-            { key: 'bars', label_en: 'Bars', label_fr: 'Bars', icon: 'beer-outline' as const, color: '#8E44AD' },
             { key: 'gyms', label_en: 'Gyms', label_fr: 'Gyms', icon: 'barbell-outline' as const, color: '#2ECC71' },
             { key: 'grocery', label_en: 'Grocery', label_fr: 'Epicerie', icon: 'cart-outline' as const, color: '#3498db' },
-            { key: 'events', label_en: 'Events', label_fr: 'Evenements', icon: 'ticket-outline' as const, color: '#026CDF' },
             { key: 'saved', label_en: 'Saved', label_fr: 'Favoris', icon: 'heart' as const, color: '#e74c3c' },
           ] as const).map(f => {
             const isDiscovery = f.key in DISCOVER_PLACE_TYPES;
             const active = isDiscovery ? discoveryCategory === f.key
-              : f.key === 'events' ? showEvents
               : filters.has(f.key);
             const bg = active ? f.color : colours.surface;
             const border = active ? f.color : colours.border;
@@ -1781,8 +1776,6 @@ export default function MapScreen() {
                     if (!filters.has(f.key)) {
                       setFilters(prev => { const next = new Set(prev); next.delete('all'); next.add(f.key); return next; });
                     }
-                  } else if (f.key === 'events') {
-                    setShowEvents((v: boolean) => !v);
                   } else {
                     if (discoveryCategory) clearDiscovery();
                     toggleFilter(f.key);
@@ -1791,15 +1784,10 @@ export default function MapScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={t(`Filter by ${f.label_en}`, `Filtrer par ${f.label_fr}`)}
                 accessibilityState={{ selected: active }}>
-                {f.key === 'events' && eventsLoading
-                  ? <ActivityIndicator size="small" color="white" />
-                  : <Ionicons name={f.icon} size={12} color={active ? 'white' : colours.muted} />}
+                <Ionicons name={f.icon} size={12} color={active ? 'white' : colours.muted} />
                 <Text style={{ fontSize: 11, fontWeight: '700', color: active ? 'white' : colours.muted }}>
                   {t(f.label_en, f.label_fr)}
                 </Text>
-                {f.key === 'events' && !eventsLoading && showEvents && todayEvents.length > 0 && (
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: 'white' }}>({todayEvents.length})</Text>
-                )}
               </TouchableOpacity>
             );
           })}
