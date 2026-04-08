@@ -323,7 +323,7 @@ const StopCard = React.memo(function StopCard({
                         ),
                         sound: 'default',
                       },
-                      trigger: { type: 'timeInterval' as any, seconds: secsUntil, repeats: false } as any,
+                      trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: secsUntil, repeats: false },
                     });
                     // Persist alert
                     const alert = { id: notifId, stopName: stop.stopName, routeId: nextArr.routeId, leaveAt: leaveAtMs };
