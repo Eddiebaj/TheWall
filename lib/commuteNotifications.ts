@@ -88,7 +88,7 @@ async function scheduleCommuteNotification(
       data: { type: 'morning_commute' },
     },
     trigger: {
-      type: 'daily' as any,
+      type: Notifications.SchedulableTriggerInputTypes.DAILY,
       hour: settings.hour,
       minute: settings.minute,
     },

@@ -20,8 +20,6 @@ export function initSentry(): void {
   try {
     Sentry.init({
       dsn: SENTRY_DSN,
-      // Crash reporting only — no performance monitoring
-      enableTracing: false,
     });
     initialized = true;
   } catch {
