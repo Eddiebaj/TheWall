@@ -12,7 +12,6 @@ export type SavedBoardItem =
   | { type: 'gas_prices' }
   | { type: 'otrain' }
   | { type: 'services' }
-  | { type: 'saved_team'; id: string; name: string }
   | { type: 'external_link'; id: string; label_en: string; label_fr: string; icon: string; accent: string; url: string }
   | { type: 'campus' }
   | { type: 'news' }
@@ -36,17 +35,6 @@ export type GasReport = {
 export const CATEGORY_COLOUR: { [key: string]: string } = {
   lrt: '#00A78D', detour: '#e8a020', cancellation: '#cc3b2a',
   delay: '#e8a020', accessibility: '#7b5ea7', general: '#004890',
-};
-
-// Team & campus logos
-export const TEAM_LOGOS: { [name: string]: any } = {
-  'Senators': require('../assets/images/2025-01-ottawa-senators-logo.webp'),
-  'REDBLACKS': require('../assets/images/ottawa-redblacks-logo-2023-featured.png'),
-  "67's": require("../assets/images/Ottawa_67's_logo.svg.png"),
-  'Charge': require('../assets/images/ottawa_charge_logosvg.webp'),
-  'Blackjacks': require('../assets/images/Ottawa_Blackjacks_logo.png'),
-  'Atlético': require('../assets/images/Atletico_Ottawa_logo.png'),
-  'Rapid FC': require('../assets/images/Ottawa_Rapid_FC.png'),
 };
 
 export const CAMPUS_LOGOS: Record<string, any> = {

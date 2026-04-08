@@ -21,7 +21,6 @@ export const SK_BATTERY_SAVER = 'routeo_battery_saver';
 // ── Saved items & board ──
 export const SK_FAVS = 'routeo_favs';
 export const SK_SAVED_BOARD = 'routeo_saved_board';
-export const SK_SAVED_TEAMS = 'routeo_saved_teams';
 export const SK_SAVED_ROUTES = 'routeo_saved_routes';
 export const SK_SAVED_PLACES = 'routeo_saved_places';
 export const SK_SAVED_ARTICLES = 'routeo_saved_articles';

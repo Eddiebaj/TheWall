@@ -41,10 +41,6 @@ const CAMPUS_LOGOS: Record<string, any> = {
 const PLAN_URL = 'https://routeo-backend.vercel.app/api/plan';
 const PLACES_URL = 'https://routeo-backend.vercel.app/api/places';
 
-// Canadian Tire Centre coords (Sens home)
-const CTC_LAT = 45.2973;
-const CTC_LNG = -75.9267;
-
 type PlaceResult = { placeId: string; label: string; lat?: number; lng?: number };
 type WalkStep = { distance: number; relativeDirection: string; streetName: string; instruction?: string | null };
 type Leg = {
@@ -335,7 +331,6 @@ function PlannerScreenInner() {
   const [showHistory, setShowHistory] = useState(false);
   const [accessibleRouting, setAccessibleRouting] = useState(false);
   const [accessibilityWarning, setAccessibilityWarning] = useState(false);
-  const [sensGameTonight, setSensGameTonight] = useState(false);
   const [autoLoading, setAutoLoading] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [batterySaverMode, setBatterySaverMode] = useState(false);
@@ -411,16 +406,6 @@ function PlannerScreenInner() {
     }).catch(() => {});
     AsyncStorage.getItem(SK_CLASS_SCHEDULE).then(val => {
       try { if (val) setPlannerSchedule(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn(e); }
-    }).catch(() => {});
-    fetchWithTimeout('https://api-web.nhle.com/v1/schedule/now').then(async r => {
-      if (!r.ok) return;
-      const scheduleResult = await r.json();
-      const today = new Date().toLocaleDateString('en-CA');
-      const todayEntry = (scheduleResult.gameWeek || []).find((d: any) => d.date === today);
-      const game = (todayEntry?.games || []).find((g: any) =>
-        g.awayTeam?.abbrev === 'OTT' || g.homeTeam?.abbrev === 'OTT'
-      );
-      if (game) setSensGameTonight(true);
     }).catch(() => {});
   }, []);
 
@@ -2677,23 +2662,6 @@ function PlannerScreenInner() {
                 </Text>
               </TouchableOpacity>
             </View>
-            {/* Sens game warning */}
-            {sensGameTonight && toPlace?.lat && haversineKm(toPlace.lat, toPlace.lng!, CTC_LAT, CTC_LNG) <= 2 && (
-              <View style={{ backgroundColor: colours.errorBg, borderWidth: 1, borderColor: colours.border, borderRadius: 12, padding: 12, marginBottom: 12, flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
-                <Ionicons name="warning" size={18} color="#c8102e" style={{ marginTop: 2 }} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#c8102e' }}>
-                    {t('Sens game tonight', 'Match des Sens ce soir')}
-                  </Text>
-                  <Text style={{ fontSize: 12, color: colours.text, marginTop: 4, lineHeight: 17 }}>
-                    {t(
-                      'Expect delays on routes 61/62 near Canadian Tire Centre after 10pm. Consider Fallowfield station.',
-                      'Prevoyez des retards sur les lignes 61/62 pres du Centre Canadian Tire apres 22h. Pensez a la station Fallowfield.'
-                    )}
-                  </Text>
-                </View>
-              </View>
-            )}
             {/* Route comparison pills */}
             {itineraries.length > 1 && (() => {
               const fastest = itineraries.reduce((best, cur, i) => cur.duration < itineraries[best].duration ? i : best, 0);

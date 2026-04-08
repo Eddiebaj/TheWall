@@ -48,7 +48,6 @@ type NotifSettings = {
   recyclingReminder: boolean;
   roadClosureNearby: boolean;
   hydroOutage: boolean;
-  sportsGameDay: boolean;
   festivalEvents: boolean;
   liveEventsNearby: boolean;
   criticalAlerts: boolean;
@@ -74,7 +73,6 @@ const DEFAULT_NOTIF_SETTINGS: NotifSettings = {
   recyclingReminder: true,
   roadClosureNearby: false,
   hydroOutage: true,
-  sportsGameDay: true,
   festivalEvents: false,
   liveEventsNearby: false,
   criticalAlerts: true,
@@ -85,7 +83,7 @@ const MASTER_KEY_MAP: Record<string, (keyof NotifSettings)[]> = {
   tripAlerts: ['leaveNow', 'arrivalAlerts', 'transferAtRisk', 'tripDisruption', 'lastBus'],
   serviceDisruptions: ['lrtDisruption', 'routeCancellation', 'significantDelay', 'serviceResumed', 'busRunningEarly'],
   cityReminders: ['garbageDay', 'recyclingReminder', 'roadClosureNearby', 'hydroOutage'],
-  events: ['sportsGameDay', 'festivalEvents', 'liveEventsNearby'],
+  events: ['festivalEvents', 'liveEventsNearby'],
 };
 
 const NOTIF_SETTINGS_KEY = SK_NOTIF_SETTINGS;
@@ -182,7 +180,7 @@ export default function AccountScreen() {
     setNotifSettings(updated);
     await AsyncStorage.setItem(NOTIF_SETTINGS_KEY, JSON.stringify(updated));
     const pushTypes: (keyof NotifSettings)[] = [
-      'garbageDay', 'recyclingReminder', 'sportsGameDay',
+      'garbageDay', 'recyclingReminder',
       'lrtDisruption', 'routeCancellation', 'significantDelay',
       'serviceResumed', 'arrivalAlerts', 'tripDisruption',
     ];

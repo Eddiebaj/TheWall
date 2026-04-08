@@ -17,9 +17,6 @@ type AlertLike = { routes?: string[]; title?: string; description?: string; cate
 type WeatherLike = { temp: number; condition: string; icon: string } | null;
 type ForecastHour = { precip: number };
 
-// Routes that serve downtown / CTC area and are affected by Sens game traffic
-const DOWNTOWN_ROUTES = new Set(['1','2','4','6','7','10','11','12','14','39','44','57','61','62','63','85','95','97','98','99','101','104','106','111']);
-
 const CONSTRUCTION_KEYWORDS = /construction|detour|closure|road work|travaux|fermeture|déviation/i;
 
 export function getDelayContext(
@@ -28,7 +25,6 @@ export function getDelayContext(
   alerts: AlertLike[],
   weather: WeatherLike,
   forecast: ForecastHour[],
-  sensGameTonight?: boolean,
 ): DelayContext | null {
   if (delayMinutes <= 5) return null;
 
@@ -75,18 +71,6 @@ export function getDelayContext(
         colour: '#4A90D9',
       };
     }
-  }
-
-  if (DOWNTOWN_ROUTES.has(routeId) && sensGameTonight) {
-    return {
-      reason: 'event',
-      label: 'Sens game traffic near downtown',
-      labelFr: 'Circulation match des Sens au centre-ville',
-      detail: 'Ottawa Senators home game at Canadian Tire Centre. Routes through downtown and the CTC area experience heavier traffic before and after games.',
-      detailFr: 'Match local des Sénateurs d\'Ottawa au Centre Canadian Tire. Les lignes passant par le centre-ville et la zone du CTC subissent un trafic plus dense avant et après les matchs.',
-      icon: 'american-football-outline',
-      colour: '#CE1126',
-    };
   }
 
   const constructionAlert = alerts.find(a => {

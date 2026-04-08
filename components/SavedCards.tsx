@@ -12,12 +12,12 @@ import { CampusConfig, getNextDeparture, isLibraryOpen } from '../lib/campusData
 import {
   BACKEND_URL, GAS_URL,
   SavedBoardItem, GhostReports, CATEGORY_COLOUR,
-  TEAM_LOGOS, CAMPUS_LOGOS, fmtAbsTime, isStoStop,
+  CAMPUS_LOGOS, fmtAbsTime, isStoStop,
 } from '../lib/homeConstants';
 
 
 // SavedBoardCard component
-export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, cardShadow, garbageEvents, alerts, sensGame, onMoveLeft, onMoveRight, timeFormat, campusData }: {
+export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, cardShadow, garbageEvents, alerts, onMoveLeft, onMoveRight, timeFormat, campusData }: {
   item: SavedBoardItem;
   colours: { bg: string; text: string; muted: string; accent: string; surface: string; border: string; lrt: string; red: string; [key: string]: string };
   fonts: { sm: number; md: number; lg: number; xl: number; xxl: number };
@@ -26,7 +26,6 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
   cardShadow: Record<string, unknown>;
   garbageEvents: { date: string; flags: string[] }[];
   alerts: { id: number; title: string; description: string; routes: string[]; category: string }[];
-  sensGame?: { state: 'live' | 'pre' | 'none'; period?: string; homeAbbr?: string; awayAbbr?: string; homeScore?: number; awayScore?: number; startTime?: string; opponentAbbr?: string } | null;
   onMoveLeft?: () => void;
   onMoveRight?: () => void;
   timeFormat?: 'relative' | 'absolute';
@@ -44,7 +43,7 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
   const itemId = 'id' in item ? item.id : item.type;
 
   useEffect(() => {
-    if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'saved_team' || item.type === 'campus' || item.type === 'news' || item.type === 'class_schedule') { setPreviewLoading(false); return; }
+    if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'campus' || item.type === 'news' || item.type === 'class_schedule') { setPreviewLoading(false); return; }
     if (item.type === 'gas_prices') {
       setPreviewLoading(false);
       return;
@@ -175,38 +174,6 @@ export const SavedBoardCard = React.memo(function SavedBoardCard({ item, colours
       <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
         <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{t('News', 'Nouvelles')}</Text>
         <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>{t('Local News', 'Nouvelles locales')}</Text>
-      </TouchableOpacity>
-    );
-  }
-
-  if (item.type === 'saved_team') {
-    const teamLogo = TEAM_LOGOS[item.name];
-    const isSens = item.name === 'Senators';
-    const sg = isSens ? sensGame : null;
-    return (
-      <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          {sg?.state === 'live' && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#cc3b2a' }} />
-              <Text style={{ fontSize: 9, fontWeight: '700', color: '#cc3b2a' }}>{t('Live', 'En direct')} {'\u00B7'} {sg.period}</Text>
-            </View>
-          )}
-          {teamLogo ? (
-            <Image source={teamLogo} style={{ width: sg ? 48 : 64, height: sg ? 48 : 64 }} resizeMode="contain" />
-          ) : (
-            <View style={{ width: 64, height: 64, borderRadius: 16, backgroundColor: colours.errorBg, alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons name="trophy" size={26} color="#c8102e" />
-            </View>
-          )}
-        </View>
-        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text, textAlign: 'center' }} numberOfLines={1}>{item.name}</Text>
-        {sg?.state === 'live' && (
-          <Text style={{ fontSize: 11, fontWeight: '700', color: colours.text, textAlign: 'center', marginTop: 2 }}>{sg.homeAbbr} {sg.homeScore} \u00B7 {sg.awayAbbr} {sg.awayScore}</Text>
-        )}
-        {sg?.state === 'pre' && (
-          <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted, textAlign: 'center', marginTop: 2 }} numberOfLines={1}>{t('Tonight vs', 'Ce soir c.')} {sg.opponentAbbr} {'\u00B7'} {sg.startTime}</Text>
-        )}
       </TouchableOpacity>
     );
   }
