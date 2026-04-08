@@ -440,6 +440,20 @@ function SavedScreenInner() {
         </Text>
       </View>
 
+      {/* Stale data warning — shown when cached arrivals are >3 min old */}
+      {loaded && Object.keys(cachedStops).length > 0 && (() => {
+        const oldestMs = Math.min(...Object.values(cachedStops));
+        const staleMin = Math.round((Date.now() - oldestMs) / 60000);
+        return staleMin >= 3 ? (
+          <View style={{ marginHorizontal: PAD, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.warnBg || '#ff9f0a18', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
+            <Ionicons name="time-outline" size={15} color={colours.orange || '#ff9f0a'} />
+            <Text style={{ flex: 1, fontSize: 12, color: colours.orange || '#ff9f0a', fontWeight: '600' }}>
+              {t(`Arrivals last updated ${staleMin}m ago — pull to refresh`, `Arrivees mises a jour il y a ${staleMin}m — tirez pour actualiser`)}
+            </Text>
+          </View>
+        ) : null;
+      })()}
+
       {!loaded ? (
         <View style={{ flex: 1, paddingHorizontal: PAD, paddingTop: 12 }}>
           {/* Skeleton: most-used stop card */}

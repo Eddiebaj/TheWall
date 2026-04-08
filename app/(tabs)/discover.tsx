@@ -45,6 +45,8 @@ function DiscoverScreenInner() {
   const [weekendEvents, setWeekendEvents] = useState<WeekendEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [dealsLoading, setDealsLoading] = useState(true);
+  const [dealsError, setDealsError] = useState(false);
+  const [eventsError, setEventsError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -66,11 +68,11 @@ function DiscoverScreenInner() {
     });
     Promise.resolve(supabase.from('community_deals').select('*').gte('submitted_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()).order('submitted_at', { ascending: false }).limit(10))
       .then(({ data, error }) => {
-        if (error) { if (__DEV__) console.warn('Supabase deals error:', error); }
+        if (error) { if (__DEV__) console.warn('Supabase deals error:', error); setDealsError(true); }
         else if (data) { setCommunityDeals(data); }
         setDealsLoading(false);
       })
-      .catch(() => { setDealsLoading(false); });
+      .catch(() => { setDealsLoading(false); setDealsError(true); });
     fetchWeekendEvents();
   }, []);
 
@@ -100,7 +102,7 @@ function DiscoverScreenInner() {
         }));
         setWeekendEvents(evs);
       }
-    } catch (e) { if (__DEV__) console.warn('fetch weekend events failed:', e); }
+    } catch (e) { if (__DEV__) console.warn('fetch weekend events failed:', e); setEventsError(true); }
     setEventsLoading(false);
   };
 
@@ -153,6 +155,10 @@ function DiscoverScreenInner() {
               <FeedCardSkeleton colours={colours} />
               <FeedCardSkeleton colours={colours} />
             </View>
+          ) : dealsError ? (
+            <Text style={{ fontSize: fonts.sm, color: colours.muted, paddingVertical: 12 }}>
+              {t('Could not load deals — check your connection', 'Impossible de charger les offres — verifiez votre connexion')}
+            </Text>
           ) : communityDeals.length === 0 ? (
             <Text style={{ fontSize: fonts.sm, color: colours.muted, paddingVertical: 12 }}>
               {t('No deals this week', 'Aucune offre cette semaine')}
@@ -193,6 +199,10 @@ function DiscoverScreenInner() {
             <View style={{ marginHorizontal: -20 }}>
               <HorizontalCardsSkeleton colours={colours} count={3} />
             </View>
+          ) : eventsError ? (
+            <Text style={{ fontSize: fonts.sm, color: colours.muted, paddingVertical: 12 }}>
+              {t('Could not load events — check your connection', 'Impossible de charger les evenements — verifiez votre connexion')}
+            </Text>
           ) : weekendEvents.length === 0 ? (
             <View style={{ alignItems: 'center', paddingVertical: 12 }}>
               <Ionicons name="calendar-outline" size={32} color={colours.muted} style={{ marginBottom: 6 }} />

@@ -880,7 +880,13 @@ function PlannerScreenInner() {
           return updated;
         });
       } catch (e) {
-        setError(t('Could not plan multi-stop trip. Try fewer stops.', 'Impossible de planifier le trajet multi-arrets. Essayez moins d\'arrets.'));
+        const msg = e instanceof Error ? e.message : '';
+        const legMatch = msg.match(/Leg (\d+)/);
+        if (legMatch) {
+          setError(t(`No route found for leg ${legMatch[1]} — try adjusting your stops`, `Aucun trajet pour le troncon ${legMatch[1]} — essayez d'ajuster vos arrets`));
+        } else {
+          setError(t('Could not plan multi-stop trip. Try fewer stops.', 'Impossible de planifier le trajet multi-arrets. Essayez moins d\'arrets.'));
+        }
         if (__DEV__) console.warn('multi-stop plan failed:', e);
       }
       setLoading(false);
@@ -968,11 +974,11 @@ function PlannerScreenInner() {
     let cancelled = false;
     (async () => {
       try {
-        const now = new Date();
-        const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-        const month = String(now.getMonth() + 1).padStart(2,'0');
-        const day = String(now.getDate()).padStart(2,'0');
-        const dateStr = `${month}-${day}-${now.getFullYear()}`;
+        const d = departTime;
+        const timeStr = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+        const month = String(d.getMonth() + 1).padStart(2,'0');
+        const day = String(d.getDate()).padStart(2,'0');
+        const dateStr = `${month}-${day}-${d.getFullYear()}`;
         const walkUrl = `${PLAN_URL}?fromLat=${fromPlace.lat}&fromLng=${fromPlace.lng}&fromLabel=${encodeURIComponent(fromPlace.label)}&toLat=${toPlace.lat}&toLng=${toPlace.lng}&toLabel=${encodeURIComponent(toPlace.label)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=false&mode=walking`;
         const walkResp = await fetchWithTimeout(walkUrl, { timeout: 6000 });
         if (cancelled) return;
@@ -1002,7 +1008,7 @@ function PlannerScreenInner() {
     })();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itineraries, travelMode]);
+  }, [itineraries, travelMode, departTime]);
 
   const isRouteSaved = useMemo(() => {
     if (!fromPlace || !toPlace) return false;

@@ -1,4 +1,4 @@
-import React, { forwardRef, useCallback, useEffect, useMemo } from 'react';
+import React, { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
-import { SK_LEAVE_NOW_ALERTS } from '../lib/storageKeys';
+import { SK_LEAVE_NOW_ALERTS, SK_WALK_PACE } from '../lib/storageKeys';
 import { LAYER_CONFIG, LAYER_ICONS, LayerKey, MapPin } from '../lib/mapLayers';
 import { LayerFeedCard } from './LayerFeedCard';
 import { writeWidgetData, getTopSavedStopId } from '../lib/widgetData';
@@ -182,6 +182,15 @@ const StopCard = React.memo(function StopCard({
   expandedArrivalsLoading: boolean;
   t: (en: string, fr: string) => string;
 }) {
+  const [walkPaceMs, setWalkPaceMs] = useState(1.4);
+  useEffect(() => {
+    AsyncStorage.getItem(SK_WALK_PACE).then(val => {
+      if (val === 'slow') setWalkPaceMs(1.0);
+      else if (val === 'fast') setWalkPaceMs(1.8);
+      else setWalkPaceMs(1.4);
+    }).catch(() => {});
+  }, []);
+
   const ghostSet = new Set(stop.ghostRoutes ?? []);
   const hasGhostWarning = stop.ghostRoutes && stop.ghostRoutes.length > 0;
   return (
@@ -299,7 +308,7 @@ const StopCard = React.memo(function StopCard({
                 onPress={async () => {
                   if (!Notifications) return;
                   const nextArr = expandedArrivals[0];
-                  const walkSec = stop.walkMeters / 1.4;
+                  const walkSec = stop.walkMeters / walkPaceMs;
                   const bufferSec = 120;
                   const arrivalMs = Date.now() + nextArr.minsAway * 60 * 1000;
                   const leaveAtMs = arrivalMs - (walkSec + bufferSec) * 1000;
@@ -765,7 +774,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
               width: 48,
               height: 48,
               borderRadius: 24,
-              backgroundColor: '#27AE60',
+              backgroundColor: colours.accent,
               alignItems: 'center',
               justifyContent: 'center',
               shadowColor: '#000',
