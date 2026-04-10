@@ -42,13 +42,17 @@ export function BoardProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshBoard = useCallback(async () => {
+    console.log('[BoardProvider] refreshBoard start');
     try {
       const raw = await AsyncStorage.getItem(SK_SAVED_BOARD);
+      console.log('[BoardProvider] AsyncStorage.getItem(SK_SAVED_BOARD) resolved, raw=', raw ? `${raw.length} chars` : 'null');
       if (raw) setSavedBoard(JSON.parse(raw));
       else setSavedBoard([]);
-    } catch {
+    } catch (e) {
+      console.warn('[BoardProvider] refreshBoard error:', e);
       setSavedBoard([]);
     }
+    console.log('[BoardProvider] refreshBoard complete, boardLoaded=true');
     setBoardLoaded(true);
   }, []);
 

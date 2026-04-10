@@ -131,10 +131,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [palette, setPaletteState] = useState<PaletteId>('default');
 
   useEffect(() => {
+    console.log('[AppProvider] useEffect start — reading preferences from AsyncStorage');
     AsyncStorage.multiGet([
       SK_THEME, SK_LARGE_TEXT, SK_CONTRAST,
       SK_MOTION, SK_LANGUAGE, SK_PALETTE
     ]).then(vals => {
+      console.log('[AppProvider] AsyncStorage.multiGet resolved');
       try {
         const themeVal = vals[0][1];
         if (themeVal === 'dark' || themeVal === 'light' || themeVal === 'system') setThemeState(themeVal);
@@ -145,10 +147,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (langVal === 'en' || langVal === 'fr') setLanguageState(langVal);
         const palVal = vals[5]?.[1];
         if (palVal && palVal in PALETTE_OVERRIDES) setPaletteState(palVal as PaletteId);
-      } catch {
-        // Corrupted storage — keep defaults
+        console.log('[AppProvider] Preferences applied successfully');
+      } catch (e) {
+        console.warn('[AppProvider] Corrupted storage — keeping defaults:', e);
       }
-    }).catch(() => {});
+    }).catch(e => {
+      console.warn('[AppProvider] AsyncStorage.multiGet failed:', e);
+    });
   }, []);
 
   const setTheme = useCallback((t: Theme) => {
