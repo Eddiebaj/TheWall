@@ -13,7 +13,8 @@
       "env": {
         "EXPO_USE_METRO_WORKSPACE_ROOT": "1",
         "EXPO_PUBLIC_SUPABASE_URL": "https://bzvkadttywgszovbowch.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_UQXeqJ_OE-Zhl51qrHVF3w_UXOxKk2O"
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_UQXeqJ_OE-Zhl51qrHVF3w_UXOxKk2O",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "production": {
