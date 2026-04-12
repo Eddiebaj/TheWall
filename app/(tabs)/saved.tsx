@@ -18,6 +18,8 @@ import { cardShadow as sharedCardShadow } from '../../lib/styles';
 import { cacheArrivals, getCachedArrivals } from '../../lib/arrivalCache';
 import { SK_SAVED_PLACES, SK_TRIP_HISTORY, SK_LEAVE_NOW_ALERTS, SK_ARRIVAL_CACHE } from '../../lib/storageKeys';
 import { trackEvent } from '../../lib/analytics';
+import { useIsPremium } from '../../lib/premium';
+import { PREMIUM_ENABLED } from '../../lib/flags';
 
 const BACKEND_URL = 'https://routeo-backend.vercel.app/api/arrivals';
 const TEAL = '#00A78D';
@@ -83,6 +85,7 @@ function SavedScreenInner() {
   const isLight = resolvedTheme === 'light';
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const isPremium = useIsPremium();
 
   const [stops, setStops] = useState<SavedStop[]>([]);
   const [places, setPlaces] = useState<SavedPlace[]>([]);
@@ -262,7 +265,8 @@ function SavedScreenInner() {
       const responses = await Promise.all(
         chunks.map(chunk => {
           const ids = chunk.map(s => s.id).join(',');
-          return fetchWithTimeout(`${BACKEND_URL}?stops=${ids}`, { timeout: 12000 }).then(r => r.ok ? r.json() : null);
+          const premiumParam = (PREMIUM_ENABLED && isPremium) || !PREMIUM_ENABLED ? 'true' : 'false';
+          return fetchWithTimeout(`${BACKEND_URL}?stops=${ids}&premium=${premiumParam}`, { timeout: 12000 }).then(r => r.ok ? r.json() : null);
         })
       );
       for (const data of responses) {

@@ -13,6 +13,9 @@ import {
 import { SK_CLASS_SCHEDULE, SK_COMMUTE_DURATION, SK_CAMPUS } from '../lib/storageKeys';
 import { CAMPUSES } from '../lib/campusData';
 import { fetchWithTimeout } from '../lib/fetchWithTimeout';
+import { useIsPremium, FREE_CLASS_LIMIT, PREMIUM_CLASS_LIMIT } from '../lib/premium';
+import { PREMIUM_ENABLED } from '../lib/flags';
+import PaywallSheet from './PaywallSheet';
 
 type Props = {
   visible: boolean;
@@ -189,6 +192,10 @@ function TimePicker({ value, onChange, colours, label }: {
 }
 
 export default function ClassScheduleModal({ visible, onClose, colours, fonts, t, language, schedule, onSave }: Props) {
+  const isPremium = useIsPremium();
+  const classLimit = (!PREMIUM_ENABLED || isPremium) ? PREMIUM_CLASS_LIMIT : FREE_CLASS_LIMIT;
+  const [paywallVisible, setPaywallVisible] = useState(false);
+
   const [step, setStep] = useState<'list' | 'add'>('list');
   const [classes, setClasses] = useState<ClassEntry[]>([]);
   const [commuteMins, setCommuteMins] = useState(20);
@@ -276,6 +283,10 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
   };
 
   const openAdd = () => {
+    if (classes.length >= classLimit) {
+      setPaywallVisible(true);
+      return;
+    }
     resetForm();
     setStep('add');
   };
@@ -571,6 +582,11 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
           </ScrollView>
         )}
       </View>
+      <PaywallSheet
+        visible={paywallVisible}
+        onClose={() => setPaywallVisible(false)}
+        featureHint={t(`Free plan tracks up to ${FREE_CLASS_LIMIT} classes. Upgrade for up to ${PREMIUM_CLASS_LIMIT}.`, `Le forfait gratuit prend en charge jusqu'a ${FREE_CLASS_LIMIT} cours. Passez a Premium pour ${PREMIUM_CLASS_LIMIT}.`)}
+      />
     </Modal>
   );
 }

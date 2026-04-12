@@ -29,6 +29,9 @@ import { supabase } from '../../lib/supabase';
 
 import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
 import { SK_PLANNER_PREFS, SK_SAVED_ROUTES, SK_TRIP_HISTORY, SK_LEAVE_REMINDERS, SK_ACCESSIBILITY_ROUTING, SK_MOTION, SK_WALK_PREFERENCE, SK_WALK_PACE, SK_BATTERY_SAVER, SK_CAMPUS, SK_CLASS_SCHEDULE } from '../../lib/storageKeys';
+import { useIsPremium } from '../../lib/premium';
+import { PREMIUM_ENABLED } from '../../lib/flags';
+import PaywallSheet from '../../components/PaywallSheet';
 import { CAMPUSES, CampusConfig } from '../../lib/campusData';
 import { ClassSchedule, nextClass, fmt12h as schedFmt12h } from '../../lib/scheduleData';
 
@@ -288,6 +291,8 @@ function PlannerScreenInner() {
   const insets = useSafeAreaInsets();
   const { height: SCREEN_H } = useWindowDimensions();
   const params = useLocalSearchParams();
+  const isPremium = useIsPremium();
+  const [paywallVisible, setPlannerPaywallVisible] = useState(false);
 
   const [fromText, setFromText] = useState('');
   const [toText, setToText] = useState('');
@@ -1937,6 +1942,7 @@ function PlannerScreenInner() {
   };
 
   return (
+    <>
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colours.bg }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       {renderExpandedItinerary()}
 
@@ -2212,7 +2218,10 @@ function PlannerScreenInner() {
           {/* Add stop button */}
           {waypoints.length < 3 && (
             <TouchableOpacity
-              onPress={() => setWaypoints(prev => [...prev, { text: '', place: null }])}
+              onPress={() => {
+                if (PREMIUM_ENABLED && !isPremium) { setPlannerPaywallVisible(true); return; }
+                setWaypoints(prev => [...prev, { text: '', place: null }]);
+              }}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 8 }}
               activeOpacity={0.7}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -3207,6 +3216,12 @@ function PlannerScreenInner() {
       })()}
 
     </KeyboardAvoidingView>
+    <PaywallSheet
+      visible={paywallVisible}
+      onClose={() => setPlannerPaywallVisible(false)}
+      featureHint={t('Multi-stop planning is a Premium feature', 'La planification multi-arrets est une fonctionnalite Premium')}
+    />
+    </>
   );
 }
 

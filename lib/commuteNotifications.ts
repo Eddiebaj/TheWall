@@ -6,6 +6,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SK_COMMUTE_ALERT } from './storageKeys';
 import { detectFrequentRoutes } from './frequentRoutes';
+import { PREMIUM_ENABLED } from './flags';
 
 let Notifications: typeof import('expo-notifications') | null = null;
 try { Notifications = require('expo-notifications'); } catch {}
@@ -100,6 +101,35 @@ async function cancelCommuteNotification(): Promise<void> {
   try {
     await Notifications.cancelScheduledNotificationAsync(NOTIF_ID);
   } catch {}
+}
+
+// Notification types that require a premium subscription.
+// Free users get the morning commute reminder only; these advanced push
+// types are suppressed in the subscription sync when PREMIUM_ENABLED is true.
+export const PREMIUM_NOTIF_TYPES = [
+  'arrivalAlerts',
+  'transferAtRisk',
+  'routeCancellation',
+  'significantDelay',
+] as const;
+
+export type PremiumNotifType = typeof PREMIUM_NOTIF_TYPES[number];
+
+/**
+ * Filters subscription objects before syncing with the backend.
+ * When PREMIUM_ENABLED is true and the user is not premium, any
+ * premium-only notification type is forced to `enabled: false`.
+ */
+export function filterPremiumNotifSubs<T extends { type: string; enabled: boolean }>(
+  subs: T[],
+  isPremium: boolean,
+): T[] {
+  if (!PREMIUM_ENABLED || isPremium) return subs;
+  return subs.map(s =>
+    (PREMIUM_NOTIF_TYPES as readonly string[]).includes(s.type)
+      ? { ...s, enabled: false }
+      : s,
+  );
 }
 
 /** Re-schedule with fresh route data (call on app foreground). */

@@ -14,6 +14,8 @@ import { SK_NEWS_CACHE } from '../../lib/storageKeys';
 import { supabase } from '../../lib/supabase';
 import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
 import { FeedCardSkeleton, HorizontalCardsSkeleton } from '../../components/Shimmer';
+import { useIsPremium } from '../../lib/premium';
+import { PREMIUM_ENABLED } from '../../lib/flags';
 
 type CommunityDeal = {
   id: string;
@@ -21,6 +23,7 @@ type CommunityDeal = {
   deal_text: string;
   day_of_week: number;
   submitted_at: string;
+  early_access?: boolean;
 };
 
 type WeekendEvent = {
@@ -37,11 +40,16 @@ function DiscoverScreenInner() {
   const { colours, theme, resolvedTheme, t, fonts, language } = useApp();
   const isLight = resolvedTheme === 'light';
   const insets = useSafeAreaInsets();
+  const isPremium = useIsPremium();
 
   const cardShadow = isLight ? sharedCardShadow : {};
 
   const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([]);
-  const [communityDeals, setCommunityDeals] = useState<CommunityDeal[]>([]);
+  const [allCommunityDeals, setAllCommunityDeals] = useState<CommunityDeal[]>([]);
+  // Filter out early_access deals for non-premium users when the flag is active
+  const communityDeals = (PREMIUM_ENABLED && !isPremium)
+    ? allCommunityDeals.filter(d => !d.early_access)
+    : allCommunityDeals;
   const [weekendEvents, setWeekendEvents] = useState<WeekendEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [dealsLoading, setDealsLoading] = useState(true);
@@ -69,7 +77,7 @@ function DiscoverScreenInner() {
     Promise.resolve(supabase.from('community_deals').select('*').gte('submitted_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()).order('submitted_at', { ascending: false }).limit(10))
       .then(({ data, error }) => {
         if (error) { if (__DEV__) console.warn('Supabase deals error:', error); setDealsError(true); }
-        else if (data) { setCommunityDeals(data); }
+        else if (data) { setAllCommunityDeals(data); }
         setDealsLoading(false);
       })
       .catch(() => { setDealsLoading(false); setDealsError(true); });
@@ -111,7 +119,7 @@ function DiscoverScreenInner() {
     try {
       await Promise.all([
         supabase.from('community_deals').select('*').gte('submitted_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()).order('submitted_at', { ascending: false }).limit(10)
-          .then(({ data }) => { if (data) setCommunityDeals(data); return null; }),
+          .then(({ data }) => { if (data) setAllCommunityDeals(data); return null; }),
         fetchWeekendEvents(),
         fetchWithTimeout('https://routeo-backend.vercel.app/api/news').then(async resp => {
           if (resp.ok) {

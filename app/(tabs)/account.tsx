@@ -27,7 +27,11 @@ import {
   getCommuteAlertSettings,
   saveCommuteAlertSettings,
   refreshCommuteNotification,
+  filterPremiumNotifSubs,
 } from '../../lib/commuteNotifications';
+import { useIsPremium } from '../../lib/premium';
+import { PREMIUM_ENABLED } from '../../lib/flags';
+import PaywallSheet from '../../components/PaywallSheet';
 
 type NotifSettings = {
   tripAlerts: boolean;
@@ -134,6 +138,8 @@ export default function AccountScreen() {
 
   const [classModalVisible, setClassModalVisible] = useState(false);
   const [classSchedule, setClassSchedule] = useState<ClassSchedule | null>(null);
+  const [paywallVisible, setPaywallVisible] = useState(false);
+  const isPremium = useIsPremium();
 
   const isLight = resolvedTheme === 'light';
   const cardShadow = isLight ? sharedCardShadow : {};
@@ -193,9 +199,10 @@ export default function AccountScreen() {
       enabled: updated[key],
       ...(key === 'arrivalAlerts' ? { metadata: { stop_ids: stopIds } } : {}),
     }));
-    registerPushToken(language).then(() => syncSubscriptions(subs)).catch(() => {
+    const filteredSubs = filterPremiumNotifSubs(subs, isPremium);
+    registerPushToken(language).then(() => syncSubscriptions(filteredSubs)).catch(() => {
       setTimeout(() => {
-        registerPushToken(language).then(() => syncSubscriptions(subs)).catch(() => {});
+        registerPushToken(language).then(() => syncSubscriptions(filteredSubs)).catch(() => {});
       }, 2000);
     });
   };
@@ -451,10 +458,15 @@ export default function AccountScreen() {
             {(Object.keys(PALETTE_LABELS) as PaletteId[]).map(pid => {
               const pl = PALETTE_LABELS[pid];
               const active = palette === pid;
+              const locked = PREMIUM_ENABLED && !isPremium && pid !== 'default';
               return (
                 <TouchableOpacity
                   key={pid}
-                  onPress={() => { hapticLight(); setPalette(pid); }}
+                  onPress={() => {
+                    hapticLight();
+                    if (locked) { setPaywallVisible(true); return; }
+                    setPalette(pid);
+                  }}
                   activeOpacity={0.7}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   style={{
@@ -463,6 +475,7 @@ export default function AccountScreen() {
                     borderWidth: 1,
                     borderColor: active ? pl.swatch : colours.border,
                     backgroundColor: active ? pl.swatch + '18' : colours.bg,
+                    opacity: locked ? 0.65 : 1,
                   }}
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
@@ -472,6 +485,9 @@ export default function AccountScreen() {
                   <Text style={{ fontSize: fonts.sm, fontWeight: active ? '700' : '500', color: active ? pl.swatch : colours.muted }}>
                     {language === 'fr' ? pl.fr : pl.en}
                   </Text>
+                  {locked && (
+                    <Ionicons name="lock-closed" size={11} color={colours.muted} />
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -747,6 +763,11 @@ export default function AccountScreen() {
         language={language}
         schedule={classSchedule}
         onSave={setClassSchedule}
+      />
+      <PaywallSheet
+        visible={paywallVisible}
+        onClose={() => setPaywallVisible(false)}
+        featureHint={t('Unlock custom colour palettes and more', 'Debloquez les palettes de couleurs et plus encore')}
       />
     </View>
   );
