@@ -83,21 +83,21 @@ function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    console.log('[Splash] AnimatedSplash mounted, calling SplashScreen.hideAsync()');
+    if (__DEV__) console.log('[Splash] AnimatedSplash mounted, calling SplashScreen.hideAsync()');
     SplashScreen.hideAsync().then(() => {
-      console.log('[Splash] SplashScreen.hideAsync() resolved');
+      if (__DEV__) console.log('[Splash] SplashScreen.hideAsync() resolved');
     }).catch(e => {
-      console.log('[Splash] SplashScreen.hideAsync() error:', e);
+      if (__DEV__) console.log('[Splash] SplashScreen.hideAsync() error:', e);
     });
 
-    console.log('[Splash] Starting animation sequence (400 fade-in + 600 hold + 300 fade-out)');
+    if (__DEV__) console.log('[Splash] Starting animation sequence (400 fade-in + 600 hold + 300 fade-out)');
     // Fade in 400ms -> hold 600ms -> fade out 300ms
     Animated.sequence([
       Animated.timing(opacity, { toValue: 1, duration: 400, useNativeDriver: true }),
       Animated.delay(600),
       Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: true }),
     ]).start(({ finished }) => {
-      console.log('[Splash] Animation sequence complete, finished=', finished, ', calling onFinish()');
+      if (__DEV__) console.log('[Splash] Animation sequence complete, finished=', finished, ', calling onFinish()');
       onFinish();
     });
   }, []);
@@ -123,28 +123,28 @@ function RootNav() {
   const animationResolveRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    console.log('[RootNav] useEffect start — creating storagePromise and animationPromise');
+    if (__DEV__) console.log('[RootNav] useEffect start — creating storagePromise and animationPromise');
 
     // Promise-based coordination: wait for both AsyncStorage check and animation
     const storagePromise = AsyncStorage.getItem(SK_ONBOARDED)
       .then(val => {
         const dest = (val ? 'tabs' : 'onboarding') as 'onboarding' | 'tabs';
-        console.log('[RootNav] storagePromise resolved, SK_ONBOARDED=', val, '=> destination=', dest);
+        if (__DEV__) console.log('[RootNav] storagePromise resolved, SK_ONBOARDED=', val, '=> destination=', dest);
         return dest;
       })
       .catch(e => {
-        console.log('[RootNav] storagePromise caught error:', e, '— defaulting to onboarding');
+        if (__DEV__) console.log('[RootNav] storagePromise caught error:', e, '— defaulting to onboarding');
         return 'onboarding' as const;
       });
 
     const animationPromise = new Promise<void>(resolve => {
-      console.log('[RootNav] animationPromise created, setting animationResolveRef.current');
+      if (__DEV__) console.log('[RootNav] animationPromise created, setting animationResolveRef.current');
       animationResolveRef.current = resolve;
     });
 
-    console.log('[RootNav] Waiting on Promise.all([storagePromise, animationPromise])...');
+    if (__DEV__) console.log('[RootNav] Waiting on Promise.all([storagePromise, animationPromise])...');
     Promise.all([storagePromise, animationPromise]).then(([dest]) => {
-      console.log('[RootNav] Promise.all resolved! dest=', dest, '— calling setShowSplash(false)');
+      if (__DEV__) console.log('[RootNav] Promise.all resolved! dest=', dest, '— calling setShowSplash(false)');
       setShowSplash(false);
       setDestination(dest);
       // Refresh morning commute notification with latest route data
@@ -155,25 +155,25 @@ function RootNav() {
   }, []);
 
   const handleSplashFinish = () => {
-    console.log('[RootNav] handleSplashFinish called, animationResolveRef.current=', animationResolveRef.current != null ? 'SET' : 'NULL');
+    if (__DEV__) console.log('[RootNav] handleSplashFinish called, animationResolveRef.current=', animationResolveRef.current != null ? 'SET' : 'NULL');
     if (animationResolveRef.current) {
       animationResolveRef.current();
-      console.log('[RootNav] animationResolveRef.current() called — animationPromise should now resolve');
+      if (__DEV__) console.log('[RootNav] animationResolveRef.current() called — animationPromise should now resolve');
     } else {
-      console.warn('[RootNav] animationResolveRef.current is NULL — animationPromise will never resolve! Forcing splash off.');
+      if (__DEV__) console.warn('[RootNav] animationResolveRef.current is NULL — animationPromise will never resolve! Forcing splash off.');
       setShowSplash(false);
     }
   };
 
   useEffect(() => {
-    console.log('[RootNav] showSplash/destination changed — showSplash=', showSplash, 'destination=', destination);
+    if (__DEV__) console.log('[RootNav] showSplash/destination changed — showSplash=', showSplash, 'destination=', destination);
     if (!showSplash && destination === 'onboarding') {
-      console.log('[RootNav] Routing to /onboarding');
+      if (__DEV__) console.log('[RootNav] Routing to /onboarding');
       setTimeout(() => {
         router.replace('/onboarding');
       }, 0);
     } else if (!showSplash && destination === 'tabs') {
-      console.log('[RootNav] Rendering tabs Stack — Expo Router should pick up (tabs) route');
+      if (__DEV__) console.log('[RootNav] Rendering tabs Stack — Expo Router should pick up (tabs) route');
     }
   }, [showSplash, destination]);
 
