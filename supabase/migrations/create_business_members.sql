@@ -16,9 +16,12 @@ CREATE TABLE IF NOT EXISTS business_members (
   radius_meters        integer     DEFAULT 500,
   is_active            boolean     DEFAULT false,
   is_onboarded         boolean     DEFAULT false,
-  stripe_customer_id   text,
+  stripe_customer_id     text,
   stripe_subscription_id text,
-  created_at           timestamptz DEFAULT now()
+  -- One-time token generated on register, sent via onboarding email, cleared after first onboard.
+  -- Never returned in HTTP responses — only transmitted via email.
+  onboarding_token       text,
+  created_at             timestamptz DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_business_members_email         ON business_members (email);
