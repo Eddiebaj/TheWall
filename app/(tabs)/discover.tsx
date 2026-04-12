@@ -2,8 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useState } from 'react';
 import {
-  ImageBackground, Linking, RefreshControl, ScrollView, StatusBar,
-  Text, TouchableOpacity, View,
+  ActivityIndicator, ImageBackground, KeyboardAvoidingView, Linking,
+  Modal, Platform, RefreshControl, ScrollView, StatusBar,
+  Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../context/AppContext';
@@ -17,6 +18,20 @@ import { FeedCardSkeleton, HorizontalCardsSkeleton } from '../../components/Shim
 import { useIsPremium } from '../../lib/premium';
 import { PREMIUM_ENABLED } from '../../lib/flags';
 import RsvpButton from '../../components/RsvpButton';
+
+const COMMUNITY_URL = 'https://routeo-backend.vercel.app/api/community';
+// Replace with your actual Stripe payment link once created
+const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/PLACEHOLDER';
+
+type BusinessDeal = {
+  id: string;
+  business_name: string;
+  deal_title: string;
+  deal_description: string;
+  photo_url?: string;
+  address?: string;
+  category?: string;
+};
 
 type CommunityDeal = {
   id: string;
@@ -59,6 +74,14 @@ function DiscoverScreenInner() {
   const [eventsError, setEventsError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  const [businessDeals, setBusinessDeals] = useState<BusinessDeal[]>([]);
+  const [businessDealsLoading, setBusinessDealsLoading] = useState(true);
+
+  const [listBizVisible, setListBizVisible] = useState(false);
+  const [listBizEmail, setListBizEmail] = useState('');
+  const [listBizLoading, setListBizLoading] = useState(false);
+  const [listBizDone, setListBizDone] = useState(false);
+
   useEffect(() => {
     // Direct news fetch instead of relying on SK_NEWS_CACHE (M14)
     fetchWithTimeout('https://routeo-backend.vercel.app/api/news').then(async resp => {
@@ -84,7 +107,41 @@ function DiscoverScreenInner() {
       })
       .catch(() => { setDealsLoading(false); setDealsError(true); });
     fetchWeekendEvents();
+    fetchBusinessDeals();
   }, []);
+
+  const fetchBusinessDeals = async () => {
+    setBusinessDealsLoading(true);
+    try {
+      const r = await fetchWithTimeout(`${COMMUNITY_URL}?action=business.deals`);
+      if (r.ok) {
+        const data = await r.json();
+        setBusinessDeals(data.deals || []);
+      }
+    } catch (e) {
+      if (__DEV__) console.warn('[discover] fetchBusinessDeals error:', e);
+    }
+    setBusinessDealsLoading(false);
+  };
+
+  const handleListBizSubmit = async () => {
+    const email = listBizEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+    setListBizLoading(true);
+    try {
+      await fetchWithTimeout(`${COMMUNITY_URL}?action=business.register`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      setListBizDone(true);
+      // Open Stripe payment link — business completes checkout, webhook activates account
+      Linking.openURL(STRIPE_PAYMENT_LINK).catch(() => {});
+    } catch (e) {
+      if (__DEV__) console.warn('[discover] business.register error:', e);
+    }
+    setListBizLoading(false);
+  };
 
   const fetchWeekendEvents = async () => {
     setEventsLoading(true);
@@ -124,6 +181,7 @@ function DiscoverScreenInner() {
         supabase.from('community_deals').select('*').gte('submitted_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()).order('submitted_at', { ascending: false }).limit(10)
           .then(({ data }) => { if (data) setAllCommunityDeals(data); return null; }),
         fetchWeekendEvents(),
+        fetchBusinessDeals(),
         fetchWithTimeout('https://routeo-backend.vercel.app/api/news').then(async resp => {
           if (resp.ok) {
             const data = await resp.json();
@@ -199,6 +257,44 @@ function DiscoverScreenInner() {
               );
             })
           )}
+
+          {/* Partner deals */}
+          {!businessDealsLoading && businessDeals.length > 0 && (
+            <View style={{ marginTop: 8 }}>
+              {businessDeals.map(biz => (
+                <View
+                  key={biz.id}
+                  style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colours.accent + '30', backgroundColor: colours.surface, marginBottom: 8 }, cardShadow]}
+                >
+                  <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="star" size={16} color={colours.accent} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }} numberOfLines={1}>{biz.business_name}</Text>
+                    <Text style={{ fontSize: 12, color: colours.muted, marginTop: 1 }} numberOfLines={1}>{biz.deal_title}</Text>
+                  </View>
+                  <View style={{ backgroundColor: colours.accent + '15', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: colours.accent + '30' }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: colours.accent }}>
+                      {t('Partner', 'Partenaire')}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* List your business CTA */}
+          <TouchableOpacity
+            onPress={() => { setListBizDone(false); setListBizEmail(''); setListBizVisible(true); }}
+            activeOpacity={0.7}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface }}
+          >
+            <Ionicons name="storefront-outline" size={16} color={colours.muted} />
+            <Text style={{ flex: 1, fontSize: 12, color: colours.muted }}>
+              {t('List your business — reach Ottawa riders', 'Inscrivez votre commerce — rejoignez les usagers')}
+            </Text>
+            <Ionicons name="chevron-forward" size={14} color={colours.muted} />
+          </TouchableOpacity>
         </View>
 
         {/* Events this weekend */}
@@ -300,6 +396,101 @@ function DiscoverScreenInner() {
           )}
         </View>
       </ScrollView>
+
+      {/* List your business modal */}
+      <Modal
+        visible={listBizVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setListBizVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+            <View style={{
+              backgroundColor: colours.surface,
+              borderTopLeftRadius: 24, borderTopRightRadius: 24,
+              paddingHorizontal: 24, paddingTop: 20, paddingBottom: insets.bottom + 24,
+            }}>
+              {/* Handle */}
+              <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginBottom: 20 }} />
+
+              {listBizDone ? (
+                <View style={{ alignItems: 'center', paddingVertical: 16 }}>
+                  <Ionicons name="checkmark-circle" size={48} color="#22c55e" style={{ marginBottom: 12 }} />
+                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, marginBottom: 8 }}>
+                    {t('We got your email!', 'Nous avons votre courriel\u00a0!')}
+                  </Text>
+                  <Text style={{ fontSize: fonts.sm, color: colours.muted, textAlign: 'center', marginBottom: 20 }}>
+                    {t(
+                      'Complete the checkout to activate your listing. You\'ll receive an onboarding link by email.',
+                      'Finalisez le paiement pour activer votre inscription. Vous recevrez un lien d\'acc\u00e8s par courriel.',
+                    )}
+                  </Text>
+                  <TouchableOpacity onPress={() => setListBizVisible(false)} style={{ paddingVertical: 12, paddingHorizontal: 28, backgroundColor: colours.accent, borderRadius: 14 }}>
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: fonts.sm }}>{t('Done', 'Termin\u00e9')}</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <>
+                  <Text style={{ fontSize: fonts.md + 2, fontWeight: '700', color: colours.text, marginBottom: 6 }}>
+                    {t('List your business', 'Inscrivez votre commerce')}
+                  </Text>
+                  <Text style={{ fontSize: fonts.sm, color: colours.muted, marginBottom: 20 }}>
+                    {t(
+                      'Reach Ottawa transit riders with a featured deal. $9.99/month — cancel anytime.',
+                      'Rejoignez les usagers du transport en commun d\'Ottawa avec une offre vedette. 9,99\u00a0$/mois — annulez en tout temps.',
+                    )}
+                  </Text>
+
+                  <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.text, marginBottom: 6 }}>
+                    {t('Your business email', 'Courriel de votre entreprise')}
+                  </Text>
+                  <TextInput
+                    value={listBizEmail}
+                    onChangeText={setListBizEmail}
+                    placeholder="hello@yourbusiness.com"
+                    placeholderTextColor={colours.muted}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    style={{
+                      borderWidth: 1, borderColor: colours.border, borderRadius: 12,
+                      padding: 14, fontSize: fonts.sm, color: colours.text,
+                      backgroundColor: colours.bg, marginBottom: 20,
+                    }}
+                  />
+
+                  <TouchableOpacity
+                    onPress={handleListBizSubmit}
+                    disabled={listBizLoading || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(listBizEmail.trim())}
+                    activeOpacity={0.8}
+                    style={{
+                      backgroundColor: colours.accent, borderRadius: 14,
+                      paddingVertical: 14, alignItems: 'center',
+                      opacity: (listBizLoading || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(listBizEmail.trim())) ? 0.5 : 1,
+                    }}
+                  >
+                    {listBizLoading ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={{ color: '#fff', fontWeight: '700', fontSize: fonts.sm }}>
+                        {t('Continue to payment', 'Continuer vers le paiement')}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity onPress={() => setListBizVisible(false)} style={{ marginTop: 14, alignItems: 'center' }}>
+                    <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Cancel', 'Annuler')}</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
