@@ -16,6 +16,7 @@ import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
 import { FeedCardSkeleton, HorizontalCardsSkeleton } from '../../components/Shimmer';
 import { useIsPremium } from '../../lib/premium';
 import { PREMIUM_ENABLED } from '../../lib/flags';
+import RsvpButton from '../../components/RsvpButton';
 
 type CommunityDeal = {
   id: string;
@@ -34,6 +35,7 @@ type WeekendEvent = {
   venue: string;
   url: string;
   image?: string;
+  source: 'ticketmaster' | 'eventbrite' | 'happyhour';
 };
 
 function DiscoverScreenInner() {
@@ -107,6 +109,7 @@ function DiscoverScreenInner() {
           venue: e._embedded?.venues?.[0]?.name || '',
           url: e.url,
           image: e.images?.find((img: any) => img.ratio === '16_9' && img.width > 400)?.url || e.images?.[0]?.url,
+          source: 'ticketmaster' as const,
         }));
         setWeekendEvents(evs);
       }
@@ -247,6 +250,7 @@ function DiscoverScreenInner() {
                       {new Date(ev.date + 'T12:00:00').toLocaleDateString(language === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'short', month: 'short', day: 'numeric' })}
                     </Text>
                   </View>
+                  <RsvpButton eventId={ev.id} eventSource={ev.source} />
                 </TouchableOpacity>
               ))}
             </ScrollView>

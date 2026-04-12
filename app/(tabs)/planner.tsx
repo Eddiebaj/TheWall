@@ -32,6 +32,7 @@ import { SK_PLANNER_PREFS, SK_SAVED_ROUTES, SK_TRIP_HISTORY, SK_LEAVE_REMINDERS,
 import { useIsPremium } from '../../lib/premium';
 import { PREMIUM_ENABLED } from '../../lib/flags';
 import PaywallSheet from '../../components/PaywallSheet';
+import { parseTransitQuery, startListening, stopListening, isSpeechAvailable, VoiceState } from '../../lib/voiceAssistant';
 import { CAMPUSES, CampusConfig } from '../../lib/campusData';
 import { ClassSchedule, nextClass, fmt12h as schedFmt12h } from '../../lib/scheduleData';
 
@@ -317,6 +318,8 @@ function PlannerScreenInner() {
   const [error, setError] = useState('');
   const [alerts, setAlerts] = useState<{ routes: string[]; title: string }[]>([]);
   const [searched, setSearched] = useState(false);
+  const [voiceState, setVoiceState] = useState<VoiceState>('idle');
+  const voiceTranscriptRef = useRef('');
   const [transferReliability, setTransferReliability] = useState<Record<string, { onTimePercent: number; avgDelay: number }>>({});
   const [walkAlt, setWalkAlt] = useState<{ walkMins: number; transitMins: number; transitWait: number; temp: number | null; precip: boolean } | null>(null);
 
@@ -610,6 +613,70 @@ function PlannerScreenInner() {
     setFromPlace(toPlace); setFromText(toText);
     setToPlace(tmpPlace); setToText(tmpText);
     setFromResults([]); setToResults([]);
+  };
+
+  const handleMicPress = () => {
+    if (PREMIUM_ENABLED && !isPremium) { setPlannerPaywallVisible(true); return; }
+    if (!isSpeechAvailable()) {
+      Alert.alert(
+        t('Not available', 'Non disponible'),
+        t('Voice input is not available in this environment.', 'La saisie vocale n\'est pas disponible dans cet environnement.'),
+      );
+      return;
+    }
+    if (voiceState === 'listening') {
+      stopListening();
+      setVoiceState('idle');
+      return;
+    }
+    voiceTranscriptRef.current = '';
+    setVoiceState('listening');
+    startListening(language, {
+      onResult: (transcript) => { voiceTranscriptRef.current = transcript; },
+      onEnd: async () => {
+        const transcript = voiceTranscriptRef.current;
+        if (!transcript) { setVoiceState('idle'); return; }
+        setVoiceState('parsing');
+        try {
+          const parsed = await parseTransitQuery(transcript, language);
+          if (!parsed) { setVoiceState('idle'); return; }
+          let resolvedFrom = fromPlace;
+          let resolvedTo = toPlace;
+          if (parsed.from) {
+            setFromText(parsed.from);
+            try {
+              const r = await fetchWithTimeout(`${PLACES_URL}?action=autocomplete-geocode&input=${encodeURIComponent(parsed.from)}`);
+              if (r.ok) {
+                const data = await r.json();
+                const first = data.results?.[0];
+                if (first?.lat) { resolvedFrom = { placeId: first.placeId ?? 'geo', label: first.label, lat: first.lat, lng: first.lng }; setFromPlace(resolvedFrom); setFromText(shortenLabel(first.label)); }
+              }
+            } catch {}
+          }
+          if (parsed.to) {
+            setToText(parsed.to);
+            try {
+              const r = await fetchWithTimeout(`${PLACES_URL}?action=autocomplete-geocode&input=${encodeURIComponent(parsed.to)}`);
+              if (r.ok) {
+                const data = await r.json();
+                const first = data.results?.[0];
+                if (first?.lat) { resolvedTo = { placeId: first.placeId ?? 'geo', label: first.label, lat: first.lat, lng: first.lng }; setToPlace(resolvedTo); setToText(shortenLabel(first.label)); }
+              }
+            } catch {}
+          }
+          if (resolvedFrom?.lat && resolvedTo?.lat) {
+            planWithPlaces(resolvedFrom, resolvedTo);
+          }
+        } catch (e) {
+          if (__DEV__) console.warn('[planner] voice handleEnd error:', e);
+        }
+        setVoiceState('idle');
+      },
+      onError: (err) => {
+        if (__DEV__) console.warn('[planner] voice error:', err);
+        setVoiceState('idle');
+      },
+    });
   };
 
   const planWithPlaces = useCallback(async (resolvedFrom: PlaceResult, resolvedTo: PlaceResult) => {
@@ -2262,6 +2329,17 @@ function PlannerScreenInner() {
             />
             <TouchableOpacity onPress={() => useMyLocation('to')} style={{ padding: 6 }} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Use my location as destination', 'Utiliser ma position comme destination')}>
               <Ionicons name="locate" size={18} color={colours.accent} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleMicPress} style={{ padding: 6 }} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Voice input', 'Saisie vocale')}>
+              {voiceState === 'parsing' ? (
+                <ActivityIndicator size="small" color={colours.accent} />
+              ) : (
+                <Ionicons
+                  name={voiceState === 'listening' ? 'mic' : 'mic-outline'}
+                  size={18}
+                  color={voiceState === 'listening' ? '#e53935' : colours.accent}
+                />
+              )}
             </TouchableOpacity>
           </View>
         </View>

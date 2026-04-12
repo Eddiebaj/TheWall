@@ -90,7 +90,8 @@
           "project": "react-native"
         }
       ],
-      "@sentry/react-native"
+      "@sentry/react-native",
+      "expo-speech-recognition"
     ],
     "experiments": {
       "typedRoutes": true
