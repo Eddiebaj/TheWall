@@ -20,8 +20,7 @@ import { PREMIUM_ENABLED } from '../../lib/flags';
 import RsvpButton from '../../components/RsvpButton';
 
 const COMMUNITY_URL = 'https://routeo-backend.vercel.app/api/community';
-// Replace with your actual Stripe payment link once created
-const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/PLACEHOLDER';
+const STRIPE_PAYMENT_LINK = process.env.EXPO_PUBLIC_STRIPE_PAYMENT_LINK ?? '';
 
 type BusinessDeal = {
   id: string;
@@ -136,7 +135,11 @@ function DiscoverScreenInner() {
       });
       setListBizDone(true);
       // Open Stripe payment link — business completes checkout, webhook activates account
-      Linking.openURL(STRIPE_PAYMENT_LINK).catch(() => {});
+      if (STRIPE_PAYMENT_LINK) {
+        Linking.openURL(STRIPE_PAYMENT_LINK).catch(() => {});
+      } else if (__DEV__) {
+        console.warn('[discover] EXPO_PUBLIC_STRIPE_PAYMENT_LINK is not set');
+      }
     } catch (e) {
       if (__DEV__) console.warn('[discover] business.register error:', e);
     }
