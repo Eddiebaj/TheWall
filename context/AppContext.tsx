@@ -132,10 +132,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (__DEV__) console.log('[AppProvider] useEffect start — reading preferences from AsyncStorage');
+    const timer = setTimeout(() => {
+      if (__DEV__) console.warn('[AppProvider] AsyncStorage load timed out — keeping defaults');
+    }, 3000);
     AsyncStorage.multiGet([
       SK_THEME, SK_LARGE_TEXT, SK_CONTRAST,
       SK_MOTION, SK_LANGUAGE, SK_PALETTE
     ]).then(vals => {
+      clearTimeout(timer);
       if (__DEV__) console.log('[AppProvider] AsyncStorage.multiGet resolved');
       try {
         const themeVal = vals[0][1];
@@ -149,9 +153,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (palVal && palVal in PALETTE_OVERRIDES) setPaletteState(palVal as PaletteId);
         if (__DEV__) console.log('[AppProvider] Preferences applied successfully');
       } catch (e) {
+        clearTimeout(timer);
         if (__DEV__) console.warn('[AppProvider] Corrupted storage — keeping defaults:', e);
       }
     }).catch(e => {
+      clearTimeout(timer);
       if (__DEV__) console.warn('[AppProvider] AsyncStorage.multiGet failed:', e);
     });
   }, []);
@@ -181,17 +187,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     AsyncStorage.setItem(SK_PALETTE, p);
   }, []);
 
-  const resolvedTheme = theme === 'system'
-    ? (systemScheme === 'light' ? 'light' : 'dark')
-    : theme;
+  // Guard against iOS 26 CoreUI / UITraitCollection issues where useColorScheme()
+  // may throw or return an unexpected value during early app launch.
+  const safeSystemScheme = (systemScheme === 'light' || systemScheme === 'dark') ? systemScheme : 'dark';
+  const resolvedTheme = theme === 'system' ? safeSystemScheme : theme;
 
   const colours = useMemo(() => {
-    const base = resolvedTheme === 'light'
-      ? (highContrast ? HIGH_CONTRAST_LIGHT : LIGHT_COLOURS)
-      : (highContrast ? HIGH_CONTRAST_DARK : DARK_COLOURS);
-    if (palette === 'default') return base;
-    const ov = PALETTE_OVERRIDES[palette];
-    return { ...base, accent: ov.accent, accentAlt: ov.accentAlt, green: ov.green };
+    try {
+      const base = resolvedTheme === 'light'
+        ? (highContrast ? HIGH_CONTRAST_LIGHT : LIGHT_COLOURS)
+        : (highContrast ? HIGH_CONTRAST_DARK : DARK_COLOURS);
+      if (palette === 'default') return base;
+      const ov = PALETTE_OVERRIDES[palette] ?? PALETTE_OVERRIDES['default'];
+      return { ...base, accent: ov.accent, accentAlt: ov.accentAlt, green: ov.green };
+    } catch (e) {
+      if (__DEV__) console.warn('[AppProvider] colours computation failed, using defaults:', e);
+      return DARK_COLOURS;
+    }
   }, [resolvedTheme, highContrast, palette]);
 
   const fonts = useMemo(() => largeText ? LARGE_FONTS : BASE_FONTS, [largeText]);

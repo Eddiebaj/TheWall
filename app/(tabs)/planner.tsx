@@ -28,7 +28,7 @@ import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { supabase } from '../../lib/supabase';
 
 import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
-import { SK_PLANNER_PREFS, SK_SAVED_ROUTES, SK_TRIP_HISTORY, SK_LEAVE_REMINDERS, SK_ACCESSIBILITY_ROUTING, SK_MOTION, SK_WALK_PREFERENCE, SK_WALK_PACE, SK_BATTERY_SAVER, SK_CAMPUS, SK_CLASS_SCHEDULE } from '../../lib/storageKeys';
+import { SK_PLANNER_PREFS, SK_SAVED_ROUTES, SK_TRIP_HISTORY, SK_LEAVE_REMINDERS, SK_ACCESSIBILITY_ROUTING, SK_MOTION, SK_WALK_PREFERENCE, SK_WALK_PACE, SK_BATTERY_SAVER, SK_CAMPUS, SK_CLASS_SCHEDULE, SK_DEVICE_ID } from '../../lib/storageKeys';
 import { useIsPremium } from '../../lib/premium';
 import { PREMIUM_ENABLED } from '../../lib/flags';
 import PaywallSheet from '../../components/PaywallSheet';
@@ -638,7 +638,8 @@ function PlannerScreenInner() {
         if (!transcript) { setVoiceState('idle'); return; }
         setVoiceState('parsing');
         try {
-          const parsed = await parseTransitQuery(transcript, language);
+          const deviceId = await AsyncStorage.getItem(SK_DEVICE_ID).catch(() => null);
+          const parsed = await parseTransitQuery(transcript, language, deviceId ?? undefined);
           if (!parsed) { setVoiceState('idle'); return; }
           let resolvedFrom = fromPlace;
           let resolvedTo = toPlace;

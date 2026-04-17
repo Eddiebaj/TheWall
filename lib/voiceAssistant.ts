@@ -18,12 +18,13 @@ const PARSE_TRANSIT_URL = 'https://routeo-backend.vercel.app/api/places?action=p
 export async function parseTransitQuery(
   transcript: string,
   language: string,
+  deviceId?: string,
 ): Promise<{ from: string | null; to: string | null } | null> {
   try {
     const resp = await fetch(PARSE_TRANSIT_URL, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ transcript, language }),
+      body: JSON.stringify({ transcript, language, device_id: deviceId }),
     });
     if (!resp.ok) {
       if (__DEV__) console.warn('[voiceAssistant] parse-transit HTTP', resp.status);
