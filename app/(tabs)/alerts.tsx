@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Linking, RefreshControl,
   ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View,
@@ -119,6 +119,11 @@ function AlertsScreenInner() {
       setRefreshing(false);
     }
   };
+
+  // Unmount cleanup — belt-and-suspenders in case screen unmounts while focused
+  useEffect(() => {
+    return () => { if (lrtInterval.current) clearInterval(lrtInterval.current); };
+  }, []);
 
   // Fetch on focus + auto-refresh LRT every 5 minutes (cleared on blur)
   useFocusEffect(useCallback(() => {

@@ -319,6 +319,8 @@ function PlannerScreenInner() {
   const [alerts, setAlerts] = useState<{ routes: string[]; title: string }[]>([]);
   const [searched, setSearched] = useState(false);
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
+  const [voiceHint, setVoiceHint] = useState('');
+  const voiceHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const voiceTranscriptRef = useRef('');
   const [transferReliability, setTransferReliability] = useState<Record<string, { onTimePercent: number; avgDelay: number }>>({});
   const [walkAlt, setWalkAlt] = useState<{ walkMins: number; transitMins: number; transitWait: number; temp: number | null; precip: boolean } | null>(null);
@@ -641,6 +643,13 @@ function PlannerScreenInner() {
           const deviceId = await AsyncStorage.getItem(SK_DEVICE_ID).catch(() => null);
           const parsed = await parseTransitQuery(transcript, language, deviceId ?? undefined);
           if (!parsed) { setVoiceState('idle'); return; }
+          if (!parsed.from && !parsed.to) {
+            if (voiceHintTimer.current) clearTimeout(voiceHintTimer.current);
+            setVoiceHint(t('Try saying something like "get me from Carleton to ByWard Market"', 'Essayez par exemple "amène-moi de Carleton au marché ByWard"'));
+            voiceHintTimer.current = setTimeout(() => setVoiceHint(''), 4000);
+            setVoiceState('idle');
+            return;
+          }
           let resolvedFrom = fromPlace;
           let resolvedTo = toPlace;
           if (parsed.from) {
@@ -2344,6 +2353,12 @@ function PlannerScreenInner() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {!!voiceHint && (
+          <Text style={{ marginHorizontal: 20, marginBottom: 8, fontSize: 12, color: colours.orange, textAlign: 'center' }}>
+            {voiceHint}
+          </Text>
+        )}
 
         {/* Autocomplete results — only show for the active field */}
         {autoLoading && fromResults.length === 0 && activeInput === 'from' && (
