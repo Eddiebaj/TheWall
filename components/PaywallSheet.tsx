@@ -12,7 +12,7 @@ import {
 
 type Props = {
   visible: boolean;
-  onClose: () => void;
+  onClose?: () => void;
   /** Called after a successful purchase */
   onSuccess?: () => void;
   /** Alias for onClose — use either */
@@ -31,7 +31,7 @@ const FEATURES = [
 ];
 
 export default function PaywallSheet({ visible, onClose, onDismiss, onSuccess, featureHint, highlightFeature }: Props) {
-  const _dismiss = onDismiss ?? onClose;
+  const _dismiss = onDismiss ?? onClose ?? (() => {});
   const { colours, fonts, t, language } = useApp();
   const insets = useSafeAreaInsets();
 

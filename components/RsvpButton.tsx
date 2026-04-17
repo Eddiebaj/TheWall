@@ -56,16 +56,16 @@ export default function RsvpButton({ eventId, eventSource }: Props) {
       setDeviceId(uid);
 
       // Fetch count and whether this device has RSVPed
-      supabase
-        .from('event_rsvps')
-        .select('user_id', { count: 'exact' })
-        .eq('event_id', eventId)
-        .then(({ data, count: c }) => {
-          setCount(c ?? 0);
-          setGoing((data ?? []).some((r: any) => r.user_id === uid));
-          setLoading(false);
-        })
-        .catch(() => setLoading(false));
+      Promise.resolve(
+        supabase
+          .from('event_rsvps')
+          .select('user_id', { count: 'exact' })
+          .eq('event_id', eventId)
+      ).then(({ data, count: c }) => {
+        setCount(c ?? 0);
+        setGoing((data ?? []).some((r: any) => r.user_id === uid));
+        setLoading(false);
+      }).catch(() => setLoading(false));
     }).catch(() => setLoading(false));
   }, [eventId]);
 

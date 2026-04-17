@@ -92,7 +92,8 @@ export const PREMIUM_FEATURES = {
   ISOCHRONE:       'isochrone',
   CLASS_SCHEDULE:  'class_schedule',
   ARRIVAL_HISTORY: 'arrival_history',
+  AI_ASSISTANT:    'ai_assistant',
 } as const;
 
 /** Alias for backwards compatibility with imports that use usePremium */
-export const usePremium = useIsPremium;
+export function usePremium(): boolean { return useIsPremium(); }
