@@ -85,3 +85,14 @@ export const FREE_CLASS_LIMIT     = 5;   // class schedule entries
 export const PREMIUM_CLASS_LIMIT  = 20;
 export const FREE_ARRIVAL_LIMIT   = 2;   // departures shown per stop
 export const PREMIUM_ARRIVAL_LIMIT = 20;
+
+// Named feature keys used for paywall gating and badge display
+export const PREMIUM_FEATURES = {
+  MULTI_STOP:      'multi_stop',
+  ISOCHRONE:       'isochrone',
+  CLASS_SCHEDULE:  'class_schedule',
+  ARRIVAL_HISTORY: 'arrival_history',
+} as const;
+
+/** Alias for backwards compatibility with imports that use usePremium */
+export const usePremium = useIsPremium;

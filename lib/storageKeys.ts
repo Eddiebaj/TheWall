@@ -72,6 +72,9 @@ export const SK_CAMPUS = 'routeo_campus';
 export const SK_CLASS_SCHEDULE = 'routeo_class_schedule';
 export const SK_COMMUTE_DURATION = 'routeo_commute_duration';
 export const SK_MY_DEAL_VOTES = 'routeo_my_deal_votes';
+export const SK_SAVED_TEAMS = 'routeo_saved_teams';
+export const SK_SAVED_NEIGHBOURHOODS = 'routeo_saved_neighbourhoods';
+export const SK_TONIGHT_DISMISSED = 'routeo_tonight_dismissed';
 // Dynamic: `${SK_DEAL_SUBMIT_PREFIX}${deviceId}`
 export const SK_DEAL_SUBMIT_PREFIX = 'routeo_deal_submit_';
 export const SK_COMMUTE_ALERT = 'routeo_commute_alert';

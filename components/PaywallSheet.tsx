@@ -13,8 +13,14 @@ import {
 type Props = {
   visible: boolean;
   onClose: () => void;
+  /** Called after a successful purchase */
+  onSuccess?: () => void;
+  /** Alias for onClose — use either */
+  onDismiss?: () => void;
   /** Optional override to highlight a specific feature in the sheet header */
   featureHint?: string;
+  /** Feature key used to customise header copy (from PREMIUM_FEATURES) */
+  highlightFeature?: string;
 };
 
 const FEATURES = [
@@ -24,7 +30,8 @@ const FEATURES = [
   { icon: 'star-outline' as const,           en: 'Support ongoing RouteO development', fr: 'Soutenir le developpement de RouteO' },
 ];
 
-export default function PaywallSheet({ visible, onClose, featureHint }: Props) {
+export default function PaywallSheet({ visible, onClose, onDismiss, onSuccess, featureHint, highlightFeature }: Props) {
+  const _dismiss = onDismiss ?? onClose;
   const { colours, fonts, t, language } = useApp();
   const insets = useSafeAreaInsets();
 
@@ -59,7 +66,8 @@ export default function PaywallSheet({ visible, onClose, featureHint }: Props) {
     setPurchasing(true);
     try {
       await purchasePackage(pkg);
-      onClose();
+      onSuccess?.();
+      _dismiss();
     } catch (e: any) {
       if (!e?.userCancelled) {
         Alert.alert(t('Purchase failed', 'Echec de l\'achat'), e?.message ?? t('Please try again.', 'Veuillez reessayer.'));
@@ -74,7 +82,7 @@ export default function PaywallSheet({ visible, onClose, featureHint }: Props) {
     try {
       await restorePurchases();
       Alert.alert(t('Restored', 'Restaure'), t('Your purchases have been restored.', 'Vos achats ont ete restaures.'));
-      onClose();
+      _dismiss();
     } catch {
       Alert.alert(t('Restore failed', 'Echec de la restauration'), t('Nothing to restore, or try again later.', 'Rien a restaurer, ou reessayez plus tard.'));
     } finally {
@@ -83,12 +91,12 @@ export default function PaywallSheet({ visible, onClose, featureHint }: Props) {
   }
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={_dismiss}>
       {/* Backdrop */}
       <TouchableOpacity
         style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }}
         activeOpacity={1}
-        onPress={onClose}
+        onPress={_dismiss}
       />
 
       <Animated.View
