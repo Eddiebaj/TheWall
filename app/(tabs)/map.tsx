@@ -1293,8 +1293,8 @@ export default function MapScreen() {
         onPanDrag={() => { if (tappedLocation) dismissTapped(); }}
         onRegionChangeComplete={(r) => setRegion(r)}
       >
-        {/* Heat zone circles — rendered when Deals layer is active */}
-        {mapReady && Circle && activeLayers.deals && heatZones.map(zone => (
+        {/* Heat zone circles — always visible when zoomed to neighbourhood level */}
+        {mapReady && Circle && !zoomTooFar && heatZones.map(zone => (
           <Circle
             key={zone.id}
             center={{ latitude: zone.lat, longitude: zone.lng }}
