@@ -24,7 +24,9 @@ import { HAPPY_HOUR_VENUES, HappyHourVenue } from '../../lib/happyHourData';
 import BusTrackingModal from '../../components/BusTrackingModal';
 import BottomSheet from '@gorhom/bottom-sheet';
 import NearbyTransitSheet, { NearbyStop } from '../../components/NearbyTransitSheet';
-import ServicesGrid, { SERVICES_TABS, ServiceTile } from '../../components/ServicesGrid';
+import ServicesGrid, { ServiceTile } from '../../components/ServicesGrid';
+import TonightCard from '../../components/TonightCard';
+import ActiveTrip from '../../components/ActiveTrip';
 import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hapticLight, hapticMedium } from '../../lib/haptics';
@@ -42,6 +44,8 @@ const CITY_URL        = 'https://routeo-backend.vercel.app/api/city';
 type SavedRoute = { id: string; fromLabel: string; toLabel: string; fromLat: number; fromLng: number; toLat: number; toLng: number };
 type SavedFav = { id: string; name: string; icon: string };
 type SavedPin = { id: string; name: string; lat: number; lng: number; kind: 'stop' | 'route_from' | 'route_to' | 'place'; routeLabel?: string; vicinity?: string };
+type PlanLeg = { mode: string; startTime: number; endTime: number; duration: number; distance: number; from: { name: string }; to: { name: string }; routeShortName: string | null; headsign: string | null; legGeometry?: { points: string } };
+type PlanItinerary = { duration: number; startTime: number; endTime: number; legs: PlanLeg[] };
 
 const OTTAWA_REGION: Region = {
   latitude: 45.4215, longitude: -75.6972,
@@ -307,6 +311,22 @@ export default function MapScreen() {
   const [sheetAlerts, setSheetAlerts] = useState<any[]>([]);
   const [sheetDeals, setSheetDeals] = useState<{ id: string; venue_name: string; deal_text: string; day_of_week: number }[]>([]);
   const [servicesTab, setServicesTab] = useState('explore');
+
+  // Inline trip planner
+  const [planMode, setPlanMode] = useState(false);
+  const [planToText, setPlanToText] = useState('');
+  const [planToSuggestions, setPlanToSuggestions] = useState<{ placeId: string; name: string; address: string; stopId?: string }[]>([]);
+  const [planToPlace, setPlanToPlace] = useState<{ name: string; lat: number; lng: number } | null>(null);
+  const planToTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [planTransitMode, setPlanTransitMode] = useState<'BUS' | 'WALK' | 'BICYCLE'>('BUS');
+  const [planItineraries, setPlanItineraries] = useState<PlanItinerary[]>([]);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planResultsVisible, setPlanResultsVisible] = useState(false);
+  const [goItinerary, setGoItinerary] = useState<PlanItinerary | null>(null);
+
+  // Tonight card data
+  const [tonightWeather, setTonightWeather] = useState<{ temp: number; condition: string } | null>(null);
+  const [tonightEvents, setTonightEvents] = useState<{ name: string; date: string; time?: string; venue: string }[]>([]);
 
   const sheetAnim = useRef(new Animated.Value(0)).current;
   const [loadingLayers, setLoadingLayers] = useState<Set<LayerKey>>(new Set());
@@ -714,12 +734,41 @@ export default function MapScreen() {
       .then(() => {}, () => {});
   }, []);
 
+  useEffect(() => {
+    // Weather for TonightCard
+    fetchWithTimeout('https://api.open-meteo.com/v1/forecast?latitude=45.4215&longitude=-75.6972&current_weather=true')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data?.current_weather) return;
+        const code = data.current_weather.weathercode ?? 0;
+        const cond = code === 0 ? 'Clear' : code <= 3 ? 'Partly Cloudy' : code <= 45 ? 'Cloudy' : code <= 67 ? 'Rainy' : 'Snowy';
+        setTonightWeather({ temp: data.current_weather.temperature, condition: cond });
+      })
+      .catch(() => {});
+    // Events for TonightCard
+    fetchWithTimeout('https://routeo-backend.vercel.app/api/ebevents')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const raw = (data?.events ?? data) || [];
+        if (!Array.isArray(raw)) return;
+        setTonightEvents(raw.slice(0, 8).map((e: any) => ({
+          name: e.name || e.title || '',
+          date: e.date || '',
+          time: e.time || e.startTime || '',
+          venue: typeof e.venue === 'string' ? e.venue : (e.venue?.name || ''),
+        })));
+      })
+      .catch(() => {});
+  }, []);
+
   const routeToTapped = useCallback(() => {
     if (!tappedLocation) return;
     const label = tappedLocation.address || `${tappedLocation.lat.toFixed(5)}, ${tappedLocation.lng.toFixed(5)}`;
     dismissTapped();
-    router.push({ pathname: '/(tabs)/planner', params: { toLabel: label, toLat: String(tappedLocation.lat), toLng: String(tappedLocation.lng) } } as any);
-  }, [tappedLocation, dismissTapped, router]);
+    setPlanMode(true);
+    setPlanToText(label);
+    setPlanToPlace({ name: label, lat: tappedLocation.lat, lng: tappedLocation.lng });
+  }, [tappedLocation, dismissTapped]);
 
   const dropPinAtTapped = useCallback(async () => {
     if (!tappedLocation) return;
@@ -1073,6 +1122,20 @@ export default function MapScreen() {
 
   const centerOnOttawa = () => mapRef.current?.animateToRegion(OTTAWA_REGION, 600);
 
+  function fmtPlanDuration(secs: number) {
+    const m = Math.round(secs / 60);
+    if (m < 60) return `${m} min`;
+    return `${Math.floor(m / 60)}h ${m % 60}m`;
+  }
+  function fmtPlanTime(ms: number) {
+    const d = new Date(ms);
+    const h = d.getHours();
+    const mi = String(d.getMinutes()).padStart(2, '0');
+    return `${h % 12 || 12}:${mi}${h >= 12 ? 'pm' : 'am'}`;
+  }
+  const LEG_PLAN_ICONS: Record<string, string> = { WALK: 'walk', BUS: 'bus', TRAM: 'train', RAIL: 'train', SUBWAY: 'train', FERRY: 'boat', BICYCLE: 'bicycle' };
+  const LEG_PLAN_COLORS: Record<string, string> = { WALK: '#9aaabb', BUS: '#00A78D', TRAM: '#0057B8', RAIL: '#0057B8', SUBWAY: '#0057B8', FERRY: '#7b5ea7', BICYCLE: '#34c759' };
+
   const searchPlaces = useCallback(async (query: string) => {
     if (query.length < 3) { setPlaceSuggestions([]); return; }
     // Match transit stops locally
@@ -1145,6 +1208,68 @@ export default function MapScreen() {
     hideSheet();
   }, []);
 
+  const searchPlanTo = useCallback(async (query: string) => {
+    if (query.length < 3) { setPlanToSuggestions([]); return; }
+    const q = query.toLowerCase();
+    const stopMatches = (stopsearchData as { id: string; name: string }[])
+      .filter(s => s.name.toLowerCase().includes(q))
+      .slice(0, 3)
+      .map(s => ({ placeId: `stop_${s.id}`, name: toTitleCase(s.name), address: `${t('Stop', 'Arr\u00eat')} #${s.id}`, stopId: s.id }));
+    try {
+      const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=autocomplete&input=${encodeURIComponent(query)}&location=45.4215,-75.6972&radius=50000`);
+      if (!r.ok) throw new Error('');
+      const res = await r.json();
+      const pm = (res.predictions || []).slice(0, 4).map((p: any) => ({
+        placeId: p.place_id,
+        name: p.structured_formatting?.main_text || p.description,
+        address: p.structured_formatting?.secondary_text || '',
+      }));
+      setPlanToSuggestions([...stopMatches, ...pm].slice(0, 6));
+    } catch { setPlanToSuggestions(stopMatches); }
+  }, [t]);
+
+  const selectPlanTo = useCallback(async (s: { placeId: string; name: string; address: string; stopId?: string }) => {
+    hapticLight();
+    Keyboard.dismiss();
+    setPlanToSuggestions([]);
+    setPlanToText(s.name);
+    try {
+      let lat = 45.4215, lng = -75.6972;
+      if (s.stopId) {
+        const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=geocode&address=${encodeURIComponent(s.name + ', Ottawa, ON')}`);
+        if (r.ok) { const d = await r.json(); if (d.results?.[0]?.geometry?.location) { lat = d.results[0].geometry.location.lat; lng = d.results[0].geometry.location.lng; } }
+      } else {
+        const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=details&place_id=${s.placeId}&fields=geometry`);
+        if (r.ok) { const d = await r.json(); if (d.result?.geometry?.location) { lat = d.result.geometry.location.lat; lng = d.result.geometry.location.lng; } }
+      }
+      setPlanToPlace({ name: s.name, lat, lng });
+    } catch { if (__DEV__) console.warn('plan to geocode failed'); }
+  }, []);
+
+  const executePlan = useCallback(async (toLat?: number, toLng?: number, toName?: string) => {
+    const destLat = toLat ?? planToPlace?.lat;
+    const destLng = toLng ?? planToPlace?.lng;
+    const destName = toName ?? planToPlace?.name ?? '';
+    if (!destLat || !destLng) return;
+    setPlanLoading(true);
+    setPlanItineraries([]);
+    try {
+      let fromLat = 45.4215, fromLng = -75.6972;
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).catch(() => null);
+      if (loc) { fromLat = loc.coords.latitude; fromLng = loc.coords.longitude; }
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const dateStr = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${now.getFullYear()}`;
+      const url = `https://routeo-backend.vercel.app/api/plan?fromLat=${fromLat}&fromLng=${fromLng}&fromLabel=My+Location&toLat=${destLat}&toLng=${destLng}&toLabel=${encodeURIComponent(destName)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=false&mode=${planTransitMode}`;
+      const r = await fetchWithTimeout(url, { timeout: 15000 });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const data = await r.json();
+      setPlanItineraries((data?.itineraries || []).slice(0, 3));
+      setPlanResultsVisible(true);
+    } catch (e) { if (__DEV__) console.warn('plan failed', e); }
+    finally { setPlanLoading(false); }
+  }, [planTransitMode, planToPlace]);
+
   const hasSheet = selectedBus || selectedVenue || selectedSavedPin || searchedPlace;
 
   return (
@@ -1168,8 +1293,8 @@ export default function MapScreen() {
         onPanDrag={() => { if (tappedLocation) dismissTapped(); }}
         onRegionChangeComplete={(r) => setRegion(r)}
       >
-        {/* Heat zone circles — rendered before markers so they appear behind */}
-        {mapReady && Circle && heatZones.map(zone => (
+        {/* Heat zone circles — rendered when Deals layer is active */}
+        {mapReady && Circle && activeLayers.deals && heatZones.map(zone => (
           <Circle
             key={zone.id}
             center={{ latitude: zone.lat, longitude: zone.lng }}
@@ -1318,73 +1443,163 @@ export default function MapScreen() {
         paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 8,
         backgroundColor: isLight ? 'rgba(240,244,248,0.92)' : 'rgba(15,20,30,0.92)',
       }}>
-        {/* Search bar + bus count */}
+        {/* Search / Plan bar */}
         <View style={{ zIndex: 10 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 26, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 12, height: 48 }}>
-            <Ionicons name="search-outline" size={18} color={colours.muted} />
-            <TextInput
-              style={{ flex: 1, marginLeft: 8, fontSize: 15, color: colours.text, padding: 0 }}
-              placeholder={t('Search anywhere...', 'Rechercher partout...')}
-              placeholderTextColor={colours.muted}
-              accessibilityLabel={t('Search places on map', 'Rechercher des lieux sur la carte')}
-              accessibilityRole="search"
-              value={searchText}
-              onChangeText={(text) => {
-                setSearchText(text);
-                if (searchTimer.current) clearTimeout(searchTimer.current);
-                if (text.length >= 3) {
-                  searchTimer.current = setTimeout(() => searchPlaces(text), 300);
-                } else {
-                  setPlaceSuggestions([]);
-                }
-              }}
-              returnKeyType="search"
-            />
-            {searchText.length > 0 && (
-              <TouchableOpacity activeOpacity={0.7} onPress={clearSearch} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel={t('Clear search', 'Effacer la recherche')}>
-                <Ionicons name="close-circle" size={18} color={colours.muted} />
-              </TouchableOpacity>
-            )}
-            </View>
-            {busLoading ? <ActivityIndicator color={colours.accent} size="small" /> : error ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.errorBg, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 18 }}>
-                <Ionicons name="warning-outline" size={10} color={isLight ? '#DC2626' : '#F87171'} />
-                <Text style={{ color: isLight ? '#DC2626' : '#F87171', fontSize: 10, fontWeight: '700' }}>
-                  {t('Bus data unavailable', 'Donnees bus indisponibles')}
-                </Text>
-              </View>
-            ) : (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.tintBg, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 18 }}>
-                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: zoomTooFar ? colours.muted : colours.accent }} />
-                <Text style={{ color: zoomTooFar ? colours.muted : colours.accent, fontSize: 10, fontWeight: '700' }}>
-                  {zoomTooFar ? t('Zoom in', 'Zoomer') : `${visibleBuses.length}`}
-                </Text>
-              </View>
-            )}
-          </View>
-          {lastUpdated ? <Text style={{ fontSize: 9, color: colours.muted, textAlign: 'right', marginTop: 3 }}>{t('Updated', 'Mis à jour')} {lastUpdated}</Text> : null}
-          {placeSuggestions.length > 0 && (
-            <View style={{ backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginTop: 4, overflow: 'hidden' }}>
-              {placeSuggestions.map((s, i) => (
+          {!planMode ? (
+            <>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 26, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 12, height: 48 }}>
+                  <Ionicons name="search-outline" size={18} color={colours.muted} />
+                  <TextInput
+                    style={{ flex: 1, marginLeft: 8, fontSize: 15, color: colours.text, padding: 0 }}
+                    placeholder={t('Search anywhere...', 'Rechercher partout...')}
+                    placeholderTextColor={colours.muted}
+                    accessibilityLabel={t('Search places on map', 'Rechercher des lieux sur la carte')}
+                    accessibilityRole="search"
+                    value={searchText}
+                    onChangeText={(text) => {
+                      setSearchText(text);
+                      if (searchTimer.current) clearTimeout(searchTimer.current);
+                      if (text.length >= 3) { searchTimer.current = setTimeout(() => searchPlaces(text), 300); }
+                      else { setPlaceSuggestions([]); }
+                    }}
+                    returnKeyType="search"
+                  />
+                  {searchText.length > 0 && (
+                    <TouchableOpacity activeOpacity={0.7} onPress={clearSearch} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                      <Ionicons name="close-circle" size={18} color={colours.muted} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+                {/* Plan Trip button */}
                 <TouchableOpacity
-                  key={s.placeId}
-                  activeOpacity={0.7}
-                  style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: colours.border }}
-                  onPress={() => selectPlace(s)}>
-                  <Ionicons name={s.stopId ? 'bus-outline' : 'location-outline'} size={16} color={s.stopId ? '#CE1126' : colours.accent} style={{ marginRight: 10 }} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '600', color: colours.text }} numberOfLines={1}>{s.name}</Text>
-                    <Text style={{ fontSize: 11, color: colours.muted }} numberOfLines={1}>{s.address}</Text>
-                  </View>
+                  activeOpacity={0.85}
+                  onPress={() => setPlanMode(true)}
+                  style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#00A78D', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 3 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('Plan a trip', 'Planifier un trajet')}>
+                  <Ionicons name="navigate" size={20} color="#fff" />
                 </TouchableOpacity>
-              ))}
-            </View>
+                {busLoading ? <ActivityIndicator color={colours.accent} size="small" /> : error ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.errorBg, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 18 }}>
+                    <Ionicons name="warning-outline" size={10} color={isLight ? '#DC2626' : '#F87171'} />
+                    <Text style={{ color: isLight ? '#DC2626' : '#F87171', fontSize: 10, fontWeight: '700' }}>
+                      {t('Bus data unavailable', 'Donnees bus indisponibles')}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.tintBg, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 18 }}>
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: zoomTooFar ? colours.muted : colours.accent }} />
+                    <Text style={{ color: zoomTooFar ? colours.muted : colours.accent, fontSize: 10, fontWeight: '700' }}>
+                      {zoomTooFar ? t('Zoom in', 'Zoomer') : `${visibleBuses.length}`}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              {lastUpdated ? <Text style={{ fontSize: 9, color: colours.muted, textAlign: 'right', marginTop: 3 }}>{t('Updated', 'Mis \u00e0 jour')} {lastUpdated}</Text> : null}
+              {/* Suggestion chips */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }} contentContainerStyle={{ gap: 6 }}>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => setPlanMode(true)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface }}>
+                  <Ionicons name="radio-button-on-outline" size={13} color='#00A78D' />
+                  <Text style={{ fontSize: 12, color: colours.text, fontWeight: '600' }}>{t('What can I reach in 20 min?', 'Ce que je peux atteindre en 20 min?')}</Text>
+                </TouchableOpacity>
+              </ScrollView>
+              {placeSuggestions.length > 0 && (
+                <View style={{ backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginTop: 4, overflow: 'hidden' }}>
+                  {placeSuggestions.map((s, i) => (
+                    <TouchableOpacity key={s.placeId} activeOpacity={0.7}
+                      style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: colours.border }}
+                      onPress={() => selectPlace(s)}>
+                      <Ionicons name={s.stopId ? 'bus-outline' : 'location-outline'} size={16} color={s.stopId ? '#CE1126' : colours.accent} style={{ marginRight: 10 }} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: colours.text }} numberOfLines={1}>{s.name}</Text>
+                        <Text style={{ fontSize: 11, color: colours.muted }} numberOfLines={1}>{s.address}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </>
+          ) : (
+            <>
+              {/* Plan mode — From / To inline */}
+              <View style={{ backgroundColor: colours.surface, borderRadius: 20, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
+                {/* From row */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+                  <TouchableOpacity onPress={() => { setPlanMode(false); setPlanToText(''); setPlanToSuggestions([]); setPlanToPlace(null); setPlanResultsVisible(false); setPlanItineraries([]); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="arrow-back" size={20} color={colours.text} />
+                  </TouchableOpacity>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={{ fontSize: 11, color: colours.muted }}>{t('From', 'De')}</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: colours.text }}>{t('My Location', 'Ma position')}</Text>
+                  </View>
+                  <Ionicons name="locate" size={15} color={colours.accent} />
+                </View>
+                {/* To row */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 6 }}>
+                  <Ionicons name="location-outline" size={18} color='#00A78D' />
+                  <TextInput
+                    style={{ flex: 1, marginLeft: 10, fontSize: 14, color: colours.text, paddingVertical: 6 }}
+                    placeholder={t('Where to?', 'O\u00f9 aller?')}
+                    placeholderTextColor={colours.muted}
+                    value={planToText}
+                    autoFocus
+                    onChangeText={(text) => {
+                      setPlanToText(text);
+                      setPlanToPlace(null);
+                      if (planToTimer.current) clearTimeout(planToTimer.current);
+                      if (text.length >= 3) planToTimer.current = setTimeout(() => searchPlanTo(text), 300);
+                      else setPlanToSuggestions([]);
+                    }}
+                    returnKeyType="search"
+                  />
+                  {planToText.length > 0 && (
+                    <TouchableOpacity onPress={() => { setPlanToText(''); setPlanToSuggestions([]); setPlanToPlace(null); }}>
+                      <Ionicons name="close-circle" size={18} color={colours.muted} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+                {/* Mode buttons + Plan */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingBottom: 10, paddingTop: 4, gap: 8 }}>
+                  {(['BUS', 'WALK', 'BICYCLE'] as const).map(mode => (
+                    <TouchableOpacity key={mode} onPress={() => setPlanTransitMode(mode)}
+                      style={{ paddingHorizontal: 14, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: planTransitMode === mode ? '#00A78D' : colours.border, backgroundColor: planTransitMode === mode ? '#00A78D' : colours.surface }}>
+                      <Ionicons name={mode === 'BUS' ? 'bus-outline' : mode === 'WALK' ? 'walk-outline' : 'bicycle-outline'} size={15} color={planTransitMode === mode ? '#fff' : colours.muted} />
+                    </TouchableOpacity>
+                  ))}
+                  <TouchableOpacity
+                    onPress={() => executePlan()}
+                    disabled={!planToPlace || planLoading}
+                    style={{ flex: 1, backgroundColor: (!planToPlace || planLoading) ? colours.border : '#00A78D', borderRadius: 14, paddingVertical: 8, alignItems: 'center', justifyContent: 'center' }}>
+                    {planLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{t('Plan', 'Planifier')}</Text>}
+                  </TouchableOpacity>
+                </View>
+              </View>
+              {/* Plan To suggestions */}
+              {planToSuggestions.length > 0 && (
+                <View style={{ backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginTop: 4, overflow: 'hidden' }}>
+                  {planToSuggestions.map((s, i) => (
+                    <TouchableOpacity key={s.placeId} activeOpacity={0.7}
+                      style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: colours.border }}
+                      onPress={() => selectPlanTo(s)}>
+                      <Ionicons name={s.stopId ? 'bus-outline' : 'location-outline'} size={16} color={s.stopId ? '#CE1126' : colours.accent} style={{ marginRight: 10 }} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: colours.text }} numberOfLines={1}>{s.name}</Text>
+                        <Text style={{ fontSize: 11, color: colours.muted }} numberOfLines={1}>{s.address}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </>
           )}
         </View>
 
-        {/* Category pills */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} contentContainerStyle={{ gap: 6, paddingRight: 8 }}>
+        {/* Category pills — hidden in plan mode */}
+        {!planMode && <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} contentContainerStyle={{ gap: 6, paddingRight: 8 }}>
           {([
             { key: 'all', label_en: 'All', label_fr: 'Tous', icon: 'apps-outline' as const, color: colours.accent },
             { key: 'bus', label_en: 'Bus', label_fr: 'Bus', icon: 'bus-outline' as const, color: '#CE1126' },
@@ -1407,9 +1622,9 @@ export default function MapScreen() {
               </TouchableOpacity>
             );
           })}
-        </ScrollView>
+        </ScrollView>}
 
-        {error ? <Text style={{ fontSize: 11, color: isLight ? '#DC2626' : '#F87171', marginTop: 6 }}>{error}</Text> : null}
+        {error && !planMode ? <Text style={{ fontSize: 11, color: isLight ? '#DC2626' : '#F87171', marginTop: 6 }}>{error}</Text> : null}
       </View>
 
       {/* Quick layer chips */}
@@ -1929,16 +2144,23 @@ export default function MapScreen() {
                   }}
                   style={{ marginTop: 14, backgroundColor: '#00A78D', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
                   accessibilityRole="button"
-                  accessibilityLabel={t('Save to My Stops', 'Ajouter a Mes arr\u00eats')}>
+                  accessibilityLabel={t('Save to My Favourites', 'Ajouter a Mes favoris')}>
                   <Ionicons name="bookmark-outline" size={16} color="white" />
                   <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>
-                    {t('Save to My Stops', 'Ajouter a Mes arr\u00eats')}
+                    {t('Save to My Favourites', 'Ajouter a Mes favoris')}
                   </Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity
                 activeOpacity={0.7}
-                onPress={() => { router.push({ pathname: '/(tabs)/planner', params: { toLabel: searchedPlace.name, toLat: String(searchedPlace.lat), toLng: String(searchedPlace.lng) } } as any); }}
+                onPress={() => {
+                  setPlanMode(true);
+                  setPlanToText(searchedPlace.name);
+                  setPlanToPlace({ name: searchedPlace.name, lat: searchedPlace.lat, lng: searchedPlace.lng });
+                  Animated.spring(sheetAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start(() => {
+                    setSelectedBus(null); setSelectedVenue(null); setSelectedSavedPin(null); setSearchedPlace(null); setSearchText('');
+                  });
+                }}
                 style={{ marginTop: searchedPlace.stopId ? 8 : 14, backgroundColor: '#3498db', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
                 accessibilityRole="button"
                 accessibilityLabel={t('Route here', 'M\'y rendre')}>
@@ -2042,7 +2264,9 @@ export default function MapScreen() {
             onPress={() => {
               const pin = selectedPin;
               setSelectedPin(null);
-              router.push({ pathname: '/(tabs)/planner', params: { toLat: String(pin.lat), toLng: String(pin.lng), toLabel: pin.name, autoplan: '1' } } as any);
+              setPlanMode(true);
+              setPlanToText(pin.name);
+              setPlanToPlace({ name: pin.name, lat: pin.lat, lng: pin.lng });
             }}
             accessibilityRole="button"
             accessibilityLabel={t('Route to this location', 'Itineraire vers ce lieu')}
@@ -2077,31 +2301,95 @@ export default function MapScreen() {
         onToggleLayer={toggleLayer}
         loadingLayers={loadingLayers}
         onRouteToPin={(pin: MapPin) => {
-          router.push({ pathname: '/(tabs)/planner', params: { toLat: String(pin.lat), toLng: String(pin.lng), toLabel: pin.name, autoplan: '1' } } as any);
+          setPlanMode(true);
+          setPlanToText(pin.name);
+          setPlanToPlace({ name: pin.name, lat: pin.lat, lng: pin.lng });
         }}
         happeningNow={happeningNow}
         onSubmitDeal={() => {
           router.push('/(tabs)/discover' as any);
         }}
         extraSections={
-          <ServicesGrid
-            colours={colours}
-            fonts={fonts}
-            t={t}
-            language={language}
-            activeTab={servicesTab}
-            onTabChange={setServicesTab}
-            cardShadow={{}}
-            onTileTap={(tile: ServiceTile) => {
-              if (tile.action === 'navigate' && tile.target) {
-                router.push(tile.target as any);
-              } else if (tile.action === 'alert') {
-                router.push('/(tabs)/alerts' as any);
-              }
-            }}
-          />
+          <>
+            <TonightCard
+              colours={colours}
+              fonts={fonts}
+              cardShadow={{}}
+              sensGame={null}
+              events={tonightEvents}
+              weather={tonightWeather}
+            />
+            <ServicesGrid
+              colours={colours}
+              fonts={fonts}
+              t={t}
+              language={language}
+              activeTab={servicesTab}
+              onTabChange={setServicesTab}
+              cardShadow={{}}
+              onTileTap={(tile: ServiceTile) => {
+                if (tile.action === 'navigate' && tile.target) {
+                  router.push(tile.target as any);
+                } else if (tile.action === 'alert') {
+                  router.push('/(tabs)/alerts' as any);
+                }
+              }}
+            />
+          </>
         }
       />
+
+      {/* Trip plan results bottom sheet */}
+      <Modal visible={planResultsVisible} animationType="slide" transparent onRequestClose={() => setPlanResultsVisible(false)}>
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.35)' }}>
+          <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '75%' }}>
+            <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 8 }} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 12 }}>
+              <Text style={{ flex: 1, fontSize: 17, fontWeight: '700', color: colours.text }}>{t('Trip Options', 'Options de trajet')}</Text>
+              <TouchableOpacity onPress={() => setPlanResultsVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={22} color={colours.muted} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}>
+              {planItineraries.length === 0 ? (
+                <Text style={{ color: colours.muted, textAlign: 'center', paddingVertical: 32 }}>{t('No routes found', 'Aucun itin\u00e9raire trouv\u00e9')}</Text>
+              ) : planItineraries.map((itin, idx) => (
+                <View key={idx} style={{ backgroundColor: colours.surface, borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: colours.border }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text }}>{fmtPlanDuration(itin.duration)}</Text>
+                    <Text style={{ fontSize: 13, color: colours.muted }}>{fmtPlanTime(itin.startTime)} \u2192 {fmtPlanTime(itin.endTime)}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                    {itin.legs.map((leg, i) => (
+                      <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: (LEG_PLAN_COLORS[leg.mode] || '#888') + '22', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 }}>
+                        <Ionicons name={(LEG_PLAN_ICONS[leg.mode] || 'navigate') as any} size={12} color={LEG_PLAN_COLORS[leg.mode] || '#888'} />
+                        {leg.routeShortName ? <Text style={{ fontSize: 11, fontWeight: '700', color: LEG_PLAN_COLORS[leg.mode] || '#888' }}>{leg.routeShortName}</Text> : null}
+                      </View>
+                    ))}
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => { setPlanResultsVisible(false); setGoItinerary(itin); }}
+                    style={{ backgroundColor: '#00A78D', borderRadius: 12, paddingVertical: 10, alignItems: 'center' }}>
+                    <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.5 }}>{t('GO', 'PARTIR')}</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* GO mode overlay */}
+      {goItinerary && (
+        <ActiveTrip
+          visible={!!goItinerary}
+          itinerary={goItinerary as any}
+          onEnd={() => { setGoItinerary(null); setPlanResultsVisible(false); setPlanMode(false); setPlanToText(''); setPlanToPlace(null); }}
+          colours={colours}
+          t={t}
+          alerts={sheetAlerts.map((a: any) => ({ routes: a.routes || [], title: a.title || '' }))}
+        />
+      )}
 
       <BusTrackingModal
         visible={!!trackingBus}

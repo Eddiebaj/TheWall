@@ -673,7 +673,7 @@ export default function AccountScreen() {
 
                 <Text style={{ fontSize: fonts.sm, color: colours.muted, marginBottom: 4 }}>{t('Screen', 'Ecran')}</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                  {['Home', 'Map', 'Planner', 'Alerts', 'Nearby', 'My Stops', 'Other'].map(s => (
+                  {['Home', 'Map', 'Alerts', 'Nearby', 'My Favourites', 'Other'].map(s => (
                     <TouchableOpacity
                       key={s}
                       onPress={() => { hapticLight(); setBugScreen(bugScreen === s ? '' : s); }}
@@ -688,7 +688,7 @@ export default function AccountScreen() {
                       accessibilityState={{ selected: bugScreen === s }}
                     >
                       <Text style={{ fontSize: fonts.sm, color: bugScreen === s ? colours.red : colours.text }}>
-                        {t(s, s === 'Home' ? 'Accueil' : s === 'Map' ? 'Carte' : s === 'Planner' ? 'Planificateur' : s === 'Alerts' ? 'Alertes' : s === 'Nearby' ? 'Proximite' : s === 'My Stops' ? 'Mes arr\u00eats' : 'Autre')}
+                        {t(s, s === 'Home' ? 'Accueil' : s === 'Map' ? 'Carte' : s === 'Alerts' ? 'Alertes' : s === 'Nearby' ? 'Proximite' : s === 'My Favourites' ? 'Mes favoris' : 'Autre')}
                       </Text>
                     </TouchableOpacity>
                   ))}

@@ -67,12 +67,7 @@ function TabLayout() {
       />
       <Tabs.Screen
         name="planner"
-        options={{
-          tabBarLabel: fr ? 'Trajet' : 'Planner',
-          tabBarIcon: ({ focused, color }) => (
-            <NavigationArrow size={22} color={color} weight={focused ? 'fill' : 'regular'} />
-          ),
-        }}
+        options={{ href: null }}
       />
       <Tabs.Screen
         name="account"
