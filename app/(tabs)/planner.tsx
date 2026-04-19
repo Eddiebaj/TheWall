@@ -1123,6 +1123,7 @@ function PlannerScreenInner() {
   const [isoVisible, setIsoVisible] = useState(false);
   const [isoPlaces, setIsoPlaces] = useState<{ name: string; category: string; icon: string; time: number }[]>([]);
   const [isoPlacesLoading, setIsoPlacesLoading] = useState(false);
+  const [isoMinutes, setIsoMinutes] = useState<10 | 20 | 30 | 45>(20);
 
   const fetchIsochrone = async () => {
     setIsoLoading(true);
@@ -1183,7 +1184,7 @@ function PlannerScreenInner() {
             if (data.itineraries && data.itineraries.length > 0) {
               const best = data.itineraries[0];
               const durationMins = Math.round(best.duration / 60);
-              if (durationMins <= 20) {
+              if (durationMins <= isoMinutes) {
                 const transitLegs = (best.legs || []).filter((l: any) => l.mode !== 'WALK');
                 const routes = [...new Set(transitLegs.map((l: any) => l.routeShortName).filter(Boolean))] as string[];
                 return { name: stop.name, travelTime: durationMins, routes };
@@ -2621,7 +2622,7 @@ function PlannerScreenInner() {
           >
             <Ionicons name="sparkles" size={16} color={premiumActive ? colours.accent : colours.muted} />
             <Text style={{ fontWeight: '700', fontSize: 14, color: premiumActive ? colours.accent : colours.muted }}>
-              {t('AI Trip Assistant', 'Assistant IA de trajet')}
+              {t('Trip Assistant', 'Assistant de trajet')}
             </Text>
             {!premiumActive && <PremiumBadge />}
           </TouchableOpacity>
@@ -2630,16 +2631,39 @@ function PlannerScreenInner() {
         {/* What can I reach? */}
         {travelMode === 'transit' && (
           <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
+            {/* Time selector */}
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+              {([10, 20, 30, 45] as const).map(mins => (
+                <TouchableOpacity
+                  key={mins}
+                  onPress={() => setIsoMinutes(mins)}
+                  style={{
+                    flex: 1, paddingVertical: 7, borderRadius: 10, borderWidth: 1,
+                    borderColor: isoMinutes === mins ? colours.accent : colours.border,
+                    backgroundColor: isoMinutes === mins ? colours.accent + '18' : colours.card,
+                    alignItems: 'center',
+                  }}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={t(`${mins} minutes`, `${mins} minutes`)}
+                  accessibilityState={{ selected: isoMinutes === mins }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: isoMinutes === mins ? colours.accent : colours.muted }}>
+                    {mins}{t(' min', ' min')}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             <TouchableOpacity
               onPress={fetchIsochrone}
               disabled={isoLoading}
               style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '12' }}
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel={t('What can I reach in 20 minutes', 'Que puis-je atteindre en 20 minutes')}
+              accessibilityLabel={t(`What can I reach in ${isoMinutes} minutes`, `Que puis-je atteindre en ${isoMinutes} minutes`)}
             >
               <Ionicons name="locate-outline" size={16} color={colours.accent} />
-              <Text style={{ color: colours.accent, fontWeight: '700', fontSize: 14 }}>{t('What can I reach in 20 min?', 'Que puis-je atteindre en 20 min?')}</Text>
+              <Text style={{ color: colours.accent, fontWeight: '700', fontSize: 14 }}>{t(`What can I reach in ${isoMinutes} min?`, `Que puis-je atteindre en ${isoMinutes} min?`)}</Text>
             </TouchableOpacity>
 
             {isoVisible && (<>
@@ -2647,7 +2671,7 @@ function PlannerScreenInner() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderBottomWidth: 1, borderBottomColor: colours.border }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Ionicons name="compass-outline" size={16} color={colours.accent} />
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>{t('Reachable in 20 min', 'Accessible en 20 min')}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>{t(`Reachable in ${isoMinutes} min`, `Accessible en ${isoMinutes} min`)}</Text>
                   </View>
                   <TouchableOpacity onPress={() => setIsoVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Close reachable stops', 'Fermer les arrets accessibles')}>
                     <Ionicons name="close-circle" size={20} color={colours.muted} />
@@ -2661,7 +2685,7 @@ function PlannerScreenInner() {
                 ) : isoStops.length === 0 ? (
                   <View style={{ padding: 24, alignItems: 'center' }}>
                     <Ionicons name="location-outline" size={28} color={colours.muted} />
-                    <Text style={{ color: colours.muted, fontSize: 13, marginTop: 8, textAlign: 'center' }}>{t('No transit stops reachable within 20 minutes from your current location.', 'Aucun arret de transport en commun accessible en 20 minutes depuis votre position.')}</Text>
+                    <Text style={{ color: colours.muted, fontSize: 13, marginTop: 8, textAlign: 'center' }}>{t(`No transit stops reachable within ${isoMinutes} minutes from your current location.`, `Aucun arret de transport en commun accessible en ${isoMinutes} minutes depuis votre position.`)}</Text>
                   </View>
                 ) : (
                   isoStops.map((stop, i) => (

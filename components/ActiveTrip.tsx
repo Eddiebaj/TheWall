@@ -577,8 +577,8 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
               <Ionicons name="navigate" size={18} color="#fff" />
             </View>
             <View>
-              <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text }}>{t('Active Trip', 'Trajet actif')}</Text>
-              <Text style={{ fontSize: 12, color: colours.muted }}>
+              <Text style={{ fontSize: 22, fontWeight: '800', color: colours.text }}>{t('Active Trip', 'Trajet actif')}</Text>
+              <Text style={{ fontSize: 13, color: '#00A78D', fontWeight: '600' }}>
                 {t('Arrives', 'Arrivee')} {fmtTimeFromMs(liveEta || itinerary.endTime)} · {fmtDuration((liveEta || itinerary.endTime) - now)}
               </Text>
             </View>
@@ -605,11 +605,11 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
 
         {/* Progress bar */}
         <View style={{ marginHorizontal: 20, height: 4, borderRadius: 2, backgroundColor: colours.border, marginBottom: 0 }}>
-          <View style={{ height: 4, borderRadius: 2, backgroundColor: colours.green, width: `${Math.round(progressFraction * 100)}%` as `${number}%` }} />
+          <View style={{ height: 4, borderRadius: 2, backgroundColor: '#00A78D', width: `${Math.round(progressFraction * 100)}%` as `${number}%` }} />
         </View>
 
-        {/* Map section — 50% screen height */}
-        <View style={{ height: screenHeight * 0.50, overflow: 'hidden' }}>
+        {/* Map section — 55% screen height */}
+        <View style={{ height: screenHeight * 0.55, overflow: 'hidden' }}>
           {MapView ? (
             <MapView
               ref={mapRef}
@@ -668,19 +668,19 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
         </View>
 
         {/* Bottom section — leg card + actions + end trip */}
-        <View style={{ flex: 1, justifyContent: 'space-between' }}>
+        <View style={{ flex: 1 }}>
 
-        {/* Current leg card — overlaps bottom of map */}
+        {/* Current leg card — overlaps bottom of map, full width */}
         <View style={{
-          marginTop: -24, marginHorizontal: 16, zIndex: 10,
-          borderTopLeftRadius: 20, borderTopRightRadius: 20, borderBottomLeftRadius: 16, borderBottomRightRadius: 16,
+          marginTop: -20, marginHorizontal: 0, zIndex: 10,
+          borderTopLeftRadius: 20, borderTopRightRadius: 20,
           backgroundColor: colours.bg, padding: 16,
           shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 6,
-          borderWidth: 1, borderColor: colours.border,
+          borderTopWidth: 1, borderLeftWidth: 0, borderRightWidth: 0, borderBottomWidth: 1, borderColor: colours.border,
         }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-              <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: legColor + '22', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: legColor + '55' }}>
-                <Ionicons name={legIcon as any} size={18} color={legColor} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+              <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: legColor + '22', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: legColor + '55' }}>
+                <Ionicons name={legIcon as any} size={24} color={legColor} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text, lineHeight: 19 }} numberOfLines={2}>{stepTitle}</Text>
@@ -785,7 +785,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
         </View>
 
         {/* Bottom action area */}
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 0 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 8 }}>
           {/* Warning banners */}
           {!gpsAvailable && (
             <View style={{ marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.orange + '22', borderWidth: 1, borderColor: colours.orange, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
@@ -905,15 +905,16 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
           )}
         </ScrollView>
 
-        {/* End trip button — fixed at bottom */}
-        <View style={{ paddingHorizontal: 16, marginBottom: 24 }}>
+        {/* End trip button — full width, pinned to bottom */}
+        <View style={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 12, paddingTop: 4 }}>
           <TouchableOpacity
             onPress={handleEnd}
             style={{
-              height: 52, borderRadius: 12,
-              backgroundColor: tripEnded ? colours.green : colours.red,
+              height: 56, borderRadius: 14,
+              backgroundColor: tripEnded ? colours.green : '#E53935',
               alignItems: 'center', justifyContent: 'center',
               flexDirection: 'row', gap: 8,
+              shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4,
             }}
             accessibilityRole="button"
             accessibilityLabel={tripEnded ? t('Done', 'Terminer') : t('End trip', 'Terminer le trajet')}

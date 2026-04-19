@@ -109,7 +109,7 @@ export default function OnboardingScreen() {
   const isStopSlide = currentIndex === 2;
   const canAdvanceStop = addedStops.length > 0;
 
-  const accent = currentIndex <= 1 ? TEAL : currentIndex === 2 ? '#004890' : '#7b5ea7';
+  const accent = currentIndex <= 1 ? TEAL : currentIndex === 2 ? '#004890' : TEAL;
 
   return (
     <View style={{ flex: 1, backgroundColor: '#0a0f1a' }}>
@@ -292,10 +292,10 @@ export default function OnboardingScreen() {
         <View style={{ width, flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 36 }}>
           <View style={{
             width: 100, height: 100, borderRadius: 50,
-            backgroundColor: '#7b5ea7' + '20', borderWidth: 1.5, borderColor: '#7b5ea7' + '40',
+            backgroundColor: TEAL + '20', borderWidth: 1.5, borderColor: TEAL + '40',
             alignItems: 'center', justifyContent: 'center', marginBottom: 40,
           }}>
-            <Ionicons name="checkmark-done" size={44} color="#7b5ea7" />
+            <Ionicons name="checkmark-done" size={44} color={TEAL} />
           </View>
           <Text style={{ fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', lineHeight: 36, marginBottom: 12 }}>
             {t("You're all set!", 'Vous \u00eates pr\u00eat!')}
@@ -411,7 +411,7 @@ export default function OnboardingScreen() {
           /* Final slide: Get Started */
           <TouchableOpacity
             style={{
-              backgroundColor: '#7b5ea7', borderRadius: 16, paddingVertical: 16,
+              backgroundColor: TEAL, borderRadius: 16, paddingVertical: 16,
               alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8,
               opacity: finishing ? 0.6 : 1,
             }}

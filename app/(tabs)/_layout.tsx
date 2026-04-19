@@ -59,7 +59,7 @@ function TabLayout() {
       <Tabs.Screen
         name="saved"
         options={{
-          tabBarLabel: fr ? 'Mes arr\u00eats' : 'My Stops',
+          tabBarLabel: fr ? 'Mes favoris' : 'My Favourites',
           tabBarIcon: ({ focused, color }) => (
             <BookmarkSimple size={22} color={color} weight={focused ? 'fill' : 'regular'} />
           ),
@@ -83,6 +83,7 @@ function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen name="index" options={{ href: null }} />
       <Tabs.Screen name="discover" options={{ href: null }} />
       <Tabs.Screen name="alerts" options={{ href: null }} />
     </Tabs>

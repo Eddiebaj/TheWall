@@ -24,6 +24,7 @@ import { HAPPY_HOUR_VENUES, HappyHourVenue } from '../../lib/happyHourData';
 import BusTrackingModal from '../../components/BusTrackingModal';
 import BottomSheet from '@gorhom/bottom-sheet';
 import NearbyTransitSheet, { NearbyStop } from '../../components/NearbyTransitSheet';
+import ServicesGrid, { SERVICES_TABS, ServiceTile } from '../../components/ServicesGrid';
 import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hapticLight, hapticMedium } from '../../lib/haptics';
@@ -305,6 +306,7 @@ export default function MapScreen() {
 
   const [sheetAlerts, setSheetAlerts] = useState<any[]>([]);
   const [sheetDeals, setSheetDeals] = useState<{ id: string; venue_name: string; deal_text: string; day_of_week: number }[]>([]);
+  const [servicesTab, setServicesTab] = useState('explore');
 
   const sheetAnim = useRef(new Animated.Value(0)).current;
   const [loadingLayers, setLoadingLayers] = useState<Set<LayerKey>>(new Set());
@@ -1319,10 +1321,10 @@ export default function MapScreen() {
         {/* Search bar + bus count */}
         <View style={{ zIndex: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 24, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 10, height: 36 }}>
-            <Ionicons name="search-outline" size={16} color={colours.muted} />
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 26, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 12, height: 48 }}>
+            <Ionicons name="search-outline" size={18} color={colours.muted} />
             <TextInput
-              style={{ flex: 1, marginLeft: 8, fontSize: 13, color: colours.text, padding: 0 }}
+              style={{ flex: 1, marginLeft: 8, fontSize: 15, color: colours.text, padding: 0 }}
               placeholder={t('Search anywhere...', 'Rechercher partout...')}
               placeholderTextColor={colours.muted}
               accessibilityLabel={t('Search places on map', 'Rechercher des lieux sur la carte')}
@@ -1396,15 +1398,12 @@ export default function MapScreen() {
             return (
               <TouchableOpacity key={f.key}
                 activeOpacity={0.7}
-                style={{ borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: bg, borderWidth: 1, borderColor: border, flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                style={{ borderRadius: 20, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: bg, borderWidth: 1, borderColor: border, alignItems: 'center', justifyContent: 'center' }}
                 onPress={() => toggleFilter(f.key)}
                 accessibilityRole="button"
                 accessibilityLabel={t(`Filter by ${f.label_en}`, `Filtrer par ${f.label_fr}`)}
                 accessibilityState={{ selected: active }}>
-                <Ionicons name={f.icon} size={12} color={active ? 'white' : colours.muted} />
-                <Text style={{ fontSize: 11, fontWeight: '700', color: active ? 'white' : colours.muted }}>
-                  {t(f.label_en, f.label_fr)}
-                </Text>
+                <Ionicons name={f.icon} size={16} color={active ? 'white' : colours.muted} />
               </TouchableOpacity>
             );
           })}
@@ -2055,40 +2054,6 @@ export default function MapScreen() {
         </Animated.View>
       )}
 
-      {/* First-open prompt — shown when user has no saved transit stops */}
-      {boardItems.filter(i => i.type === 'bus_stop' || i.type === 'lrt_station').length === 0 && !tappedLocation && (
-        <View style={{
-          position: 'absolute', bottom: Platform.OS === 'ios' ? 120 : 100, left: 16, right: 16, zIndex: 998,
-          backgroundColor: colours.card, borderRadius: 16, padding: 20,
-          shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 8,
-          borderWidth: 1, borderColor: colours.border,
-        }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#00A78D20', alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons name="bus" size={22} color="#00A78D" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: colours.text, fontSize: 16, fontWeight: '700' }}>
-                {t('Add your first stop', 'Ajoutez votre premier arr\u00eat')}
-              </Text>
-              <Text style={{ color: colours.muted, fontSize: 13, marginTop: 2 }}>
-                {t('Tap a bus stop on the map or search above', 'Touchez un arr\u00eat sur la carte ou cherchez ci-dessus')}
-              </Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            onPress={() => router.push('/(tabs)/saved' as any)}
-            activeOpacity={0.85}
-            style={{ backgroundColor: '#00A78D', borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
-            accessibilityRole="button"
-            accessibilityLabel={t('Go to My Stops', 'Aller \u00e0 Mes arr\u00eats')}
-          >
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>
-              {t('Go to My Stops', 'Aller \u00e0 Mes arr\u00eats')}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
 
       {/* Nearby transit bottom sheet */}
       <NearbyTransitSheet
@@ -2118,6 +2083,24 @@ export default function MapScreen() {
         onSubmitDeal={() => {
           router.push('/(tabs)/discover' as any);
         }}
+        extraSections={
+          <ServicesGrid
+            colours={colours}
+            fonts={fonts}
+            t={t}
+            language={language}
+            activeTab={servicesTab}
+            onTabChange={setServicesTab}
+            cardShadow={{}}
+            onTileTap={(tile: ServiceTile) => {
+              if (tile.action === 'navigate' && tile.target) {
+                router.push(tile.target as any);
+              } else if (tile.action === 'alert') {
+                router.push('/(tabs)/alerts' as any);
+              }
+            }}
+          />
+        }
       />
 
       <BusTrackingModal

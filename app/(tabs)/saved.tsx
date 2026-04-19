@@ -440,7 +440,7 @@ function SavedScreenInner() {
       {/* Header */}
       <View style={{ paddingHorizontal: PAD, paddingTop: insets.top + 12, paddingBottom: 12 }}>
         <Text accessibilityRole="header" style={{ fontSize: 28, fontWeight: '700', color: colours.text }}>
-          {t('My Stops', 'Mes arr\u00eats')}
+          {t('My Favourites', 'Mes favoris')}
         </Text>
       </View>
 

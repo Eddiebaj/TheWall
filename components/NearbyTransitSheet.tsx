@@ -67,6 +67,9 @@ interface NearbyTransitSheetProps {
 
   // Deal submission
   onSubmitDeal?: () => void;
+
+  // Extra content rendered below nearby transit (e.g. Services, Tonight)
+  extraSections?: React.ReactNode;
 }
 
 // Helpers
@@ -363,9 +366,9 @@ function SheetSeparator({ colours }: { colours: any }) {
   return <View style={{ height: 1, backgroundColor: colours.border, marginHorizontal: 16 }} />;
 }
 
-function SheetSectionHeader({ label, colours }: { label: string; colours: any }) {
+function SheetSectionHeader({ label, colours, tight }: { label: string; colours: any; tight?: boolean }) {
   return (
-    <View style={{ paddingHorizontal: 16, paddingTop: 18, paddingBottom: 8 }}>
+    <View style={{ paddingHorizontal: 16, paddingTop: tight ? 10 : 18, paddingBottom: tight ? 4 : 8 }}>
       <Text style={{ fontSize: 13, fontWeight: '600', color: colours.muted }}>
         {label}
       </Text>
@@ -399,6 +402,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
       loadingLayers,
       happeningNow,
       onSubmitDeal,
+      extraSections,
     },
     ref,
   ) => {
@@ -458,7 +462,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
     const peekStops = nearbyStops.slice(0, 4);
 
     const Separator = useCallback(() => <SheetSeparator colours={colours} />, [colours]);
-    const SectionHeader = useCallback(({ label }: { label: string }) => <SheetSectionHeader label={label} colours={colours} />, [colours]);
+    const SectionHeader = useCallback(({ label, tight }: { label: string; tight?: boolean }) => <SheetSectionHeader label={label} colours={colours} tight={tight} />, [colours]);
 
     return (
       <BottomSheet
@@ -700,7 +704,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
           {activeLayers && onToggleLayer && (
             <>
               <Separator />
-              <SectionHeader label={t('SHOW ON MAP', 'AFFICHER SUR LA CARTE')} />
+              <SectionHeader label={t('SHOW ON MAP', 'AFFICHER SUR LA CARTE')} tight />
 
               {/* Empty state (above grid) */}
               {Object.values(activeLayers).every(v => !v) && (
@@ -758,6 +762,14 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                   );
                 })}
               </View>
+            </>
+          )}
+
+          {/* Extra sections (e.g. Services Grid, Tonight card) */}
+          {extraSections && (
+            <>
+              <Separator />
+              {extraSections}
             </>
           )}
         </BottomSheetScrollView>
