@@ -31,6 +31,14 @@ export interface NearbyStop {
   cachedAt?: number;
 }
 
+type IntersectionGroup = {
+  id: string;
+  name: string;
+  walkMeters: number;
+  stops: NearbyStop[];
+  hasArrivals: boolean;
+};
+
 interface NearbyTransitSheetProps {
   colours: { bg: string; text: string; muted: string; accent: string; surface: string; border: string; lrt: string; red: string; [key: string]: string };
   fonts: { sm: number; md: number; lg: number; xl: number; xxl: number };
@@ -42,7 +50,7 @@ interface NearbyTransitSheetProps {
   nearbyLoading: boolean;
   onRefreshLocation: () => void;
 
-  // Arrivals expansion
+  // Arrivals expansion (kept for compatibility / Leave Now Alert)
   expandedStopId: string | null;
   onExpandStop: (stopId: string | null) => void;
   expandedArrivals: { routeId: string; headsign: string; minsAway: number; source?: string; cached?: boolean; cachedAt?: number }[];
@@ -72,117 +80,160 @@ interface NearbyTransitSheetProps {
   extraSections?: React.ReactNode;
 }
 
-// Helpers
+// Constants
 
 const SNAP_POINTS = ['25%', '55%', '90%'];
 const TEAL = '#00A78D';
 const AMBER_BG = 'rgba(232,160,32,0.15)';
 const AMBER_TEXT = '#b8860b';
+const DEFAULT_ROWS = 3;
+const GROUP_DIST_THRESHOLD = 60; // meters — stops within this distance can be merged
+
+// Helpers
 
 function formatWalk(meters: number, t: (en: string, fr: string) => string): string {
   if (meters < 1000) return `${Math.round(meters)}m ${t('walk', 'marche')}`;
   return `${(meters / 1000).toFixed(1)}km ${t('walk', 'marche')}`;
 }
 
-function formatCountdown(mins: number): string {
-  if (mins <= 0) return '< 1';
-  return `${mins} min`;
+/** Strip direction suffix and normalize to canonical intersection name */
+function canonicalName(stopName: string): string {
+  return stopName
+    .replace(/\s*\b(NB|SB|EB|WB|NORTHBOUND|SOUTHBOUND|EASTBOUND|WESTBOUND)\b\s*/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
 }
 
+/** Get a short direction label for a stop's chip */
+function directionLabel(stop: NearbyStop, t: (en: string, fr: string) => string): string {
+  // Prefer the headsign of the first arrival
+  if (stop.arrivals.length > 0) {
+    const hs = stop.arrivals[0].headsign;
+    if (hs && hs.length > 0) return hs.length > 16 ? hs.slice(0, 16) + '\u2026' : hs;
+  }
+  // Fall back to direction extracted from stop name
+  if (/\bNB\b/i.test(stop.stopName)) return t('Northbound', 'Nord');
+  if (/\bSB\b/i.test(stop.stopName)) return t('Southbound', 'Sud');
+  if (/\bEB\b/i.test(stop.stopName)) return t('Eastbound', 'Est');
+  if (/\bWB\b/i.test(stop.stopName)) return t('Westbound', 'Ouest');
+  return `#${stop.stopId}`;
+}
 
+/** Group nearby stops by intersection (same canonical name + within 60m) */
+function groupNearbyStops(stops: NearbyStop[]): IntersectionGroup[] {
+  const used = new Set<string>();
+  const groups: IntersectionGroup[] = [];
 
+  for (let i = 0; i < stops.length; i++) {
+    if (used.has(stops[i].stopId)) continue;
+    const canon = canonicalName(stops[i].stopName);
+    const groupStops: NearbyStop[] = [stops[i]];
+    used.add(stops[i].stopId);
+
+    for (let j = i + 1; j < stops.length; j++) {
+      if (used.has(stops[j].stopId)) continue;
+      const distDiff = Math.abs(stops[j].walkMeters - stops[i].walkMeters);
+      if (distDiff <= GROUP_DIST_THRESHOLD && canonicalName(stops[j].stopName) === canon) {
+        groupStops.push(stops[j]);
+        used.add(stops[j].stopId);
+      }
+    }
+
+    const minWalk = Math.min(...groupStops.map(s => s.walkMeters));
+    const hasArrivals = groupStops.some(s => s.arrivals.length > 0 || s.arrivalsLoading);
+
+    groups.push({
+      id: stops[i].stopId,
+      name: canon,
+      walkMeters: minWalk,
+      stops: groupStops,
+      hasArrivals,
+    });
+  }
+
+  // Stops with arrivals first, then no-arrivals (grayed) at bottom
+  return [
+    ...groups.filter(g => g.hasArrivals),
+    ...groups.filter(g => !g.hasArrivals),
+  ];
+}
 
 // Skeleton card
 
 function SkeletonCard({ colours }: { colours: any }) {
   return (
     <View style={{ paddingHorizontal: 16, paddingVertical: 14 }}>
-      <View style={{ width: 160, height: 16, borderRadius: 6, backgroundColor: colours.muted + '25', marginBottom: 8 }} />
-      <View style={{ width: 80, height: 12, borderRadius: 4, backgroundColor: colours.muted + '15', marginBottom: 10 }} />
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        <View style={{ width: 52, height: 32, borderRadius: 12, backgroundColor: colours.muted + '15' }} />
-        <View style={{ width: 52, height: 32, borderRadius: 12, backgroundColor: colours.muted + '15' }} />
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+        <View style={{ width: 160, height: 14, borderRadius: 6, backgroundColor: colours.muted + '25' }} />
+        <View style={{ width: 60, height: 12, borderRadius: 4, backgroundColor: colours.muted + '15' }} />
+      </View>
+      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+        <View style={{ width: 80, height: 28, borderRadius: 14, backgroundColor: colours.muted + '15' }} />
+        <View style={{ width: 80, height: 28, borderRadius: 14, backgroundColor: colours.muted + '15' }} />
+      </View>
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <View style={{ width: 44, height: 26, borderRadius: 8, backgroundColor: colours.muted + '15' }} />
+        <View style={{ width: 38, height: 26, borderRadius: 6, backgroundColor: colours.muted + '10' }} />
+        <View style={{ width: 44, height: 26, borderRadius: 8, backgroundColor: colours.muted + '15' }} />
+        <View style={{ width: 38, height: 26, borderRadius: 6, backgroundColor: colours.muted + '10' }} />
       </View>
     </View>
   );
 }
 
-// Route badge
+// Inline arrival pills for a stop
 
-const RouteBadge = React.memo(function RouteBadge({
-  routeId,
-  minsAway,
-  isGhost,
-  colours,
-  onRoutePress,
-}: {
-  routeId: string;
-  minsAway: number;
-  isGhost: boolean;
-  colours: any;
-  onRoutePress?: (routeId: string) => void;
-}) {
-  const countdownColor = minsAway < 2 ? TEAL : colours.text;
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-      <TouchableOpacity
-        onPress={() => onRoutePress?.(routeId.split('-')[0])}
-        activeOpacity={0.7}
-        style={{
-          minWidth: 52,
-          height: 32,
-          borderRadius: 12,
-          backgroundColor: colours.tintBg,
-          borderWidth: 1,
-          borderColor: colours.border,
-          alignItems: 'center',
-          justifyContent: 'center',
-          paddingHorizontal: 8,
-        }}
-      >
-        <Text style={{ fontSize: 15, fontWeight: '700', color: colours.accent }}>{routeId}</Text>
-        {isGhost && (
-          <View
-            style={{
-              position: 'absolute',
-              top: -2,
-              right: -2,
-              width: 8,
-              height: 8,
-              borderRadius: 4,
-              backgroundColor: '#cc3b2a',
-            }}
-          />
-        )}
-      </TouchableOpacity>
-      <Text style={{ fontSize: 15, fontWeight: '700', color: countdownColor }}>
-        {formatCountdown(minsAway)}
+function ArrivalPills({ stop, colours, t }: { stop: NearbyStop; colours: any; t: (en: string, fr: string) => string }) {
+  if (stop.arrivalsLoading) {
+    return <ActivityIndicator size="small" color={TEAL} style={{ alignSelf: 'flex-start' }} />;
+  }
+  if (stop.arrivals.length === 0) {
+    return (
+      <Text style={{ fontSize: 12, color: colours.muted, fontStyle: 'italic' }}>
+        {t('No arrivals', 'Aucune arrivee')}
       </Text>
+    );
+  }
+  return (
+    <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+      {stop.arrivals.slice(0, 2).map((a, i) => {
+        const urgent = a.minsAway < 2;
+        return (
+          <View key={`${a.routeId}-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <View style={{
+              paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
+              backgroundColor: colours.tintBg, borderWidth: 1, borderColor: colours.border,
+            }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>{a.routeId.split('-')[0]}</Text>
+            </View>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: urgent ? TEAL : colours.text }}>
+              {a.minsAway <= 0 ? t('Now', 'Maint.') : `${a.minsAway} min`}
+            </Text>
+          </View>
+        );
+      })}
+      {stop.ghostRoutes && stop.ghostRoutes.length > 0 && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, alignSelf: 'center' }}>
+          <Ionicons name="alert-circle" size={11} color="#cc3b2a" />
+          <Text style={{ fontSize: 10, color: '#cc3b2a', fontWeight: '600' }}>
+            {t('Ghost reported', 'Bus fantome')}
+          </Text>
+        </View>
+      )}
     </View>
   );
-});
+}
 
-// Stop card
+// Leave Now Alert button (shown when expanded)
 
-const StopCard = React.memo(function StopCard({
+function LeaveNowButton({
   stop,
   colours,
-  isExpanded,
-  onPress,
-  onStopPress,
-  onRoutePress,
-  expandedArrivals,
-  expandedArrivalsLoading,
   t,
 }: {
   stop: NearbyStop;
   colours: any;
-  isExpanded: boolean;
-  onPress: () => void;
-  onStopPress?: (stopId: string) => void;
-  onRoutePress?: (routeId: string) => void;
-  expandedArrivals: { routeId: string; headsign: string; minsAway: number; source?: string; cached?: boolean; cachedAt?: number }[];
-  expandedArrivalsLoading: boolean;
   t: (en: string, fr: string) => string;
 }) {
   const [walkPaceMs, setWalkPaceMs] = useState(1.4);
@@ -194,173 +245,139 @@ const StopCard = React.memo(function StopCard({
     }).catch(() => {});
   }, []);
 
-  const ghostSet = new Set(stop.ghostRoutes ?? []);
-  const hasGhostWarning = stop.ghostRoutes && stop.ghostRoutes.length > 0;
+  if (!Notifications || stop.arrivals.length === 0) return null;
+
   return (
-    <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
-      <View style={{ paddingHorizontal: 16, paddingVertical: 14 }}>
-        <TouchableOpacity activeOpacity={0.6} onPress={() => onStopPress?.(stop.stopId)} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
-          <Text style={{ fontWeight: '700', fontSize: 16, color: colours.text }}>{stop.stopName}</Text>
-        </TouchableOpacity>
-        <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2, marginBottom: 8 }}>
-          {formatWalk(stop.walkMeters, t)}
-        </Text>
-        {stop.arrivalsLoading ? (
-          <ActivityIndicator size="small" color={TEAL} />
-        ) : stop.arrivals.length === 0 ? (
-          <Text style={{ fontSize: 13, color: colours.muted, fontStyle: 'italic' }}>
-            {t('No upcoming arrivals', 'Aucune arrivee prochaine')}
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={async () => {
+        if (!Notifications) return;
+        const nextArr = stop.arrivals[0];
+        const walkSec = stop.walkMeters / walkPaceMs;
+        const bufferSec = 120;
+        const arrivalMs = Date.now() + nextArr.minsAway * 60 * 1000;
+        const leaveAtMs = arrivalMs - (walkSec + bufferSec) * 1000;
+        const secsUntil = Math.max(1, Math.round((leaveAtMs - Date.now()) / 1000));
+        try {
+          const notifId = await Notifications.scheduleNotificationAsync({
+            content: {
+              title: t('Leave now!', 'Partez maintenant!'),
+              body: t(
+                `${nextArr.routeId} to ${nextArr.headsign} arrives in ${Math.ceil((walkSec + bufferSec) / 60)} min`,
+                `${nextArr.routeId} vers ${nextArr.headsign} arrive dans ${Math.ceil((walkSec + bufferSec) / 60)} min`,
+              ),
+              sound: 'default',
+            },
+            trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: secsUntil, repeats: false },
+          });
+          const alert = { id: notifId, stopName: stop.stopName, routeId: nextArr.routeId, leaveAt: leaveAtMs };
+          try {
+            const raw = await AsyncStorage.getItem(SK_LEAVE_NOW_ALERTS);
+            const existing = raw ? JSON.parse(raw) : [];
+            existing.push(alert);
+            await AsyncStorage.setItem(SK_LEAVE_NOW_ALERTS, JSON.stringify(existing));
+          } catch {}
+        } catch (e) { if (__DEV__) console.warn('Leave now schedule failed:', e); }
+      }}
+      style={{
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+        marginTop: 10, paddingVertical: 9, borderRadius: 12,
+        borderWidth: 1, borderColor: TEAL + '40', backgroundColor: TEAL + '08',
+      }}
+    >
+      <Ionicons name="notifications-outline" size={13} color={TEAL} />
+      <Text style={{ fontSize: 12, fontWeight: '700', color: TEAL }}>
+        {t('Set Leave Alert', 'Definir alerte de depart')}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+// Intersection row — core new component
+
+const IntersectionRow = React.memo(function IntersectionRow({
+  group,
+  colours,
+  t,
+  expandedGroupId,
+  onToggleExpand,
+}: {
+  group: IntersectionGroup;
+  colours: any;
+  t: (en: string, fr: string) => string;
+  expandedGroupId: string | null;
+  onToggleExpand: (id: string) => void;
+}) {
+  // Default to the first stop that has arrivals, or 0
+  const defaultIdx = group.stops.findIndex(s => s.arrivals.length > 0 || s.arrivalsLoading);
+  const [activeIdx, setActiveIdx] = useState(defaultIdx >= 0 ? defaultIdx : 0);
+  const isExpanded = expandedGroupId === group.id;
+
+  const activeStop = group.stops[Math.min(activeIdx, group.stops.length - 1)];
+  const multiDir = group.stops.length > 1;
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.75}
+      onPress={() => onToggleExpand(group.id)}
+    >
+      <View style={{ paddingHorizontal: 16, paddingVertical: 12, opacity: group.hasArrivals ? 1 : 0.4 }}>
+        {/* Row header: intersection name + walk */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Text style={{ fontSize: 13, fontWeight: '800', letterSpacing: 0.3, color: colours.text, flex: 1 }} numberOfLines={1}>
+            {group.name}
           </Text>
-        ) : (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            {stop.arrivals.map((a, i) => (
-              <RouteBadge
-                key={`${a.routeId}-${i}`}
-                routeId={a.routeId}
-                minsAway={a.minsAway}
-                isGhost={ghostSet.has(a.routeId)}
-                colours={colours}
-                onRoutePress={onRoutePress}
-              />
-            ))}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 8 }}>
+            <Ionicons name="walk-outline" size={12} color={colours.muted} />
+            <Text style={{ fontSize: 12, color: colours.muted }}>{formatWalk(group.walkMeters, t)}</Text>
           </View>
-        )}
+        </View>
 
-        {/* Cached indicator */}
-        {stop.cached && stop.cachedAt && (
-          <Text style={{ fontSize: 11, color: colours.muted, fontStyle: 'italic', marginTop: 4 }}>
-            {t('Cached', 'En cache')} {'\u2022'} {Math.max(1, Math.round((Date.now() - stop.cachedAt) / 60000))}m {t('ago', 'pass.')}
-          </Text>
-        )}
-
-        {/* Ghost bus warning */}
-        {hasGhostWarning && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
-            <Ionicons name="alert-circle" size={12} color="#cc3b2a" />
-            <Text style={{ fontSize: 11, color: '#cc3b2a', fontWeight: '600' }}>
-              {t('Ghost bus reported', 'Bus fantome signale')}
-            </Text>
-          </View>
-        )}
-
-        {/* Expanded arrivals */}
-        {isExpanded && (
-          <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: colours.border, paddingTop: 8 }}>
-            {expandedArrivalsLoading ? (
-              <ActivityIndicator size="small" color={TEAL} style={{ marginVertical: 6 }} />
-            ) : expandedArrivals.length === 0 ? (
-              <Text style={{ fontSize: 13, color: colours.muted, fontStyle: 'italic' }}>
-                {t('No arrivals found', 'Aucune arrivee trouvee')}
-              </Text>
-            ) : (
-              expandedArrivals.map((a, i) => (
-                <View
-                  key={`${a.routeId}-${a.headsign}-${i}`}
+        {/* Direction chips (only when multiple stops) */}
+        {multiDir && (
+          <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+            {group.stops.map((stop, idx) => {
+              const isActive = idx === activeIdx;
+              const label = directionLabel(stop, t);
+              return (
+                <TouchableOpacity
+                  key={stop.stopId}
+                  onPress={(e) => { e.stopPropagation?.(); setActiveIdx(idx); }}
+                  activeOpacity={0.7}
                   style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    paddingVertical: 6,
+                    flexDirection: 'row', alignItems: 'center', gap: 4,
+                    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, borderWidth: 1,
+                    borderColor: isActive ? TEAL : colours.border,
+                    backgroundColor: isActive ? TEAL + '18' : colours.surface,
+                    maxWidth: 160,
                   }}
                 >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                    <TouchableOpacity onPress={() => onRoutePress?.(a.routeId.split('-')[0])} activeOpacity={0.6} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '700', color: colours.accent, minWidth: 36 }}>
-                        {a.routeId}
-                      </Text>
-                    </TouchableOpacity>
-                    <Text style={{ fontSize: 13, color: colours.muted, flex: 1 }} numberOfLines={1}>
-                      {a.headsign}
-                    </Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 8 }}>
-                    {a.source === 'gtfs-rt' || a.source === 'sto-gtfs-rt' ? (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: TEAL }} />
-                        <Text style={{ fontSize: 10, fontWeight: '600', color: TEAL }}>
-                          {t('Live', 'Direct')}
-                        </Text>
-                      </View>
-                    ) : a.source === 'gtfs-static' ? (
-                      <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>
-                        {t('Sched', 'Horaire')}
-                      </Text>
-                    ) : (a as any).cached ? (
-                      <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted, fontStyle: 'italic' }}>
-                        {t('Cached', 'En cache')}
-                      </Text>
-                    ) : null}
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        fontWeight: '700',
-                        color: a.minsAway < 2 ? TEAL : colours.text,
-                      }}
-                    >
-                      {formatCountdown(a.minsAway)}
-                    </Text>
-                  </View>
-                </View>
-              ))
-            )}
-
-            {/* Leave Now Alert */}
-            {expandedArrivals.length > 0 && (
-              <TouchableOpacity
-                activeOpacity={0.85}
-                onPress={async () => {
-                  if (!Notifications) return;
-                  const nextArr = expandedArrivals[0];
-                  const walkSec = stop.walkMeters / walkPaceMs;
-                  const bufferSec = 120;
-                  const arrivalMs = Date.now() + nextArr.minsAway * 60 * 1000;
-                  const leaveAtMs = arrivalMs - (walkSec + bufferSec) * 1000;
-                  const secsUntil = Math.max(1, Math.round((leaveAtMs - Date.now()) / 1000));
-                  try {
-                    const notifId = await Notifications.scheduleNotificationAsync({
-                      content: {
-                        title: t('Leave now!', 'Partez maintenant!'),
-                        body: t(
-                          `${nextArr.routeId} to ${nextArr.headsign} arrives at ${stop.stopName} in ${Math.ceil((walkSec + bufferSec) / 60)} min`,
-                          `${nextArr.routeId} vers ${nextArr.headsign} arrive a ${stop.stopName} dans ${Math.ceil((walkSec + bufferSec) / 60)} min`
-                        ),
-                        sound: 'default',
-                      },
-                      trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: secsUntil, repeats: false },
-                    });
-                    // Persist alert
-                    const alert = { id: notifId, stopName: stop.stopName, routeId: nextArr.routeId, leaveAt: leaveAtMs };
-                    try {
-                      const raw = await AsyncStorage.getItem(SK_LEAVE_NOW_ALERTS);
-                      const existing = raw ? JSON.parse(raw) : [];
-                      existing.push(alert);
-                      await AsyncStorage.setItem(SK_LEAVE_NOW_ALERTS, JSON.stringify(existing));
-                    } catch {}
-                  } catch (e) { if (__DEV__) console.warn('Leave now schedule failed:', e); }
-                }}
-                style={{
-                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  marginTop: 10, paddingVertical: 10, borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: TEAL + '40',
-                  backgroundColor: TEAL + '08',
-                }}
-              >
-                <Ionicons name="notifications-outline" size={14} color={TEAL} />
-                <Text style={{ fontSize: 13, fontWeight: '700', color: TEAL }}>
-                  {t('Set Leave Alert', 'Definir alerte de depart')}
-                </Text>
-              </TouchableOpacity>
-            )}
+                  <Ionicons name="arrow-forward" size={11} color={isActive ? TEAL : colours.muted} />
+                  <Text
+                    style={{ fontSize: 12, fontWeight: '600', color: isActive ? TEAL : colours.muted }}
+                    numberOfLines={1}
+                  >
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
+        )}
+
+        {/* Arrivals for active direction */}
+        <ArrivalPills stop={activeStop} colours={colours} t={t} />
+
+        {/* Expanded leave-now alert */}
+        {isExpanded && (
+          <LeaveNowButton stop={activeStop} colours={colours} t={t} />
         )}
       </View>
     </TouchableOpacity>
   );
 });
 
-
-// Shared layout helpers (stable references)
+// Shared layout helpers
 
 function SheetSeparator({ colours }: { colours: any }) {
   return <View style={{ height: 1, backgroundColor: colours.border, marginHorizontal: 16 }} />;
@@ -369,9 +386,7 @@ function SheetSeparator({ colours }: { colours: any }) {
 function SheetSectionHeader({ label, colours, tight }: { label: string; colours: any; tight?: boolean }) {
   return (
     <View style={{ paddingHorizontal: 16, paddingTop: tight ? 10 : 18, paddingBottom: tight ? 4 : 8 }}>
-      <Text style={{ fontSize: 13, fontWeight: '600', color: colours.muted }}>
-        {label}
-      </Text>
+      <Text style={{ fontSize: 13, fontWeight: '600', color: colours.muted }}>{label}</Text>
     </View>
   );
 }
@@ -407,23 +422,18 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
     ref,
   ) => {
     const router = useRouter();
+    const [showAll, setShowAll] = useState(false);
+    const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
 
-    const handleStopPress = useCallback((stopId: string) => {
-      router.push(`/stop/${stopId}` as any);
-    }, [router]);
+    const handleToggleExpand = useCallback((id: string) => {
+      setExpandedGroupId(prev => prev === id ? null : id);
+    }, []);
 
     const handleRoutePress = useCallback((routeId: string) => {
       router.push(`/route/${routeId}` as any);
     }, [router]);
 
-    const handleExpandStop = useCallback(
-      (stopId: string) => {
-        onExpandStop(expandedStopId === stopId ? null : stopId);
-      },
-      [expandedStopId, onExpandStop],
-    );
-
-    // Write widget data when expanded arrivals load for the user's top saved stop
+    // Write widget data when arrivals load
     useEffect(() => {
       if (!expandedStopId || expandedArrivalsLoading || expandedArrivals.length === 0) return;
       (async () => {
@@ -458,11 +468,15 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
         .slice(0, 15);
     }, [activeLayers, layerPins]);
 
-
-    const peekStops = nearbyStops.slice(0, 4);
+    // Build intersection groups from raw stops
+    const intersectionGroups = useMemo(() => groupNearbyStops(nearbyStops), [nearbyStops]);
+    const visibleGroups = showAll ? intersectionGroups : intersectionGroups.slice(0, DEFAULT_ROWS);
+    const hiddenCount = intersectionGroups.length - DEFAULT_ROWS;
 
     const Separator = useCallback(() => <SheetSeparator colours={colours} />, [colours]);
-    const SectionHeader = useCallback(({ label, tight }: { label: string; tight?: boolean }) => <SheetSectionHeader label={label} colours={colours} tight={tight} />, [colours]);
+    const SectionHeader = useCallback(({ label, tight }: { label: string; tight?: boolean }) => (
+      <SheetSectionHeader label={label} colours={colours} tight={tight} />
+    ), [colours]);
 
     return (
       <BottomSheet
@@ -488,16 +502,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
           showsVerticalScrollIndicator={false}
         >
           {/* Header */}
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              paddingHorizontal: 16,
-              paddingTop: 4,
-              paddingBottom: 10,
-            }}
-          >
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 4, paddingBottom: 10 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Text style={{ fontSize: 17, fontWeight: '700', color: colours.text }}>
                 {t('Nearby Transit', 'Transport a proximite')}
@@ -511,28 +516,14 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                 </View>
               )}
             </View>
-            <TouchableOpacity
-              onPress={onRefreshLocation}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              accessibilityLabel={t('Refresh location', 'Actualiser la position')}
-            >
+            <TouchableOpacity onPress={onRefreshLocation} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityLabel={t('Refresh location', 'Actualiser la position')}>
               <Ionicons name="location-outline" size={20} color={TEAL} />
             </TouchableOpacity>
           </View>
 
           {/* Disruption pill */}
           {hasDisruption && (
-            <View
-              style={{
-                marginHorizontal: 16,
-                marginBottom: 8,
-                backgroundColor: AMBER_BG,
-                borderRadius: 12,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                alignSelf: 'flex-start',
-              }}
-            >
+            <View style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: AMBER_BG, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, alignSelf: 'flex-start' }}>
               <Text style={{ fontSize: 13, fontWeight: '700', color: AMBER_TEXT }}>
                 {t('O-Train disrupted', 'O-Train perturbe')}
               </Text>
@@ -541,14 +532,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
 
           {/* Alert banner */}
           {activeAlertCount > 0 && (
-            <View
-              style={{
-                backgroundColor: AMBER_BG,
-                paddingHorizontal: 16,
-                paddingVertical: 8,
-                marginBottom: 4,
-              }}
-            >
+            <View style={{ backgroundColor: AMBER_BG, paddingHorizontal: 16, paddingVertical: 8, marginBottom: 4 }}>
               <Text style={{ fontSize: 13, fontWeight: '600', color: AMBER_TEXT }}>
                 {t(
                   `${activeAlertCount} active alert${activeAlertCount > 1 ? 's' : ''}`,
@@ -558,7 +542,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
             </View>
           )}
 
-          {/* Happening Now banner */}
+          {/* Happening Now */}
           {happeningNow && happeningNow.length > 0 && (
             <View style={{ paddingBottom: 8 }}>
               <View style={{ paddingHorizontal: 16, paddingBottom: 6 }}>
@@ -574,20 +558,11 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                       key={pin.id}
                       activeOpacity={0.7}
                       onPress={() => onRouteToPin?.(pin)}
-                      style={{
-                        width: 150,
-                        padding: 10,
-                        borderRadius: 12,
-                        backgroundColor: colours.surface,
-                        borderWidth: 1,
-                        borderColor: cfg.color + '40',
-                      }}
+                      style={{ width: 150, padding: 10, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: cfg.color + '40' }}
                     >
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
                         <Ionicons name={cfg.icon as any} size={12} color={cfg.color} />
-                        <Text style={{ fontSize: 10, fontWeight: '700', color: cfg.color }}>
-                          {language === 'fr' ? cfg.labelFr : cfg.label}
-                        </Text>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: cfg.color }}>{language === 'fr' ? cfg.labelFr : cfg.label}</Text>
                       </View>
                       <Text style={{ fontSize: 12, fontWeight: '700', color: colours.text }} numberOfLines={2}>{pin.name}</Text>
                       {pin.subtitle ? <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }} numberOfLines={1}>{pin.subtitle}</Text> : null}
@@ -598,7 +573,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
             </View>
           )}
 
-          {/* Peek: nearby stops (top 4) */}
+          {/* Intersection stop list */}
           {nearbyLoading ? (
             <>
               <SkeletonCard colours={colours} />
@@ -607,7 +582,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
               <Separator />
               <SkeletonCard colours={colours} />
             </>
-          ) : peekStops.length === 0 ? (
+          ) : intersectionGroups.length === 0 ? (
             <View style={{ paddingHorizontal: 16, paddingVertical: 20, alignItems: 'center' }}>
               <Ionicons name="bus-outline" size={28} color={colours.muted} style={{ marginBottom: 8 }} />
               <Text style={{ fontSize: 14, color: colours.muted, textAlign: 'center' }}>
@@ -615,43 +590,50 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
               </Text>
             </View>
           ) : (
-            peekStops.map((stop, i) => (
-              <React.Fragment key={stop.stopId}>
-                <StopCard
-                  stop={stop}
-                  colours={colours}
-                  isExpanded={expandedStopId === stop.stopId}
-                  onPress={() => handleExpandStop(stop.stopId)}
-                  onStopPress={handleStopPress}
-                  onRoutePress={handleRoutePress}
-                  expandedArrivals={expandedStopId === stop.stopId ? expandedArrivals : []}
-                  expandedArrivalsLoading={expandedStopId === stop.stopId && expandedArrivalsLoading}
-                  t={t}
-                />
-                {i < peekStops.length - 1 && <Separator />}
-              </React.Fragment>
-            ))
-          )}
-
-          {/* Remaining stops + saved board */}
-          {!nearbyLoading && nearbyStops.length > 4 && (
             <>
-              {nearbyStops.slice(4).map((stop) => (
-                <React.Fragment key={stop.stopId}>
-                  <Separator />
-                  <StopCard
-                    stop={stop}
+              {visibleGroups.map((group, i) => (
+                <React.Fragment key={group.id}>
+                  {i > 0 && <Separator />}
+                  <IntersectionRow
+                    group={group}
                     colours={colours}
-                    isExpanded={expandedStopId === stop.stopId}
-                    onPress={() => handleExpandStop(stop.stopId)}
-                    onStopPress={handleStopPress}
-                    onRoutePress={handleRoutePress}
-                    expandedArrivals={expandedStopId === stop.stopId ? expandedArrivals : []}
-                    expandedArrivalsLoading={expandedStopId === stop.stopId && expandedArrivalsLoading}
                     t={t}
+                    expandedGroupId={expandedGroupId}
+                    onToggleExpand={handleToggleExpand}
                   />
                 </React.Fragment>
               ))}
+              {/* Show more / less toggle */}
+              {!showAll && hiddenCount > 0 && (
+                <>
+                  <Separator />
+                  <TouchableOpacity
+                    onPress={() => setShowAll(true)}
+                    activeOpacity={0.7}
+                    style={{ paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                  >
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: colours.accent }}>
+                      {t(`Show ${hiddenCount} more`, `Afficher ${hiddenCount} de plus`)}
+                    </Text>
+                    <Ionicons name="chevron-down" size={16} color={colours.accent} />
+                  </TouchableOpacity>
+                </>
+              )}
+              {showAll && hiddenCount > 0 && (
+                <>
+                  <Separator />
+                  <TouchableOpacity
+                    onPress={() => setShowAll(false)}
+                    activeOpacity={0.7}
+                    style={{ paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                  >
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: colours.muted }}>
+                      {t('Show less', 'Afficher moins')}
+                    </Text>
+                    <Ionicons name="chevron-up" size={16} color={colours.muted} />
+                  </TouchableOpacity>
+                </>
+              )}
             </>
           )}
 
@@ -670,12 +652,8 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                     <View
                       key={deal.id}
                       style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 10,
-                        padding: 12,
-                        borderRadius: 12,
-                        borderWidth: 1,
+                        flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12,
+                        borderRadius: 12, borderWidth: 1,
                         borderColor: isToday ? '#22c55e40' : colours.border,
                         backgroundColor: isToday ? '#22c55e08' : colours.surface,
                         marginBottom: 8,
@@ -706,7 +684,6 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
               <Separator />
               <SectionHeader label={t('SHOW ON MAP', 'AFFICHER SUR LA CARTE')} tight />
 
-              {/* Empty state (above grid) */}
               {Object.values(activeLayers).every(v => !v) && (
                 <View style={{ alignItems: 'center', paddingVertical: 40, gap: 12, paddingHorizontal: 32 }}>
                   <Ionicons name="layers-outline" size={40} color={colours.muted} />
@@ -716,7 +693,6 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                 </View>
               )}
 
-              {/* Layer feed (active layers, max 15 pins) */}
               {onRouteToPin && feedPins.length > 0 && (
                 <View style={{ marginBottom: 8 }}>
                   {feedPins.map(pin => (
@@ -725,7 +701,6 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                 </View>
               )}
 
-              {/* Flat 2x4 layer toggle grid */}
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingBottom: 16 }}>
                 {(Object.keys(LAYER_CONFIG) as LayerKey[]).map(key => {
                   const config = LAYER_CONFIG[key];
@@ -737,8 +712,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                       style={{
                         width: (screenWidth - 32 - 8) / 2,
                         flexDirection: 'row', alignItems: 'center', gap: 8,
-                        paddingVertical: 10, paddingHorizontal: 12,
-                        borderRadius: 12,
+                        paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12,
                         backgroundColor: colours.surface,
                         borderWidth: isActive ? 1.5 : 1,
                         borderColor: isActive ? config.color : colours.border,
@@ -765,7 +739,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
             </>
           )}
 
-          {/* Extra sections (e.g. Services Grid, Tonight card) */}
+          {/* Extra sections (Services Grid, Tonight card) */}
           {extraSections && (
             <>
               <Separator />
@@ -780,20 +754,11 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
             onPress={onSubmitDeal}
             activeOpacity={0.85}
             style={{
-              position: 'absolute',
-              bottom: 24,
-              right: 16,
-              width: 48,
-              height: 48,
-              borderRadius: 24,
+              position: 'absolute', bottom: 24, right: 16,
+              width: 48, height: 48, borderRadius: 24,
               backgroundColor: colours.accent,
-              alignItems: 'center',
-              justifyContent: 'center',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.25,
-              shadowRadius: 4,
-              elevation: 4,
+              alignItems: 'center', justifyContent: 'center',
+              shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 4,
             }}
             accessibilityLabel={t('Submit a deal', 'Soumettre un rabais')}
           >

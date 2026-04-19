@@ -1624,47 +1624,49 @@ export default function MapScreen() {
           })}
         </ScrollView>}
 
+        {/* Layer toggle chips — inline below category pills */}
+        {!planMode && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginTop: 8 }}
+            contentContainerStyle={{ gap: 8, paddingRight: 8 }}
+          >
+            {(Object.entries(LAYER_CONFIG) as [LayerKey, typeof LAYER_CONFIG[LayerKey]][]).map(([key, config]) => {
+              const PhIcon = LAYER_ICONS[key as LayerKey];
+              const isActive = activeLayers[key];
+              return (
+                <TouchableOpacity
+                  key={key}
+                  activeOpacity={0.7}
+                  style={[{
+                    flexDirection: 'row', alignItems: 'center', gap: 5,
+                    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1,
+                  }, isActive
+                    ? { backgroundColor: config.color, borderColor: config.color }
+                    : { backgroundColor: colours.surface, borderColor: colours.border }
+                  ]}
+                  onPress={() => toggleLayer(key)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isActive }}
+                >
+                  <PhIcon size={14} color={isActive ? 'white' : colours.muted} weight={isActive ? 'fill' : 'regular'} />
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: isActive ? 'white' : colours.muted }}>
+                    {language === 'fr' ? config.labelFr : config.label}
+                  </Text>
+                  {key === 'deals' && activeDealsNearby > 0 && (
+                    <View style={{ minWidth: 16, height: 16, borderRadius: 8, backgroundColor: isActive ? 'rgba(255,255,255,0.3)' : '#27AE60', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 }}>
+                      <Text style={{ fontSize: 9, fontWeight: '700', color: 'white' }}>{activeDealsNearby}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
+
         {error && !planMode ? <Text style={{ fontSize: 11, color: isLight ? '#DC2626' : '#F87171', marginTop: 6 }}>{error}</Text> : null}
       </View>
-
-      {/* Quick layer chips */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ position: 'absolute', top: Platform.OS === 'ios' ? 100 : 82, left: 0, right: 0, zIndex: 9 }}
-        contentContainerStyle={{ paddingHorizontal: 16, gap: 8, flexDirection: 'row', paddingVertical: 6 }}
-      >
-        {(Object.entries(LAYER_CONFIG) as [LayerKey, typeof LAYER_CONFIG[LayerKey]][]).map(([key, config]) => {
-          const PhIcon = LAYER_ICONS[key as LayerKey];
-          const isActive = activeLayers[key];
-          return (
-            <TouchableOpacity
-              key={key}
-              activeOpacity={0.7}
-              style={[{
-                flexDirection: 'row', alignItems: 'center', gap: 5,
-                paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1,
-                shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.15, shadowRadius: 2, elevation: 2,
-              }, isActive
-                ? { backgroundColor: config.color, borderColor: config.color }
-                : { backgroundColor: colours.card, borderColor: colours.border }
-              ]}
-              onPress={() => toggleLayer(key)}
-              accessibilityRole="button"
-            >
-              <PhIcon size={14} color={isActive ? 'white' : colours.muted} weight={isActive ? 'fill' : 'regular'} />
-              <Text style={{ fontSize: 12, fontWeight: '600', color: isActive ? 'white' : colours.muted }}>
-                {language === 'fr' ? config.labelFr : config.label}
-              </Text>
-              {key === 'deals' && activeDealsNearby > 0 && (
-                <View style={{ minWidth: 16, height: 16, borderRadius: 8, backgroundColor: isActive ? 'rgba(255,255,255,0.3)' : '#27AE60', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 }}>
-                  <Text style={{ fontSize: 9, fontWeight: '700', color: 'white' }}>{activeDealsNearby}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
 
       {/* Floating action buttons */}
       <View style={{ position: 'absolute', bottom: hasSheet ? 300 : tappedLocation ? 160 : Platform.OS === 'ios' ? 24 : 16, right: 16, gap: 10, alignItems: 'center' }}>
