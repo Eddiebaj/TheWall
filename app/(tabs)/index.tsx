@@ -73,6 +73,7 @@ import {
 // NewsArticle import removed — news lives in dedicated News tab
 import { getDelayContext } from '../../lib/delayContext';
 import { FrequentRoute, detectFrequentRoutes } from '../../lib/frequentRoutes';
+import { CommuteDeal, getCommuteDeals, isCommuteWindow, scheduleCommuteNotification } from '../../lib/commuteDeals';
 import { SK_CROWDING_CACHE, SK_FREQUENT_ARRIVALS_CACHE, SK_FREQUENT_CARD_DISMISSED, SK_LAST_CROWDING_REPORT, SK_TRIP_HISTORY, SK_TRIP_SHARING } from '../../lib/storageKeys';
 // NewsSection removed from home — news lives in Account tab modal
 // NeighbourhoodSection removed — inlined for scroll reliability
@@ -1297,6 +1298,8 @@ function LiveScreenInner() {
   const [frequentRoutes, setFrequentRoutes] = useState<FrequentRoute[]>([]);
   const [frequentArrivals, setFrequentArrivals] = useState<Record<string, { minsAway: number; delay: number; headsign: string } | null>>({});
   const [frequentCardDismissed, setFrequentCardDismissed] = useState(true);
+  const [commuteDeals, setCommuteDeals] = useState<CommuteDeal[]>([]);
+  const [commuteDealsLoading, setCommuteDealsLoading] = useState(false);
   const [timeFormat, setTimeFormat] = useState<'relative' | 'absolute'>('relative');
   const [passedHintShown, setPassedHintShown] = useState(false);
   const [helpBannerDismissed, setHelpBannerDismissed] = useState(false);
@@ -1543,6 +1546,14 @@ function LiveScreenInner() {
         }).catch(() => setFrequentCardDismissed(false));
       }
     }).catch(() => {});
+    // Load commute deals if in 4-7pm weekday window
+    if (isCommuteWindow()) {
+      setCommuteDealsLoading(true);
+      getCommuteDeals(language as 'en' | 'fr').then(deals => {
+        setCommuteDeals(deals);
+        scheduleCommuteNotification(deals, language as 'en' | 'fr').catch(() => {});
+      }).catch(() => {}).finally(() => setCommuteDealsLoading(false));
+    }
     // Detect commute patterns from trip history
     AsyncStorage.getItem(SK_TRIP_HISTORY).then(val => {
       if (!val) return;
@@ -4666,6 +4677,41 @@ function LiveScreenInner() {
                 }}
               />
             </>
+          )}
+
+          {/* On My Way Home card — 4-7pm weekdays with active deals */}
+          {isCommuteWindow() && commuteDeals.length > 0 && (
+            <View style={{ marginHorizontal: 20, marginBottom: 14, borderRadius: 16, borderWidth: 1, borderColor: '#026CDF30', backgroundColor: colours.surface, overflow: 'hidden', ...cardShadow }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+                <Ionicons name="bus" size={16} color="#026CDF" />
+                <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text, flex: 1 }}>
+                  {t(`On your way home — ${commuteDeals.length} deal${commuteDeals.length > 1 ? 's' : ''} along your route`, `Sur votre chemin — ${commuteDeals.length} offre${commuteDeals.length > 1 ? 's' : ''} sur votre route`)}
+                </Text>
+              </View>
+              {commuteDeals.map((deal, i) => (
+                <View key={deal.venueId} style={{ borderBottomWidth: i < commuteDeals.length - 1 ? 1 : 0, borderBottomColor: colours.border }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, gap: 10 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }} numberOfLines={1}>{deal.venueName}</Text>
+                      <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }} numberOfLines={2}>{deal.dealDescription}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                        <Ionicons name="walk" size={11} color={colours.muted} />
+                        <Text style={{ fontSize: 11, color: colours.muted }}>
+                          {t(`${deal.distanceMeters}m from ${deal.nearStopName}`, `${deal.distanceMeters}m de ${deal.nearStopName}`)}
+                        </Text>
+                      </View>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => router.push({ pathname: '/(tabs)/planner', params: { toLabel: deal.venueName, toLat: String(deal.venueLat), toLng: String(deal.venueLng) } } as any)}
+                      style={{ backgroundColor: '#026CDF', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, alignSelf: 'center' }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: '#fff' }}>{t('Get me there', 'Y aller')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </View>
           )}
 
           {new Date().getHours() >= 17 && (

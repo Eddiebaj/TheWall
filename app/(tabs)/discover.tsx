@@ -11,8 +11,11 @@ import { useApp } from '../../context/AppContext';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { cardShadow as sharedCardShadow } from '../../lib/styles';
 import { NewsArticle, timeAgo } from '../../lib/newsData';
-import { SK_NEWS_CACHE, SK_FOLLOWED_VENUES, SK_JOINED_GROUPS, SK_LAST_DEAL_CHECK } from '../../lib/storageKeys';
+import { SK_NEWS_CACHE, SK_FOLLOWED_VENUES, SK_JOINED_GROUPS, SK_LAST_DEAL_CHECK, SK_HOME_ADDRESS, SK_SAVED_BOARD } from '../../lib/storageKeys';
 import { supabase } from '../../lib/supabase';
+import { haversineKm } from '../../lib/geo';
+import { HAPPY_HOUR_VENUES } from '../../lib/happyHourData';
+import { useRouter } from 'expo-router';
 import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
 import { FeedCardSkeleton, HorizontalCardsSkeleton } from '../../components/Shimmer';
 import { useIsPremium } from '../../lib/premium';
@@ -24,6 +27,16 @@ import { addAndSave, loadProfile, TASTE_POINTS } from '../../lib/tasteProfile';
 
 const COMMUNITY_URL = 'https://routeo-backend.vercel.app/api/community';
 const STRIPE_PAYMENT_LINK = process.env.EXPO_PUBLIC_STRIPE_PAYMENT_LINK ?? '';
+const PLAN_URL = 'https://routeo-backend.vercel.app/api/plan';
+
+const MAJOR_STOPS = [
+  { lat: 45.4215, lng: -75.6919, name: 'Parliament Station' },
+  { lat: 45.4260, lng: -75.6916, name: 'Rideau Station' },
+  { lat: 45.4035, lng: -75.7277, name: 'Bayview Station' },
+  { lat: 45.3993, lng: -75.6446, name: 'Hurdman Station' },
+  { lat: 45.4286, lng: -75.6060, name: 'Blair Station' },
+  { lat: 45.4153, lng: -75.6472, name: 'St-Laurent Station' },
+];
 
 type BusinessDeal = {
   id: string;
@@ -61,6 +74,7 @@ function DiscoverScreenInner() {
   const isLight = resolvedTheme === 'light';
   const insets = useSafeAreaInsets();
   const isPremium = useIsPremium();
+  const router = useRouter();
 
   const cardShadow = isLight ? sharedCardShadow : {};
 
@@ -82,6 +96,12 @@ function DiscoverScreenInner() {
   const [eventsError, setEventsError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  const [transitHomeFilter, setTransitHomeFilter] = useState(false);
+  const [homePlace, setHomePlace] = useState<{ lat: number; lng: number; label: string } | null>(null);
+  const [boardStopAnchors, setBoardStopAnchors] = useState<{ lat: number; lng: number; name: string }[]>([]);
+  const [lastBusCache, setLastBusCache] = useState<Record<string, string | null>>({});
+  const [lastBusLoading, setLastBusLoading] = useState<Record<string, boolean>>({});
+
   const [businessDeals, setBusinessDeals] = useState<BusinessDeal[]>([]);
   const [businessDealsLoading, setBusinessDealsLoading] = useState(true);
 
@@ -91,6 +111,21 @@ function DiscoverScreenInner() {
   const [listBizDone, setListBizDone] = useState(false);
 
   useEffect(() => {
+    // Load home address and board stops for Transit+Home filter
+    AsyncStorage.getItem(SK_HOME_ADDRESS).then(raw => {
+      if (raw) { try { const h = JSON.parse(raw); if (h?.lat && h?.lng) setHomePlace(h); } catch {} }
+    }).catch(() => {});
+    AsyncStorage.getItem(SK_SAVED_BOARD).then(raw => {
+      if (!raw) return;
+      try {
+        const board: any[] = JSON.parse(raw);
+        const stopIds = board.filter(b => b.type === 'bus_stop' || b.type === 'lrt_station').map(b => b.id).slice(0, 10);
+        if (stopIds.length === 0) return;
+        supabase.from('stops').select('stop_id, stop_lat, stop_lon, stop_name').in('stop_id', stopIds).then(({ data }) => {
+          if (data) setBoardStopAnchors(data.filter(s => s.stop_lat && s.stop_lon).map(s => ({ lat: s.stop_lat, lng: s.stop_lon, name: s.stop_name || s.stop_id })));
+        }).catch(() => {});
+      } catch {}
+    }).catch(() => {});
     // Direct news fetch instead of relying on SK_NEWS_CACHE (M14)
     fetchWithTimeout('https://routeo-backend.vercel.app/api/news').then(async resp => {
       if (resp.ok) {
@@ -257,6 +292,52 @@ function DiscoverScreenInner() {
 
   const todayDow = new Date().getDay();
 
+  const allTransitAnchors = useMemo(() => [...boardStopAnchors, ...MAJOR_STOPS], [boardStopAnchors]);
+
+  const isNearTransit = (lat: number, lng: number): boolean =>
+    allTransitAnchors.some(a => haversineKm(lat, lng, a.lat, a.lng) <= 0.5);
+
+  const transitVenues = useMemo(() => {
+    if (!transitHomeFilter) return [];
+    return HAPPY_HOUR_VENUES.filter(v => {
+      if (!isNearTransit(v.lat, v.lng)) return false;
+      return v.deals.some(d => d.days.includes(todayDow));
+    });
+  }, [transitHomeFilter, allTransitAnchors, todayDow]);
+
+  const fetchLastBusHome = async (venueKey: string, fromLat: number, fromLng: number) => {
+    if (!homePlace || lastBusCache[venueKey] !== undefined || lastBusLoading[venueKey]) return;
+    setLastBusLoading(prev => ({ ...prev, [venueKey]: true }));
+    try {
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('en-CA', { timeZone: 'America/Toronto' }).split('-').reverse().join('-').replace(/(\d+)-(\d+)-(\d+)/, '$2-$3-$1');
+      const url = `${PLAN_URL}?fromLat=${fromLat}&fromLng=${fromLng}&toLat=${homePlace.lat}&toLng=${homePlace.lng}&time=23%3A00&date=${encodeURIComponent(dateStr)}&mode=transit&arriveBy=false&numItineraries=1`;
+      const resp = await fetchWithTimeout(url);
+      if (resp.ok) {
+        const data = await resp.json();
+        const firstItin = data?.itineraries?.[0];
+        if (firstItin) {
+          const lastLeg = firstItin.legs?.[firstItin.legs.length - 1];
+          const endTime = new Date(firstItin.endTime);
+          const hrs = endTime.getHours();
+          const mins = String(endTime.getMinutes()).padStart(2, '0');
+          const period = hrs >= 12 ? 'pm' : 'am';
+          const h12 = hrs > 12 ? hrs - 12 : hrs === 0 ? 12 : hrs;
+          const stopName = lastLeg?.from?.name || '';
+          const label = stopName ? `${h12}:${mins}${period} from ${stopName}` : `${h12}:${mins}${period}`;
+          setLastBusCache(prev => ({ ...prev, [venueKey]: label }));
+        } else {
+          setLastBusCache(prev => ({ ...prev, [venueKey]: null }));
+        }
+      } else {
+        setLastBusCache(prev => ({ ...prev, [venueKey]: null }));
+      }
+    } catch {
+      setLastBusCache(prev => ({ ...prev, [venueKey]: null }));
+    }
+    setLastBusLoading(prev => ({ ...prev, [venueKey]: false }));
+  };
+
   const toggleFollowVenue = useCallback(async (venueName: string) => {
     const isFollowed = followedVenues.includes(venueName);
     const updated = isFollowed
@@ -308,6 +389,93 @@ function DiscoverScreenInner() {
         contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colours.accent} />}
       >
+        {/* Filter chips */}
+        <View style={{ paddingHorizontal: 20, marginBottom: 14 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            <TouchableOpacity
+              onPress={() => setTransitHomeFilter(false)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: !transitHomeFilter ? colours.accent : colours.border, backgroundColor: !transitHomeFilter ? colours.accent + '15' : colours.surface }}
+            >
+              <Text style={{ fontSize: 13, fontWeight: !transitHomeFilter ? '700' : '500', color: !transitHomeFilter ? colours.accent : colours.muted }}>{t('All', 'Tout')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                if (!homePlace) return;
+                setTransitHomeFilter(v => !v);
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: transitHomeFilter ? '#026CDF' : colours.border, backgroundColor: transitHomeFilter ? '#026CDF15' : colours.surface }}
+            >
+              <Ionicons name="bus" size={13} color={transitHomeFilter ? '#026CDF' : colours.muted} />
+              <Text style={{ fontSize: 13, fontWeight: transitHomeFilter ? '700' : '500', color: transitHomeFilter ? '#026CDF' : colours.muted }}>{t('Transit + Home', 'Transit + Maison')}</Text>
+            </TouchableOpacity>
+          </ScrollView>
+          {!homePlace && (
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/account' as any)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="home-outline" size={14} color={colours.muted} />
+              <Text style={{ fontSize: 12, color: colours.muted, flex: 1 }}>{t('Save your home address in Settings to use this filter', 'Enregistrez votre adresse domicile dans les paramètres pour ce filtre')}</Text>
+              <Ionicons name="chevron-forward" size={13} color={colours.muted} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Transit + Home venues */}
+        {transitHomeFilter && transitVenues.length > 0 && (
+          <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 10 }}>
+              {t('Venues Near Transit', 'Établissements près du transit')}
+            </Text>
+            {transitVenues.map(venue => {
+              const venueKey = `${venue.lat},${venue.lng}`;
+              const todayDeals = venue.deals.filter(d => d.days.includes(todayDow));
+              const lastBus = lastBusCache[venueKey];
+              const loadingBus = lastBusLoading[venueKey];
+              // Trigger lazy fetch
+              if (homePlace && lastBusCache[venueKey] === undefined && !lastBusLoading[venueKey]) {
+                fetchLastBusHome(venueKey, venue.lat, venue.lng);
+              }
+              return (
+                <View key={venueKey} style={[{ borderRadius: 12, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, marginBottom: 10, overflow: 'hidden' }, cardShadow]}>
+                  <View style={{ padding: 12 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>{venue.name}</Text>
+                    <Text style={{ fontSize: 11, color: colours.muted, marginTop: 1 }}>{venue.address}</Text>
+                    {todayDeals.length > 0 && (
+                      <Text style={{ fontSize: 12, color: colours.accent, marginTop: 4 }} numberOfLines={2}>{todayDeals[0].description}</Text>
+                    )}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Ionicons name="bus-outline" size={11} color="#026CDF" />
+                        {loadingBus ? (
+                          <ActivityIndicator size="small" color="#026CDF" style={{ transform: [{ scale: 0.6 }] }} />
+                        ) : lastBus ? (
+                          <Text style={{ fontSize: 11, color: '#026CDF', fontWeight: '600' }}>{t(`Last bus home: ${lastBus}`, `Dernier bus: ${lastBus}`)}</Text>
+                        ) : lastBus === null ? (
+                          <Text style={{ fontSize: 11, color: colours.muted }}>{t('No late bus home', 'Pas de bus tard')}</Text>
+                        ) : null}
+                      </View>
+                    </View>
+                  </View>
+                  {homePlace && (
+                    <TouchableOpacity
+                      onPress={() => router.push({ pathname: '/(tabs)/planner', params: { fromLabel: venue.name, fromLat: String(venue.lat), fromLng: String(venue.lng), toLabel: homePlace.label, toLat: String(homePlace.lat), toLng: String(homePlace.lng) } } as any)}
+                      style={{ borderTopWidth: 1, borderTopColor: colours.border, paddingVertical: 10, alignItems: 'center', backgroundColor: '#026CDF08' }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#026CDF' }}>{t('Get home from here', 'Rentrer à la maison')}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })}
+            {transitVenues.length === 0 && (
+              <Text style={{ fontSize: fonts.sm, color: colours.muted, paddingVertical: 8 }}>{t('No venues near transit today', 'Aucun établissement près du transit aujourd\'hui')}</Text>
+            )}
+          </View>
+        )}
+
         {/* New deals this week */}
         <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
           <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 10 }}>

@@ -54,6 +54,7 @@ type NotifSettings = {
   hydroOutage: boolean;
   festivalEvents: boolean;
   liveEventsNearby: boolean;
+  commuteDeals: boolean;
   criticalAlerts: boolean;
   delayAlerts: boolean;
 };
@@ -79,6 +80,7 @@ const DEFAULT_NOTIF_SETTINGS: NotifSettings = {
   hydroOutage: true,
   festivalEvents: false,
   liveEventsNearby: false,
+  commuteDeals: true,
   criticalAlerts: true,
   delayAlerts: false,
 };
@@ -87,7 +89,7 @@ const MASTER_KEY_MAP: Record<string, (keyof NotifSettings)[]> = {
   tripAlerts: ['leaveNow', 'arrivalAlerts', 'transferAtRisk', 'tripDisruption', 'lastBus'],
   serviceDisruptions: ['lrtDisruption', 'routeCancellation', 'significantDelay', 'serviceResumed', 'busRunningEarly'],
   cityReminders: ['garbageDay', 'recyclingReminder', 'roadClosureNearby', 'hydroOutage'],
-  events: ['festivalEvents', 'liveEventsNearby'],
+  events: ['festivalEvents', 'liveEventsNearby', 'commuteDeals'],
 };
 
 const NOTIF_SETTINGS_KEY = SK_NOTIF_SETTINGS;
@@ -266,6 +268,7 @@ export default function AccountScreen() {
     { key: 'serviceDisruptions', label: t('Service disruptions', 'Perturbations de service'), icon: 'warning' },
     { key: 'cityReminders', label: t('City reminders', 'Rappels ville'), icon: 'home' },
     { key: 'events', label: t('Events', '\u00c9v\u00e9nements'), icon: 'calendar' },
+    { key: 'commuteDeals', label: t('On my way home deals', 'Offres sur mon chemin'), icon: 'navigate' },
   ];
 
   const Card = ({ children, style }: { children: React.ReactNode; style?: any }) => (

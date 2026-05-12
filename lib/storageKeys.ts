@@ -91,3 +91,4 @@ export const SK_DISMISSED_ALERT_IDS = 'routeo_dismissed_alert_ids';
 export const SK_SESSION_COUNT = 'routeo_session_count';
 export const SK_SHOWN_PROMPTS = 'routeo_shown_prompts';
 export const SK_WATCHED_BUSES = 'routeo_watched_buses';
+export const SK_COMMUTE_DEALS_LAST_PUSH = 'routeo_commute_deals_last_push';
