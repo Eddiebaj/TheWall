@@ -22,6 +22,8 @@ import { ClassSchedule, nextClass, fmt12h as schedFmt12h } from '../../lib/sched
 import { SK_ACCESSIBILITY_ROUTING, SK_BATTERY_SAVER, SK_CAMPUS, SK_CLASS_SCHEDULE, SK_LEAVE_REMINDERS, SK_MOTION, SK_PLANNER_PREFS, SK_SAVED_ROUTES, SK_TRIP_HISTORY, SK_WALK_PACE, SK_WALK_PREFERENCE } from '../../lib/storageKeys';
 import { supabase } from '../../lib/supabase';
 import { decodePolyline, toTitleCase } from '../../lib/utils';
+import { haversineKm } from '../../lib/geo';
+import { NEIGHBOURHOOD_GROUPS } from '../../lib/neighbourhoodGroups';
 let Haptics: typeof import('expo-haptics') | null = null;
 try { Haptics = require('expo-haptics'); } catch {}
 let Notifications: typeof import('expo-notifications') | null = null;
@@ -132,10 +134,22 @@ type TripRecord = {
   durationMins: number;
   distanceKm?: number;
   plannedAt: string; // ISO string
+  // Transit Memory enrichment fields
+  neighbourhood?: string;  // destination neighbourhood name_en
+  routeId?: string;        // primary bus leg routeShortName
+  hourOfDay?: number;      // 0-23
+  dayOfWeek?: number;      // 0 (Sun) - 6 (Sat)
 };
 
 const SAVED_ROUTES_KEY = SK_SAVED_ROUTES;
-const MAX_TRIP_HISTORY = 15;
+const MAX_TRIP_HISTORY = 200;
+
+function destNeighbourhood(lat: number, lng: number): string | undefined {
+  for (const g of NEIGHBOURHOOD_GROUPS) {
+    if (haversineKm(lat, lng, g.lat, g.lng) <= g.radiusKm) return g.name_en;
+  }
+  return undefined;
+}
 
 const LEG_COLOURS: Record<string, string> = {
   WALK: '#9aaabb',
@@ -808,13 +822,19 @@ function PlannerScreenInner() {
       if (data.itineraries?.length) {
         const bestItin = data.itineraries[0];
         const totalDistM = (bestItin.legs || []).reduce((sum: number, l: Leg) => sum + (l.distance || 0), 0);
+        const primaryBusLeg = (bestItin.legs || []).find((l: Leg) => l.mode === 'BUS' || l.mode === 'TRAM' || l.mode === 'RAIL');
+        const now2 = new Date();
         const record: TripRecord = {
           id: `trip_${Date.now()}`,
           fromLabel: resolvedFrom.label, fromLat: resolvedFrom.lat!, fromLng: resolvedFrom.lng!,
           toLabel: resolvedTo.label, toLat: resolvedTo.lat!, toLng: resolvedTo.lng!,
           durationMins: Math.round((bestItin.duration || 0) / 60),
           distanceKm: Math.round(totalDistM / 100) / 10,
-          plannedAt: new Date().toISOString(),
+          plannedAt: now2.toISOString(),
+          neighbourhood: destNeighbourhood(resolvedTo.lat!, resolvedTo.lng!),
+          routeId: primaryBusLeg?.routeShortName ?? undefined,
+          hourOfDay: now2.getHours(),
+          dayOfWeek: now2.getDay(),
         };
         setTripHistory(prev => {
           // Deduplicate: if same from/to exists, move it to top with updated timestamp
@@ -932,13 +952,19 @@ function PlannerScreenInner() {
         setItineraries([combined]);
         // Save to trip history
         const multiDistM = allLegs.reduce((sum: number, l: Leg) => sum + (l.distance || 0), 0);
+        const primaryBusLegMulti = allLegs.find((l: Leg) => l.mode === 'BUS' || l.mode === 'TRAM' || l.mode === 'RAIL');
+        const now3 = new Date();
         const record: TripRecord = {
           id: `trip_${Date.now()}`,
           fromLabel: resolvedFrom.label, fromLat: resolvedFrom.lat!, fromLng: resolvedFrom.lng!,
           toLabel: resolvedTo.label, toLat: resolvedTo.lat!, toLng: resolvedTo.lng!,
           durationMins: Math.round(totalDuration / 60),
           distanceKm: Math.round(multiDistM / 100) / 10,
-          plannedAt: new Date().toISOString(),
+          plannedAt: now3.toISOString(),
+          neighbourhood: destNeighbourhood(resolvedTo.lat!, resolvedTo.lng!),
+          routeId: primaryBusLegMulti?.routeShortName ?? undefined,
+          hourOfDay: now3.getHours(),
+          dayOfWeek: now3.getDay(),
         };
         setTripHistory(prev => {
           const existingIdx = prev.findIndex(p => p.fromLabel === record.fromLabel && p.toLabel === record.toLabel);

@@ -9,6 +9,8 @@ import { SK_TRIP_HISTORY } from '../lib/storageKeys';
 import { useIsPremium } from '../lib/premium';
 import { PREMIUM_ENABLED } from '../lib/flags';
 import PaywallSheet from '../components/PaywallSheet';
+import { haversineKm } from '../lib/geo';
+import { NEIGHBOURHOOD_GROUPS } from '../lib/neighbourhoodGroups';
 
 // Types
 
@@ -21,6 +23,11 @@ type Trip = {
   durationMins: number;
   distanceKm?: number;
   plannedAt: string;
+  // Transit Memory fields
+  neighbourhood?: string;
+  routeId?: string;
+  hourOfDay?: number;
+  dayOfWeek?: number;
 };
 
 type RouteStat = { route: string; count: number; avgMins: number; bestMins: number };
@@ -93,6 +100,69 @@ export default function InsightsScreen() {
     .map(([h, v]) => ({ hour: h, avg: Math.round(v.total / v.count), count: v.count }))
     .sort((a, b) => a.avg - b.avg)
     .slice(0, 3);
+
+  // ── Transit Memory computations ──
+
+  // Top 3 visited neighbourhoods
+  const neighbourhoodCounts: Record<string, number> = {};
+  trips.forEach(tr => {
+    if (tr.neighbourhood) {
+      neighbourhoodCounts[tr.neighbourhood] = (neighbourhoodCounts[tr.neighbourhood] ?? 0) + 1;
+    }
+  });
+  const topNeighbourhoods = Object.entries(neighbourhoodCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
+  const maxNeighbourhoodCount = topNeighbourhoods[0]?.[1] ?? 1;
+
+  // Most used route
+  const routeCounts: Record<string, number> = {};
+  trips.forEach(tr => { if (tr.routeId) routeCounts[tr.routeId] = (routeCounts[tr.routeId] ?? 0) + 1; });
+  const topRouteEntry = Object.entries(routeCounts).sort((a, b) => b[1] - a[1])[0];
+
+  // Time patterns — most common hour of day (with at least 3 trips) and most common day range
+  const hourCounts: Record<number, number> = {};
+  const dayCounts: Record<number, number> = {};
+  trips.forEach(tr => {
+    if (tr.hourOfDay !== undefined) hourCounts[tr.hourOfDay] = (hourCounts[tr.hourOfDay] ?? 0) + 1;
+    if (tr.dayOfWeek !== undefined) dayCounts[tr.dayOfWeek] = (dayCounts[tr.dayOfWeek] ?? 0) + 1;
+  });
+  const peakHour = Object.entries(hourCounts)
+    .filter(([, c]) => c >= 2)
+    .sort((a, b) => b[1] - a[1])[0];
+  // Condense consecutive weekday peaks into a range label
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const topDays = Object.entries(dayCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([d]) => parseInt(d, 10))
+    .sort((a, b) => a - b);
+  const dayRangeLabel = topDays.length >= 2
+    ? `${dayNames[topDays[0]]}\u2013${dayNames[topDays[topDays.length - 1]]}`
+    : topDays.length === 1 ? dayNames[topDays[0]] : null;
+
+  // Hidden gem — a neighbourhood near a frequent destination that the user has never visited
+  const visitedNeighbourhoods = new Set(Object.keys(neighbourhoodCounts));
+  const frequentDestCoords = trips.length > 0
+    ? { lat: trips[0].toLat, lng: trips[0].toLng }
+    : null;
+  let hiddenGem: { name: string; dist: number } | null = null;
+  if (frequentDestCoords) {
+    const unvisited = NEIGHBOURHOOD_GROUPS
+      .filter(g => !visitedNeighbourhoods.has(g.name_en))
+      .map(g => ({ name: g.name_en, dist: haversineKm(frequentDestCoords.lat, frequentDestCoords.lng, g.lat, g.lng) }))
+      .filter(g => g.dist <= 3.5)
+      .sort((a, b) => a.dist - b.dist);
+    if (unvisited.length > 0) hiddenGem = unvisited[0];
+  }
+
+  // Transit stats
+  const totalTrips = trips.length;
+  const totalDistKm = trips.reduce((s, tr) => s + (tr.distanceKm ?? 0), 0);
+  const co2SavedKg = Math.round((totalDistKm * 150) / 1000 * 10) / 10; // 150g/km vs driving
+
+  // Is memory unlocked (5+ trips)
+  const memoryUnlocked = trips.length >= 5;
 
   const Card = ({ children }: { children: React.ReactNode }) => (
     <View style={{
@@ -272,6 +342,171 @@ export default function InsightsScreen() {
                   {t('Plan a trip to start seeing insights here.', 'Planifiez un trajet pour voir les statistiques ici.')}
                 </Text>
               </View>
+            )}
+
+            {/* ── Transit Memory ── */}
+            <View style={{ marginHorizontal: 20, marginTop: 8, marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+              <Ionicons name="analytics-outline" size={14} color={colours.accent} />
+              <Text style={{ fontSize: 12, fontWeight: '800', letterSpacing: 1.2, color: colours.accent }}>
+                {t('TRANSIT MEMORY', 'M\u00c9MOIRE DE TRANSIT')}
+              </Text>
+            </View>
+
+            {!memoryUnlocked ? (
+              /* Empty state — fewer than 5 trips */
+              <Card>
+                <View style={{ padding: 20, alignItems: 'center', gap: 10 }}>
+                  <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="time-outline" size={22} color={colours.accent} />
+                  </View>
+                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, textAlign: 'center' }}>
+                    {t('Your memory starts today', 'Votre m\u00e9moire commence aujourd\u2019hui')}
+                  </Text>
+                  <Text style={{ fontSize: fonts.sm, color: colours.muted, textAlign: 'center', lineHeight: 18 }}>
+                    {t(
+                      `Take ${5 - totalTrips} more trip${5 - totalTrips !== 1 ? 's' : ''} to unlock your transit patterns.`,
+                      `Faites ${5 - totalTrips} trajet${5 - totalTrips !== 1 ? 's' : ''} de plus pour d\u00e9bloquer vos habitudes.`
+                    )}
+                  </Text>
+                </View>
+              </Card>
+            ) : (
+              <>
+                {/* City explorer */}
+                {topNeighbourhoods.length > 0 && (
+                  <Card>
+                    <View style={{ padding: 16 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+                        <Ionicons name="map-outline" size={14} color={colours.muted} />
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, letterSpacing: 0.8 }}>
+                          {t('CITY EXPLORER', 'EXPLORATEUR DE VILLE')}
+                        </Text>
+                      </View>
+                      {topNeighbourhoods.map(([name, count], i) => (
+                        <View key={name} style={{ marginBottom: i < topNeighbourhoods.length - 1 ? 10 : 0 }}>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.text }}>{name}</Text>
+                            <Text style={{ fontSize: fonts.sm, color: colours.muted }}>
+                              {count} {t('visit', 'visite')}{count !== 1 ? 's' : ''}
+                            </Text>
+                          </View>
+                          <View style={{ height: 4, backgroundColor: colours.border, borderRadius: 2 }}>
+                            <View style={{
+                              height: 4, borderRadius: 2,
+                              backgroundColor: colours.accent,
+                              width: `${Math.round((count / maxNeighbourhoodCount) * 100)}%` as `${number}%`,
+                            }} />
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  </Card>
+                )}
+
+                {/* Route loyalty */}
+                {topRouteEntry && (
+                  <Card>
+                    <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="bus-outline" size={20} color={colours.accent} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, letterSpacing: 0.8, marginBottom: 3 }}>
+                          {t('ROUTE LOYALTY', 'FID\u00c9LIT\u00c9 DE LIGNE')}
+                        </Text>
+                        <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
+                          {t(
+                            `You're a Route ${topRouteEntry[0]} regular`,
+                            `Vous \u00eates r\u00e9gulier sur la ligne ${topRouteEntry[0]}`
+                          )}
+                        </Text>
+                        <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
+                          {topRouteEntry[1]} {t('trips on this route', 'trajets sur cette ligne')}
+                        </Text>
+                      </View>
+                    </View>
+                  </Card>
+                )}
+
+                {/* Time patterns */}
+                {peakHour && dayRangeLabel && (
+                  <Card>
+                    <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#F59E0B18', alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="time-outline" size={20} color="#D97706" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: colours.muted, letterSpacing: 0.8, marginBottom: 3 }}>
+                          {t('TIME PATTERNS', 'HABITUDES HORAIRES')}
+                        </Text>
+                        <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
+                          {t(
+                            `Usually ${dayRangeLabel} ${parseInt(peakHour[0], 10)}–${parseInt(peakHour[0], 10) + 1}${parseInt(peakHour[0], 10) >= 12 ? 'pm' : 'am'}`,
+                            `G\u00e9n\u00e9ralement ${dayRangeLabel} ${parseInt(peakHour[0], 10)}h\u2013${parseInt(peakHour[0], 10) + 1}h`
+                          )}
+                        </Text>
+                        <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
+                          {t('Your most common travel window', 'Votre plage horaire la plus fr\u00e9quente')}
+                        </Text>
+                      </View>
+                    </View>
+                  </Card>
+                )}
+
+                {/* Hidden gem */}
+                {hiddenGem && (
+                  <Card>
+                    <View style={{
+                      padding: 16, borderLeftWidth: 3, borderLeftColor: colours.accent,
+                    }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+                        <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+                          <Ionicons name="compass-outline" size={20} color={colours.accent} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.accent, letterSpacing: 0.8, marginBottom: 3 }}>
+                            {t('HIDDEN GEM', 'QUARTIER \u00c0 D\u00c9COUVRIR')}
+                          </Text>
+                          <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, lineHeight: 20 }}>
+                            {t(
+                              `You pass near ${hiddenGem.name} often but have never explored it`,
+                              `Vous passez pr\u00e8s de ${hiddenGem.name} souvent mais ne l\u2019avez jamais explor\u00e9`
+                            )}
+                          </Text>
+                          <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 4 }}>
+                            {Math.round(hiddenGem.dist * 10) / 10} km {t('from your usual destination', 'de votre destination habituelle')}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  </Card>
+                )}
+
+                {/* Transit stats */}
+                <Card>
+                  <View style={{ padding: 16 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, letterSpacing: 0.8, marginBottom: 14 }}>
+                      {t('TRANSIT STATS', 'STATISTIQUES DE TRANSIT')}
+                    </Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <View style={{ alignItems: 'center', flex: 1 }}>
+                        <Text style={{ fontSize: fonts.xxl, fontWeight: '700', color: colours.text }}>{totalTrips}</Text>
+                        <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted, marginTop: 2 }}>{t('trips logged', 'trajets enregistr\u00e9s')}</Text>
+                      </View>
+                      <View style={{ width: 1, backgroundColor: colours.border }} />
+                      <View style={{ alignItems: 'center', flex: 1 }}>
+                        <Text style={{ fontSize: fonts.xxl, fontWeight: '700', color: colours.text }}>{Math.round(totalDistKm)}</Text>
+                        <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted, marginTop: 2 }}>{t('km traveled', 'km parcourus')}</Text>
+                      </View>
+                      <View style={{ width: 1, backgroundColor: colours.border }} />
+                      <View style={{ alignItems: 'center', flex: 1 }}>
+                        <Text style={{ fontSize: fonts.xxl, fontWeight: '700', color: colours.accent }}>{co2SavedKg}</Text>
+                        <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted, marginTop: 2 }}>kg CO₂ {t('saved', '\u00e9vit\u00e9')}</Text>
+                      </View>
+                    </View>
+                  </View>
+                </Card>
+              </>
             )}
           </>
         )}

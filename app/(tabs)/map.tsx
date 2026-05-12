@@ -37,6 +37,7 @@ import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { haversineKm } from '../../lib/geo';
 import { LAYER_CONFIG, LAYER_ICONS, DEFAULT_LAYERS, MapPin, LayerKey, saveLayerPrefs, loadLayerPrefs } from '../../lib/mapLayers';
 import { getRouteColour } from '../../lib/routeColors';
+import { NEIGHBOURHOOD_GROUPS } from '../../lib/neighbourhoodGroups';
 
 const VEHICLES_URL    = 'https://routeo-backend.vercel.app/api/vehicles';
 const BACKEND_URL     = 'https://routeo-backend.vercel.app/api/arrivals';
@@ -70,6 +71,39 @@ const validCoord = (lat: any, lng: any) => lat != null && lng != null && !isNaN(
 
 
 export type VenueState = 'active' | 'soon' | 'upcoming' | 'closed';
+
+function mapDestNeighbourhood(lat: number, lng: number): string | undefined {
+  for (const g of NEIGHBOURHOOD_GROUPS) {
+    if (haversineKm(lat, lng, g.lat, g.lng) <= g.radiusKm) return g.name_en;
+  }
+  return undefined;
+}
+
+async function saveTripToHistory(itinerary: PlanItinerary, toPlace: { name: string; lat: number; lng: number }): Promise<void> {
+  try {
+    const totalDistM = itinerary.legs.reduce((s, l) => s + (l.distance || 0), 0);
+    const primaryBusLeg = itinerary.legs.find(l => l.mode === 'BUS' || l.mode === 'TRAM' || l.mode === 'RAIL');
+    const now = new Date();
+    const record = {
+      id: `trip_${Date.now()}`,
+      fromLabel: itinerary.legs[0]?.from?.name ?? 'Current location',
+      fromLat: 0, fromLng: 0,
+      toLabel: toPlace.name,
+      toLat: toPlace.lat, toLng: toPlace.lng,
+      durationMins: Math.round((itinerary.endTime - itinerary.startTime) / 60000),
+      distanceKm: Math.round(totalDistM / 100) / 10,
+      plannedAt: now.toISOString(),
+      neighbourhood: mapDestNeighbourhood(toPlace.lat, toPlace.lng),
+      routeId: primaryBusLeg?.routeShortName ?? undefined,
+      hourOfDay: now.getHours(),
+      dayOfWeek: now.getDay(),
+    };
+    const raw = await AsyncStorage.getItem(SK_TRIP_HISTORY);
+    const existing: typeof record[] = raw ? JSON.parse(raw) : [];
+    const updated = [record, ...existing].slice(0, 200);
+    await AsyncStorage.setItem(SK_TRIP_HISTORY, JSON.stringify(updated));
+  } catch {}
+}
 
 function parseTimeToMins(t: string): number {
   const [h, m] = t.split(':').map(Number);
@@ -2521,7 +2555,12 @@ export default function MapScreen() {
           visible={!!goItinerary}
           itinerary={goItinerary as any}
           nearbyTip={goNearbyTip}
-          onEnd={() => { setGoItinerary(null); setGoNearbyTip(null); setPlanResultsVisible(false); setPlanMode(false); setPlanToText(''); setPlanToPlace(null); }}
+          onEnd={() => {
+            if (goItinerary && planToPlace) {
+              saveTripToHistory(goItinerary, planToPlace);
+            }
+            setGoItinerary(null); setGoNearbyTip(null); setPlanResultsVisible(false); setPlanMode(false); setPlanToText(''); setPlanToPlace(null);
+          }}
           colours={colours}
           t={t}
           alerts={sheetAlerts.map((a: any) => ({ routes: a.routes || [], title: a.title || '' }))}

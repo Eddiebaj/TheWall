@@ -35,7 +35,7 @@ type Itinerary = {
 };
 
 const LEG_COLOURS: Record<string, string> = {
-  WALK: '#9aaabb', BUS: '#00A78D', TRAM: '#0057B8', RAIL: '#0057B8', SUBWAY: '#0057B8', FERRY: '#7b5ea7', CAR: '#e8a020', BICYCLE: '#34c759',
+  WALK: '#9aaabb', BUS: '#00C07A', TRAM: '#0057B8', RAIL: '#0057B8', SUBWAY: '#0057B8', FERRY: '#7b5ea7', CAR: '#e8a020', BICYCLE: '#34c759',
 };
 const LEG_ICONS: Record<string, string> = {
   WALK: 'walk', BUS: 'bus', TRAM: 'train', RAIL: 'train', SUBWAY: 'train', FERRY: 'boat', CAR: 'car', BICYCLE: 'bicycle',
@@ -513,7 +513,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
   const isCar = currentLeg.mode === 'CAR';
   const isBike = currentLeg.mode === 'BICYCLE';
   const isTransit = !isWalk && !isCar && !isBike;
-  const legColor = LEG_COLOURS[currentLeg.mode] || '#00A78D';
+  const legColor = LEG_COLOURS[currentLeg.mode] || '#00C07A';
   const legIcon = LEG_ICONS[currentLeg.mode] || 'bus';
   const departureMs = liveArrival || currentLeg.startTime;
   const countdownSec = Math.max(0, Math.round((departureMs - now) / 1000));
@@ -588,7 +588,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
             </View>
             <View>
               <Text style={{ fontSize: 22, fontWeight: '800', color: colours.text }}>{t('Active Trip', 'Trajet actif')}</Text>
-              <Text style={{ fontSize: 13, color: '#00A78D', fontWeight: '600' }}>
+              <Text style={{ fontSize: 13, color: '#00C07A', fontWeight: '600' }}>
                 {t('Arrives', 'Arrivee')} {fmtTimeFromMs(liveEta || itinerary.endTime)} · {fmtDuration((liveEta || itinerary.endTime) - now)}
               </Text>
             </View>
@@ -615,7 +615,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
 
         {/* Progress bar */}
         <View style={{ marginHorizontal: 20, height: 4, borderRadius: 2, backgroundColor: colours.border, marginBottom: 0 }}>
-          <View style={{ height: 4, borderRadius: 2, backgroundColor: '#00A78D', width: `${Math.round(progressFraction * 100)}%` as `${number}%` }} />
+          <View style={{ height: 4, borderRadius: 2, backgroundColor: '#00C07A', width: `${Math.round(progressFraction * 100)}%` as `${number}%` }} />
         </View>
 
         {/* Map section — 55% screen height */}
@@ -664,7 +664,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
               {Marker && busPosition && (
                 <Marker coordinate={{ latitude: busPosition.lat, longitude: busPosition.lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false}>
                   <View style={{ alignItems: 'center' }}>
-                    <View style={{ backgroundColor: busPosition.agency === 'STO' ? '#00A78D' : '#CE1126', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1.5, borderColor: 'white', flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                    <View style={{ backgroundColor: busPosition.agency === 'STO' ? '#00C07A' : '#CE1126', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1.5, borderColor: 'white', flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                       <Ionicons name="bus" size={10} color="white" />
                       <Text style={{ fontSize: 9, fontWeight: '700', color: 'white' }}>{busPosition.routeId}</Text>
                     </View>
