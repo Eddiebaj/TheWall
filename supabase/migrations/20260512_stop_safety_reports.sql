@@ -12,13 +12,16 @@ CREATE TABLE IF NOT EXISTS stop_safety_reports (
 
 ALTER TABLE stop_safety_reports ENABLE ROW LEVEL SECURITY;
 
--- Anon can only insert
-CREATE POLICY "anon_insert_safety" ON stop_safety_reports
-  FOR INSERT TO anon WITH CHECK (true);
+DO $$ BEGIN
+  CREATE POLICY "anon_insert_safety" ON stop_safety_reports
+    FOR INSERT TO anon WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- Service role (backend) can select for aggregation
-CREATE POLICY "service_select_safety" ON stop_safety_reports
-  FOR SELECT TO service_role USING (true);
+DO $$ BEGIN
+  CREATE POLICY "service_select_safety" ON stop_safety_reports
+    FOR SELECT TO service_role USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- Index for recent lookups per stop
-CREATE INDEX idx_stop_safety_stop_id ON stop_safety_reports(stop_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_stop_safety_stop_id ON stop_safety_reports(stop_id, created_at DESC);
