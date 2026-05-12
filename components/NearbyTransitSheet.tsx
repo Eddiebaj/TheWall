@@ -834,7 +834,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
     return (
       <BottomSheet
         ref={ref}
-        index={1}
+        index={0}
         snapPoints={SNAP_POINTS}
         backgroundStyle={{
           backgroundColor: colours.card,
