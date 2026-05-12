@@ -195,7 +195,7 @@ const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) =>
     : bus.occupancy === 'high' ? '#EF4444'
     : isSTO ? '#00A78D' : '#CE1126';
 
-  const bearing = bus.bearing ?? 0;
+  const bearing = (bus.bearing != null && !isNaN(bus.bearing)) ? bus.bearing : 0;
 
   return (
     <Marker

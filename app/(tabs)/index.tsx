@@ -325,7 +325,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   const isBoardLateNight = boardHour >= 20 || boardHour < 2;
 
   useEffect(() => {
-    if (!isBoardLateNight || (item.type !== 'bus_stop' && item.type !== 'lrt_station') || previewLoading || !preview.length) return;
+    if (!isBoardLateNight || (item.type !== 'bus_stop' && item.type !== 'lrt_station') || previewLoading) return;
     const routeId = preview[0]?.routeId?.split('-')[0];
     if (!routeId || lastBusFetchedRef.current === routeId) return;
     lastBusFetchedRef.current = routeId;
@@ -619,6 +619,38 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   const activeAlerts = alerts.filter((a: any) => a.category !== 'accessibility');
   const matchingAlertRoutes = activeAlerts.flatMap((a: any) => (a.routes || []).filter((r: string) => stopRouteIds.includes(r)));
   const alertRouteSet = [...new Set(matchingAlertRoutes)];
+
+  // Last bus warning node — computed once before render
+  let lastBusNode: React.ReactNode = null;
+  if (isBoardLateNight && lastBusRouteInfo?.lastBus) {
+    const nowMins2 = new Date().getHours() * 60 + new Date().getMinutes();
+    const [lh2, lm2] = lastBusRouteInfo.lastBus.split(':').map(Number);
+    let lbMins2 = lh2 * 60 + lm2;
+    if (nowMins2 >= 1200 && lbMins2 < 180) lbMins2 += 1440;
+    const minsUntil2 = lbMins2 - nowMins2;
+    if (minsUntil2 >= 0 && minsUntil2 <= 30) {
+      lastBusNode = (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 }}>
+          <Ionicons name="time-outline" size={9} color="#D97706" />
+          <Text style={{ fontSize: 9, color: '#D97706', fontWeight: '700' }} numberOfLines={1}>
+            {t(`Last ${lastBusRouteInfo.routeId} in ${minsUntil2}m`, `Dernier ${lastBusRouteInfo.routeId} dans ${minsUntil2}m`)}
+          </Text>
+        </View>
+      );
+    } else if (minsUntil2 < 0) {
+      lastBusNode = (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 }}>
+          <Ionicons name="moon-outline" size={9} color={colours.muted} />
+          <Text style={{ fontSize: 9, color: colours.muted, fontWeight: '600' }} numberOfLines={1}>
+            {lastBusRouteInfo.firstBus
+              ? t(`Next: ${lastBusRouteInfo.firstBus}`, `Prochain: ${lastBusRouteInfo.firstBus}`)
+              : t('No more tonight', 'Plus de bus ce soir')}
+          </Text>
+        </View>
+      );
+    }
+  }
+
   return (
     <ScaleDecorator>
     <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
@@ -682,98 +714,11 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
           })
         )}
       </View>
-      {(() => {
-        if (!isBoardLateNight || !lastBusRouteInfo?.lastBus) return null;
-        const nowMins2 = new Date().getHours() * 60 + new Date().getMinutes();
-        const [lh2, lm2] = lastBusRouteInfo.lastBus.split(':').map(Number);
-        let lbMins2 = lh2 * 60 + lm2;
-        if (nowMins2 >= 1200 && lbMins2 < 180) lbMins2 += 1440;
-        const minsUntil2 = lbMins2 - nowMins2;
-        if (minsUntil2 >= 0 && minsUntil2 <= 30) {
-          return (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 }}>
-              <Ionicons name="time-outline" size={9} color="#D97706" />
-              <Text style={{ fontSize: 9, color: '#D97706', fontWeight: '700' }} numberOfLines={1}>
-                {t(`Last ${lastBusRouteInfo.routeId} in ${minsUntil2}m`, `Dernier ${lastBusRouteInfo.routeId} dans ${minsUntil2}m`)}
-              </Text>
-            </View>
-          );
-        }
-        if (minsUntil2 < 0) {
-          return (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 }}>
-              <Ionicons name="moon-outline" size={9} color={colours.muted} />
-              <Text style={{ fontSize: 9, color: colours.muted, fontWeight: '600' }} numberOfLines={1}>
-                {lastBusRouteInfo.firstBus
-                  ? t(`Next: ${lastBusRouteInfo.firstBus}`, `Prochain: ${lastBusRouteInfo.firstBus}`)
-                  : t('No more tonight', 'Plus de bus ce soir')}
-              </Text>
-            </View>
-          );
-        }
-        return null;
-      })()}
+      {lastBusNode}
     </TouchableOpacity>
     </ScaleDecorator>
   );
 }
-function SavedStopCard({ fav, isActive, colours, fonts, t, onPress, onLongPress, cardShadow }: any) {
-  const [preview, setPreview] = useState<{ routeId: string; headsign: string; minsAway: number }[]>([]);
-  const [previewLoading, setPreviewLoading] = useState(true);
-  const [previewSource, setPreviewSource] = useState<'gtfs-rt' | 'gtfs-static' | 'sto-gtfs-rt' | null>(null);
-  const isSTO = isStoStop(fav.id);
-  const stopColor = isSTO ? '#0072bc' : colours.accent;
-  useEffect(() => {
-    let cancelled = false;
-    const fetchPreview = async () => {
-      try {
-        const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${fav.id}`);
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const data = await resp.json();
-        if (!cancelled) {
-          setPreview((data.arrivals || []).slice(0, 2).map((a: any) => ({ routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway })));
-          setPreviewSource(data.source === 'sto-gtfs-rt' ? 'sto-gtfs-rt' : data.source === 'gtfs-rt' ? 'gtfs-rt' : 'gtfs-static');
-        }
-      } catch { if (!cancelled) setPreview([]); }
-      finally { if (!cancelled) setPreviewLoading(false); }
-    };
-    fetchPreview();
-    return () => { cancelled = true; };
-  }, [fav.id]);
-  const isLive = previewSource === 'gtfs-rt' || previewSource === 'sto-gtfs-rt';
-  const liveColor = isSTO ? '#0072bc' : '#22c55e';
-  return (
-    <TouchableOpacity style={[{ width: 152, height: 148, borderRadius: 14, padding: 12, backgroundColor: isActive ? stopColor : colours.surface, borderWidth: 1, borderColor: isActive ? stopColor : colours.border, justifyContent: 'space-between' }, cardShadow]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : stopColor + '18', alignItems: 'center', justifyContent: 'center' }}>
-          <Ionicons name="bus" size={12} color={isActive ? 'white' : stopColor} />
-        </View>
-        <Text style={{ fontSize: 10, fontWeight: '700', color: isActive ? 'rgba(255,255,255,0.7)' : (isSTO ? '#0072bc' : colours.muted), textTransform: 'uppercase', letterSpacing: 0.5 }}>{isSTO ? 'STO' : t('Stop', 'Arrêt')}</Text>
-        {!previewLoading && preview.length > 0 && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-            <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: isLive ? liveColor : (isActive ? 'rgba(255,255,255,0.5)' : colours.muted) }} />
-            <Text style={{ fontSize: 8, fontWeight: '700', color: isLive ? liveColor : (isActive ? 'rgba(255,255,255,0.5)' : colours.muted) }}>{isLive ? 'LIVE' : 'SCHED'}</Text>
-          </View>
-        )}
-      </View>
-      <Text style={{ fontSize: 14, fontWeight: '800', color: isActive ? 'white' : colours.text, lineHeight: 18 }} numberOfLines={2}>{fav.name}</Text>
-      <View style={{ gap: 5 }}>
-        {previewLoading ? <ActivityIndicator size="small" color={isActive ? 'rgba(255,255,255,0.6)' : stopColor} /> : preview.length === 0 ? <Text style={{ fontSize: 11, color: isActive ? 'rgba(255,255,255,0.5)' : colours.muted }}>{t('No arrivals', 'Aucune arrivée')}</Text> : (
-          preview.map((a, i) => (
-            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-              <View style={{ backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : stopColor + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, minWidth: 28, alignItems: 'center' }}>
-                <Text style={{ fontSize: 10, fontWeight: '800', color: isActive ? 'white' : stopColor }}>{(a.routeId || '').split('-')[0]}</Text>
-              </View>
-              <Text style={{ fontSize: 11, color: isActive ? 'rgba(255,255,255,0.7)' : colours.muted, flex: 1 }} numberOfLines={1}>{a.headsign ? `→ ${a.headsign}` : ''}</Text>
-              <Text style={{ fontSize: 12, fontWeight: '800', color: isActive ? 'white' : (a.minsAway <= 2 ? colours.red : stopColor) }}>{a.minsAway === 0 ? t('Now', 'Maint.') : `${a.minsAway}m`}</Text>
-            </View>
-          ))
-        )}
-      </View>
-    </TouchableOpacity>
-  );
-}
-
 // ── GasPricesExpanded ────────────────────────────────────────────
 function GasPricesExpanded({ colours, fonts }: { colours: any; fonts: any }) {
   const [stations, setStations] = useState<{ name: string; price: string; address: string }[]>([]);
@@ -4219,13 +4164,12 @@ function LiveScreenInner() {
               <Ionicons name={isBoardSaved({ type: 'service_alert' }) ? 'bookmark' : 'bookmark-outline'} size={18} color={isBoardSaved({ type: 'service_alert' }) ? colours.accent : colours.muted} />
             </TouchableOpacity>
           </View>
-          <TouchableOpacity style={[styles.notifBar, { backgroundColor: hasAlerts ? alertDotColour() + '12' : colours.surface, borderColor: hasAlerts ? alertDotColour() : colours.border, ...cardShadow }]} onPress={() => setAlertsModalVisible(true)} accessibilityRole="button" accessibilityLabel={t('View service alerts', 'Voir les alertes de service')}>
+          <View style={[styles.notifBar, { backgroundColor: hasAlerts ? alertDotColour() + '12' : colours.surface, borderColor: hasAlerts ? alertDotColour() : colours.border, ...cardShadow }]}>
             <View style={styles.notifLeft}>
               {alertsLoading ? <ActivityIndicator size="small" color={colours.muted} style={{ marginRight: 8 }} /> : <View style={[styles.notifDot, { backgroundColor: alertDotColour() }]} />}
               <Text style={{ color: colours.text, fontSize: fonts.md, fontWeight: '500', flex: 1 }} numberOfLines={1}>{alertBarText()}</Text>
             </View>
-            <Text style={{ color: hasAlerts ? alertDotColour() : colours.accent, fontSize: fonts.sm, fontWeight: '600', marginLeft: 8 }}>{t('View all →', 'Voir tout →')}</Text>
-          </TouchableOpacity>
+          </View>
         </>)}</React.Fragment>
       );
 
