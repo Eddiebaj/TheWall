@@ -2166,41 +2166,12 @@ export default function MapScreen() {
           )}
         </View>
 
-        {/* Category pills + layer chips — hidden until search is focused */}
-        <Animated.View style={{ maxHeight: filterExpandAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 120] }), opacity: filterExpandAnim, overflow: 'hidden' }}>
-        {/* Category pills — hidden in plan mode */}
-        {!planMode && <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} contentContainerStyle={{ gap: 6, paddingRight: 8 }}>
-          {([
-            { key: 'all', label_en: 'Explore', label_fr: 'Explorer', icon: 'apps-outline' as const, color: colours.accent },
-            { key: 'bus', label_en: 'Transit', label_fr: 'Transit', icon: 'bus-outline' as const, color: '#CE1126' },
-            { key: 'gyms', label_en: 'Fitness', label_fr: 'Sport', icon: 'barbell-outline' as const, color: '#2ECC71' },
-            { key: 'grocery', label_en: 'Shopping', label_fr: 'Courses', icon: 'cart-outline' as const, color: '#3498db' },
-            { key: 'saved', label_en: 'Saved', label_fr: 'Favoris', icon: 'heart' as const, color: '#e74c3c' },
-          ] as const).map(f => {
-            const active = filters.has(f.key);
-            const bg = active ? f.color : colours.surface;
-            const border = active ? f.color : colours.border;
-            return (
-              <TouchableOpacity key={f.key}
-                activeOpacity={0.7}
-                style={{ borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: bg, borderWidth: 1, borderColor: border, alignItems: 'center', justifyContent: 'center', gap: 2 }}
-                onPress={() => toggleFilter(f.key)}
-                accessibilityRole="button"
-                accessibilityLabel={t(`Filter by ${f.label_en}`, `Filtrer par ${f.label_fr}`)}
-                accessibilityState={{ selected: active }}>
-                <Ionicons name={f.icon} size={16} color={active ? 'white' : colours.muted} />
-                <Text style={{ fontSize: 9, fontWeight: '600', color: active ? 'white' : colours.muted }} allowFontScaling={false}>{language === 'fr' ? f.label_fr : f.label_en}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>}
-
-        {/* Layer toggle chips — inline below category pills */}
+        {/* Layer toggle chips — always visible below Just Go / Reachable */}
         {!planMode && (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={{ marginTop: 8 }}
+            style={{ marginTop: 6 }}
             contentContainerStyle={{ gap: 8, paddingRight: 8 }}
           >
             {(Object.entries(LAYER_CONFIG) as [LayerKey, typeof LAYER_CONFIG[LayerKey]][]).map(([key, config]) => {
@@ -2235,6 +2206,34 @@ export default function MapScreen() {
             })}
           </ScrollView>
         )}
+
+        {/* Category pills — slide in when search is focused */}
+        <Animated.View style={{ maxHeight: filterExpandAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 70] }), opacity: filterExpandAnim, overflow: 'hidden' }}>
+        {!planMode && <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} contentContainerStyle={{ gap: 6, paddingRight: 8 }}>
+          {([
+            { key: 'all', label_en: 'Explore', label_fr: 'Explorer', icon: 'apps-outline' as const, color: colours.accent },
+            { key: 'bus', label_en: 'Transit', label_fr: 'Transit', icon: 'bus-outline' as const, color: '#CE1126' },
+            { key: 'gyms', label_en: 'Fitness', label_fr: 'Sport', icon: 'barbell-outline' as const, color: '#2ECC71' },
+            { key: 'grocery', label_en: 'Shopping', label_fr: 'Courses', icon: 'cart-outline' as const, color: '#3498db' },
+            { key: 'saved', label_en: 'Saved', label_fr: 'Favoris', icon: 'heart' as const, color: '#e74c3c' },
+          ] as const).map(f => {
+            const active = filters.has(f.key);
+            const bg = active ? f.color : colours.surface;
+            const border = active ? f.color : colours.border;
+            return (
+              <TouchableOpacity key={f.key}
+                activeOpacity={0.7}
+                style={{ borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: bg, borderWidth: 1, borderColor: border, alignItems: 'center', justifyContent: 'center', gap: 2 }}
+                onPress={() => toggleFilter(f.key)}
+                accessibilityRole="button"
+                accessibilityLabel={t(`Filter by ${f.label_en}`, `Filtrer par ${f.label_fr}`)}
+                accessibilityState={{ selected: active }}>
+                <Ionicons name={f.icon} size={16} color={active ? 'white' : colours.muted} />
+                <Text style={{ fontSize: 9, fontWeight: '600', color: active ? 'white' : colours.muted }} allowFontScaling={false}>{language === 'fr' ? f.label_fr : f.label_en}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>}
         </Animated.View>
 
         {error && !planMode ? <Text style={{ fontSize: 11, color: isLight ? '#DC2626' : '#F87171', marginTop: 6 }}>{error}</Text> : null}
