@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, ImageBackground, KeyboardAvoidingView, Linking,
   Modal, Platform, RefreshControl, ScrollView, StatusBar,
@@ -11,7 +11,7 @@ import { useApp } from '../../context/AppContext';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { cardShadow as sharedCardShadow } from '../../lib/styles';
 import { NewsArticle, timeAgo } from '../../lib/newsData';
-import { SK_NEWS_CACHE } from '../../lib/storageKeys';
+import { SK_NEWS_CACHE, SK_EVENT_PREFERENCES } from '../../lib/storageKeys';
 import { supabase } from '../../lib/supabase';
 import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
 import { FeedCardSkeleton, HorizontalCardsSkeleton } from '../../components/Shimmer';
@@ -50,6 +50,7 @@ type WeekendEvent = {
   url: string;
   image?: string;
   source: 'ticketmaster' | 'eventbrite' | 'happyhour';
+  category?: string;
 };
 
 function DiscoverScreenInner() {
@@ -69,6 +70,7 @@ function DiscoverScreenInner() {
   const [weekendEvents, setWeekendEvents] = useState<WeekendEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [rsvpCounts, setRsvpCounts] = useState<Record<string, number>>({});
+  const [eventPrefs, setEventPrefs] = useState<Record<string, number>>({});
   const [dealsLoading, setDealsLoading] = useState(true);
   const [dealsError, setDealsError] = useState(false);
   const [eventsError, setEventsError] = useState(false);
@@ -108,6 +110,9 @@ function DiscoverScreenInner() {
       .catch(() => { setDealsLoading(false); setDealsError(true); });
     fetchWeekendEvents();
     fetchBusinessDeals();
+    AsyncStorage.getItem(SK_EVENT_PREFERENCES).then(raw => {
+      if (raw) { try { setEventPrefs(JSON.parse(raw)); } catch (e) {} }
+    }).catch(() => {});
   }, []);
 
   const fetchBusinessDeals = async () => {
@@ -171,6 +176,7 @@ function DiscoverScreenInner() {
           url: e.url,
           image: e.images?.find((img: any) => img.ratio === '16_9' && img.width > 400)?.url || e.images?.[0]?.url,
           source: 'ticketmaster' as const,
+          category: e.classifications?.[0]?.segment?.name || e.classifications?.[0]?.genre?.name,
         }));
         setWeekendEvents(evs);
       // Batch-fetch RSVP counts for all events
@@ -212,6 +218,30 @@ function DiscoverScreenInner() {
   };
 
   const todayDow = new Date().getDay();
+
+  const handleEventGoing = useCallback((eventId: string) => {
+    const ev = weekendEvents.find(e => e.id === eventId);
+    if (!ev?.category) return;
+    const updated = { ...eventPrefs, [ev.category]: (eventPrefs[ev.category] ?? 0) + 1 };
+    setEventPrefs(updated);
+    AsyncStorage.setItem(SK_EVENT_PREFERENCES, JSON.stringify(updated)).catch(() => {});
+  }, [weekendEvents, eventPrefs]);
+
+  const sortedEvents = useMemo(() => {
+    const now = new Date();
+    const totalPrefs = Object.values(eventPrefs).reduce((s, n) => s + n, 0) || 1;
+    return [...weekendEvents].sort((a, b) => {
+      const prefA = a.category ? (eventPrefs[a.category] ?? 0) / totalPrefs : 0;
+      const prefB = b.category ? (eventPrefs[b.category] ?? 0) / totalPrefs : 0;
+      const dateA = a.date ? new Date(a.date + 'T00:00:00').getTime() : 0;
+      const dateB = b.date ? new Date(b.date + 'T00:00:00').getTime() : 0;
+      const recencyA = dateA > 0 ? Math.max(0, 1 - (dateA - now.getTime()) / (7 * 24 * 60 * 60 * 1000)) : 0;
+      const recencyB = dateB > 0 ? Math.max(0, 1 - (dateB - now.getTime()) / (7 * 24 * 60 * 60 * 1000)) : 0;
+      const scoreA = prefA * 0.6 + recencyA * 0.4;
+      const scoreB = prefB * 0.6 + recencyB * 0.4;
+      return scoreB - scoreA;
+    });
+  }, [weekendEvents, eventPrefs]);
 
   return (
     <View style={{ flex: 1, backgroundColor: colours.bg }}>
@@ -334,46 +364,79 @@ function DiscoverScreenInner() {
             </View>
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
-              {weekendEvents.map(ev => (
-                <TouchableOpacity
-                  key={ev.id}
-                  activeOpacity={0.7}
-                  onPress={() => ev.url && Linking.openURL(ev.url).catch(() => {})}
-                  accessibilityRole="button"
-                  accessibilityLabel={ev.name}
-                  style={[{ width: 200, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface }, cardShadow]}
-                >
-                  {ev.image ? (
-                    <ImageBackground source={{ uri: ev.image }} style={{ width: '100%', height: 100 }} resizeMode="cover">
-                      <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 40, backgroundColor: 'rgba(0,0,0,0.3)' }} />
-                      {(rsvpCounts[ev.id] ?? 0) > 0 && (
-                        <View style={{ position: 'absolute', top: 6, right: 6, backgroundColor: '#00A78D', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3 }}>
-                          <Text style={{ fontSize: 10, fontWeight: '700', color: '#fff' }}>{rsvpCounts[ev.id]} {t('going', 'participants')}</Text>
+              {sortedEvents.map(ev => {
+                const now = new Date();
+                const todayStr = now.toLocaleDateString('en-CA');
+                const isTonightOnly = ev.date === todayStr;
+                const evTimeMins = ev.time ? (() => { const [h, m] = ev.time!.split(':').map(Number); return h * 60 + m; })() : null;
+                const nowMins = now.getHours() * 60 + now.getMinutes();
+                const isStartingSoon = evTimeMins !== null && evTimeMins > nowMins && evTimeMins - nowMins <= 45;
+                const goingCount = rsvpCounts[ev.id] ?? 0;
+                return (
+                  <TouchableOpacity
+                    key={ev.id}
+                    activeOpacity={0.7}
+                    onPress={() => ev.url && Linking.openURL(ev.url).catch(() => {})}
+                    accessibilityRole="button"
+                    accessibilityLabel={ev.name}
+                    style={[{ width: 200, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface }, cardShadow]}
+                  >
+                    {ev.image ? (
+                      <ImageBackground source={{ uri: ev.image }} style={{ width: '100%', height: 100 }} resizeMode="cover">
+                        <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 40, backgroundColor: 'rgba(0,0,0,0.3)' }} />
+                        <View style={{ position: 'absolute', top: 6, left: 6, flexDirection: 'row', gap: 4 }}>
+                          {isStartingSoon && (
+                            <View style={{ backgroundColor: '#FF6B00', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
+                              <Text style={{ fontSize: 9, fontWeight: '700', color: '#fff' }}>{t('Starting soon', 'Bient\u00f4t')}</Text>
+                            </View>
+                          )}
+                          {isTonightOnly && !isStartingSoon && (
+                            <View style={{ backgroundColor: '#8B5CF6', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
+                              <Text style={{ fontSize: 9, fontWeight: '700', color: '#fff' }}>{t('Tonight only', 'Ce soir seulement')}</Text>
+                            </View>
+                          )}
                         </View>
-                      )}
-                    </ImageBackground>
-                  ) : (
-                    <View style={{ width: '100%', height: 100, backgroundColor: '#026CDF18', alignItems: 'center', justifyContent: 'center' }}>
-                      <Ionicons name="ticket" size={28} color="#026CDF" />
-                      {(rsvpCounts[ev.id] ?? 0) > 0 && (
-                        <View style={{ position: 'absolute', top: 6, right: 6, backgroundColor: '#00A78D', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3 }}>
-                          <Text style={{ fontSize: 10, fontWeight: '700', color: '#fff' }}>{rsvpCounts[ev.id]} {t('going', 'participants')}</Text>
+                        {goingCount > 0 && (
+                          <View style={{ position: 'absolute', top: 6, right: 6, backgroundColor: '#00A78D', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3 }}>
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#fff' }}>{goingCount} {t('going', 'participants')}</Text>
+                          </View>
+                        )}
+                      </ImageBackground>
+                    ) : (
+                      <View style={{ width: '100%', height: 100, backgroundColor: '#026CDF18', alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="ticket" size={28} color="#026CDF" />
+                        <View style={{ position: 'absolute', top: 6, left: 6, flexDirection: 'row', gap: 4 }}>
+                          {isStartingSoon && (
+                            <View style={{ backgroundColor: '#FF6B00', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
+                              <Text style={{ fontSize: 9, fontWeight: '700', color: '#fff' }}>{t('Starting soon', 'Bient\u00f4t')}</Text>
+                            </View>
+                          )}
+                          {isTonightOnly && !isStartingSoon && (
+                            <View style={{ backgroundColor: '#8B5CF6', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
+                              <Text style={{ fontSize: 9, fontWeight: '700', color: '#fff' }}>{t('Tonight only', 'Ce soir seulement')}</Text>
+                            </View>
+                          )}
                         </View>
-                      )}
+                        {goingCount > 0 && (
+                          <View style={{ position: 'absolute', top: 6, right: 6, backgroundColor: '#00A78D', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3 }}>
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#fff' }}>{goingCount} {t('going', 'participants')}</Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+                    <View style={{ padding: 10 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }} numberOfLines={2}>{ev.name}</Text>
+                      <Text style={{ fontSize: 11, color: colours.muted, marginTop: 3 }} numberOfLines={1}>
+                        {ev.venue}{ev.time ? ` · ${ev.time}` : ''}
+                      </Text>
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: colours.accent, marginTop: 2 }}>
+                        {new Date(ev.date + 'T12:00:00').toLocaleDateString(language === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'short', month: 'short', day: 'numeric' })}
+                      </Text>
                     </View>
-                  )}
-                  <View style={{ padding: 10 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }} numberOfLines={2}>{ev.name}</Text>
-                    <Text style={{ fontSize: 11, color: colours.muted, marginTop: 3 }} numberOfLines={1}>
-                      {ev.venue}{ev.time ? ` · ${ev.time}` : ''}
-                    </Text>
-                    <Text style={{ fontSize: 11, fontWeight: '600', color: colours.accent, marginTop: 2 }}>
-                      {new Date(ev.date + 'T12:00:00').toLocaleDateString(language === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'short', month: 'short', day: 'numeric' })}
-                    </Text>
-                  </View>
-                  <RsvpButton eventId={ev.id} eventSource={ev.source} />
-                </TouchableOpacity>
-              ))}
+                    <RsvpButton eventId={ev.id} eventSource={ev.source} onGoing={handleEventGoing} />
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
           )}
         </View>

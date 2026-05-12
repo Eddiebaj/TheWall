@@ -24,6 +24,7 @@ import PaywallSheet from './PaywallSheet';
 type Props = {
   eventId: string;
   eventSource: 'ticketmaster' | 'eventbrite' | 'happyhour';
+  onGoing?: (eventId: string) => void;
 };
 
 type Attendee = { user_id: string; created_at: string };
@@ -34,7 +35,7 @@ function anonLabel(userId: string): string {
   return `Rider ${suffix}`;
 }
 
-export default function RsvpButton({ eventId, eventSource }: Props) {
+export default function RsvpButton({ eventId, eventSource, onGoing }: Props) {
   const { colours, fonts, t } = useApp();
   const isPremium = useIsPremium();
   const insets = useSafeAreaInsets();
@@ -87,6 +88,7 @@ export default function RsvpButton({ eventId, eventSource }: Props) {
           .insert({ event_id: eventId, event_source: eventSource, user_id: deviceId });
         setGoing(true);
         setCount(prev => prev + 1);
+        onGoing?.(eventId);
       }
     } catch (e) {
       if (__DEV__) console.warn('[RsvpButton] toggle error:', e);

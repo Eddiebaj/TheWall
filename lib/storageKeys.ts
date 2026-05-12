@@ -80,3 +80,4 @@ export const SK_DEAL_SUBMIT_PREFIX = 'routeo_deal_submit_';
 export const SK_COMMUTE_ALERT = 'routeo_commute_alert';
 export const SK_CRASH_LOG = 'routeo_crash_log';
 export const SK_ANALYTICS = 'routeo_analytics';
+export const SK_EVENT_PREFERENCES = 'routeo_event_preferences';

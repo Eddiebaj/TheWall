@@ -532,13 +532,15 @@ export default function MapScreen() {
     const allActiveVenues = [...activeVenues, ...communityAsVenues];
     const clusters = clusterVenues(allActiveVenues, 800);
     clusters.forEach(cluster => {
+      const opacity = Math.min(0.4, 0.1 + cluster.count * 0.06);
+      const strokeOpacity = Math.min(0.7, 0.25 + cluster.count * 0.08);
       zones.push({
         id: `happy-${cluster.centroidLat.toFixed(4)}-${cluster.centroidLng.toFixed(4)}`,
         lat: cluster.centroidLat,
         lng: cluster.centroidLng,
         radius: 300 + (cluster.count * 50),
-        color: 'rgba(255, 165, 0, 0.15)',
-        strokeColor: 'rgba(255, 165, 0, 0.4)',
+        color: `rgba(255, 165, 0, ${opacity})`,
+        strokeColor: `rgba(255, 165, 0, ${strokeOpacity})`,
         count: cluster.count,
         label: `${cluster.count} deals active`,
       });
@@ -1376,8 +1378,8 @@ export default function MapScreen() {
         onPanDrag={() => { if (tappedLocation) dismissTapped(); }}
         onRegionChangeComplete={(r) => setRegion(r)}
       >
-        {/* Heat zone circles — always visible when zoomed to neighbourhood level */}
-        {mapReady && Circle && !zoomTooFar && heatZones.map(zone => (
+        {/* Heat zone circles — visible when Deals layer is active and zoomed to neighbourhood level */}
+        {mapReady && Circle && !zoomTooFar && activeLayers.deals && heatZones.map(zone => (
           <Circle
             key={zone.id}
             center={{ latitude: zone.lat, longitude: zone.lng }}
