@@ -444,6 +444,7 @@ export default function MapScreen() {
   const [planResultsVisible, setPlanResultsVisible] = useState(false);
   const [planFromCoords, setPlanFromCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [showMapTooltip, setShowMapTooltip] = useState(false);
+  const [plannerUnavailable, setPlannerUnavailable] = useState(false);
   const [goItinerary, setGoItinerary] = useState<PlanItinerary | null>(null);
   const [justGoLoading, setJustGoLoading] = useState(false);
   const [goNearbyTip, setGoNearbyTip] = useState<string | null>(null);
@@ -1637,6 +1638,13 @@ export default function MapScreen() {
       const r = await fetchWithTimeout(url, { timeout: 15000 });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const data = await r.json();
+      if (data?.error === 'planner_unavailable') {
+        setPlannerUnavailable(true);
+        setPlanItineraries([]);
+        setPlanResultsVisible(true);
+        return;
+      }
+      setPlannerUnavailable(false);
       const itins: PlanItinerary[] = (data?.itineraries || []).slice(0, 3);
       setPlanItineraries(itins);
       setPlanResultsVisible(true);
@@ -3003,7 +3011,19 @@ export default function MapScreen() {
             )}
             <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}>
               {planItineraries.length === 0 ? (
-                <Text style={{ color: colours.muted, textAlign: 'center', paddingVertical: 32 }}>{t('No routes found', 'Aucun itin\u00e9raire trouv\u00e9')}</Text>
+                plannerUnavailable ? (
+                  <View style={{ alignItems: 'center', paddingVertical: 32, gap: 10 }}>
+                    <Ionicons name="warning-outline" size={32} color={colours.muted} />
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text, textAlign: 'center' }}>
+                      {t('Trip planner temporarily unavailable', 'Planificateur de trajet temporairement indisponible')}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: colours.muted, textAlign: 'center' }}>
+                      {t('Try again in a few minutes', 'Réessayez dans quelques minutes')}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={{ color: colours.muted, textAlign: 'center', paddingVertical: 32 }}>{t('No routes found', 'Aucun itinéraire trouvé')}</Text>
+                )
               ) : (() => {
                 const isWalkOnly = planItineraries.every(it => it.legs.every(l => l.mode === 'WALK'));
                 if (isWalkOnly) {

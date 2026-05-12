@@ -32,6 +32,8 @@ export interface NearbyStop {
   arrivalsLoading: boolean;
   ghostRoutes?: string[];
   ghostReports?: Record<string, { total: number; uniqueDevices: number; confirmedCount: number; netScore: number; likelyGhost: boolean }>;
+  stale?: boolean;
+  staleAgeSeconds?: number;
   cached?: boolean;
   cachedAt?: number;
 }
@@ -650,6 +652,16 @@ const IntersectionRow = React.memo(function IntersectionRow({
 
         {/* Arrivals for active direction — ghost warnings render inline inside ArrivalPills */}
         <ArrivalPills stop={activeStop} colours={colours} t={t} routeAlertMap={routeAlertMap} />
+
+        {/* Stale cache indicator — shown when live fetch failed */}
+        {activeStop.stale && activeStop.staleAgeSeconds != null && (
+          <Text style={{ fontSize: 10, color: colours.muted, marginTop: 3, fontStyle: 'italic' }}>
+            {t(
+              `Last updated ${activeStop.staleAgeSeconds < 60 ? `${activeStop.staleAgeSeconds}s` : `${Math.round(activeStop.staleAgeSeconds / 60)}m`} ago`,
+              `Mis à jour il y a ${activeStop.staleAgeSeconds < 60 ? `${activeStop.staleAgeSeconds}s` : `${Math.round(activeStop.staleAgeSeconds / 60)} min`}`,
+            )}
+          </Text>
+        )}
 
         {/* Last bus warning — 8pm to 2am only */}
         {lastBusNode}
