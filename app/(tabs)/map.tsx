@@ -2155,10 +2155,10 @@ export default function MapScreen() {
         {/* Category pills — hidden in plan mode */}
         {!planMode && <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} contentContainerStyle={{ gap: 6, paddingRight: 8 }}>
           {([
-            { key: 'all', label_en: 'All', label_fr: 'Tous', icon: 'apps-outline' as const, color: colours.accent },
-            { key: 'bus', label_en: 'Bus', label_fr: 'Bus', icon: 'bus-outline' as const, color: '#CE1126' },
-            { key: 'gyms', label_en: 'Gyms', label_fr: 'Gyms', icon: 'barbell-outline' as const, color: '#2ECC71' },
-            { key: 'grocery', label_en: 'Grocery', label_fr: 'Epicerie', icon: 'cart-outline' as const, color: '#3498db' },
+            { key: 'all', label_en: 'Explore', label_fr: 'Explorer', icon: 'apps-outline' as const, color: colours.accent },
+            { key: 'bus', label_en: 'Transit', label_fr: 'Transit', icon: 'bus-outline' as const, color: '#CE1126' },
+            { key: 'gyms', label_en: 'Fitness', label_fr: 'Sport', icon: 'barbell-outline' as const, color: '#2ECC71' },
+            { key: 'grocery', label_en: 'Shopping', label_fr: 'Courses', icon: 'cart-outline' as const, color: '#3498db' },
             { key: 'saved', label_en: 'Saved', label_fr: 'Favoris', icon: 'heart' as const, color: '#e74c3c' },
           ] as const).map(f => {
             const active = filters.has(f.key);
@@ -2167,12 +2167,13 @@ export default function MapScreen() {
             return (
               <TouchableOpacity key={f.key}
                 activeOpacity={0.7}
-                style={{ borderRadius: 20, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: bg, borderWidth: 1, borderColor: border, alignItems: 'center', justifyContent: 'center' }}
+                style={{ borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: bg, borderWidth: 1, borderColor: border, alignItems: 'center', justifyContent: 'center', gap: 2 }}
                 onPress={() => toggleFilter(f.key)}
                 accessibilityRole="button"
                 accessibilityLabel={t(`Filter by ${f.label_en}`, `Filtrer par ${f.label_fr}`)}
                 accessibilityState={{ selected: active }}>
                 <Ionicons name={f.icon} size={16} color={active ? 'white' : colours.muted} />
+                <Text style={{ fontSize: 9, fontWeight: '600', color: active ? 'white' : colours.muted }} allowFontScaling={false}>{language === 'fr' ? f.label_fr : f.label_en}</Text>
               </TouchableOpacity>
             );
           })}
