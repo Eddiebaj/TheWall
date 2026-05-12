@@ -382,6 +382,8 @@ export default function MapScreen() {
   const [placeSuggestions, setPlaceSuggestions] = useState<{ placeId: string; name: string; address: string; stopId?: string }[]>([]);
   const [searchedPlace, setSearchedPlace] = useState<{ placeId: string; name: string; address: string; lat: number; lng: number; stopId?: string } | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const filterExpandAnim = useRef(new Animated.Value(0)).current;
   const [region, setRegion] = useState<Region>(OTTAWA_REGION);
   const [debouncedDelta, setDebouncedDelta] = useState(OTTAWA_REGION.latitudeDelta);
   const appIsActive = useRef(true);
@@ -1967,6 +1969,18 @@ export default function MapScreen() {
                       if (text.length >= 3) { searchTimer.current = setTimeout(() => searchPlaces(text), 300); }
                       else { setPlaceSuggestions([]); }
                     }}
+                    onFocus={() => {
+                      setSearchExpanded(true);
+                      Animated.timing(filterExpandAnim, { toValue: 1, duration: 200, useNativeDriver: false }).start();
+                    }}
+                    onBlur={() => {
+                      if (searchText.length === 0 && placeSuggestions.length === 0) {
+                        setTimeout(() => {
+                          setSearchExpanded(false);
+                          Animated.timing(filterExpandAnim, { toValue: 0, duration: 180, useNativeDriver: false }).start();
+                        }, 150);
+                      }
+                    }}
                     returnKeyType="search"
                   />
                   {searchText.length > 0 && (
@@ -2152,6 +2166,8 @@ export default function MapScreen() {
           )}
         </View>
 
+        {/* Category pills + layer chips — hidden until search is focused */}
+        <Animated.View style={{ maxHeight: filterExpandAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 120] }), opacity: filterExpandAnim, overflow: 'hidden' }}>
         {/* Category pills — hidden in plan mode */}
         {!planMode && <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} contentContainerStyle={{ gap: 6, paddingRight: 8 }}>
           {([
@@ -2219,6 +2235,7 @@ export default function MapScreen() {
             })}
           </ScrollView>
         )}
+        </Animated.View>
 
         {error && !planMode ? <Text style={{ fontSize: 11, color: isLight ? '#DC2626' : '#F87171', marginTop: 6 }}>{error}</Text> : null}
       </View>
