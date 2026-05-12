@@ -48,6 +48,15 @@ function TabLayout() {
       }}
     >
       <Tabs.Screen
+        name="index"
+        options={{
+          tabBarLabel: fr ? 'Accueil' : 'Home',
+          tabBarIcon: ({ focused, color }) => (
+            <House size={22} color={color} weight={focused ? 'fill' : 'regular'} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="map"
         options={{
           tabBarLabel: fr ? 'Carte' : 'Live Map',
@@ -75,15 +84,6 @@ function TabLayout() {
           tabBarLabel: fr ? 'Compte' : 'Account',
           tabBarIcon: ({ focused, color }) => (
             <User size={22} color={color} weight={focused ? 'fill' : 'regular'} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="index"
-        options={{
-          tabBarLabel: fr ? 'Accueil' : 'Home',
-          tabBarIcon: ({ focused, color }) => (
-            <House size={22} color={color} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />
