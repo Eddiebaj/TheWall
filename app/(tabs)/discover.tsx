@@ -294,8 +294,9 @@ function DiscoverScreenInner() {
 
   const allTransitAnchors = useMemo(() => [...boardStopAnchors, ...MAJOR_STOPS], [boardStopAnchors]);
 
-  const isNearTransit = (lat: number, lng: number): boolean =>
-    allTransitAnchors.some(a => haversineKm(lat, lng, a.lat, a.lng) <= 0.5);
+  const isNearTransit = useCallback((lat: number, lng: number): boolean =>
+    allTransitAnchors.some(a => haversineKm(lat, lng, a.lat, a.lng) <= 0.5),
+  [allTransitAnchors]);
 
   const transitVenues = useMemo(() => {
     if (!transitHomeFilter) return [];
@@ -303,14 +304,15 @@ function DiscoverScreenInner() {
       if (!isNearTransit(v.lat, v.lng)) return false;
       return v.deals.some(d => d.days.includes(todayDow));
     });
-  }, [transitHomeFilter, allTransitAnchors, todayDow]);
+  }, [transitHomeFilter, isNearTransit, todayDow]);
 
-  const fetchLastBusHome = async (venueKey: string, fromLat: number, fromLng: number) => {
+  const fetchLastBusHome = useCallback(async (venueKey: string, fromLat: number, fromLng: number) => {
     if (!homePlace || lastBusCache[venueKey] !== undefined || lastBusLoading[venueKey]) return;
     setLastBusLoading(prev => ({ ...prev, [venueKey]: true }));
     try {
       const now = new Date();
-      const dateStr = now.toLocaleDateString('en-CA', { timeZone: 'America/Toronto' }).split('-').reverse().join('-').replace(/(\d+)-(\d+)-(\d+)/, '$2-$3-$1');
+      const [y, m, d] = now.toLocaleDateString('en-CA', { timeZone: 'America/Toronto' }).split('-');
+      const dateStr = `${m}-${d}-${y}`;
       const url = `${PLAN_URL}?fromLat=${fromLat}&fromLng=${fromLng}&toLat=${homePlace.lat}&toLng=${homePlace.lng}&time=23%3A00&date=${encodeURIComponent(dateStr)}&mode=transit&arriveBy=false&numItineraries=1`;
       const resp = await fetchWithTimeout(url);
       if (resp.ok) {
@@ -323,7 +325,7 @@ function DiscoverScreenInner() {
           const mins = String(endTime.getMinutes()).padStart(2, '0');
           const period = hrs >= 12 ? 'pm' : 'am';
           const h12 = hrs > 12 ? hrs - 12 : hrs === 0 ? 12 : hrs;
-          const stopName = lastLeg?.from?.name || '';
+          const stopName = lastLeg?.to?.name || '';
           const label = stopName ? `${h12}:${mins}${period} from ${stopName}` : `${h12}:${mins}${period}`;
           setLastBusCache(prev => ({ ...prev, [venueKey]: label }));
         } else {
@@ -336,7 +338,7 @@ function DiscoverScreenInner() {
       setLastBusCache(prev => ({ ...prev, [venueKey]: null }));
     }
     setLastBusLoading(prev => ({ ...prev, [venueKey]: false }));
-  };
+  }, [homePlace, lastBusCache, lastBusLoading]);
 
   const toggleFollowVenue = useCallback(async (venueName: string) => {
     const isFollowed = followedVenues.includes(venueName);
@@ -349,6 +351,15 @@ function DiscoverScreenInner() {
       addAndSave('venues', venueName, TASTE_POINTS.venue_follow);
     }
   }, [followedVenues]);
+
+  // Trigger last-bus fetches whenever Transit+Home filter is active and venues change
+  useEffect(() => {
+    if (!transitHomeFilter || !homePlace) return;
+    for (const venue of transitVenues) {
+      const venueKey = `${venue.lat},${venue.lng}`;
+      fetchLastBusHome(venueKey, venue.lat, venue.lng);
+    }
+  }, [transitVenues, transitHomeFilter, homePlace]);
 
   const handleEventGoing = useCallback((eventId: string) => {
     const ev = weekendEvents.find(e => e.id === eventId);
@@ -433,10 +444,6 @@ function DiscoverScreenInner() {
               const todayDeals = venue.deals.filter(d => d.days.includes(todayDow));
               const lastBus = lastBusCache[venueKey];
               const loadingBus = lastBusLoading[venueKey];
-              // Trigger lazy fetch
-              if (homePlace && lastBusCache[venueKey] === undefined && !lastBusLoading[venueKey]) {
-                fetchLastBusHome(venueKey, venue.lat, venue.lng);
-              }
               return (
                 <View key={venueKey} style={[{ borderRadius: 12, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, marginBottom: 10, overflow: 'hidden' }, cardShadow]}>
                   <View style={{ padding: 12 }}>
@@ -470,9 +477,6 @@ function DiscoverScreenInner() {
                 </View>
               );
             })}
-            {transitVenues.length === 0 && (
-              <Text style={{ fontSize: fonts.sm, color: colours.muted, paddingVertical: 8 }}>{t('No venues near transit today', 'Aucun établissement près du transit aujourd\'hui')}</Text>
-            )}
           </View>
         )}
 

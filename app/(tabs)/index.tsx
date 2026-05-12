@@ -1300,6 +1300,7 @@ function LiveScreenInner() {
   const [frequentCardDismissed, setFrequentCardDismissed] = useState(true);
   const [commuteDeals, setCommuteDeals] = useState<CommuteDeal[]>([]);
   const [commuteDealsLoading, setCommuteDealsLoading] = useState(false);
+  const commuteCardDismissedRef = useRef(false);
   const [timeFormat, setTimeFormat] = useState<'relative' | 'absolute'>('relative');
   const [passedHintShown, setPassedHintShown] = useState(false);
   const [helpBannerDismissed, setHelpBannerDismissed] = useState(false);
@@ -1546,14 +1547,6 @@ function LiveScreenInner() {
         }).catch(() => setFrequentCardDismissed(false));
       }
     }).catch(() => {});
-    // Load commute deals if in 4-7pm weekday window
-    if (isCommuteWindow()) {
-      setCommuteDealsLoading(true);
-      getCommuteDeals(language as 'en' | 'fr').then(deals => {
-        setCommuteDeals(deals);
-        scheduleCommuteNotification(deals, language as 'en' | 'fr').catch(() => {});
-      }).catch(() => {}).finally(() => setCommuteDealsLoading(false));
-    }
     // Detect commute patterns from trip history
     AsyncStorage.getItem(SK_TRIP_HISTORY).then(val => {
       if (!val) return;
@@ -1578,6 +1571,21 @@ function LiveScreenInner() {
       } catch {}
     }).catch(() => {});
   }, []);
+
+  // Commute deals — separate effect with 60s interval so card appears when window starts
+  useEffect(() => {
+    const loadCommuteDeals = () => {
+      if (!isCommuteWindow() || commuteCardDismissedRef.current) return;
+      setCommuteDealsLoading(true);
+      getCommuteDeals(language as 'en' | 'fr').then(deals => {
+        setCommuteDeals(deals);
+        scheduleCommuteNotification(deals, language as 'en' | 'fr').catch(() => {});
+      }).catch(() => {}).finally(() => setCommuteDealsLoading(false));
+    };
+    loadCommuteDeals();
+    const interval = setInterval(loadCommuteDeals, 60_000);
+    return () => clearInterval(interval);
+  }, [language]);
 
   const saveCustomization = async (order: string[], qaIds: string[], olIds: string[]) => {
     await AsyncStorage.setItem(SK_SECTION_ORDER, JSON.stringify(order));
@@ -4680,14 +4688,27 @@ function LiveScreenInner() {
           )}
 
           {/* On My Way Home card — 4-7pm weekdays with active deals */}
-          {isCommuteWindow() && commuteDeals.length > 0 && (
+          {isCommuteWindow() && !commuteCardDismissedRef.current && (commuteDealsLoading || commuteDeals.length > 0) && (
             <View style={{ marginHorizontal: 20, marginBottom: 14, borderRadius: 16, borderWidth: 1, borderColor: '#026CDF30', backgroundColor: colours.surface, overflow: 'hidden', ...cardShadow }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colours.border }}>
                 <Ionicons name="bus" size={16} color="#026CDF" />
                 <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text, flex: 1 }}>
                   {t(`On your way home — ${commuteDeals.length} deal${commuteDeals.length > 1 ? 's' : ''} along your route`, `Sur votre chemin — ${commuteDeals.length} offre${commuteDeals.length > 1 ? 's' : ''} sur votre route`)}
                 </Text>
+                <TouchableOpacity
+                  onPress={() => { commuteCardDismissedRef.current = true; setCommuteDeals([]); }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="close" size={18} color={colours.muted} />
+                </TouchableOpacity>
               </View>
+              {commuteDealsLoading && commuteDeals.length === 0 && (
+                <View style={{ paddingHorizontal: 16, paddingVertical: 14, gap: 8 }}>
+                  {[0, 1].map(i => (
+                    <View key={i} style={{ height: 48, borderRadius: 10, backgroundColor: colours.border, opacity: 0.5 }} />
+                  ))}
+                </View>
+              )}
               {commuteDeals.map((deal, i) => (
                 <View key={deal.venueId} style={{ borderBottomWidth: i < commuteDeals.length - 1 ? 1 : 0, borderBottomColor: colours.border }}>
                   <View style={{ flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, gap: 10 }}>

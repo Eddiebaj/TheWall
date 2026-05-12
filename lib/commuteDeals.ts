@@ -27,17 +27,6 @@ function parseDealTime(timeStr: string): number {
   return h * 60 + m;
 }
 
-function isDealActiveNow(deal: { days: number[]; start: string; end: string }): boolean {
-  const now = new Date();
-  const todayDow = now.getDay();
-  if (!deal.days.includes(todayDow)) return false;
-  const nowMins = now.getHours() * 60 + now.getMinutes();
-  const endMins = parseDealTime(deal.end);
-  const endWindow = nowMins + 90;
-  // Deal ends after now and within 90 min window, or deal ends after our window (still active)
-  return nowMins < endMins && endMins <= endWindow + 24 * 60;
-}
-
 function isDealEndingWithin90Min(deal: { days: number[]; start: string; end: string }): boolean {
   const now = new Date();
   const todayDow = now.getDay();
