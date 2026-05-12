@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView,
+    ActivityIndicator, Alert, DeviceEventEmitter, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView,
     StatusBar, Switch, Text, TextInput,
     TouchableOpacity, View,
 } from 'react-native';
@@ -160,6 +160,8 @@ export default function AccountScreen() {
   const [homeAddress, setHomeAddress] = useState('');
   const [workAddress, setWorkAddress] = useState('');
   const [recentSearchCount, setRecentSearchCount] = useState(0);
+  const [homeSaveStatus, setHomeSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [workSaveStatus, setWorkSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   useEffect(() => {
     (async () => {
@@ -584,14 +586,15 @@ export default function AccountScreen() {
               <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted }}>{t('Home', 'Domicile')}</Text>
             </View>
             <TextInput
-              style={{ fontSize: fonts.md, color: colours.text, backgroundColor: colours.surface, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: colours.border }}
+              style={{ fontSize: fonts.md, color: colours.text, backgroundColor: colours.surface, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: homeSaveStatus === 'error' ? '#e74c3c' : homeSaveStatus === 'saved' ? '#00C07A' : colours.border }}
               placeholder={t('e.g. 123 Main St, Ottawa', 'ex. 123 rue Principale, Ottawa')}
               placeholderTextColor={colours.muted}
               value={homeAddress}
-              onChangeText={setHomeAddress}
+              onChangeText={text => { setHomeAddress(text); setHomeSaveStatus('idle'); }}
               returnKeyType="done"
               onSubmitEditing={async () => {
-                if (!homeAddress.trim()) { await AsyncStorage.removeItem(SK_HOME_ADDRESS).catch(() => {}); return; }
+                if (!homeAddress.trim()) { await AsyncStorage.removeItem(SK_HOME_ADDRESS).catch(() => {}); setHomeSaveStatus('idle'); return; }
+                setHomeSaveStatus('saving');
                 try {
                   const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=geocode&address=${encodeURIComponent(homeAddress + ', Ottawa, ON')}`);
                   if (r.ok) {
@@ -599,11 +602,17 @@ export default function AccountScreen() {
                     if (d.results?.[0]?.geometry?.location) {
                       const { lat, lng } = d.results[0].geometry.location;
                       await AsyncStorage.setItem(SK_HOME_ADDRESS, JSON.stringify({ label: homeAddress, lat, lng }));
+                      setHomeSaveStatus('saved');
+                      return;
                     }
                   }
-                } catch {}
+                  setHomeSaveStatus('error');
+                } catch { setHomeSaveStatus('error'); }
               }}
             />
+            {homeSaveStatus === 'saved' && <Text style={{ fontSize: fonts.sm, color: '#00C07A', marginTop: 4 }}>{t('Saved', 'Enregistre')} ✓</Text>}
+            {homeSaveStatus === 'error' && <Text style={{ fontSize: fonts.sm, color: '#e74c3c', marginTop: 4 }}>{t('Address not found', 'Adresse introuvable')}</Text>}
+            {homeSaveStatus === 'saving' && <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 4 }}>{t('Saving...', 'Enregistrement...')}</Text>}
           </View>
           <Divider colours={colours} />
           <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
@@ -612,14 +621,15 @@ export default function AccountScreen() {
               <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted }}>{t('Work', 'Travail')}</Text>
             </View>
             <TextInput
-              style={{ fontSize: fonts.md, color: colours.text, backgroundColor: colours.surface, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: colours.border }}
+              style={{ fontSize: fonts.md, color: colours.text, backgroundColor: colours.surface, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: workSaveStatus === 'error' ? '#e74c3c' : workSaveStatus === 'saved' ? '#00C07A' : colours.border }}
               placeholder={t('e.g. 90 Sparks St, Ottawa', 'ex. 90 rue Sparks, Ottawa')}
               placeholderTextColor={colours.muted}
               value={workAddress}
-              onChangeText={setWorkAddress}
+              onChangeText={text => { setWorkAddress(text); setWorkSaveStatus('idle'); }}
               returnKeyType="done"
               onSubmitEditing={async () => {
-                if (!workAddress.trim()) { await AsyncStorage.removeItem(SK_WORK_PLACE).catch(() => {}); return; }
+                if (!workAddress.trim()) { await AsyncStorage.removeItem(SK_WORK_PLACE).catch(() => {}); setWorkSaveStatus('idle'); return; }
+                setWorkSaveStatus('saving');
                 try {
                   const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=geocode&address=${encodeURIComponent(workAddress + ', Ottawa, ON')}`);
                   if (r.ok) {
@@ -627,17 +637,24 @@ export default function AccountScreen() {
                     if (d.results?.[0]?.geometry?.location) {
                       const { lat, lng } = d.results[0].geometry.location;
                       await AsyncStorage.setItem(SK_WORK_PLACE, JSON.stringify({ label: workAddress, lat, lng }));
+                      setWorkSaveStatus('saved');
+                      return;
                     }
                   }
-                } catch {}
+                  setWorkSaveStatus('error');
+                } catch { setWorkSaveStatus('error'); }
               }}
             />
+            {workSaveStatus === 'saved' && <Text style={{ fontSize: fonts.sm, color: '#00C07A', marginTop: 4 }}>{t('Saved', 'Enregistre')} ✓</Text>}
+            {workSaveStatus === 'error' && <Text style={{ fontSize: fonts.sm, color: '#e74c3c', marginTop: 4 }}>{t('Address not found', 'Adresse introuvable')}</Text>}
+            {workSaveStatus === 'saving' && <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 4 }}>{t('Saving...', 'Enregistrement...')}</Text>}
           </View>
           <Divider colours={colours} />
           <TouchableOpacity
             onPress={async () => {
               await AsyncStorage.removeItem(SK_RECENT_SEARCHES).catch(() => {});
               setRecentSearchCount(0);
+              DeviceEventEmitter.emit('clearRecentSearches');
             }}
             style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 }}
             disabled={recentSearchCount === 0}

@@ -4,7 +4,7 @@ import * as Location from 'expo-location';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Dimensions, FlatList, Image, Keyboard, KeyboardAvoidingView,
+  ActivityIndicator, Alert, DeviceEventEmitter, Dimensions, FlatList, Image, Keyboard, KeyboardAvoidingView,
   Linking, Modal, NativeScrollEvent, NativeSyntheticEvent,
   Platform, RefreshControl, ScrollView, Share,
   Text,
@@ -495,6 +495,7 @@ function PlannerScreenInner() {
     AsyncStorage.getItem(SK_WORK_PLACE).then(val => {
       try { if (val) setWorkPlacePlanner(JSON.parse(val)); } catch {}
     }).catch(() => {});
+    const clearSub = DeviceEventEmitter.addListener('clearRecentSearches', () => setRecentSearches([]));
     // Check for Sens game tonight
     fetchWithTimeout('https://api-web.nhle.com/v1/schedule/now').then(async r => {
       if (!r.ok) return;
@@ -506,6 +507,7 @@ function PlannerScreenInner() {
       );
       if (game) setSensGameTonight(true);
     }).catch(() => {});
+    return () => clearSub.remove();
   }, []);
 
   // ── Fetch alerts for transfer warnings ─────────────────────────
@@ -2482,22 +2484,26 @@ function PlannerScreenInner() {
               </TouchableOpacity>
             )}
             {recentSearches.slice(0, 5).map((r, i) => (
-              <TouchableOpacity
-                key={i}
-                onPress={() => { setToPlace({ placeId: `recent_${i}`, label: r.name, lat: r.lat, lng: r.lng }); setToText(r.name); setActiveInput(null); Keyboard.dismiss(); }}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: i < Math.min(recentSearches.length, 5) - 1 ? 1 : 0, borderBottomColor: colours.border }}
-              >
-                <Ionicons name="time-outline" size={16} color={colours.muted} />
-                <Text style={{ flex: 1, fontSize: 13, color: colours.text }} numberOfLines={1}>{r.name}</Text>
-                <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={async e => {
-                  e.stopPropagation?.();
-                  const updated = recentSearches.filter((_, idx) => idx !== i);
-                  setRecentSearches(updated);
-                  try { await AsyncStorage.setItem(SK_RECENT_SEARCHES, JSON.stringify(updated)); } catch {}
-                }}>
+              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', borderBottomWidth: i < Math.min(recentSearches.length, 5) - 1 ? 1 : 0, borderBottomColor: colours.border }}>
+                <TouchableOpacity
+                  onPress={() => { setToPlace({ placeId: `recent_${i}`, label: r.name, lat: r.lat, lng: r.lng }); setToText(r.name); setActiveInput(null); Keyboard.dismiss(); }}
+                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12 }}
+                >
+                  <Ionicons name="time-outline" size={16} color={colours.muted} />
+                  <Text style={{ flex: 1, fontSize: 13, color: colours.text }} numberOfLines={1}>{r.name}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={{ paddingHorizontal: 14, paddingVertical: 12 }}
+                  onPress={async () => {
+                    const updated = recentSearches.filter((_, idx) => idx !== i);
+                    setRecentSearches(updated);
+                    try { await AsyncStorage.setItem(SK_RECENT_SEARCHES, JSON.stringify(updated)); } catch {}
+                  }}
+                >
                   <Ionicons name="close" size={14} color={colours.muted} />
                 </TouchableOpacity>
-              </TouchableOpacity>
+              </View>
             ))}
           </View>
         )}

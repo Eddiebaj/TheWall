@@ -5,7 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { toTitleCase } from '../../lib/utils';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Animated, AppState, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform,
+  ActivityIndicator, Alert, Animated, AppState, DeviceEventEmitter, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform,
   ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
 let RNMaps: typeof import('react-native-maps') | null = null;
@@ -390,11 +390,15 @@ export default function MapScreen() {
   // Route sheet (Feature 1)
   const [routeSheetVisible, setRouteSheetVisible] = useState(false);
   const [routeSheetId, setRouteSheetId] = useState('');
+  const [routePolylineAgency, setRoutePolylineAgency] = useState<'OC' | 'STO'>('OC');
 
   // Stop detail sheet (Feature 2)
   const [stopDetailVisible, setStopDetailVisible] = useState(false);
   const [stopDetailStopId, setStopDetailStopId] = useState('');
   const [stopDetailStopName, setStopDetailStopName] = useState('');
+
+  // Mini arrivals for searched stop card
+  const [searchedStopArrivals, setSearchedStopArrivals] = useState<{ routeId: string; headsign: string; minsAway: number }[]>([]);
 
   // Home / Work places (Feature 4)
   const [homePlace, setHomePlace] = useState<{ label: string; lat: number; lng: number } | null>(null);
@@ -664,9 +668,11 @@ export default function MapScreen() {
     }
     if (bus?.routeId) {
       setSelectedRouteShape([]);
+      setRoutePolylineAgency(bus.agency === 'STO' ? 'STO' : 'OC');
       fetchRouteShape(bus.routeId, bus.agency);
     } else {
       setSelectedRouteShape([]);
+      setRoutePolylineAgency('OC');
     }
     Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
   }, [sheetAnim, fetchRouteShape, tappedAnim]);
@@ -824,12 +830,32 @@ export default function MapScreen() {
 
   useEffect(() => { fetchNearbyStops(); }, [fetchNearbyStops]);
 
+  // Fetch mini arrivals when a bus stop is selected from search
+  useEffect(() => {
+    if (!searchedPlace?.stopId) { setSearchedStopArrivals([]); return; }
+    fetchWithTimeout(`${BACKEND_URL}?stop=${encodeURIComponent(searchedPlace.stopId)}`, { timeout: 8000 })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.arrivals) {
+          // Dedupe to one arrival per base route
+          const seen = new Set<string>();
+          const deduped = (data.arrivals as { routeId: string; headsign: string; minsAway: number }[])
+            .filter(a => { const base = a.routeId.split('-')[0]; if (seen.has(base)) return false; seen.add(base); return true; })
+            .slice(0, 4);
+          setSearchedStopArrivals(deduped);
+        }
+      })
+      .catch(() => {});
+  }, [searchedPlace?.stopId]);
+
   // Load home/work places, recent searches, accessibility routing
   useEffect(() => {
     AsyncStorage.getItem(SK_HOME_ADDRESS).then(v => { try { if (v) setHomePlace(JSON.parse(v)); } catch {} }).catch(() => {});
     AsyncStorage.getItem(SK_WORK_PLACE).then(v => { try { if (v) setWorkPlace(JSON.parse(v)); } catch {} }).catch(() => {});
     AsyncStorage.getItem(SK_RECENT_SEARCHES).then(v => { try { if (v) setRecentSearches(JSON.parse(v)); } catch {} }).catch(() => {});
     AsyncStorage.getItem(SK_ACCESSIBILITY_ROUTING).then(v => { if (v === 'true') setAccessibleRoutingMap(true); }).catch(() => {});
+    const sub = DeviceEventEmitter.addListener('clearRecentSearches', () => setRecentSearches([]));
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {
@@ -1335,7 +1361,14 @@ export default function MapScreen() {
       fetchWithTimeout(`https://routeo-backend.vercel.app/api/route?id=${encodeURIComponent(suggestion.routeId)}&action=shape`, { timeout: 10000 })
         .then(r => r.ok ? r.json() : null)
         .then(data => {
-          if (data?.shape && Array.isArray(data.shape)) setSelectedRouteShape(data.shape);
+          if (data?.shape && Array.isArray(data.shape) && data.shape.length > 0) {
+            setSelectedRouteShape(data.shape);
+            setRoutePolylineAgency(data.agency === 'STO' ? 'STO' : 'OC');
+            mapRef.current?.fitToCoordinates(data.shape, {
+              edgePadding: { top: 120, bottom: 420, left: 60, right: 60 },
+              animated: true,
+            });
+          }
         })
         .catch(() => {});
       return;
@@ -1727,11 +1760,11 @@ export default function MapScreen() {
 
         {/* Route shape polyline for selected bus */}
         {Polyline && selectedRouteShape.length > 0 && (() => {
-          if (__DEV__) console.log(`[RouteShape] rendering Polyline with ${selectedRouteShape.length} points, agency=${selectedBus?.agency}`);
+          if (__DEV__) console.log(`[RouteShape] rendering Polyline with ${selectedRouteShape.length} points, agency=${selectedBus?.agency ?? routePolylineAgency}`);
           return (
             <Polyline
               coordinates={selectedRouteShape}
-              strokeColor={selectedBus?.agency === 'STO' ? '#00C07A' : '#CE1126'}
+              strokeColor={(selectedBus?.agency ?? routePolylineAgency) === 'STO' ? '#00A78D' : '#CE1126'}
               strokeWidth={4}
               zIndex={10}
             />
@@ -2489,6 +2522,33 @@ export default function MapScreen() {
                   <Ionicons name="close" size={16} color={colours.text} />
                 </TouchableOpacity>
               </View>
+              {searchedPlace.stopId && searchedStopArrivals.length > 0 && (
+                <View style={{ marginTop: 12 }}>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                    {searchedStopArrivals.map((a, i) => {
+                      const base = a.routeId.split('-')[0];
+                      const { bg, fg } = (require('../../lib/routeColors').routeBadgeStyle)(base);
+                      const mins = a.minsAway;
+                      return (
+                        <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colours.surface, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, borderWidth: 1, borderColor: colours.border }}>
+                          <View style={{ paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, backgroundColor: bg }}>
+                            <Text style={{ fontSize: 11, fontWeight: '800', color: fg }}>{base}</Text>
+                          </View>
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: mins <= 0 ? '#00C07A' : mins < 10 ? '#D97706' : colours.muted }}>
+                            {mins <= 0 ? t('Now', 'Maint.') : `${mins} min`}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => { setStopDetailStopId(searchedPlace.stopId!); setStopDetailStopName(searchedPlace.name); setStopDetailVisible(true); }}
+                    style={{ marginTop: 8, alignSelf: 'flex-start' }}
+                  >
+                    <Text style={{ fontSize: 12, color: colours.accent, fontWeight: '600' }}>{t('Stop details →', "Détails de l'arrêt →")}</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
               {searchedPlace.stopId && (
                 <TouchableOpacity
                   activeOpacity={0.7}
