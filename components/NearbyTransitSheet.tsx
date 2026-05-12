@@ -13,6 +13,8 @@ import { supabase } from '../lib/supabase';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { SK_LEAVE_NOW_ALERTS, SK_WALK_PACE, SK_DEVICE_ID } from '../lib/storageKeys';
+import { watchBus, unwatchBus, isWatched } from '../lib/watchedBuses';
+import { shouldShowPrompt, markPromptShown } from '../lib/onboardingPrompts';
 import { LAYER_CONFIG, LAYER_ICONS, LayerKey, MapPin } from '../lib/mapLayers';
 import { routeBadgeStyle } from '../lib/routeColors';
 import { LayerFeedCard } from './LayerFeedCard';
@@ -213,6 +215,27 @@ function ArrivalPills({ stop, colours, t, routeAlertMap }: { stop: NearbyStop; c
   const [ghostDismissed, setGhostDismissed] = useState<Record<string, number>>({});
   const [ghostConfirmed, setGhostConfirmed] = useState<Record<string, boolean>>({});
   const [ghostReportCount, setGhostReportCount] = useState<Record<string, number>>({});
+  // Bus approach watcher: track which routeIds are currently watched for this stop
+  const [watchedKeys, setWatchedKeys] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    (async () => {
+      const keys = new Set<string>();
+      for (const a of stop.arrivals.slice(0, 2)) {
+        if (await isWatched(stop.stopId, a.routeId)) keys.add(`${stop.stopId}-${a.routeId}`);
+      }
+      setWatchedKeys(keys);
+    })();
+  }, [stop.stopId]);
+  const handleBellToggle = useCallback(async (routeId: string) => {
+    const key = `${stop.stopId}-${routeId}`;
+    if (watchedKeys.has(key)) {
+      await unwatchBus(stop.stopId, routeId);
+      setWatchedKeys(prev => { const s = new Set(prev); s.delete(key); return s; });
+    } else {
+      await watchBus(stop.stopId, stop.stopName, routeId);
+      setWatchedKeys(prev => new Set([...prev, key]));
+    }
+  }, [watchedKeys, stop.stopId, stop.stopName]);
 
   const handleReport = useCallback(async (routeId: string) => {
     if (submitted[routeId]) return;
@@ -318,6 +341,20 @@ function ArrivalPills({ stop, colours, t, routeAlertMap }: { stop: NearbyStop; c
                   <Ionicons name="flag-outline" size={12} color={colours.muted} />
                 </TouchableOpacity>
               )}
+              {/* Bell: watch this bus for 2-stop proximity alert */}
+              {(() => {
+                const key = `${stop.stopId}-${a.routeId}`;
+                const watching = watchedKeys.has(key);
+                return (
+                  <TouchableOpacity
+                    onPress={() => handleBellToggle(a.routeId)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityLabel={watching ? t('Stop watching', 'Arrêter de surveiller') : t('Alert me when close', 'Alerter quand proche')}
+                  >
+                    <Ionicons name={watching ? 'notifications' : 'notifications-outline'} size={12} color={watching ? '#00C07A' : colours.muted} />
+                  </TouchableOpacity>
+                );
+              })()}
             </View>
           );
         })}
@@ -715,6 +752,18 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
     const router = useRouter();
     const [showAll, setShowAll] = useState(false);
     const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
+    const [showGhostTooltip, setShowGhostTooltip] = useState(false);
+
+    useEffect(() => {
+      shouldShowPrompt('ghost_flag', 3).then(ok => { if (ok) setShowGhostTooltip(true); });
+    }, []);
+
+    useEffect(() => {
+      if (!showGhostTooltip) return;
+      markPromptShown('ghost_flag');
+      const id = setTimeout(() => setShowGhostTooltip(false), 6000);
+      return () => clearTimeout(id);
+    }, [showGhostTooltip]);
 
     const handleToggleExpand = useCallback((id: string) => {
       setExpandedGroupId(prev => prev === id ? null : id);
@@ -886,6 +935,27 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
               <Text style={{ fontSize: 10, color: '#F97316', marginTop: 4, opacity: 0.8 }}>
                 {t('Expect crowds at stops', 'Prevoyez des foules aux arrets')}
               </Text>
+            </View>
+          )}
+
+          {/* Session-3 onboarding tooltip: ghost bus reporting */}
+          {showGhostTooltip && (
+            <View style={{
+              marginHorizontal: 16, marginBottom: 8,
+              backgroundColor: 'rgba(15,23,42,0.88)', borderRadius: 10,
+              paddingHorizontal: 12, paddingVertical: 8,
+              flexDirection: 'row', alignItems: 'center', gap: 8,
+            }}>
+              <Ionicons name="flag-outline" size={13} color="#94a3b8" />
+              <Text style={{ fontSize: 11, color: '#e2e8f0', flex: 1, fontWeight: '500' }}>
+                {t(
+                  'Tap the flag icon to report when a bus doesn\'t come — helps other riders know',
+                  'Tapez l\'icône drapeau pour signaler quand un bus ne passe pas — aide les autres usagers',
+                )}
+              </Text>
+              <TouchableOpacity onPress={() => setShowGhostTooltip(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={13} color="#64748b" />
+              </TouchableOpacity>
             </View>
           )}
 

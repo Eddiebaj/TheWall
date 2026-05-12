@@ -88,3 +88,6 @@ export const SK_LAST_DEAL_CHECK = 'routeo_last_deal_check';
 export const SK_RECENT_SEARCHES = 'routeo_recent_searches';
 export const SK_WORK_PLACE = 'routeo_work_place';
 export const SK_DISMISSED_ALERT_IDS = 'routeo_dismissed_alert_ids';
+export const SK_SESSION_COUNT = 'routeo_session_count';
+export const SK_SHOWN_PROMPTS = 'routeo_shown_prompts';
+export const SK_WATCHED_BUSES = 'routeo_watched_buses';

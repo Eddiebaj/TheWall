@@ -463,13 +463,20 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
   const shareTrip = () => {
     const transitLegs = itinerary.legs.filter(l => l.mode !== 'WALK');
     const routes = transitLegs.map(l => l.routeShortName || l.mode).join(', ');
-    const from = itinerary.legs[0]?.from?.name || '';
-    const to = itinerary.legs[itinerary.legs.length - 1]?.to?.name || '';
+    const firstLeg = itinerary.legs[0];
+    const lastLeg = itinerary.legs[itinerary.legs.length - 1];
+    const from = firstLeg?.from?.name || '';
+    const to = lastLeg?.to?.name || '';
     const eta = fmtTimeFromMs(liveEta || itinerary.endTime);
+    const fromLat = firstLeg?.from?.lat ?? 0;
+    const fromLng = firstLeg?.from?.lon ?? 0;
+    const toLat = lastLeg?.to?.lat ?? 0;
+    const toLng = lastLeg?.to?.lon ?? 0;
+    const deepLink = `routeo://plan?fromLat=${fromLat}&fromLng=${fromLng}&toLat=${toLat}&toLng=${toLng}&mode=TRANSIT`;
 
     const message = t(
-      `I'm on Route ${routes} from ${from} to ${to}. Arriving at ${eta}.\nTrack my trip on RouteO`,
-      `Je suis sur la route ${routes} de ${from} a ${to}. Arrivee a ${eta}.\nSuivez mon trajet sur RouteO`
+      `I'm on Route ${routes} from ${from} to ${to}. Arriving at ${eta}.\nOpen in RouteO: ${deepLink}`,
+      `Je suis sur la route ${routes} de ${from} a ${to}. Arrivee a ${eta}.\nOuvrir dans RouteO: ${deepLink}`
     );
 
     Share.share({ message });

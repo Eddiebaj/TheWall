@@ -6,7 +6,7 @@ import { toTitleCase } from '../../lib/utils';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, Animated, AppState, DeviceEventEmitter, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform,
-  ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View
+  ScrollView, Share, StatusBar, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
 let RNMaps: typeof import('react-native-maps') | null = null;
 try { RNMaps = require('react-native-maps'); } catch {}
@@ -24,6 +24,7 @@ import { useApp } from '../../context/AppContext';
 import { useBoard } from '../../context/BoardContext';
 import stopsearchData from './stopsearch.json';
 import { SK_SAVED_ROUTES, SK_FAVS, SK_SAVED_PLACES, SK_TRIP_HISTORY, SK_RECENT_SEARCHES, SK_HOME_ADDRESS, SK_WORK_PLACE, SK_ACCESSIBILITY_ROUTING } from '../../lib/storageKeys';
+import { shouldShowPrompt, markPromptShown } from '../../lib/onboardingPrompts';
 import { supabase } from '../../lib/supabase';
 import { HAPPY_HOUR_VENUES, HappyHourVenue } from '../../lib/happyHourData';
 import BusTrackingModal from '../../components/BusTrackingModal';
@@ -441,6 +442,8 @@ export default function MapScreen() {
   const [planItineraries, setPlanItineraries] = useState<PlanItinerary[]>([]);
   const [planLoading, setPlanLoading] = useState(false);
   const [planResultsVisible, setPlanResultsVisible] = useState(false);
+  const [planFromCoords, setPlanFromCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [showMapTooltip, setShowMapTooltip] = useState(false);
   const [goItinerary, setGoItinerary] = useState<PlanItinerary | null>(null);
   const [justGoLoading, setJustGoLoading] = useState(false);
   const [goNearbyTip, setGoNearbyTip] = useState<string | null>(null);
@@ -1593,6 +1596,7 @@ export default function MapScreen() {
       let fromLat = 45.4215, fromLng = -75.6972;
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).catch(() => null);
       if (loc) { fromLat = loc.coords.latitude; fromLng = loc.coords.longitude; }
+      setPlanFromCoords({ lat: fromLat, lng: fromLng });
       const now = new Date();
       const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       const dateStr = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${now.getFullYear()}`;
@@ -1675,6 +1679,38 @@ export default function MapScreen() {
     } catch (e) { if (__DEV__) console.warn('plan failed', e); }
     finally { setPlanLoading(false); }
   }, [planTransitMode, planToPlace, minimizeWalking, tonightEvents, accessibleRoutingMap]);
+
+  const sharePlanResults = useCallback(() => {
+    if (!planFromCoords || !planToPlace || planItineraries.length === 0) return;
+    const itin = planItineraries[0];
+    const firstTransit = itin.legs.find(l => l.mode !== 'WALK');
+    const lastLeg = itin.legs[itin.legs.length - 1];
+    const routeLabel = firstTransit?.routeShortName ? `Route ${firstTransit.routeShortName}` : 'Transit';
+    const fromStop = firstTransit ? firstTransit.from.name : itin.legs[0]?.from?.name ?? '';
+    const toStop = lastLeg?.to?.name ?? planToPlace.name;
+    const depTime = firstTransit ? new Date(firstTransit.startTime).toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' }) : '';
+    const arrTime = new Date(itin.endTime).toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' });
+    const deepLink = `routeo://plan?fromLat=${planFromCoords.lat}&fromLng=${planFromCoords.lng}&toLat=${planToPlace.lat}&toLng=${planToPlace.lng}&mode=${planTransitMode}`;
+    const text = t(
+      `Take ${routeLabel} from ${fromStop} → ${toStop}. Departs ${depTime}, arrives ${arrTime}.\nGet RouteO: ${deepLink}`,
+      `Prenez ${routeLabel} de ${fromStop} → ${toStop}. Départ ${depTime}, arrivée ${arrTime}.\nTéléchargez RouteO: ${deepLink}`
+    );
+    Share.share({ message: text });
+  }, [planFromCoords, planToPlace, planItineraries, planTransitMode, t]);
+
+  // Session-7 map tooltip: "Tap any bus to see live crowding and reliability"
+  useEffect(() => {
+    shouldShowPrompt('map_crowding', 7).then(ok => {
+      if (ok) setShowMapTooltip(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!showMapTooltip) return;
+    markPromptShown('map_crowding');
+    const id = setTimeout(() => setShowMapTooltip(false), 6000);
+    return () => clearTimeout(id);
+  }, [showMapTooltip]);
 
   const handleJustGo = useCallback(async () => {
     setJustGoLoading(true);
@@ -2820,6 +2856,26 @@ export default function MapScreen() {
       )}
 
 
+      {/* Session-7 onboarding tooltip: tap bus for crowding */}
+      {showMapTooltip && (
+        <View style={{
+          position: 'absolute', bottom: 180, alignSelf: 'center',
+          backgroundColor: 'rgba(15,23,42,0.92)', borderRadius: 10,
+          paddingHorizontal: 14, paddingVertical: 9,
+          flexDirection: 'row', alignItems: 'center', gap: 8,
+          maxWidth: 280, zIndex: 99,
+          shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 8,
+        }}>
+          <Ionicons name="bus-outline" size={14} color="#94a3b8" />
+          <Text style={{ fontSize: 12, color: '#e2e8f0', flex: 1, fontWeight: '500' }}>
+            {t('Tap any bus to see live crowding and reliability scores', 'Touchez un bus pour voir l\'achalandage et les scores de fiabilité')}
+          </Text>
+          <TouchableOpacity onPress={() => setShowMapTooltip(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="close" size={13} color="#64748b" />
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Nearby transit bottom sheet */}
       <NearbyTransitSheet
         ref={nearbySheetRef}
@@ -2891,6 +2947,14 @@ export default function MapScreen() {
             <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 8 }} />
             <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 12 }}>
               <Text style={{ flex: 1, fontSize: 17, fontWeight: '700', color: colours.text }}>{t('Trip Options', 'Options de trajet')}</Text>
+              <TouchableOpacity
+                onPress={sharePlanResults}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={{ marginRight: 12 }}
+                accessibilityLabel={t('Share trip', 'Partager le trajet')}
+              >
+                <Ionicons name="share-outline" size={20} color={colours.muted} />
+              </TouchableOpacity>
               <TouchableOpacity onPress={() => setPlanResultsVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Ionicons name="close" size={22} color={colours.muted} />
               </TouchableOpacity>

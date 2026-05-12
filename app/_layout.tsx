@@ -10,6 +10,8 @@ import NetworkBanner from '../components/NetworkBanner';
 import { SK_ONBOARDED, SK_CRASH_LOG, SK_LANGUAGE } from '../lib/storageKeys';
 import { initSentry, captureException } from '../lib/sentry';
 import { refreshCommuteNotification } from '../lib/commuteNotifications';
+import { incrementSessionCount } from '../lib/onboardingPrompts';
+import { resumeWatcherIfNeeded } from '../lib/watchedBuses';
 
 // Prevent the native splash screen from auto-hiding until our animated splash starts
 SplashScreen.preventAutoHideAsync();
@@ -147,6 +149,10 @@ function RootNav() {
       if (__DEV__) console.log('[RootNav] Promise.all resolved! dest=', dest, '— calling setShowSplash(false)');
       setShowSplash(false);
       setDestination(dest);
+      // Increment session counter for onboarding prompts
+      incrementSessionCount().catch(() => {});
+      // Resume any bus approach watchers from a previous session
+      resumeWatcherIfNeeded().catch(() => {});
       // Refresh morning commute notification with latest route data
       AsyncStorage.getItem(SK_LANGUAGE)
         .then(lang => refreshCommuteNotification(lang || 'en'))

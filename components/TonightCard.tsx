@@ -7,6 +7,7 @@ import { CAMPUSES } from '../lib/campusData';
 import { HAPPY_HOUR_VENUES } from '../lib/happyHourData';
 import { NEIGHBOURHOODS, Neighbourhood } from '../lib/neighbourhoodData';
 import { SK_CAMPUS, SK_TONIGHT_DISMISSED, SK_TASTE_PROFILE, SK_FOLLOWED_VENUES } from '../lib/storageKeys';
+import { shouldShowPrompt, markPromptShown } from '../lib/onboardingPrompts';
 import { EMPTY_PROFILE, TasteProfile } from '../lib/tasteProfile';
 import { buildTonightSummary, shouldShowTonightCard, SportEntry, TonightFocus, TonightSummary } from '../lib/tonightHelpers';
 import { haversineKm } from '../lib/geo';
@@ -47,6 +48,18 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, on
   const [focusName, setFocusName] = useState<{ en: string; fr: string } | null>(null);
   const [focus, setFocus] = useState<TonightFocus | null>(null);
   const [routeoPick, setRouteopick] = useState<string | null>(null);
+  const [showDealTooltip, setShowDealTooltip] = useState(false);
+
+  useEffect(() => {
+    shouldShowPrompt('tonight_deal', 5).then(ok => { if (ok) setShowDealTooltip(true); });
+  }, []);
+
+  useEffect(() => {
+    if (!showDealTooltip) return;
+    markPromptShown('tonight_deal');
+    const id = setTimeout(() => setShowDealTooltip(false), 6000);
+    return () => clearTimeout(id);
+  }, [showDealTooltip]);
 
   useEffect(() => {
     AsyncStorage.getItem(SK_CAMPUS).then(val => {
@@ -201,6 +214,31 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, on
                 {[...summary.events.highlights, ...summary.deals.highlights].slice(0, 2).join(', ')}
               </Text>
             )}
+          </TouchableOpacity>
+        )}
+
+        {/* Session-5 onboarding tooltip: community deal submission */}
+        {showDealTooltip && (
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={onPressDeals}
+            style={{
+              marginTop: 4,
+              backgroundColor: 'rgba(15,23,42,0.88)', borderRadius: 10,
+              paddingHorizontal: 12, paddingVertical: 8,
+              flexDirection: 'row', alignItems: 'center', gap: 8,
+            }}
+          >
+            <Ionicons name="pricetag-outline" size={13} color="#94a3b8" />
+            <Text style={{ fontSize: 11, color: '#e2e8f0', flex: 1, fontWeight: '500' }}>
+              {t(
+                'Know a deal tonight? Tap + to add it for your neighbourhood',
+                'Vous connaissez une offre ce soir? Appuyez + pour l\'ajouter à votre quartier',
+              )}
+            </Text>
+            <TouchableOpacity onPress={() => setShowDealTooltip(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close" size={13} color="#64748b" />
+            </TouchableOpacity>
           </TouchableOpacity>
         )}
       </View>
