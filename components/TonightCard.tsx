@@ -6,7 +6,8 @@ import { useApp } from '../context/AppContext';
 import { CAMPUSES } from '../lib/campusData';
 import { HAPPY_HOUR_VENUES } from '../lib/happyHourData';
 import { NEIGHBOURHOODS, Neighbourhood } from '../lib/neighbourhoodData';
-import { SK_CAMPUS, SK_TONIGHT_DISMISSED } from '../lib/storageKeys';
+import { SK_CAMPUS, SK_TONIGHT_DISMISSED, SK_TASTE_PROFILE, SK_FOLLOWED_VENUES } from '../lib/storageKeys';
+import { EMPTY_PROFILE, TasteProfile } from '../lib/tasteProfile';
 import { buildTonightSummary, shouldShowTonightCard, SportEntry, TonightFocus, TonightSummary } from '../lib/tonightHelpers';
 import { haversineKm } from '../lib/geo';
 
@@ -47,6 +48,7 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sp
   const [summary, setSummary] = useState<TonightSummary | null>(null);
   const [focusName, setFocusName] = useState<{ en: string; fr: string } | null>(null);
   const [focus, setFocus] = useState<TonightFocus | null>(null);
+  const [routeoPick, setRouteopick] = useState<string | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem(SK_CAMPUS).then(val => {
@@ -70,6 +72,37 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sp
       }
     });
   }, [sensGame, events, weather, sportsSchedule, focus]);
+
+  // RouteO Pick: score events by taste profile + venue follows
+  useEffect(() => {
+    if (events.length === 0) return;
+    (async () => {
+      try {
+        const profileRaw = await AsyncStorage.getItem(SK_TASTE_PROFILE);
+        const profile: TasteProfile = profileRaw ? { ...EMPTY_PROFILE, ...JSON.parse(profileRaw) } : EMPTY_PROFILE;
+        const followedRaw = await AsyncStorage.getItem(SK_FOLLOWED_VENUES);
+        const followed: string[] = followedRaw ? JSON.parse(followedRaw) : [];
+        const totalVenue = Object.values(profile.venues).reduce((s, n) => s + n, 0) || 1;
+        const now = Date.now();
+        let bestName: string | null = null;
+        let bestScore = -1;
+        events.forEach((ev, i) => {
+          const evMs = ev.date ? new Date(ev.date + 'T12:00:00').getTime() : now;
+          const daysDiff = Math.abs(evMs - now) / 86400000;
+          const recency = Math.max(0, 1 - daysDiff / 7);
+          const venueScore = (profile.venues[ev.venue] ?? 0) / totalVenue;
+          const followMatch = followed.some(f =>
+            ev.venue.toLowerCase().includes(f.toLowerCase()) ||
+            f.toLowerCase().includes(ev.venue.toLowerCase())
+          ) ? 1 : 0;
+          const indexBonus = i === 0 ? 1 : 0;
+          const score = venueScore * 0.4 + followMatch * 0.3 + recency * 0.2 + indexBonus * 0.1;
+          if (score > bestScore) { bestScore = score; bestName = ev.name; }
+        });
+        if (bestName) setRouteopick(bestName);
+      } catch {}
+    })();
+  }, [events]);
 
   const dismiss = () => {
     setShow(false);
@@ -129,6 +162,22 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sp
             </TouchableOpacity>
           );
         })}
+
+        {/* RouteO Pick — gold highlight for top-scored event */}
+        {routeoPick && (
+          <View style={{
+            flexDirection: 'row', alignItems: 'center', gap: 7,
+            backgroundColor: '#F59E0B10', borderRadius: 8,
+            paddingHorizontal: 10, paddingVertical: 6,
+            borderWidth: 1, borderColor: '#F59E0B30',
+            marginBottom: 8,
+          }}>
+            <Text style={{ fontSize: 10, fontWeight: '800', color: '#D97706', letterSpacing: 0.5 }}>
+              {'\u2726'} ROUTEO PICK
+            </Text>
+            <Text style={{ fontSize: 12, color: colours.text, flex: 1 }} numberOfLines={1}>{routeoPick}</Text>
+          </View>
+        )}
 
         {/* Events + Deals — combined single line */}
         {parts.length > 0 && (

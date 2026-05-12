@@ -16,7 +16,7 @@ import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { haversineKm } from '../../lib/geo';
 import { cardShadow as sharedCardShadow } from '../../lib/styles';
 import { cacheArrivals, getCachedArrivals } from '../../lib/arrivalCache';
-import { SK_SAVED_PLACES, SK_TRIP_HISTORY, SK_LEAVE_NOW_ALERTS, SK_ARRIVAL_CACHE } from '../../lib/storageKeys';
+import { SK_SAVED_PLACES, SK_TRIP_HISTORY, SK_LEAVE_NOW_ALERTS, SK_ARRIVAL_CACHE, SK_FOLLOWED_VENUES } from '../../lib/storageKeys';
 import { trackEvent } from '../../lib/analytics';
 import { useIsPremium } from '../../lib/premium';
 import { PREMIUM_ENABLED } from '../../lib/flags';
@@ -89,6 +89,7 @@ function SavedScreenInner() {
 
   const [stops, setStops] = useState<SavedStop[]>([]);
   const [places, setPlaces] = useState<SavedPlace[]>([]);
+  const [followedVenues, setFollowedVenues] = useState<string[]>([]);
   const [recentTrip, setRecentTrip] = useState<TripEntry | null>(null);
   const [arrivals, setArrivals] = useState<Record<string, StopArrival[]>>({});
   const [cachedStops, setCachedStops] = useState<Record<string, number>>({});
@@ -110,6 +111,9 @@ function SavedScreenInner() {
   useEffect(() => {
     AsyncStorage.getItem(SK_LEAVE_NOW_ALERTS).then(raw => {
       if (raw) try { setLeaveAlerts(JSON.parse(raw)); } catch {}
+    }).catch(() => {});
+    AsyncStorage.getItem(SK_FOLLOWED_VENUES).then(raw => {
+      if (raw) try { setFollowedVenues(JSON.parse(raw)); } catch {}
     }).catch(() => {});
   }, []);
 
@@ -827,6 +831,42 @@ function SavedScreenInner() {
                     </View>
                   );
                 })}
+            </View>
+          )}
+
+          {/* Following — venues the user has hearted */}
+          {followedVenues.length > 0 && (
+            <View style={{ marginTop: GAP }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, marginBottom: 10, letterSpacing: 0.5 }}>
+                {t('FOLLOWING', 'ABONNEMENTS')}
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {followedVenues.map(venue => (
+                  <View
+                    key={venue}
+                    style={{
+                      flexDirection: 'row', alignItems: 'center', gap: 6,
+                      paddingHorizontal: 12, paddingVertical: 7,
+                      borderRadius: 20, borderWidth: 1,
+                      borderColor: '#EC4899' + '40',
+                      backgroundColor: '#EC4899' + '10',
+                    }}
+                  >
+                    <Ionicons name="heart" size={12} color="#EC4899" />
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: colours.text }}>{venue}</Text>
+                    <TouchableOpacity
+                      onPress={async () => {
+                        const updated = followedVenues.filter(v => v !== venue);
+                        setFollowedVenues(updated);
+                        await AsyncStorage.setItem(SK_FOLLOWED_VENUES, JSON.stringify(updated)).catch(() => {});
+                      }}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                      <Ionicons name="close-circle" size={14} color={colours.muted} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
             </View>
           )}
 

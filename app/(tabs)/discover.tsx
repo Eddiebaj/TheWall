@@ -11,13 +11,16 @@ import { useApp } from '../../context/AppContext';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { cardShadow as sharedCardShadow } from '../../lib/styles';
 import { NewsArticle, timeAgo } from '../../lib/newsData';
-import { SK_NEWS_CACHE, SK_EVENT_PREFERENCES } from '../../lib/storageKeys';
+import { SK_NEWS_CACHE, SK_EVENT_PREFERENCES, SK_FOLLOWED_VENUES, SK_JOINED_GROUPS, SK_LAST_DEAL_CHECK } from '../../lib/storageKeys';
 import { supabase } from '../../lib/supabase';
 import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
 import { FeedCardSkeleton, HorizontalCardsSkeleton } from '../../components/Shimmer';
 import { useIsPremium } from '../../lib/premium';
 import { PREMIUM_ENABLED } from '../../lib/flags';
 import RsvpButton from '../../components/RsvpButton';
+import { NEIGHBOURHOOD_GROUPS, NeighbourhoodGroup } from '../../lib/neighbourhoodGroups';
+import GroupFeedSheet from '../../components/GroupFeedSheet';
+import { addAndSave, TASTE_POINTS } from '../../lib/tasteProfile';
 
 const COMMUNITY_URL = 'https://routeo-backend.vercel.app/api/community';
 const STRIPE_PAYMENT_LINK = process.env.EXPO_PUBLIC_STRIPE_PAYMENT_LINK ?? '';
@@ -71,6 +74,9 @@ function DiscoverScreenInner() {
   const [eventsLoading, setEventsLoading] = useState(false);
   const [rsvpCounts, setRsvpCounts] = useState<Record<string, number>>({});
   const [eventPrefs, setEventPrefs] = useState<Record<string, number>>({});
+  const [followedVenues, setFollowedVenues] = useState<string[]>([]);
+  const [joinedGroups, setJoinedGroups] = useState<string[]>([]);
+  const [groupFeedGroup, setGroupFeedGroup] = useState<NeighbourhoodGroup | null>(null);
   const [dealsLoading, setDealsLoading] = useState(true);
   const [dealsError, setDealsError] = useState(false);
   const [eventsError, setEventsError] = useState(false);
@@ -113,6 +119,40 @@ function DiscoverScreenInner() {
     AsyncStorage.getItem(SK_EVENT_PREFERENCES).then(raw => {
       if (raw) { try { setEventPrefs(JSON.parse(raw)); } catch (e) {} }
     }).catch(() => {});
+    AsyncStorage.getItem(SK_FOLLOWED_VENUES).then(raw => {
+      if (raw) { try { setFollowedVenues(JSON.parse(raw)); } catch {} }
+    }).catch(() => {});
+    AsyncStorage.getItem(SK_JOINED_GROUPS).then(raw => {
+      if (raw) { try { setJoinedGroups(JSON.parse(raw)); } catch {} }
+    }).catch(() => {});
+    // Check for new community deals from followed venues and fire local notification
+    (async () => {
+      try {
+        const followedRaw = await AsyncStorage.getItem(SK_FOLLOWED_VENUES);
+        const followed: string[] = followedRaw ? JSON.parse(followedRaw) : [];
+        if (followed.length === 0) return;
+        const lastCheck = parseInt((await AsyncStorage.getItem(SK_LAST_DEAL_CHECK)) ?? '0', 10);
+        const since = new Date(Math.max(lastCheck, Date.now() - 24 * 60 * 60 * 1000)).toISOString();
+        await AsyncStorage.setItem(SK_LAST_DEAL_CHECK, String(Date.now()));
+        const { data } = await Promise.resolve(
+          supabase.from('community_deals').select('venue_name, deal_text').gte('submitted_at', since).limit(20)
+        );
+        const matches = (data ?? []).filter((d: { venue_name: string }) =>
+          followed.some(f => d.venue_name.toLowerCase().includes(f.toLowerCase()))
+        );
+        if (matches.length === 0) return;
+        const Notifs = require('expo-notifications');
+        await Notifs.scheduleNotificationAsync({
+          content: {
+            title: `${matches[0].venue_name} posted a new deal`,
+            body: matches[0].deal_text,
+            data: { type: 'new_venue_deal' },
+            sound: 'default',
+          },
+          trigger: null,
+        });
+      } catch {}
+    })();
   }, []);
 
   const fetchBusinessDeals = async () => {
@@ -219,6 +259,18 @@ function DiscoverScreenInner() {
 
   const todayDow = new Date().getDay();
 
+  const toggleFollowVenue = useCallback(async (venueName: string) => {
+    const isFollowed = followedVenues.includes(venueName);
+    const updated = isFollowed
+      ? followedVenues.filter(v => v !== venueName)
+      : [...followedVenues, venueName];
+    setFollowedVenues(updated);
+    await AsyncStorage.setItem(SK_FOLLOWED_VENUES, JSON.stringify(updated)).catch(() => {});
+    if (!isFollowed) {
+      addAndSave('venues', venueName, TASTE_POINTS.venue_follow);
+    }
+  }, [followedVenues]);
+
   const handleEventGoing = useCallback((eventId: string) => {
     const ev = weekendEvents.find(e => e.id === eventId);
     if (!ev?.category) return;
@@ -281,24 +333,38 @@ function DiscoverScreenInner() {
             communityDeals.slice(0, 5).map(deal => {
               const dayNames = language === 'fr' ? ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
               const isToday = deal.day_of_week === todayDow;
+              const isFollowed = followedVenues.includes(deal.venue_name);
               return (
-                <View
+                <TouchableOpacity
                   key={deal.id}
-                  style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: isToday ? '#22c55e' + '40' : colours.border, backgroundColor: isToday ? '#22c55e08' : colours.surface, marginBottom: 8 }, cardShadow]}
+                  activeOpacity={0.7}
+                  onPress={() => addAndSave('venues', deal.venue_name, TASTE_POINTS.card_tap)}
+                  style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: isToday ? '#22c55e40' : colours.border, backgroundColor: isToday ? '#22c55e08' : colours.surface, marginBottom: 8 }, cardShadow]}
                 >
-                  <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: isToday ? '#22c55e' + '18' : colours.tintBg, alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: isToday ? '#22c55e18' : colours.tintBg, alignItems: 'center', justifyContent: 'center' }}>
                     <Ionicons name="pricetag" size={16} color={isToday ? '#22c55e' : colours.accent} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }} numberOfLines={1}>{deal.venue_name}</Text>
                     <Text style={{ fontSize: 12, color: colours.muted, marginTop: 1 }} numberOfLines={1}>{deal.deal_text}</Text>
                   </View>
-                  <View style={{ backgroundColor: isToday ? '#22c55e' + '18' : colours.bg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: isToday ? '#22c55e' + '40' : colours.border }}>
+                  <TouchableOpacity
+                    onPress={() => toggleFollowVenue(deal.venue_name)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={{ padding: 4 }}
+                  >
+                    <Ionicons
+                      name={isFollowed ? 'heart' : 'heart-outline'}
+                      size={18}
+                      color={isFollowed ? '#EC4899' : colours.muted}
+                    />
+                  </TouchableOpacity>
+                  <View style={{ backgroundColor: isToday ? '#22c55e18' : colours.bg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: isToday ? '#22c55e40' : colours.border }}>
                     <Text style={{ fontSize: 10, fontWeight: '700', color: isToday ? '#22c55e' : colours.muted }}>
-                      {isToday ? t('TODAY', 'AUJOURD\'HUI') : dayNames[deal.day_of_week]}
+                      {isToday ? t('TODAY', "AUJOURD'HUI") : dayNames[deal.day_of_week]}
                     </Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })
           )}
@@ -306,25 +372,41 @@ function DiscoverScreenInner() {
           {/* Partner deals */}
           {!businessDealsLoading && businessDeals.length > 0 && (
             <View style={{ marginTop: 8 }}>
-              {businessDeals.map(biz => (
-                <View
-                  key={biz.id}
-                  style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colours.accent + '30', backgroundColor: colours.surface, marginBottom: 8 }, cardShadow]}
-                >
-                  <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
-                    <Ionicons name="star" size={16} color={colours.accent} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }} numberOfLines={1}>{biz.business_name}</Text>
-                    <Text style={{ fontSize: 12, color: colours.muted, marginTop: 1 }} numberOfLines={1}>{biz.deal_title}</Text>
-                  </View>
-                  <View style={{ backgroundColor: colours.accent + '15', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: colours.accent + '30' }}>
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: colours.accent }}>
-                      {t('Partner', 'Partenaire')}
-                    </Text>
-                  </View>
-                </View>
-              ))}
+              {businessDeals.map(biz => {
+                const isFollowed = followedVenues.includes(biz.business_name);
+                return (
+                  <TouchableOpacity
+                    key={biz.id}
+                    activeOpacity={0.7}
+                    onPress={() => addAndSave('venues', biz.business_name, TASTE_POINTS.card_tap)}
+                    style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colours.accent + '30', backgroundColor: colours.surface, marginBottom: 8 }, cardShadow]}
+                  >
+                    <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colours.accent + '15', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="star" size={16} color={colours.accent} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }} numberOfLines={1}>{biz.business_name}</Text>
+                      <Text style={{ fontSize: 12, color: colours.muted, marginTop: 1 }} numberOfLines={1}>{biz.deal_title}</Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => toggleFollowVenue(biz.business_name)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={{ padding: 4 }}
+                    >
+                      <Ionicons
+                        name={isFollowed ? 'heart' : 'heart-outline'}
+                        size={18}
+                        color={isFollowed ? '#EC4899' : colours.muted}
+                      />
+                    </TouchableOpacity>
+                    <View style={{ backgroundColor: colours.accent + '15', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: colours.accent + '30' }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: colours.accent }}>
+                        {t('Partner', 'Partenaire')}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           )}
 
@@ -340,6 +422,40 @@ function DiscoverScreenInner() {
             </Text>
             <Ionicons name="chevron-forward" size={14} color={colours.muted} />
           </TouchableOpacity>
+        </View>
+
+        {/* Neighbourhood Groups */}
+        <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
+          <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 10 }}>
+            {t('Neighbourhood Groups', 'Groupes de quartier')}
+          </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            {NEIGHBOURHOOD_GROUPS.map(group => {
+              const joined = joinedGroups.includes(group.id);
+              return (
+                <TouchableOpacity
+                  key={group.id}
+                  activeOpacity={0.7}
+                  onPress={() => setGroupFeedGroup(group)}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 7,
+                    paddingHorizontal: 12, paddingVertical: 9, borderRadius: 20,
+                    borderWidth: 1,
+                    borderColor: joined ? group.color : colours.border,
+                    backgroundColor: joined ? group.color + '12' : colours.surface,
+                  }}
+                >
+                  <Ionicons name={group.icon as any} size={14} color={joined ? group.color : colours.muted} />
+                  <Text style={{ fontSize: 13, fontWeight: joined ? '700' : '500', color: joined ? group.color : colours.text }}>
+                    {language === 'fr' ? group.name_fr : group.name_en}
+                  </Text>
+                  {joined && (
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: group.color }} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
 
         {/* Events this weekend */}
@@ -579,6 +695,14 @@ function DiscoverScreenInner() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <GroupFeedSheet
+        group={groupFeedGroup}
+        visible={!!groupFeedGroup}
+        onClose={() => setGroupFeedGroup(null)}
+        joinedGroups={joinedGroups}
+        onJoinedGroupsChange={setJoinedGroups}
+      />
     </View>
   );
 }

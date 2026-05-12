@@ -81,3 +81,7 @@ export const SK_COMMUTE_ALERT = 'routeo_commute_alert';
 export const SK_CRASH_LOG = 'routeo_crash_log';
 export const SK_ANALYTICS = 'routeo_analytics';
 export const SK_EVENT_PREFERENCES = 'routeo_event_preferences';
+export const SK_TASTE_PROFILE = 'routeo_taste_profile';
+export const SK_FOLLOWED_VENUES = 'routeo_followed_venues';
+export const SK_JOINED_GROUPS = 'routeo_joined_groups';
+export const SK_LAST_DEAL_CHECK = 'routeo_last_deal_check';
