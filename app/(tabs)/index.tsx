@@ -67,7 +67,8 @@ import {
     SK_SAVED_ROUTES,
     SK_SECTION_ORDER,
     SK_SEEN_ALERT_IDS, SK_TIME_FORMAT,
-    SK_TODAY_EVENTS
+    SK_TODAY_EVENTS,
+    SK_DISMISSED_ALERT_IDS,
 } from '../../lib/storageKeys';
 // neighbourhoodData import removed — discover section moved to dedicated tab
 // NewsArticle import removed — news lives in dedicated News tab
@@ -317,6 +318,25 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   const [previewSource, setPreviewSource] = useState<'gtfs-rt' | 'gtfs-static' | 'sto-gtfs-rt' | null>(null);
   const [gasPrice, setGasPrice] = useState<string | null>(null);
   const [gasFailed, setGasFailed] = useState(false);
+  const [lastBusRouteInfo, setLastBusRouteInfo] = useState<{ routeId: string; lastBus: string | null; firstBus: string | null } | null>(null);
+  const lastBusFetchedRef = React.useRef<string | null>(null);
+
+  const boardHour = new Date().getHours();
+  const isBoardLateNight = boardHour >= 20 || boardHour < 2;
+
+  useEffect(() => {
+    if (!isBoardLateNight || (item.type !== 'bus_stop' && item.type !== 'lrt_station') || previewLoading || !preview.length) return;
+    const routeId = preview[0]?.routeId?.split('-')[0];
+    if (!routeId || lastBusFetchedRef.current === routeId) return;
+    lastBusFetchedRef.current = routeId;
+    fetchWithTimeout(`https://routeo-backend.vercel.app/api/route?id=${encodeURIComponent(routeId)}`, { timeout: 8000 })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const dir = (data?.directions || [])[0];
+        if (dir) setLastBusRouteInfo({ routeId, lastBus: dir.lastBus || null, firstBus: dir.firstBus || null });
+      })
+      .catch(() => {});
+  }, [isBoardLateNight, preview, previewLoading, item.type]);
 
   useEffect(() => {
     if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'campus' || item.type === 'news' || item.type === 'neighbourhood') { setPreviewLoading(false); return; }
@@ -662,6 +682,37 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
           })
         )}
       </View>
+      {(() => {
+        if (!isBoardLateNight || !lastBusRouteInfo?.lastBus) return null;
+        const nowMins2 = new Date().getHours() * 60 + new Date().getMinutes();
+        const [lh2, lm2] = lastBusRouteInfo.lastBus.split(':').map(Number);
+        let lbMins2 = lh2 * 60 + lm2;
+        if (nowMins2 >= 1200 && lbMins2 < 180) lbMins2 += 1440;
+        const minsUntil2 = lbMins2 - nowMins2;
+        if (minsUntil2 >= 0 && minsUntil2 <= 30) {
+          return (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 }}>
+              <Ionicons name="time-outline" size={9} color="#D97706" />
+              <Text style={{ fontSize: 9, color: '#D97706', fontWeight: '700' }} numberOfLines={1}>
+                {t(`Last ${lastBusRouteInfo.routeId} in ${minsUntil2}m`, `Dernier ${lastBusRouteInfo.routeId} dans ${minsUntil2}m`)}
+              </Text>
+            </View>
+          );
+        }
+        if (minsUntil2 < 0) {
+          return (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 }}>
+              <Ionicons name="moon-outline" size={9} color={colours.muted} />
+              <Text style={{ fontSize: 9, color: colours.muted, fontWeight: '600' }} numberOfLines={1}>
+                {lastBusRouteInfo.firstBus
+                  ? t(`Next: ${lastBusRouteInfo.firstBus}`, `Prochain: ${lastBusRouteInfo.firstBus}`)
+                  : t('No more tonight', 'Plus de bus ce soir')}
+              </Text>
+            </View>
+          );
+        }
+        return null;
+      })()}
     </TouchableOpacity>
     </ScaleDecorator>
   );
@@ -1344,6 +1395,7 @@ function LiveScreenInner() {
   const [alerts, setAlerts] = useState<ServiceAlert[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [alertsModalVisible, setAlertsModalVisible] = useState(false);
+  const [dismissedAlertIds, setDismissedAlertIds] = useState<Set<string>>(new Set());
   const [editMode, setEditMode] = useState(false);
   const [sectionOrder, setSectionOrder] = useState<string[]>(DEFAULT_SECTION_ORDER);
   const [quickActionIds, setQuickActionIds] = useState<string[]>(DEFAULT_QUICK_ACTION_IDS);
@@ -1530,6 +1582,10 @@ function LiveScreenInner() {
     fetchAlerts();
     fetchWeather();
     loadSavedGarbageAddress();
+    // Load dismissed alert IDs
+    AsyncStorage.getItem(SK_DISMISSED_ALERT_IDS).then(val => {
+      if (val) { try { setDismissedAlertIds(new Set(JSON.parse(val))); } catch {} }
+    }).catch(() => {});
     // Check for unseen critical service alerts and notify
     checkAndNotifyCriticalAlerts(language);
     // Register push token and configure notification handler
@@ -3208,6 +3264,16 @@ function LiveScreenInner() {
   const activeAlerts = alerts.filter(a => a.category !== 'accessibility');
   const hasAlerts = activeAlerts.length > 0;
 
+  // Disruption banner: non-dismissed active alerts
+  const bannerAlerts = activeAlerts.filter(a => !dismissedAlertIds.has(String(a.id)));
+  const dismissBannerAlert = async (alertId: string) => {
+    const next = new Set([...dismissedAlertIds, alertId]);
+    setDismissedAlertIds(next);
+    // Prune to 100 entries max so storage never grows unboundedly
+    const arr = [...next].slice(-100);
+    try { await AsyncStorage.setItem(SK_DISMISSED_ALERT_IDS, JSON.stringify(arr)); } catch {}
+  };
+
   const alertBarText = () => {
     if (alertsLoading) return t('Checking for alerts...', 'Vérification des alertes...');
     if (!hasAlerts) return t('No active service alerts', 'Aucune alerte de service active');
@@ -4488,6 +4554,35 @@ function LiveScreenInner() {
                   </TouchableOpacity>
                 );
               })}
+            </View>
+          )}
+
+          {/* Service disruption banner — full-width, dismissible, above board */}
+          {bannerAlerts.length > 0 && !alertsLoading && (
+            <View style={{ marginHorizontal: 20, marginBottom: 12, borderRadius: 12, backgroundColor: '#CE1126', overflow: 'hidden', flexDirection: 'row', alignItems: 'stretch' }}>
+              <TouchableOpacity onPress={() => setAlertsModalVisible(true)} style={{ flex: 1, padding: 12 }} activeOpacity={0.85}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 3 }}>
+                  <Ionicons name="warning" size={13} color="#fff" />
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#fff', letterSpacing: 0.4 }}>
+                    {t('SERVICE DISRUPTION', 'PERTURBATION DE SERVICE')}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.92)', lineHeight: 18, fontWeight: '500' }} numberOfLines={2}>
+                  {bannerAlerts[0].title}
+                </Text>
+                <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4, fontWeight: '600' }}>
+                  {bannerAlerts.length > 1
+                    ? t(`View all ${bannerAlerts.length} alerts →`, `Voir les ${bannerAlerts.length} alertes →`)
+                    : t('View details →', 'Voir les détails →')}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => dismissBannerAlert(String(bannerAlerts[0].id))}
+                style={{ paddingHorizontal: 14, justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.18)' }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close" size={18} color="rgba(255,255,255,0.8)" />
+              </TouchableOpacity>
             </View>
           )}
 

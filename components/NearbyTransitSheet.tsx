@@ -401,6 +401,29 @@ const IntersectionRow = React.memo(function IntersectionRow({
   const [safetyThanks, setSafetyThanks] = useState(false);
   const isExpanded = expandedGroupId === group.id;
 
+  // Last bus warning — fetched lazily when it's late night (8pm–2am)
+  const lbHour = new Date().getHours();
+  const isLateNight = lbHour >= 20 || lbHour < 2;
+  const [lastBusInfo, setLastBusInfo] = React.useState<{ routeId: string; lastBus: string | null; firstBus: string | null } | null>(null);
+  const fetchedRouteRef = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    if (!isLateNight) return;
+    const activeStop = group.stops[Math.min(activeIdx, group.stops.length - 1)];
+    const primaryArrival = activeStop?.arrivals[0];
+    if (!primaryArrival) return;
+    const routeId = primaryArrival.routeId.split('-')[0];
+    if (!routeId || fetchedRouteRef.current === routeId) return;
+    fetchedRouteRef.current = routeId;
+    fetch(`https://routeo-backend.vercel.app/api/route?id=${encodeURIComponent(routeId)}`, { signal: AbortSignal.timeout(8000) })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const dir = (data?.directions || [])[0];
+        if (dir) setLastBusInfo({ routeId, lastBus: dir.lastBus || null, firstBus: dir.firstBus || null });
+      })
+      .catch(() => {});
+  }, [isLateNight, group, activeIdx]);
+
   const hasSafetySignal = safetySignalStopIds
     ? group.stops.some(s => safetySignalStopIds.has(s.stopId))
     : false;
@@ -476,6 +499,41 @@ const IntersectionRow = React.memo(function IntersectionRow({
 
         {/* Arrivals for active direction — ghost warnings render inline inside ArrivalPills */}
         <ArrivalPills stop={activeStop} colours={colours} t={t} routeAlertMap={routeAlertMap} />
+
+        {/* Last bus warning — 8pm to 2am only */}
+        {isLateNight && lastBusInfo?.lastBus && (() => {
+          const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+          const [lh, lm] = lastBusInfo.lastBus.split(':').map(Number);
+          let lbMins = lh * 60 + lm;
+          if (nowMins >= 1200 && lbMins < 180) lbMins += 1440;
+          const minsUntil = lbMins - nowMins;
+          if (minsUntil >= 0 && minsUntil <= 30) {
+            return (
+              <View style={{ marginTop: 6, backgroundColor: AMBER_BG, borderRadius: 7, paddingHorizontal: 8, paddingVertical: 5, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                <Ionicons name="time-outline" size={12} color={AMBER_TEXT} />
+                <Text style={{ fontSize: 11, fontWeight: '600', color: AMBER_TEXT, flex: 1 }}>
+                  {t(
+                    `Last Route ${lastBusInfo.routeId} in ${minsUntil} min — after this, no more buses tonight`,
+                    `Dernier passage du ${lastBusInfo.routeId} dans ${minsUntil} min — après, plus de bus ce soir`
+                  )}
+                </Text>
+              </View>
+            );
+          }
+          if (minsUntil < 0) {
+            return (
+              <View style={{ marginTop: 6, backgroundColor: 'rgba(107,114,128,0.1)', borderRadius: 7, paddingHorizontal: 8, paddingVertical: 5, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                <Ionicons name="moon-outline" size={12} color={colours.muted} />
+                <Text style={{ fontSize: 11, fontWeight: '600', color: colours.muted, flex: 1 }}>
+                  {lastBusInfo.firstBus
+                    ? t(`No more buses tonight — next service at ${lastBusInfo.firstBus}`, `Plus de bus ce soir — prochain service à ${lastBusInfo.firstBus}`)
+                    : t('No more buses tonight', 'Plus de bus ce soir')}
+                </Text>
+              </View>
+            );
+          }
+          return null;
+        })()}
 
         {/* Expanded: leave-now alert + stop details link */}
         {isExpanded && (
