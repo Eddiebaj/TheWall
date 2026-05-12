@@ -142,15 +142,15 @@ export default function OnboardingScreen() {
           </Text>
           <Text style={{ fontSize: 16, color: '#8899aa', textAlign: 'center', lineHeight: 24, maxWidth: 300, marginBottom: 28 }}>
             {t(
-              'Live arrivals, ghost bus alerts, and reliability scores \u2014 built for Ottawa riders.',
-              'Arriv\u00e9es en direct, alertes bus fant\u00f4mes et scores de fiabilit\u00e9 \u2014 fait pour les usagers d\u2019Ottawa.',
+              'Live arrivals, ghost bus alerts, and reliability scores for Ottawa riders.',
+              'Arriv\u00e9es en direct, alertes bus fant\u00f4mes et scores de fiabilit\u00e9 pour les usagers d\u2019Ottawa.',
             )}
           </Text>
           {/* Feature highlights */}
           <View style={{ gap: 14, width: '100%', maxWidth: 300 }}>
             {[
               { icon: 'time-outline' as const, en: 'Real-time arrivals that actually update', fr: 'Arriv\u00e9es en temps r\u00e9el toujours \u00e0 jour' },
-              { icon: 'alert-circle-outline' as const, en: 'Ghost bus detection \u2014 know when a bus won\u2019t come', fr: 'D\u00e9tection de bus fant\u00f4mes \u2014 sachez quand un bus ne viendra pas' },
+              { icon: 'alert-circle-outline' as const, en: 'Ghost bus detection', fr: 'D\u00e9tection de bus fant\u00f4mes' },
               { icon: 'stats-chart-outline' as const, en: 'Route reliability scores from real data', fr: 'Scores de fiabilit\u00e9 bas\u00e9s sur des donn\u00e9es r\u00e9elles' },
             ].map((f, i) => (
               <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -303,12 +303,12 @@ export default function OnboardingScreen() {
           <Text style={{ fontSize: 16, color: '#8899aa', textAlign: 'center', lineHeight: 24, maxWidth: 300, marginBottom: 20 }}>
             {addedStops.length > 0
               ? t(
-                  `${addedStops.length} stop${addedStops.length > 1 ? 's' : ''} saved. We'll track arrivals, flag ghost buses, and show reliability \u2014 automatically.`,
-                  `${addedStops.length} arr\u00eat${addedStops.length > 1 ? 's' : ''} enregistr\u00e9${addedStops.length > 1 ? 's' : ''}. On suit les arriv\u00e9es, signale les bus fant\u00f4mes et affiche la fiabilit\u00e9 \u2014 automatiquement.`,
+                  `${addedStops.length} stop${addedStops.length > 1 ? 's' : ''} saved. We'll track arrivals, flag ghost buses, and show reliability.`,
+                  `${addedStops.length} arr\u00eat${addedStops.length > 1 ? 's' : ''} enregistr\u00e9${addedStops.length > 1 ? 's' : ''}. On suit les arriv\u00e9es, signale les bus fant\u00f4mes et affiche la fiabilit\u00e9.`,
                 )
               : t(
-                  'Ghost bus alerts, reliability scores, and live arrivals \u2014 all in one place.',
-                  'Alertes bus fant\u00f4mes, scores de fiabilit\u00e9 et arriv\u00e9es en direct \u2014 tout au m\u00eame endroit.',
+                  'Ghost bus alerts, reliability scores, and live arrivals all in one place.',
+                  'Alertes bus fant\u00f4mes, scores de fiabilit\u00e9 et arriv\u00e9es en direct, tout au m\u00eame endroit.',
                 )
             }
           </Text>

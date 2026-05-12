@@ -29,9 +29,6 @@ import { supabase } from '../../lib/supabase';
 import { HAPPY_HOUR_VENUES, HappyHourVenue } from '../../lib/happyHourData';
 import BusTrackingModal from '../../components/BusTrackingModal';
 import BottomSheet from '@gorhom/bottom-sheet';
-import NearbyTransitSheet, { NearbyStop } from '../../components/NearbyTransitSheet';
-import ServicesGrid, { ServiceTile } from '../../components/ServicesGrid';
-import TonightCard from '../../components/TonightCard';
 import ActiveTrip from '../../components/ActiveTrip';
 import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -205,7 +202,7 @@ const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) =>
       anchor={{ x: 0.5, y: 0.45 }}
       onPress={() => onPress(bus)}
     >
-      <View style={{ alignItems: 'center', width: 32, height: 46 }}>
+      <View style={{ alignItems: 'center', width: 32, height: 32 }}>
         {/* Bus body rotated to bearing */}
         <View style={{ transform: [{ rotate: `${bearing}deg` }], width: 22, height: 32 }}>
           {Svg && SvgRect && SvgPolygon ? (
@@ -221,9 +218,9 @@ const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) =>
             <View style={{ width: 22, height: 32, backgroundColor: bodyColor, borderRadius: 5, borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' }} />
           )}
         </View>
-        {/* Route label badge — does not rotate */}
-        <View style={{ backgroundColor: bodyColor, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, marginTop: 2, borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)', minWidth: 22, alignItems: 'center' }}>
-          <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800', lineHeight: 12 }} allowFontScaling={false}>{label}</Text>
+        {/* Route label badge — overlaid on bus body */}
+        <View style={{ position: 'absolute', top: 10, left: 0, right: 0, alignItems: 'center' }}>
+          <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800', lineHeight: 12, textShadowColor: 'rgba(0,0,0,0.4)', textShadowRadius: 2, textShadowOffset: { width: 0, height: 1 } }} allowFontScaling={false}>{label}</Text>
         </View>
       </View>
     </Marker>
@@ -418,7 +415,7 @@ export default function MapScreen() {
   const [contribError, setContribError] = useState<string | null>(null);
 
   const nearbySheetRef = useRef<BottomSheet>(null);
-  const [nearbyStops, setNearbyStops] = useState<NearbyStop[]>([]);
+  const [nearbyStops, setNearbyStops] = useState<any[]>([]);
   const [nearbyLoading, setNearbyLoading] = useState(false);
   const [expandedStopId, setExpandedStopId] = useState<string | null>(null);
   const [expandedArrivals, setExpandedArrivals] = useState<{ routeId: string; headsign: string; minsAway: number; source?: string }[]>([]);
@@ -841,7 +838,7 @@ export default function MapScreen() {
         .sort((a, b) => a.dist - b.dist)
         .slice(0, 10);
 
-      const initial: NearbyStop[] = sorted.map(s => ({
+      const initial: any[] = sorted.map(s => ({
         stopId: s.stop_id,
         stopName: s.stop_name || `Stop #${s.stop_id}`,
         walkMeters: Math.round(s.dist),
@@ -1514,11 +1511,11 @@ export default function MapScreen() {
             address: detailsResult.result.formatted_address || suggestion.address,
             lat, lng,
           };
-          setSearchedPlace(place);
-          setSearchText(place.name);
-          mapRef.current?.animateToRegion({ latitude: lat, longitude: lng, latitudeDelta: 0.005, longitudeDelta: 0.005 }, 600);
           setSelectedBus(null); setSelectedVenue(null); setSelectedSavedPin(null); setSelectedRouteShape([]);
-          Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
+          mapRef.current?.animateToRegion({ latitude: lat, longitude: lng, latitudeDelta: 0.005, longitudeDelta: 0.005 }, 600);
+          setPlanMode(true);
+          setPlanToText(place.name);
+          setPlanToPlace({ name: place.name, lat, lng });
         }
       }
     } catch (_) { if (__DEV__) console.warn('Place details failed:', _); }
@@ -1880,8 +1877,8 @@ export default function MapScreen() {
         {searchedPlace && validCoord(searchedPlace.lat, searchedPlace.lng) && (
           <PlaceMarker
             coordinate={{ latitude: searchedPlace.lat, longitude: searchedPlace.lng }}
-            icon="search"
-            color="#3498db"
+            icon="location"
+            color={colours.accent}
             title={searchedPlace.name}
             description={searchedPlace.address}
             onPress={() => {
@@ -2017,7 +2014,7 @@ export default function MapScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   activeOpacity={0.8}
-                  onPress={() => setPlanMode(true)}
+                  onPress={() => router.push({ pathname: '/(tabs)/planner', params: { triggerIsochrone: '1' } } as any)}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface }}>
                   <Ionicons name="radio-button-on-outline" size={13} color='#00C07A' />
                   <Text style={{ fontSize: 12, color: colours.text, fontWeight: '600' }}>{t('What can I reach in 20 min?', 'Ce que je peux atteindre en 20 min?')}</Text>
@@ -2224,36 +2221,6 @@ export default function MapScreen() {
         {error && !planMode ? <Text style={{ fontSize: 11, color: isLight ? '#DC2626' : '#F87171', marginTop: 6 }}>{error}</Text> : null}
       </View>
 
-      {/* Floating action buttons */}
-      <View style={{ position: 'absolute', bottom: hasSheet ? 300 : tappedLocation ? 160 : Platform.OS === 'ios' ? 24 : 16, right: 16, gap: 10, alignItems: 'center' }}>
-        <TouchableOpacity
-          activeOpacity={0.7}
-          style={{
-            width: 44, height: 44, borderRadius: 22,
-            backgroundColor: '#7b5ea7', alignItems: 'center', justifyContent: 'center',
-            shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6,
-            shadowOffset: { width: 0, height: 2 }, elevation: 4,
-          }}
-          onPress={() => { setContributeVisible(true); setContribSent(false); setContribError(null); setContribName(''); setContribType(''); setContribInfo(''); setContribAddress(''); setContribPhoto(null); }}
-          accessibilityRole="button"
-          accessibilityLabel={t('Add a place or deal', 'Ajouter un lieu ou une offre')}>
-          <Ionicons name="add" size={24} color="#fff" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          activeOpacity={0.7}
-          style={{
-            width: 44, height: 44, borderRadius: 22,
-            backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border,
-            alignItems: 'center', justifyContent: 'center',
-            shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6,
-            shadowOffset: { width: 0, height: 2 }, elevation: 4,
-          }}
-          onPress={centerOnOttawa}
-          accessibilityRole="button"
-          accessibilityLabel={t('Re-center map on Ottawa', 'Recentrer la carte sur Ottawa')}>
-          <Ionicons name="locate" size={20} color={colours.accent} />
-        </TouchableOpacity>
-      </View>
 
       {/* Community contribute modal */}
       <Modal visible={contributeVisible} animationType="slide" transparent onRequestClose={() => setContributeVisible(false)}>
@@ -2884,69 +2851,6 @@ export default function MapScreen() {
         </View>
       )}
 
-      {/* Nearby transit bottom sheet */}
-      <NearbyTransitSheet
-        ref={nearbySheetRef}
-        colours={colours}
-        fonts={fonts}
-        t={t}
-        language={language}
-        nearbyStops={nearbyStops}
-        nearbyLoading={nearbyLoading}
-        onRefreshLocation={fetchNearbyStops}
-        expandedStopId={expandedStopId}
-        onExpandStop={handleExpandStop}
-        expandedArrivals={expandedArrivals}
-        expandedArrivalsLoading={expandedArrivalsLoading}
-        activeAlertCount={sheetAlerts.length}
-        hasDisruption={sheetAlerts.some((a: any) => a.category === 'lrt' || (a.title || '').toLowerCase().includes('o-train'))}
-        communityDeals={sheetDeals}
-        activeLayers={activeLayers}
-        layerPins={layerPins}
-        onToggleLayer={toggleLayer}
-        loadingLayers={loadingLayers}
-        onRouteToPin={(pin: MapPin) => {
-          setPlanMode(true);
-          setPlanToText(pin.name);
-          setPlanToPlace({ name: pin.name, lat: pin.lat, lng: pin.lng });
-        }}
-        happeningNow={happeningNow}
-        onSubmitDeal={() => {
-          router.push('/(tabs)/discover' as any);
-        }}
-        safetySignalStopIds={safetySignalStopIds}
-        venueAlerts={planNearbyVenue ? [planNearbyVenue] : undefined}
-        onStopDetail={(stopId, stopName) => { setStopDetailStopId(stopId); setStopDetailStopName(stopName); setStopDetailVisible(true); }}
-        routeAlertMap={routeAlertMap}
-        extraSections={
-          <>
-            <TonightCard
-              colours={colours}
-              fonts={fonts}
-              cardShadow={{}}
-              sensGame={null}
-              events={tonightEvents}
-              weather={tonightWeather}
-            />
-            <ServicesGrid
-              colours={colours}
-              fonts={fonts}
-              t={t}
-              language={language}
-              activeTab={servicesTab}
-              onTabChange={setServicesTab}
-              cardShadow={{}}
-              onTileTap={(tile: ServiceTile) => {
-                if (tile.action === 'navigate' && tile.target) {
-                  router.push(tile.target as any);
-                } else if (tile.action === 'alert') {
-                  router.push('/(tabs)/alerts' as any);
-                }
-              }}
-            />
-          </>
-        }
-      />
 
       {/* Trip plan results bottom sheet */}
       <Modal visible={planResultsVisible} animationType="slide" transparent onRequestClose={() => setPlanResultsVisible(false)}>

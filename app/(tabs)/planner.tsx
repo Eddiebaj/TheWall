@@ -1281,6 +1281,13 @@ function PlannerScreenInner() {
     setIsoLoading(false);
   };
 
+  // ── Auto-trigger isochrone when navigated from map chip ──
+  useEffect(() => {
+    if (params.triggerIsochrone === '1') {
+      setTimeout(() => fetchIsochrone(), 300);
+    }
+  }, [params.triggerIsochrone]);
+
   // ── Route detail modal ───────────────────────────────────────
   const openRouteDetail = useCallback(async (leg: Leg) => {
     if (!leg.routeShortName) return;
@@ -1500,7 +1507,7 @@ function PlannerScreenInner() {
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginBottom: 8 }}>
           <Text style={{ fontSize: 22, fontWeight: '900', color: colours.text }}>{fmtDuration(itin.duration)}</Text>
           <Text style={{ fontSize: 13, color: colours.muted }}>
-            {fmtTime(itin.startTime)} → {fmtTime(itin.endTime)}
+            {t('Leave', 'Départ')} {fmtTime(itin.startTime)} · {t('Arrive', 'Arrivée')} {fmtTime(itin.endTime)}
           </Text>
         </View>
 
@@ -1839,7 +1846,7 @@ function PlannerScreenInner() {
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colours.border }}>
             <View>
               <Text style={{ fontSize: 20, fontWeight: '900', color: colours.text }}>{fmtDuration(expandedItinerary.duration)}</Text>
-              <Text style={{ fontSize: 13, color: colours.muted, marginTop: 2 }}>{fmtTime(expandedItinerary.startTime)} → {fmtTime(expandedItinerary.endTime)}</Text>
+              <Text style={{ fontSize: 13, color: colours.muted, marginTop: 2 }}>{t('Leave', 'Départ')} {fmtTime(expandedItinerary.startTime)} · {t('Arrive', 'Arrivée')} {fmtTime(expandedItinerary.endTime)}</Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               {/* Share button */}

@@ -3225,7 +3225,7 @@ function LiveScreenInner() {
                 </View>
                 <View>
                   <Text style={{ fontSize: 14, fontWeight: '800', color: colours.text }}>{t('Explore Ottawa', 'Explorer Ottawa')}</Text>
-                  <Text style={{ fontSize: 11, color: colours.muted, marginTop: 1 }}>{t('35+ city services & tools', '35+ services et outils')}</Text>
+                  <Text style={{ fontSize: 11, color: colours.muted, marginTop: 1 }}>{t('City services & tools', 'Services et outils')}</Text>
                 </View>
               </View>
               <Ionicons name={servicesExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={colours.muted} />
@@ -3511,74 +3511,6 @@ function LiveScreenInner() {
             )}
           </View>
 
-          {/* Frequent Rider Card — always shown during weekday commute windows (7–9am, 4–6pm) */}
-          {frequentRoutes.length > 0 && (() => {
-            const cwHour = new Date().getHours();
-            const cwDay = new Date().getDay();
-            const isCommuteWindow = cwDay >= 1 && cwDay <= 5 && ((cwHour >= 7 && cwHour < 9) || (cwHour >= 16 && cwHour < 18));
-            return !frequentCardDismissed || isCommuteWindow;
-          })() && (
-            <View style={{ marginHorizontal: 20, marginBottom: 14, borderRadius: 16, borderWidth: 1, borderColor: colours.accent + '30', backgroundColor: colours.surface, overflow: 'hidden', ...cardShadow }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: colours.border }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="flash" size={16} color={colours.accent} />
-                  <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text }}>{t('Your Routes', 'Vos lignes')}</Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => { setFrequentCardDismissed(true); AsyncStorage.setItem(SK_FREQUENT_CARD_DISMISSED, String(Date.now())); }}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Ionicons name="close" size={18} color={colours.muted} />
-                </TouchableOpacity>
-              </View>
-              {frequentRoutes.map((route, i) => {
-                const key = route.routeId || route.stopId;
-                const arrival = frequentArrivals[key];
-                const hasAlert = route.routeId ? alerts.some(a => a.routes?.includes(route.routeId)) : false;
-                const isLate = arrival && arrival.delay > 0;
-                return (
-                  <TouchableOpacity
-                    key={`freq-${i}`}
-                    onPress={() => { if (route.stopId) { loadStop(route.stopId, route.stopName); setExpandedStopId(route.stopId); } }}
-                    style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: i < frequentRoutes.length - 1 ? 1 : 0, borderBottomColor: colours.border }}
-                    activeOpacity={0.7}
-                  >
-                    <View style={{ backgroundColor: '#CE1126', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, minWidth: 36, alignItems: 'center', marginRight: 12 }}>
-                      <Text style={{ color: 'white', fontWeight: '800', fontSize: fonts.md }}>{route.routeId || '#'}</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }} numberOfLines={1}>
-                        {arrival?.headsign || route.stopName || (route.routeId ? `${t('Route', 'Ligne')} ${route.routeId}` : t('Stop', 'Arret'))}
-                      </Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                        {hasAlert ? (
-                          <><View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#FF3B30' }} /><Text style={{ fontSize: fonts.sm, color: '#FF3B30', fontWeight: '600' }}>{t('Service alert', 'Alerte de service')}</Text></>
-                        ) : isLate ? (
-                          <><View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#FF9500' }} /><Text style={{ fontSize: fonts.sm, color: '#FF9500', fontWeight: '600' }}>{t(`Running ${arrival.delay}m late`, `${arrival.delay}m de retard`)}</Text></>
-                        ) : arrival ? (
-                          <><View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#34C759' }} /><Text style={{ fontSize: fonts.sm, color: '#34C759', fontWeight: '600' }}>{t('On time', 'À l\'heure')}</Text></>
-                        ) : (
-                          <Text style={{ fontSize: fonts.sm, color: colours.muted }}>#{route.stopId}</Text>
-                        )}
-                      </View>
-                    </View>
-                    <View style={{ alignItems: 'flex-end', minWidth: 40 }}>
-                      {arrival ? (
-                        <>
-                          <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: arrival.minsAway <= 2 ? '#FF3B30' : colours.accent }}>
-                            {arrival.minsAway === 0 ? t('Due', 'Imminent') : `${arrival.minsAway}m`}
-                          </Text>
-                          <Text style={{ fontSize: 10, color: colours.muted }}>{t('next', 'prochain')}</Text>
-                        </>
-                      ) : (
-                        <ActivityIndicator size="small" color={colours.accent} />
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
 
           {/* Service disruption banner — full-width, dismissible, above board */}
           {bannerAlerts.length > 0 && !alertsLoading && (

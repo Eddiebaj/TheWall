@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useApp, PALETTE_LABELS, PaletteId } from '../../context/AppContext';
+import { useApp } from '../../context/AppContext';
 import { useBoard } from '../../context/BoardContext';
 import { supabase } from '../../lib/supabase';
 import { registerPushToken, syncSubscriptions } from '../../lib/pushNotifications';
@@ -121,7 +121,7 @@ export default function AccountScreen() {
   const {
     theme, setTheme, resolvedTheme, colours, fonts,
     language, setLanguage, t,
-    palette, setPalette,
+
     largeText, setLargeText,
     highContrast, setHighContrast,
     reducedMotion, setReducedMotion,
@@ -460,48 +460,6 @@ export default function AccountScreen() {
             ))}
           </View>
 
-          {/* Palette picker */}
-          <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, marginTop: 16, marginBottom: 12 }}>
-            {t('Color palette', 'Palette de couleurs')}
-          </Text>
-          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-            {(Object.keys(PALETTE_LABELS) as PaletteId[]).map(pid => {
-              const pl = PALETTE_LABELS[pid];
-              const active = palette === pid;
-              const locked = PREMIUM_ENABLED && !isPremium && pid !== 'default';
-              return (
-                <TouchableOpacity
-                  key={pid}
-                  onPress={() => {
-                    hapticLight();
-                    if (locked) { setPaywallVisible(true); return; }
-                    setPalette(pid);
-                  }}
-                  activeOpacity={0.7}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  style={{
-                    flexDirection: 'row', alignItems: 'center', gap: 6,
-                    paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10,
-                    borderWidth: 1,
-                    borderColor: active ? pl.swatch : colours.border,
-                    backgroundColor: active ? pl.swatch + '18' : colours.bg,
-                    opacity: locked ? 0.65 : 1,
-                  }}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                  accessibilityLabel={language === 'fr' ? pl.fr : pl.en}
-                >
-                  <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: pl.swatch }} />
-                  <Text style={{ fontSize: fonts.sm, fontWeight: active ? '700' : '500', color: active ? pl.swatch : colours.muted }}>
-                    {language === 'fr' ? pl.fr : pl.en}
-                  </Text>
-                  {locked && (
-                    <Ionicons name="lock-closed" size={11} color={colours.muted} />
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
         </Card>
 
         {/* Language */}
