@@ -31,14 +31,11 @@ type SavedPlace = { id: string; name: string; vicinity: string; rating?: number;
 type SavedBoardItem =
   | { type: 'bus_stop';      id: string; name: string; agency?: 'OC' | 'STO' }
   | { type: 'lrt_station';   id: string; name: string; agency?: 'OC' | 'STO' }
-  | { type: 'garbage' }
-  | { type: 'gas_prices' }
   | { type: 'otrain' }
   | { type: 'services' }
   | { type: 'discover' }
   | { type: 'external_link'; id: string; label_en: string; label_fr: string; icon: string; accent: string; url: string }
   | { type: 'campus' }
-  | { type: 'news' }
   | { type: 'neighbourhood'; id: string; name_en: string; name_fr: string };
 
 import { CAMPUSES, CampusConfig, fmt12h, getDayLabel, getNextDeparture, isLibraryOpen } from '../../lib/campusData';
@@ -53,10 +50,6 @@ import {
     SK_CACHE_WEATHER,
     SK_CAMPUS,
     SK_FAVS,
-    SK_GARBAGE_ADDRESS, SK_GARBAGE_LAT, SK_GARBAGE_LNG,
-    SK_GARBAGE_NOTIF_ID,
-    SK_GARBAGE_PLACE_ID,
-    SK_GAS_VOTED_IDS,
     SK_GHOST_REPORTS,
     SK_NOTIF_SETTINGS,
     SK_OTTAWA_LIFE,
@@ -85,7 +78,6 @@ import WeatherModal from '../../components/WeatherModal';
 const TRIP_UPDATES = 'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt-tp/beta/v1/TripUpdates?format=json';
 const BACKEND_URL = 'https://routeo-backend.vercel.app/api/arrivals';
 const ALERTS_URL = 'https://routeo-backend.vercel.app/api/alerts';
-const GAS_URL = 'https://routeo-backend.vercel.app/api/gas';
 const EC_WEATHER_URL = 'https://dd.weather.gc.ca/today/citypage_weather/ON/';
 const ONTARIO_511_URL = 'https://511on.ca/api/v2';
 const OTTAWA_OPEN_DATA_URL = 'https://open.ottawa.ca/api/explore/v2.1/catalog/datasets';
@@ -279,13 +271,6 @@ const isStoStop = (id: string): boolean => {
   return num >= 15000 && num <= 59999;
 };
 
-const BIN_INFO: Record<string, { dot: string; color: string; label: string; accepts: string[]; rejects: string[] }> = {
-  'garbage':         { dot: '●', color: '#666',    label: 'Garbage',           accepts: ['Food-soiled paper','Non-recyclable plastics','Styrofoam','Broken glass','Diapers'], rejects: ['Recyclables','Hazardous waste','Electronics'] },
-  'recycling-blue':  { dot: '●', color: '#1a6fbf', label: 'Blue Bin',          accepts: ['Paper & cardboard','Newspapers','Flyers','Milk cartons','Paper bags'], rejects: ['Plastic bags','Food waste','Styrofoam'] },
-  'recycling-black': { dot: '●', color: '#222',    label: 'Black Bin',         accepts: ['Plastic bottles & jugs','Glass bottles & jars','Metal cans','Aluminum foil','Rigid plastics'], rejects: ['Plastic bags','Styrofoam','Paper'] },
-  'green-bin':       { dot: '●', color: '#2d7a3a', label: 'Green Bin',         accepts: ['Food scraps','Soiled paper','Coffee grounds & filters','Eggshells','Small houseplants'], rejects: ['Plastic bags','Pet waste','Liquids'] },
-  'yard-waste':      { dot: '●', color: '#8b5a00', label: 'Yard Waste',        accepts: ['Leaves','Grass clippings','Branches (under 1.5m)','Garden plants'], rejects: ['Food waste','Soil','Rocks'] },
-};
 
 const CAMPUS_LOGOS: Record<string, any> = {
   carleton: require('../../assets/schools/carleton.png'),
@@ -302,10 +287,9 @@ const fmtTime = (date: Date): string => {
 const fmtAbsTime = (minsAway: number): string => fmtTime(new Date(Date.now() + minsAway * 60000));
 
 // ── SavedBoardCard component ─────────────────────────────────────
-function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, cardShadow, garbageEvents, alerts, onMoveLeft, onMoveRight, timeFormat, campusData, events }: {
+function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, cardShadow, alerts, onMoveLeft, onMoveRight, timeFormat, campusData, events }: {
   item: SavedBoardItem; colours: any; fonts: any; t: any;
   onPress: () => void; drag: () => void; isActive: boolean; cardShadow: any;
-  garbageEvents: { date: string; flags: string[] }[];
   alerts: any[];
   onMoveLeft?: () => void;
   onMoveRight?: () => void;
@@ -317,8 +301,6 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   const [preview, setPreview] = useState<{ routeId: string; headsign: string; minsAway: number }[]>([]);
   const [previewLoading, setPreviewLoading] = useState(true);
   const [previewSource, setPreviewSource] = useState<'gtfs-rt' | 'gtfs-static' | 'sto-gtfs-rt' | null>(null);
-  const [gasPrice, setGasPrice] = useState<string | null>(null);
-  const [gasFailed, setGasFailed] = useState(false);
   const [lastBusRouteInfo, setLastBusRouteInfo] = useState<{ routeId: string; lastBus: string | null; firstBus: string | null } | null>(null);
   const lastBusFetchedRef = React.useRef<string | null>(null);
   const [neighDealCount, setNeighDealCount] = useState(0);
@@ -349,11 +331,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   }, [isBoardLateNight, preview, previewLoading, item.type]);
 
   useEffect(() => {
-    if (item.type === 'garbage' || item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'campus' || item.type === 'news' || item.type === 'neighbourhood') { setPreviewLoading(false); return; }
-    if (item.type === 'gas_prices') {
-      setPreviewLoading(false);
-      return;
-    }
+    if (item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'campus' || item.type === 'neighbourhood') { setPreviewLoading(false); return; }
     let cancelled = false;
     const fetchPreview = async () => {
       try {
@@ -389,62 +367,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
     </View>
   ) : null;
 
-  // ── Garbage card — only visible 2 days before pickup ──
-  if (item.type === 'garbage') {
-    const next = garbageEvents[0];
-    const nextDate = next ? new Date(next.date + 'T12:00:00') : null;
-    const daysUntil = nextDate ? Math.round((nextDate.getTime() - new Date().setHours(0,0,0,0)) / 86400000) : null;
-    if (daysUntil === null || daysUntil > 2) return null;
-    const daysLabel = daysUntil === 0 ? t('TODAY', "AUJOURD'HUI") : daysUntil === 1 ? t('TOMORROW', 'DEMAIN') : `${t('IN', 'DANS')} ${daysUntil}d`;
-    const BIN_COLOURS: Record<string, string> = { garbage: '#666', 'recycling-blue': '#1a6fbf', 'recycling-black': '#222', 'green-bin': '#2d7a3a', 'yard-waste': '#8b5a00' };
-    return (
-      <ScaleDecorator>
-      <TouchableOpacity style={pillBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
-        <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#6b7f9918', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-          <Ionicons name="trash" size={18} color="#6b7f99" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }}>{t('Garbage Day', 'Jour de collecte')}</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-            <Text style={{ fontSize: 11, color: colours.muted }}>{nextDate?.toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
-            <View style={{ flexDirection: 'row', gap: 3 }}>
-              {(next.flags || []).slice(0, 4).map(flag => (
-                <View key={flag} style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: BIN_COLOURS[flag] || '#999' }} />
-              ))}
-            </View>
-          </View>
-        </View>
-        <Text style={{ fontSize: 14, fontWeight: '900', color: colours.accent, marginRight: 4 }}>{daysLabel}</Text>
-        {reorderBtns}
-      </TouchableOpacity>
-      </ScaleDecorator>
-    );
-  }
 
-  // ── Gas Prices card ──
-  const fetchGasPrice = useCallback(() => {
-    if (gasPrice || gasFailed) return;
-    fetchWithTimeout(GAS_URL, { timeout: 30000 }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(d => { if (d.price) setGasPrice(d.price); else setGasFailed(true); }).catch((e) => { if (__DEV__) console.warn('gas fetch failed:', e); setGasFailed(true); });
-  }, [gasPrice, gasFailed]);
-  if (item.type === 'gas_prices') {
-    return (
-      <ScaleDecorator>
-      <TouchableOpacity style={pillBase} onPress={() => { fetchGasPrice(); onPress(); }} onLongPress={drag} activeOpacity={0.85}>
-        <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#6b7f9918', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-          <Ionicons name="speedometer" size={18} color="#6b7f99" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }}>{t('Gas Prices', "Prix d'essence")}</Text>
-          <Text style={{ fontSize: 11, color: colours.muted, marginTop: 1 }}>{t('Regular · Ottawa avg', 'Ordinaire · Moy. Ottawa')}</Text>
-        </View>
-        <Text style={{ fontSize: 14, fontWeight: '900', color: gasPrice ? colours.accent : colours.muted, marginRight: 4 }}>
-          {gasPrice ? `${gasPrice}¢` : gasFailed ? '—' : t('Tap', 'App.')}
-        </Text>
-        {reorderBtns}
-      </TouchableOpacity>
-      </ScaleDecorator>
-    );
-  }
 
   // ── O-Train card ──
   if (item.type === 'otrain') {
@@ -495,25 +418,6 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }}>{t('Discover Ottawa', 'Découvrir Ottawa')}</Text>
           <Text style={{ fontSize: 11, color: colours.muted, marginTop: 1 }}>{t('Neighbourhoods & places', 'Quartiers et lieux')}</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={16} color={colours.muted} style={{ marginRight: 4 }} />
-        {reorderBtns}
-      </TouchableOpacity>
-      </ScaleDecorator>
-    );
-  }
-
-  // ── News card ──
-  if (item.type === 'news') {
-    return (
-      <ScaleDecorator>
-      <TouchableOpacity style={pillBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
-        <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#cc3b2a18', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-          <Ionicons name="newspaper" size={18} color="#cc3b2a" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }}>{t('Local News', 'Actualités locales')}</Text>
-          <Text style={{ fontSize: 11, color: colours.muted, marginTop: 1 }}>{t('Ottawa headlines', 'Manchettes Ottawa')}</Text>
         </View>
         <Ionicons name="chevron-forward" size={16} color={colours.muted} style={{ marginRight: 4 }} />
         {reorderBtns}
@@ -711,382 +615,6 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
     </ScaleDecorator>
   );
 }
-// ── GasPricesExpanded ────────────────────────────────────────────
-function GasPricesExpanded({ colours, fonts }: { colours: any; fonts: any }) {
-  const [stations, setStations] = useState<{ name: string; price: string; address: string }[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [avgPrice, setAvgPrice] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchWithTimeout(GAS_URL)
-      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-      .then(d => {
-        if (d.price) setAvgPrice(d.price);
-        if (d.stations) setStations(d.stations);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) return <View style={{ padding: 40, alignItems: 'center' }}><ActivityIndicator color={colours.accent} size="large" /></View>;
-
-  return (
-    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24 }}>
-      {avgPrice && (
-        <View style={{ padding: 16, borderRadius: 14, backgroundColor: colours.accent + '12', borderWidth: 1, borderColor: colours.accent + '30', marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <Ionicons name="speedometer" size={24} color={colours.accent} />
-          <View>
-            <Text style={{ fontSize: 28, fontWeight: '900', color: colours.accent }}>{avgPrice}¢/L</Text>
-            <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>Ottawa average · Regular unleaded</Text>
-          </View>
-        </View>
-      )}
-      {stations.length > 0 ? (
-        stations.map((s, i) => (
-          <View key={i} style={{ padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{s.name}</Text>
-              {s.address ? <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }} numberOfLines={1}>{s.address}</Text> : null}
-            </View>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: colours.accent, marginLeft: 12 }}>{s.price}¢</Text>
-          </View>
-        ))
-      ) : (
-        <View style={{ alignItems: 'center', paddingVertical: 24 }}>
-          <Text style={{ color: colours.muted, fontSize: 13, textAlign: 'center' }}>Station-level data not available.{'\n'}Check GasBuddy for full listings.</Text>
-        </View>
-      )}
-    </ScrollView>
-  );
-}
-
-// ── Gas Prices Types ─────────────────────────────────────────────
-type GasReport = {
-  id: string;
-  station_name: string;
-  address: string | null;
-  price_per_litre: number;
-  fuel_type: string;
-  reported_at: string;
-  confirmed_count: number;
-  disputed_count: number;
-};
-
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-}
-
-// ── GasPricesWidget ──────────────────────────────────────────────
-function GasPricesWidget({ colours, fonts, t, cardShadow, isBoardSaved, toggleBoard }: { colours: any; fonts: any; t: (en: string, fr: string) => string; cardShadow: any; isBoardSaved: boolean; toggleBoard: () => void }) {
-  const [reports, setReports] = useState<GasReport[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [reportModal, setReportModal] = useState(false);
-  const [stationQuery, setStationQuery] = useState('');
-  const [stationName, setStationName] = useState('');
-  const [stationAddress, setStationAddress] = useState('');
-  const [stationLat, setStationLat] = useState<number | null>(null);
-  const [stationLng, setStationLng] = useState<number | null>(null);
-  const [stationResults, setStationResults] = useState<{ label: string; lat?: number; lng?: number }[]>([]);
-  const stationSeq = useRef(0);
-  const [price, setPrice] = useState('');
-  const [fuelType, setFuelType] = useState<'regular' | 'premium' | 'diesel'>('regular');
-  const [submitting, setSubmitting] = useState(false);
-  const [votedIds, setVotedIds] = useState<Set<string>>(new Set());
-
-  // Load persisted gas votes
-  useEffect(() => {
-    AsyncStorage.getItem(SK_GAS_VOTED_IDS).then(val => {
-      if (val) try { setVotedIds(new Set(JSON.parse(val))); } catch {}
-    }).catch(() => {});
-  }, []);
-
-  const [prevPrices, setPrevPrices] = useState<{ [station: string]: number }>({});
-
-  const fetchReports = async () => {
-    setLoading(true);
-    const { data } = await supabase
-      .from('gas_prices')
-      .select('*')
-      .order('reported_at', { ascending: false })
-      .limit(3);
-    setReports(data || []);
-    // Fetch previous reports for each station to compute trends
-    if (data && data.length > 0) {
-      const stationNames = [...new Set(data.map((r: GasReport) => r.station_name))];
-      const prev: { [station: string]: number } = {};
-      for (const name of stationNames) {
-        const { data: older } = await supabase
-          .from('gas_prices')
-          .select('price_per_litre')
-          .eq('station_name', name)
-          .order('reported_at', { ascending: false })
-          .range(1, 1);
-        if (older && older.length > 0) prev[name] = older[0].price_per_litre;
-      }
-      setPrevPrices(prev);
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchReports(); }, []);
-
-  const handleStationSearch = (text: string) => {
-    setStationQuery(text);
-    setStationName(''); setStationAddress(''); setStationLat(null); setStationLng(null);
-    if (text.length < 2) { setStationResults([]); return; }
-    const seq = ++stationSeq.current;
-    fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=autocomplete-geocode&input=${encodeURIComponent(text)}`)
-      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-      .then(d => { if (seq === stationSeq.current) setStationResults((d.results || []).filter((r: any) => r.label).slice(0, 4)); })
-      .catch(() => { if (seq === stationSeq.current) setStationResults([]); });
-  };
-
-  const selectStation = (result: { label: string; lat?: number; lng?: number }) => {
-    const parts = result.label.split(',');
-    const name = parts[0].trim();
-    const addr = parts.length > 1 ? result.label : '';
-    setStationQuery(name);
-    setStationName(name);
-    setStationAddress(addr);
-    setStationLat(result.lat || null);
-    setStationLng(result.lng || null);
-    setStationResults([]);
-  };
-
-  const handleSubmit = async () => {
-    const priceNum = parseFloat(price);
-    if (!stationName.trim() || isNaN(priceNum) || priceNum <= 0) {
-      Alert.alert(t('Missing info', 'Info manquante'), t('Select a station and enter a valid price.', 'Sélectionnez une station et entrez un prix valide.'));
-      return;
-    }
-    setSubmitting(true);
-    const { error } = await supabase.from('gas_prices').insert({
-      station_name: stationName.trim(),
-      address: stationAddress || null,
-      lat: stationLat,
-      lng: stationLng,
-      price_per_litre: priceNum,
-      fuel_type: fuelType,
-    });
-    if (error) {
-      setSubmitting(false);
-      Alert.alert(t('Error', 'Erreur'), t('Failed to submit price. Try again.', 'Impossible de soumettre le prix. Reessayez.'));
-      return;
-    }
-    setStationQuery(''); setStationName(''); setStationAddress(''); setStationLat(null); setStationLng(null);
-    setPrice(''); setFuelType('regular');
-    setSubmitting(false); setReportModal(false);
-    fetchReports();
-  };
-
-  const handleVote = async (id: string, type: 'confirm' | 'dispute') => {
-    if (votedIds.has(id)) return;
-    setVotedIds(prev => {
-      const updated = new Set(prev).add(id);
-      AsyncStorage.setItem(SK_GAS_VOTED_IDS, JSON.stringify([...updated])).catch(() => {});
-      return updated;
-    });
-    const col = type === 'confirm' ? 'confirmed_count' : 'disputed_count';
-    const report = reports.find(r => r.id === id);
-    if (!report) return;
-    supabase.from('gas_prices').update({ [col]: (report[col] || 0) + 1 }).eq('id', id).then(() => {}, () => {});
-    setReports(prev => prev.map(r => r.id === id ? { ...r, [col]: (r[col] || 0) + 1 } : r));
-  };
-
-  const FUEL_TYPES: { key: 'regular' | 'premium' | 'diesel'; label: string }[] = [
-    { key: 'regular', label: 'Regular' },
-    { key: 'premium', label: 'Premium' },
-    { key: 'diesel', label: 'Diesel' },
-  ];
-
-  return (
-    <>
-      <View style={[{ marginHorizontal: 20, borderRadius: 16, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, overflow: 'hidden', marginBottom: 16 }, cardShadow]}>
-        {/* Header */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: colours.border }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#00A78D18', alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons name="speedometer" size={16} color="#00A78D" />
-            </View>
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('GAS PRICES', 'PRIX ESSENCE')}</Text>
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <TouchableOpacity onPress={toggleBoard} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name={isBoardSaved ? 'bookmark' : 'bookmark-outline'} size={18} color={isBoardSaved ? colours.accent : colours.muted} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setReportModal(true)}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, backgroundColor: '#00A78D' + '15', borderWidth: 1, borderColor: '#00A78D' }}
-            >
-              <Ionicons name="add-circle" size={14} color="#00A78D" />
-              <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: '#00A78D' }}>{t('Report', 'Signaler')}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Content */}
-        {loading ? (
-          <View style={{ padding: 32, alignItems: 'center' }}>
-            <ActivityIndicator color={colours.accent} />
-          </View>
-        ) : reports.length === 0 ? (
-          <View style={{ padding: 28, alignItems: 'center' }}>
-            <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: '#00A78D' + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-              <Ionicons name="speedometer-outline" size={28} color="#00A78D" />
-            </View>
-            <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text, textAlign: 'center' }}>
-              {t('No reports yet', 'Aucun signalement')}
-            </Text>
-            <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 4, textAlign: 'center', lineHeight: 18 }}>
-              {t('Help Ottawa drivers by reporting the gas price at your nearest station.', 'Aidez les automobilistes d\u2019Ottawa en signalant le prix de l\u2019essence.')}
-            </Text>
-            <TouchableOpacity
-              onPress={() => setReportModal(true)}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 14, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, backgroundColor: '#00A78D' }}
-            >
-              <Ionicons name="add-circle" size={16} color="white" />
-              <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>{t('Report a Price', 'Signaler un prix')}</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          reports.map((r, i) => {
-            const voted = votedIds.has(r.id);
-            return (
-              <View key={r.id} style={{ borderTopWidth: i > 0 ? 1 : 0, borderTopColor: colours.border }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12 }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }} numberOfLines={1}>{r.station_name}</Text>
-                    <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
-                      {r.fuel_type.charAt(0).toUpperCase() + r.fuel_type.slice(1)} · {timeAgo(r.reported_at)}
-                    </Text>
-                    {prevPrices[r.station_name] != null && prevPrices[r.station_name] !== r.price_per_litre && (() => {
-                      const diff = (r.price_per_litre - prevPrices[r.station_name]) * 100;
-                      const up = diff > 0;
-                      return (
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: up ? '#cc3b2a' : '#2d7a3a', marginTop: 2 }}>
-                          {up ? '\u2191' : '\u2193'} {Math.abs(diff).toFixed(1)}\u00A2 since last report
-                        </Text>
-                      );
-                    })()}
-                  </View>
-                  <Text style={{ fontSize: 20, fontWeight: '900', color: '#00A78D' }}>
-                    {(r.price_per_litre * 100).toFixed(1)}¢
-                  </Text>
-                </View>
-                {/* Vote row */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 14, paddingBottom: 12 }}>
-                  <TouchableOpacity
-                    onPress={() => handleVote(r.id, 'confirm')}
-                    disabled={voted}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, padding: 6, opacity: voted ? 0.5 : 1 }}
-                  >
-                    <Ionicons name="thumbs-up-outline" size={14} color="#34c759" />
-                    <Text style={{ fontSize: 12, color: '#34c759', fontWeight: '600' }}>{r.confirmed_count}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => handleVote(r.id, 'dispute')}
-                    disabled={voted}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, padding: 6, opacity: voted ? 0.5 : 1 }}
-                  >
-                    <Ionicons name="thumbs-down-outline" size={14} color="#cc3b2a" />
-                    <Text style={{ fontSize: 12, color: '#cc3b2a', fontWeight: '600' }}>{r.disputed_count}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            );
-          })
-        )}
-      </View>
-
-      {/* Report Modal */}
-      <Modal visible={reportModal} animationType="slide" transparent onRequestClose={() => setReportModal(false)}>
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
-            <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40 }}>
-              <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 4 }} />
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colours.border }}>
-                <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text }}>{t('Report Gas Price', 'Signaler un prix')}</Text>
-                <TouchableOpacity style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, alignItems: 'center', justifyContent: 'center' }} onPress={() => setReportModal(false)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
-                  <Ionicons name="close" size={18} color={colours.text} />
-                </TouchableOpacity>
-              </View>
-              <View style={{ padding: 20, gap: 14 }}>
-                <View style={{ zIndex: 10 }}>
-                  <TextInput
-                    placeholder={t('Search gas station...', 'Chercher une station...')}
-                    placeholderTextColor={colours.muted}
-                    value={stationQuery}
-                    onChangeText={handleStationSearch}
-                    style={{ borderWidth: 1, borderColor: stationName ? '#00A78D' : colours.border, borderRadius: 12, padding: 14, fontSize: fonts.md, color: colours.text, backgroundColor: colours.surface }}
-                    accessibilityLabel={t('Search gas station', 'Chercher une station')}
-                  />
-                  {stationName ? (
-                    <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 4, marginLeft: 4 }} numberOfLines={1}>{stationAddress}</Text>
-                  ) : null}
-                  {stationResults.length > 0 && (
-                    <View style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 12, marginTop: 6, overflow: 'hidden', backgroundColor: colours.surface }}>
-                      {stationResults.map((r, i) => (
-                        <TouchableOpacity
-                          key={i}
-                          onPress={() => selectStation(r)}
-                          style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: i < stationResults.length - 1 ? 1 : 0, borderBottomColor: colours.border }}
-                        >
-                          <Ionicons name="location-outline" size={16} color={colours.muted} />
-                          <Text style={{ flex: 1, fontSize: fonts.md, color: colours.text }} numberOfLines={1}>{r.label}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-                </View>
-                <TextInput
-                  placeholder={t('Price per litre (e.g. 1.689)', 'Prix par litre (ex. 1.689)')}
-                  placeholderTextColor={colours.muted}
-                  value={price}
-                  onChangeText={setPrice}
-                  keyboardType="decimal-pad"
-                  style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 12, padding: 14, fontSize: fonts.md, color: colours.text, backgroundColor: colours.surface }}
-                />
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  {FUEL_TYPES.map(ft => (
-                    <TouchableOpacity
-                      key={ft.key}
-                      onPress={() => setFuelType(ft.key)}
-                      style={{
-                        flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 12, borderWidth: 1,
-                        backgroundColor: fuelType === ft.key ? '#00A78D' + '18' : colours.surface,
-                        borderColor: fuelType === ft.key ? '#00A78D' : colours.border,
-                      }}
-                    >
-                      <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: fuelType === ft.key ? '#00A78D' : colours.muted }}>{ft.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <TouchableOpacity
-                  onPress={handleSubmit}
-                  disabled={submitting}
-                  style={{ backgroundColor: '#00A78D', borderRadius: 12, paddingVertical: 14, alignItems: 'center', opacity: submitting ? 0.6 : 1 }}
-                >
-                  {submitting
-                    ? <ActivityIndicator color="white" />
-                    : <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.lg }}>{t('Submit Price', 'Soumettre le prix')}</Text>
-                  }
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-    </>
-  );
-}
 
 
 function SavedPlaceCard({ place, colours, fonts, language, t, onPress, onLongPress, cardShadow }: any) {
@@ -1130,63 +658,6 @@ async function ensureNotifPermission(): Promise<boolean> {
   return status === 'granted';
 }
 
-/**
- * Schedule (or re-schedule) an 8 pm local notification the evening before
- * the next garbage collection. Cancels any previous garbage reminder first.
- */
-async function scheduleGarbageNotification(
-  events: { date: string; flags: string[] }[],
-  lang: string = 'en'
-): Promise<void> {
-  if (!(await ensureNotifPermission())) return;
-
-  if (!Notifications) return;
-  // Cancel any existing garbage reminder
-  const existingId = await AsyncStorage.getItem(SK_GARBAGE_NOTIF_ID);
-  if (existingId) {
-    await Notifications.cancelScheduledNotificationAsync(existingId).catch(() => {});
-    await AsyncStorage.removeItem(SK_GARBAGE_NOTIF_ID);
-  }
-
-  const next = events[0];
-  if (!next) return;
-
-  const collectionDate = new Date(next.date + 'T08:00:00');
-  // Remind the evening before at 8 pm
-  const reminderDate = new Date(collectionDate);
-  reminderDate.setDate(reminderDate.getDate() - 1);
-  reminderDate.setHours(20, 0, 0, 0);
-
-  if (reminderDate <= new Date()) return; // already past
-
-  const BIN_LABELS_EN: Record<string, string> = {
-    'garbage': 'Garbage', 'recycling-blue': 'Blue Bin',
-    'recycling-black': 'Black Bin', 'green-bin': 'Green Bin', 'yard-waste': 'Yard Waste',
-  };
-  const BIN_LABELS_FR: Record<string, string> = {
-    'garbage': 'Ordures', 'recycling-blue': 'Bac bleu',
-    'recycling-black': 'Bac noir', 'green-bin': 'Bac vert', 'yard-waste': 'Déchets de jardin',
-  };
-  const labels = lang === 'fr' ? BIN_LABELS_FR : BIN_LABELS_EN;
-  const binNames = next.flags.map(f => labels[f] || f).join(' · ');
-  const dayLabel = collectionDate.toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'long' });
-
-  try {
-    const id = await Notifications.scheduleNotificationAsync({
-      content: {
-        title: lang === 'fr' ? '🗑️ Collecte demain' : '🗑️ Garbage Day tomorrow',
-        body: lang === 'fr' ? `Sortir : ${binNames} (${dayLabel})` : `Put out: ${binNames} (${dayLabel})`,
-        data: { type: 'garbage_reminder' },
-        sound: false,
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DATE,
-        date: reminderDate,
-      },
-    });
-    await AsyncStorage.setItem(SK_GARBAGE_NOTIF_ID, id);
-  } catch (e) { if (__DEV__) console.warn('schedule garbage notification failed:', e); }
-}
 
 /**
  * On app open: fetch alerts and fire a local notification for any
@@ -1350,13 +821,6 @@ function LiveScreenInner() {
   const [dailyForecast, setDailyForecast] = useState<{ day: string; date: string; high: number; low: number; icon: string; precip: number }[]>([]);
   const [locationName, setLocationName] = useState('Ottawa, Ontario');
   // Ottawa road closures
-  const [roadEvents, setRoadEvents] = useState<{ id: string; description: string; type: string; road: string; distance: number }[]>([]);
-  const [roadEventsModal, setRoadEventsModal] = useState(false);
-  const [roadEventsLoading, setRoadEventsLoading] = useState(false);
-  // Ottawa Open Data parks/rinks
-  const [parksModal, setParksModal] = useState(false);
-  const [parks, setParks] = useState<{ name: string; crossStreets: string; facility: string; accessible: string; boards: string; toilet: string; lat: number; lng: number; distance: number }[]>([]);
-  const [parksLoading, setParksLoading] = useState(false);
   // VeloGo bike share
   const [bikeShareModal, setBikeShareModal] = useState(false);
   const [bikeStations, setBikeStations] = useState<{ name: string; bikes: number; docks: number; lat: number; lng: number; distance: number }[]>([]);
@@ -1377,7 +841,6 @@ function LiveScreenInner() {
   const [eventsNearMe, setEventsNearMe] = useState(false);
   const [eventsUserCoords, setEventsUserCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [eventsGeoCache, setEventsGeoCache] = useState<{ [addr: string]: { lat: number; lng: number } }>({});
-  const [garbageModalVisible, setGarbageModalVisible] = useState(false);
   const [socialModal, setSocialModal] = useState(false);
   const [socialTab, setSocialTab] = useState<'all' | 'bars' | 'restaurants' | 'clubs'>('all');
   const [socialFeedbackVenue, setSocialFeedbackVenue] = useState<string | null>(null);
@@ -1396,15 +859,6 @@ function LiveScreenInner() {
   const [campusPicker, setCampusPicker] = useState(false);
   const [campusFood, setCampusFood] = useState<any[]>([]);
   const [campusFoodLoading, setCampusFoodLoading] = useState(false);
-
-  const [garbageAddress, setGarbageAddress] = useState('');
-  const [garbageAddressInput, setGarbageAddressInput] = useState('');
-  const [garbagePlaceId, setGarbagePlaceId] = useState('');
-  const [garbageEvents, setGarbageEvents] = useState<{ date: string; flags: string[] }[]>([]);
-  const [garbageLoading, setGarbageLoading] = useState(false);
-  const [garbageError, setGarbageError] = useState('');
-  const [expandedBin, setExpandedBin] = useState<string | null>(null);
-  const [addressSaved, setAddressSaved] = useState(false);
 
   const isLight = theme === 'light' || (theme === 'system' && colours.bg === '#f0f4f8');
   const cardShadow = useMemo(() => isLight ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 } : {}, [isLight]);
@@ -1459,12 +913,11 @@ function LiveScreenInner() {
     Promise.all([
       AsyncStorage.getItem(SK_SAVED_BOARD),
       AsyncStorage.getItem(SK_FAVS),
-      AsyncStorage.getItem(SK_GARBAGE_ADDRESS),
-    ]).then(([boardVal, favsVal, garbageAddr]) => {
+    ]).then(([boardVal, favsVal]) => {
       try {
         let board: SavedBoardItem[] = boardVal ? JSON.parse(boardVal) : [];
         // Migrate: remove stale service_alert items (replaced by persistent disruption banner)
-        board = board.filter((i: any) => i.type !== 'service_alert');
+        board = board.filter((i: any) => i.type !== 'service_alert' && i.type !== 'garbage' && i.type !== 'gas_prices' && i.type !== 'news');
         const existingFavs: Fav[] = favsVal ? JSON.parse(favsVal) : [];
         let changed = false;
         for (const fav of existingFavs) {
@@ -1473,10 +926,6 @@ function LiveScreenInner() {
             board.push({ type: LRT_STOP_IDS.has(fav.id) ? 'lrt_station' : 'bus_stop', id: fav.id, name: fav.name });
             changed = true;
           }
-        }
-        if (garbageAddr && !board.some(i => i.type === 'garbage')) {
-          board.push({ type: 'garbage' });
-          changed = true;
         }
         if (changed) AsyncStorage.setItem(SK_SAVED_BOARD, JSON.stringify(board));
         setSavedBoard(board);
@@ -1524,7 +973,6 @@ function LiveScreenInner() {
     AsyncStorage.removeItem(SK_OTTAWA_LIFE);
     fetchAlerts();
     fetchWeather();
-    loadSavedGarbageAddress();
     // Load dismissed alert IDs
     AsyncStorage.getItem(SK_DISMISSED_ALERT_IDS).then(val => {
       if (val) { try { setDismissedAlertIds(new Set(JSON.parse(val))); } catch {} }
@@ -1627,7 +1075,7 @@ function LiveScreenInner() {
     setSavedBoard(prev => {
       const exists = prev.some(i => {
         if (i.type !== item.type) return false;
-        if (item.type === 'garbage' || item.type === 'gas_prices' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'news') return true;
+        if (item.type === 'otrain' || item.type === 'services' || item.type === 'discover') return true;
         if ((item.type === 'bus_stop' || item.type === 'lrt_station') && (i.type === 'bus_stop' || i.type === 'lrt_station')) return i.id === item.id;
         if (item.type === 'external_link' && i.type === 'external_link') return i.id === item.id;
         if (item.type === 'neighbourhood' && i.type === 'neighbourhood') return i.id === item.id;
@@ -1645,7 +1093,7 @@ function LiveScreenInner() {
     setSavedBoard(prev => {
       const updated = prev.filter(i => {
         if (i.type !== item.type) return true;
-        if (item.type === 'garbage' || item.type === 'gas_prices' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'news') return false;
+        if (item.type === 'otrain' || item.type === 'services' || item.type === 'discover') return false;
         if ((item.type === 'bus_stop' || item.type === 'lrt_station') && (i.type === 'bus_stop' || i.type === 'lrt_station')) return i.id !== item.id;
         if (item.type === 'external_link' && i.type === 'external_link') return i.id !== item.id;
         if (item.type === 'neighbourhood' && i.type === 'neighbourhood') return i.id !== item.id;
@@ -1657,25 +1105,19 @@ function LiveScreenInner() {
   };
 
   const isBoardSaved = (item: SavedBoardItem): boolean => {
-    if (item.type === 'garbage') return savedBoard.some(i => i.type === 'garbage');
-    if (item.type === 'gas_prices') return savedBoard.some(i => i.type === 'gas_prices');
     if (item.type === 'otrain') return savedBoard.some(i => i.type === 'otrain');
     if (item.type === 'services') return savedBoard.some(i => i.type === 'services');
     if (item.type === 'discover') return savedBoard.some(i => i.type === 'discover');
     if (item.type === 'campus') return savedBoard.some(i => i.type === 'campus');
-    if (item.type === 'news') return savedBoard.some(i => i.type === 'news');
     if (item.type === 'neighbourhood') return savedBoard.some(i => i.type === 'neighbourhood' && i.id === item.id);
     if (item.type === 'external_link') return savedBoard.some(i => i.type === 'external_link' && i.id === item.id);
     return savedBoard.some(i => (i.type === 'bus_stop' || i.type === 'lrt_station') && i.id === item.id);
   };
 
   const tileToBoard = (tile: ServiceTile): SavedBoardItem | null => {
-    if (tile.id === 'garbage') return { type: 'garbage' };
-    if (tile.id === 'gas') return { type: 'gas_prices' };
     if (tile.id === 'otrain') return { type: 'otrain' };
     if (tile.id === 'services') return { type: 'services' };
     if (tile.id === 'discover') return { type: 'discover' };
-    if (tile.id === 'news') return { type: 'news' };
     if (tile.id === 'campus') return { type: 'campus' };
     if (tile.action === 'navigate') return null;
     return {
@@ -1745,85 +1187,6 @@ function LiveScreenInner() {
     }
   };
 
-  const garbageFlagLabel: Record<string, string> = { 'garbage': 'Garbage', 'recycling-black': 'Black Bin (recycling)', 'recycling-blue': 'Blue Bin (recycling)', 'green-bin': 'Green Bin (organics)', 'yard-waste': 'Yard Waste' };
-  const WASTE_QUERY = 'https://maps.ottawa.ca/arcgis/rest/services/SolidWasteCollectionCalendar/MapServer/1/query';
-
-  const fetchGarbageEvents = async (lat: number, lng: number) => {
-    try {
-      const geometry = JSON.stringify({ x: lng, y: lat, spatialReference: { wkid: 4326 } });
-      const resp = await fetchWithTimeout(`${WASTE_QUERY}?geometry=${encodeURIComponent(geometry)}&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects&outFields=GCD,SCHEDULE,C_ZONE&returnGeometry=false&f=json&inSR=4326`);
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const data = await resp.json();
-      const feature = data?.features?.[0]?.attributes;
-      if (!feature) { setGarbageError('No collection zone found. Make sure you\'re in Ottawa.'); return; }
-      const events = buildPickupDates(feature.GCD, feature.SCHEDULE);
-      setGarbageEvents(events);
-      setGarbageError('');
-      scheduleGarbageNotification(events, language);
-    } catch { setGarbageError('Could not load schedule. Try again.'); }
-  };
-
-  const searchGarbageAddress = async (q: string) => {
-    if (!q.trim()) return;
-    setGarbageLoading(true); setGarbageError(''); setAddressSaved(false);
-    try {
-      const geoResp = await fetchWithTimeout(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ', Ottawa, Ontario, Canada')}&format=json&limit=1`, { headers: { 'User-Agent': 'RouteO/1.0' } });
-      if (!geoResp.ok) throw new Error('HTTP ' + geoResp.status);
-      const geoData = await geoResp.json();
-      const result = geoData?.[0];
-      if (!result) { setGarbageError('Address not found. Try "123 Main St" or a postal code.'); setGarbageLoading(false); return; }
-      const lat = parseFloat(result.lat); const lng = parseFloat(result.lon);
-      const displayAddress = result.display_name?.split(',').slice(0, 3).join(',') || q;
-      setGarbageAddress(displayAddress);
-      await AsyncStorage.setItem(SK_GARBAGE_ADDRESS, displayAddress);
-      await AsyncStorage.setItem(SK_GARBAGE_LAT, String(lat));
-      await AsyncStorage.setItem(SK_GARBAGE_LNG, String(lng));
-      await fetchGarbageEvents(lat, lng);
-    } catch { setGarbageError('Could not search address. Check your connection.'); }
-    setGarbageLoading(false);
-  };
-
-  const fetchGarbageEventsReCollect = async (placeId: string) => {
-    try {
-      const now = new Date();
-      const after = now.toLocaleDateString('en-CA');
-      const before = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000).toLocaleDateString('en-CA');
-      const resp = await fetchWithTimeout(`https://api.recollect.net/api/places/${placeId}/services/257/events?after=${after}&before=${before}&locale=en`);
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const data = await resp.json();
-      const events = (data?.events ?? []).map((e: any) => ({ date: e.day, flags: (e.flags ?? []).map((f: any) => f.event_type), label: (e.flags ?? []).map((f: any) => garbageFlagLabel[f.event_type] ?? f.event_type).join(' · ') })).filter((e: any) => e.flags.length > 0).slice(0, 8);
-      setGarbageEvents(events);
-      scheduleGarbageNotification(events, language);
-    } catch { setGarbageError('Could not load schedule.'); }
-  };
-
-  const buildPickupDates = (dayName: string, schedule: string): { date: string; flags: string[]; label: string }[] => {
-    const days: Record<string, number> = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
-    const targetDay = days[dayName?.toLowerCase()] ?? 3;
-    const results = [];
-    const now = new Date(); now.setHours(0, 0, 0, 0);
-    let d = new Date(now);
-    while (d.getDay() !== targetDay) d.setDate(d.getDate() + 1);
-    const weekNum = Math.floor(d.getTime() / (7 * 24 * 60 * 60 * 1000));
-    let isGarbageWeek = (weekNum % 2 === 0) === (schedule === 'A');
-    for (let i = 0; i < 8; i++) {
-      const dateStr = d.toLocaleDateString('en-CA');
-      const flags = isGarbageWeek ? ['garbage', 'recycling-black', 'green-bin'] : ['recycling-blue', 'green-bin'];
-      results.push({ date: dateStr, flags, label: isGarbageWeek ? 'Garbage · Black Bin · Green Bin' : 'Blue Bin · Green Bin' });
-      d.setDate(d.getDate() + 14); isGarbageWeek = !isGarbageWeek;
-    }
-    return results;
-  };
-
-  const loadSavedGarbageAddress = async () => {
-    const address = await AsyncStorage.getItem(SK_GARBAGE_ADDRESS);
-    const lat = await AsyncStorage.getItem(SK_GARBAGE_LAT);
-    const lng = await AsyncStorage.getItem(SK_GARBAGE_LNG);
-    const placeId = await AsyncStorage.getItem(SK_GARBAGE_PLACE_ID);
-    if (address) { setGarbageAddress(address); setAddressSaved(true); }
-    if (lat && lng) { fetchGarbageEvents(parseFloat(lat), parseFloat(lng)); }
-    else if (placeId) { setGarbagePlaceId(placeId); fetchGarbageEventsReCollect(placeId); }
-  };
 
   const fetchAlerts = async () => {
     try { setAlertsLoading(true); const resp = await fetchWithTimeout(ALERTS_URL); if (!resp.ok) throw new Error('HTTP ' + resp.status); const data = await resp.json(); setAlerts(data.alerts || []); }
@@ -1860,67 +1223,6 @@ function LiveScreenInner() {
     return { lat: 45.4215, lng: -75.6972 };
   };
 
-  const fetchRoadClosures = async () => {
-    setRoadEventsLoading(true);
-    try {
-      const coords = await getUserCoords();
-      const resp = await fetchWithTimeout('https://maps.ottawa.ca/arcgis/rest/services/Road_Closures/MapServer/0/query?where=1%3D1&outFields=*&f=json');
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const data = await resp.json();
-      const features = data.features || [];
-      const events = features.map((f: any, i: number) => {
-        const a = f.attributes || {};
-        const geom = f.geometry;
-        let dist = 999;
-        if (geom) {
-          const eLat = geom.y || geom.paths?.[0]?.[0]?.[1];
-          const eLng = geom.x || geom.paths?.[0]?.[0]?.[0];
-          if (eLat && eLng) dist = haversineDist(coords.lat, coords.lng, eLat, eLng);
-        }
-        return {
-          id: String(a.OBJECTID || i),
-          description: a.DESCRIPTION || a.COMMENTS || a.NAME || 'Road closure',
-          type: a.CLOSURE_TYPE || a.TYPE || 'Closure',
-          road: a.ROAD_NAME || a.STREET || a.NAME || '',
-          distance: dist,
-        };
-      });
-      events.sort((a: any, b: any) => a.distance - b.distance);
-      setRoadEvents(events);
-    } catch { setRoadEvents([]); }
-    setRoadEventsLoading(false);
-  };
-
-  // ── Ottawa Open Data parks/rinks ──────────────────────────────
-  const fetchParks = async () => {
-    setParksLoading(true);
-    try {
-      const coords = await getUserCoords();
-      const resp = await fetchWithTimeout('https://maps.ottawa.ca/arcgis/rest/services/Parks_Inventory/MapServer/13/query?where=1%3D1&outFields=RINK_PARK_NAME,MAJOR_CROSSSTREETS,FACILITY,ACCESSIBLE,BOARDS,TOILET&returnGeometry=true&f=json');
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const data = await resp.json();
-      const features = data.features || [];
-      const mapped = features.map((f: any) => {
-        const a = f.attributes || {};
-        const geom = f.geometry || {};
-        const lat = geom.y || 0;
-        const lng = geom.x || 0;
-        const dist = (lat && lng) ? haversineDist(coords.lat, coords.lng, lat, lng) : 999;
-        return {
-          name: a.RINK_PARK_NAME || 'Unknown Rink',
-          crossStreets: a.MAJOR_CROSSSTREETS || '',
-          facility: a.FACILITY || '',
-          accessible: a.ACCESSIBLE || '',
-          boards: a.BOARDS || '',
-          toilet: a.TOILET || '',
-          lat, lng, distance: dist,
-        };
-      });
-      mapped.sort((a: any, b: any) => a.distance - b.distance);
-      setParks(mapped.slice(0, 10));
-    } catch { setParks([]); }
-    setParksLoading(false);
-  };
 
   // ── VeloGo bike share ─────────────────────────────────────────
   const fetchBikeShare = async () => {
@@ -2586,15 +1888,9 @@ function LiveScreenInner() {
 
   const handleServiceTile = (tile: ServiceTile) => {
     if (tile.action === 'alert' && tile.target === 'social') { setSocialModal(true); return; }
-    if (tile.action === 'alert' && tile.target === 'garbage') { setGarbageModalVisible(true); return; }
     if (tile.action === 'alert' && tile.target === '311') { Linking.openURL('https://ottawa.ca/en/residents/water-and-environment/waste-and-recycling/report-problem').catch(() => {}); return; }
-    if (tile.action === 'alert' && tile.target === 'road_closures') { fetchRoadClosures(); setRoadEventsModal(true); return; }
-    if (tile.action === 'alert' && tile.target === 'parks') { fetchParks(); setParksModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'bikeshare') { fetchBikeShare(); setBikeShareModal(true); return; }
-
     if (tile.action === 'alert' && tile.target === 'campus') { if (!selectedCampus) setCampusPicker(true); else setCampusModal(true); return; }
-
-    if (tile.action === 'alert' && tile.target === 'gas_prices') { setBoardExpandItem({ type: 'gas_prices' }); return; }
     if (tile.action === 'alert') { setAlertsModalVisible(true); return; }
     if (tile.action === 'navigate' && tile.target?.includes('events?source=')) {
       const source = tile.target.includes('eventbrite') ? 'eventbrite' : 'ticketmaster';
@@ -2616,12 +1912,6 @@ function LiveScreenInner() {
     }
   };
 
-  const saveGarbageAddress = async () => {
-    if (!garbageAddress) return;
-    await AsyncStorage.setItem(SK_GARBAGE_ADDRESS, garbageAddress);
-    setAddressSaved(true);
-    addToBoardIfMissing({ type: 'garbage' });
-  };
 
   // ── Social / Happy Hour Modal ────────────────────────────────
   // HAPPY_HOUR_VENUES imported from lib/happyHourData.ts
@@ -3059,107 +2349,6 @@ function LiveScreenInner() {
     );
   };
 
-  // ── 511 Road Events Modal ─────────────────────────────────────
-  const renderRoadEventsModal = () => (
-    <Modal visible={roadEventsModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setRoadEventsModal(false)}>
-      <View style={[styles.modalContainer, { backgroundColor: colours.bg }]}>
-        <View style={[styles.modalHeader, { borderBottomColor: colours.border }]}>
-          <View>
-            <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>{t('Road Closures', 'Fermetures de routes')}</Text>
-            <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('Ottawa Open Data · Sorted by distance', 'Donn\u00E9es ouvertes · Tri\u00E9 par distance')}</Text>
-          </View>
-          <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setRoadEventsModal(false)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
-            <Ionicons name="close" size={18} color={colours.text} />
-          </TouchableOpacity>
-        </View>2
-        <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-          {roadEventsLoading ? (
-            <View style={styles.modalCenter}><ActivityIndicator color={colours.accent} size="large" /><Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('Loading road closures...', 'Chargement...')}</Text></View>
-          ) : roadEvents.length === 0 ? (
-            <View style={styles.modalCenter}>
-              <Ionicons name="checkmark-circle" size={36} color={colours.accent} />
-              <Text style={{ color: colours.text, fontWeight: '700', fontSize: fonts.lg, marginTop: 12 }}>{t('All Clear', 'Tout est d\u00E9gag\u00E9')}</Text>
-              <Text style={{ color: colours.muted, marginTop: 6, textAlign: 'center' }}>{t('No active road closures in Ottawa.', 'Aucune fermeture de route active.')}</Text>
-            </View>
-          ) : roadEvents.map(ev => (
-            <View key={ev.id} style={{ marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderLeftWidth: 4, borderColor: colours.border, borderLeftColor: '#e8a020', ...cardShadow }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                  <View style={{ backgroundColor: '#e8a02018', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#e8a020', textTransform: 'uppercase' }}>{ev.type}</Text>
-                  </View>
-                  {ev.road ? <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.text }} numberOfLines={1}>{ev.road}</Text> : null}
-                </View>
-                {ev.distance < 900 && <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted }}>{ev.distance < 1 ? `${(ev.distance * 1000).toFixed(0)}m` : `${ev.distance.toFixed(1)}km`}</Text>}
-              </View>
-              <Text style={{ fontSize: fonts.md, color: colours.muted, lineHeight: 20 }}>{ev.description}</Text>
-            </View>
-          ))}
-        </ScrollView>
-      </View>
-    </Modal>
-  );
-
-  // ── Ottawa Parks & Rinks Modal ────────────────────────────────
-  const renderParksModal = () => (
-    <Modal visible={parksModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setParksModal(false)}>
-      <View style={[styles.modalContainer, { backgroundColor: colours.bg }]}>
-        <View style={[styles.modalHeader, { borderBottomColor: colours.border }]}>
-          <View>
-            <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>{t('Parks & Rinks', 'Parcs et patinoires')}</Text>
-            <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('10 nearest · Sorted by distance', '10 plus proches · Triés par distance')}</Text>
-          </View>
-          <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setParksModal(false)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
-            <Ionicons name="close" size={18} color={colours.text} />
-          </TouchableOpacity>
-        </View>
-        <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-          {parksLoading ? (
-            <View style={styles.modalCenter}><ActivityIndicator color={colours.accent} size="large" /><Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('Loading rinks...', 'Chargement...')}</Text></View>
-          ) : parks.length === 0 ? (
-            <View style={styles.modalCenter}>
-              <Ionicons name="snow-outline" size={36} color={colours.muted} />
-              <Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('No park or rink data available right now.', 'Aucune donnée de parc ou patinoire disponible.')}</Text>
-            </View>
-          ) : parks.map((p, i) => (
-            <View key={i} style={{ marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, ...cardShadow }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: '#004890' + '15', alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name="snow" size={16} color="#004890" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text }} numberOfLines={1}>{p.name}</Text>
-                  {p.crossStreets ? <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }} numberOfLines={1}>{p.crossStreets}</Text> : null}
-                </View>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: '#00A78D' }}>{p.distance < 1 ? `${Math.round(p.distance * 1000)}m` : `${p.distance.toFixed(1)} km`}</Text>
-              </View>
-              {p.facility ? <Text style={{ fontSize: fonts.sm, color: colours.muted, marginBottom: 6 }}>{p.facility}</Text> : null}
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                {p.accessible && p.accessible.toLowerCase() === 'yes' && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#00A78D' + '15', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
-                    <Ionicons name="accessibility" size={12} color="#00A78D" />
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#00A78D' }}>{t('Accessible', 'Accessible')}</Text>
-                  </View>
-                )}
-                {p.boards && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#004890' + '15', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
-                    <Ionicons name="shield-outline" size={12} color="#004890" />
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#004890' }}>{t('Boards', 'Bandes')}: {p.boards}</Text>
-                  </View>
-                )}
-                {p.toilet && p.toilet.toLowerCase() === 'yes' && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#7b5ea7' + '15', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
-                    <Ionicons name="water-outline" size={12} color="#7b5ea7" />
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#7b5ea7' }}>{t('Washroom', 'Toilettes')}</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          ))}
-        </ScrollView>
-      </View>
-    </Modal>
-  );
 
   // ── VeloGo Bike Share Modal ───────────────────────────────────
   const renderBikeShareModal = () => (
@@ -3748,18 +2937,10 @@ function LiveScreenInner() {
 
   const renderBoardExpandModal = () => {
     if (!boardExpandItem) return null;
-    const isGarbage = boardExpandItem.type === 'garbage';
     const isStop = boardExpandItem.type === 'bus_stop' || boardExpandItem.type === 'lrt_station';
-    const isGas = boardExpandItem.type === 'gas_prices';
 
-    const modalTitle = isGarbage ? 'Garbage Day'
-      : isGas ? 'Gas Prices · Ottawa'
-      : isStop ? (boardExpandItem as any).name
-      : '';
-    const modalSub = isGarbage ? 'Collection schedule'
-      : isGas ? 'Nearby station prices'
-      : boardExpandItem.type === 'lrt_station' ? 'O-Train arrivals'
-      : 'Bus arrivals';
+    const modalTitle = isStop ? (boardExpandItem as any).name : '';
+    const modalSub = boardExpandItem.type === 'lrt_station' ? 'O-Train arrivals' : 'Bus arrivals';
 
     return (
       <Modal visible={!!boardExpandItem} animationType="slide" transparent onRequestClose={() => setBoardExpandItem(null)}>
@@ -3787,141 +2968,29 @@ function LiveScreenInner() {
                     <Ionicons name="refresh" size={14} color={colours.accent} />
                   </TouchableOpacity>
                 )}
-                {isGas && (
-                  <TouchableOpacity onPress={() => { setBoardExpandItem(null); Linking.openURL('https://www.gasbuddy.com/gas-prices/Canada/Ontario/Ottawa'); }} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}>
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accent }}>GasBuddy ↗</Text>
-                  </TouchableOpacity>
-                )}
                 <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, alignItems: 'center', justifyContent: 'center' }} onPress={() => setBoardExpandItem(null)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
                   <Ionicons name="close" size={16} color={colours.text} />
                 </TouchableOpacity>
               </View>
             </View>
-            {isGas ? (
-              <GasPricesExpanded colours={colours} fonts={fonts} />
-            ) : isGarbage ? (
-              <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20 }}>
-                {garbageAddress && <Text style={{ fontSize: 12, color: colours.muted, marginBottom: 16 }}>{garbageAddress}</Text>}
-                {garbageEvents.length === 0 ? (
-                  <View style={{ alignItems: 'center', paddingVertical: 32 }}>
-                    <Ionicons name="home-outline" size={36} color={colours.muted} />
-                    <Text style={{ color: colours.muted, textAlign: 'center', marginTop: 12 }}>Open the full Garbage Day widget to set your address.</Text>
-                    <TouchableOpacity onPress={() => { setBoardExpandItem(null); setGarbageModalVisible(true); }} style={{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, backgroundColor: colours.accent }}>
-                      <Text style={{ color: 'white', fontWeight: '700' }}>Open Garbage Day</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  garbageEvents.slice(0, 6).map((ev, i) => {
-                    const BIN_LABELS: Record<string, { color: string; label: string }> = { 'garbage': { color: '#666', label: 'Garbage' }, 'recycling-blue': { color: '#1a6fbf', label: 'Blue Bin' }, 'recycling-black': { color: '#222', label: 'Black Bin' }, 'green-bin': { color: '#2d7a3a', label: 'Green Bin' }, 'yard-waste': { color: '#8b5a00', label: 'Yard Waste' } };
-                    const d = new Date(ev.date + 'T12:00:00');
-                    const daysUntil = Math.round((d.getTime() - new Date().setHours(0,0,0,0)) / 86400000);
-                    const label = daysUntil === 0 ? 'TODAY' : daysUntil === 1 ? 'TOMORROW' : null;
-                    const isNext = i === 0;
-                    return (
-                      <View key={i} style={{ marginBottom: 10, padding: 14, borderRadius: 14, borderWidth: isNext ? 1.5 : 1, borderColor: isNext ? colours.accent : colours.border, backgroundColor: isNext ? colours.accent + '10' : colours.surface }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                          <Text style={{ fontSize: 14, fontWeight: '800', color: colours.text }}>{d.toLocaleDateString('en-CA', { weekday: 'long', month: 'short', day: 'numeric' })}</Text>
-                          {label && <View style={{ backgroundColor: colours.accent, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}><Text style={{ color: 'white', fontSize: 10, fontWeight: '800' }}>{label}</Text></View>}
-                        </View>
-                        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-                          {ev.flags.map(flag => { const bin = BIN_LABELS[flag]; if (!bin) return null; return (<View key={flag} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: bin.color + '18', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 }}><View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: bin.color }} /><Text style={{ fontSize: 11, fontWeight: '700', color: colours.text }}>{bin.label}</Text></View>); })}
-                        </View>
-                      </View>
-                    );
-                  })
-                )}
-              </ScrollView>
-            ) : (
-              <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
-                {loading ? (
-                  <View style={{ padding: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>
-                ) : arrivals.length === 0 ? (
-                  <View style={{ alignItems: 'center', padding: 40 }}>
-                    <Ionicons name="time-outline" size={36} color={colours.muted} />
-                    <Text style={{ color: colours.muted, marginTop: 8 }}>No upcoming arrivals</Text>
-                  </View>
-                ) : (
-                  arrivals.map(renderArrival)
-                )}
-              </ScrollView>
-            )}
+            <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+              {loading ? (
+                <View style={{ padding: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>
+              ) : arrivals.length === 0 ? (
+                <View style={{ alignItems: 'center', padding: 40 }}>
+                  <Ionicons name="time-outline" size={36} color={colours.muted} />
+                  <Text style={{ color: colours.muted, marginTop: 8 }}>No upcoming arrivals</Text>
+                </View>
+              ) : (
+                arrivals.map(renderArrival)
+              )}
+            </ScrollView>
           </View>
         </View>
       </Modal>
     );
   };
 
-  const renderGarbageModal = () => {
-    const nextPickup = garbageEvents[0];
-    const nextDate = nextPickup ? new Date(nextPickup.date + 'T12:00:00') : null;
-    const daysUntil = nextDate ? Math.round((nextDate.getTime() - new Date().setHours(0,0,0,0)) / 86400000) : null;
-    const daysLabel = daysUntil === 0 ? 'TODAY' : daysUntil === 1 ? 'TOMORROW' : daysUntil != null ? `IN ${daysUntil} DAYS` : null;
-    const renderBinChips = (flags: string[]) => (
-      <View style={{ gap: 8 }}>
-        {flags.map(flag => {
-          const bin = BIN_INFO[flag]; if (!bin) return null;
-          const isOpen = expandedBin === flag;
-          return (
-            <TouchableOpacity key={flag} onPress={() => setExpandedBin(isOpen ? null : flag)} style={{ backgroundColor: bin.color + '15', borderWidth: 1, borderColor: bin.color + '55', borderRadius: 12, padding: 12 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: bin.color }} />
-                  <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>{bin.label}</Text>
-                </View>
-                <Text style={{ fontSize: 12, color: colours.muted }}>{isOpen ? '▲' : '▼'}</Text>
-              </View>
-              {isOpen && (<View style={{ marginTop: 10, gap: 6 }}><Text style={{ fontSize: fonts.sm, fontWeight: '700', color: '#2d7a3a', marginBottom: 2 }}>✓ Accepted</Text>{bin.accepts.map(item => <Text key={item} style={{ fontSize: fonts.sm, color: colours.text }}>  • {item}</Text>)}<Text style={{ fontSize: fonts.sm, fontWeight: '700', color: '#cc3b2a', marginTop: 6, marginBottom: 2 }}>✗ Not accepted</Text>{bin.rejects.map(item => <Text key={item} style={{ fontSize: fonts.sm, color: colours.muted }}>  • {item}</Text>)}</View>)}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    );
-    return (
-      <Modal visible={garbageModalVisible} animationType="slide" transparent onRequestClose={() => { setGarbageModalVisible(false); setExpandedBin(null); }}>
-        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
-          <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40, maxHeight: '92%' }}>
-            <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 16 }} />
-            <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text, paddingHorizontal: 20, marginBottom: 12 }}>{t('Garbage Day', 'Jour de collecte')}</Text>
-            <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginBottom: 8 }}>
-              <TextInput style={{ flex: 1, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, color: colours.text, fontSize: fonts.md }} placeholder={t('Enter your Ottawa address...', 'Entrez votre adresse \u00E0 Ottawa...')} placeholderTextColor={colours.muted} value={garbageAddressInput} onChangeText={setGarbageAddressInput} onSubmitEditing={() => searchGarbageAddress(garbageAddressInput)} returnKeyType="search" accessibilityLabel={t('Enter your Ottawa address', 'Entrez votre adresse a Ottawa')} />
-              <TouchableOpacity onPress={() => searchGarbageAddress(garbageAddressInput)} style={{ backgroundColor: colours.accent, borderRadius: 12, paddingHorizontal: 14, justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Search address', 'Rechercher l\'adresse')}>
-                <Ionicons name="search" size={18} color="white" />
-              </TouchableOpacity>
-            </View>
-            {garbageLoading && <ActivityIndicator color={colours.accent} style={{ marginVertical: 20 }} />}
-            {!!garbageError && <Text style={{ color: '#cc3b2a', paddingHorizontal: 20, marginBottom: 12, fontSize: fonts.sm }}>{garbageError}</Text>}
-            {garbageAddress ? (
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 8 }}>
-                  <Text style={{ flex: 1, fontSize: fonts.sm, color: colours.muted }} numberOfLines={1}>{garbageAddress}</Text>
-                  <TouchableOpacity onPress={saveGarbageAddress} style={{ backgroundColor: addressSaved ? '#2d7a3a' : colours.surface, borderWidth: 1, borderColor: addressSaved ? '#2d7a3a' : colours.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
-                    <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: addressSaved ? 'white' : colours.text }}>{addressSaved ? '✓ Saved' : 'Save'}</Text>
-                  </TouchableOpacity>
-                </View>
-                {nextPickup && (
-                  <View style={{ backgroundColor: colours.accent + '15', borderWidth: 1.5, borderColor: colours.accent, borderRadius: 16, padding: 16, marginBottom: 16 }}>
-                    <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent, marginBottom: 4 }}>NEXT COLLECTION · {daysLabel}</Text>
-                    <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text, marginBottom: 12 }}>{nextDate?.toLocaleDateString('en-CA', { weekday: 'long', month: 'long', day: 'numeric' })}</Text>
-                    {renderBinChips(nextPickup.flags)}
-                  </View>
-                )}
-                {garbageEvents.slice(1).map((ev, i) => { const d = new Date(ev.date + 'T12:00:00'); return (<View key={i} style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colours.border }}><Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text, marginBottom: 6 }}>{d.toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>{renderBinChips(ev.flags)}</View>); })}
-                <View style={{ height: 16 }} />
-              </ScrollView>
-            ) : !garbageLoading && (
-              <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 }}>
-                <Ionicons name="home-outline" size={36} color={colours.muted} />
-                <Text style={{ fontSize: fonts.md, color: colours.muted, textAlign: 'center', marginTop: 12 }}>{t('Enter your Ottawa address to see your collection schedule.', 'Entrez votre adresse \u00E0 Ottawa pour voir votre calendrier de collecte.')}</Text>
-              </View>
-            )}
-            <TouchableOpacity onPress={() => { setGarbageModalVisible(false); setExpandedBin(null); }} style={{ marginHorizontal: 20, marginTop: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: colours.accent, alignItems: 'center' }} accessibilityRole="button" accessibilityLabel={t('Done', 'Termine')}>
-              <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.md }}>Done</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-    );
-  };
 
   const renderAlertsModal = () => (
     <Modal visible={alertsModalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setAlertsModalVisible(false)}>
@@ -4214,7 +3283,6 @@ function LiveScreenInner() {
         <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
         {alertsModalVisible && renderAlertsModal()}
         {weatherModalVisible && <WeatherModal visible={weatherModalVisible} onClose={() => setWeatherModalVisible(false)} colours={colours} fonts={fonts} t={t} weather={weather} forecast={forecast} dailyForecast={dailyForecast} locationName={locationName} />}
-        {garbageModalVisible && renderGarbageModal()}
         {swapSheetVisible && renderSwapSheet()}
         {!!expandedStopId && renderExpandedArrivals()}
         {showReportModal && renderStopReportModal()}
@@ -4285,8 +3353,6 @@ function LiveScreenInner() {
         {!!boardExpandItem && renderBoardExpandModal()}
         {socialModal && renderSocialModal()}
         {eventsModal && renderEventsModal()}
-        {roadEventsModal && renderRoadEventsModal()}
-        {parksModal && renderParksModal()}
         {bikeShareModal && renderBikeShareModal()}
         {(campusPicker || campusModal) && renderCampusModal()}
 
@@ -4628,12 +3694,9 @@ function LiveScreenInner() {
                 data={savedBoard}
                 scrollEnabled={false}
                 keyExtractor={(item, i) => {
-                  if (item.type === 'garbage') return 'garbage';
-                  if (item.type === 'gas_prices') return 'gas_prices';
                   if (item.type === 'otrain') return 'otrain';
                   if (item.type === 'services') return 'services';
                   if (item.type === 'discover') return 'discover';
-                  if (item.type === 'news') return 'news';
                   if (item.type === 'neighbourhood') return `neighbourhood-${item.id}`;
                   if (item.type === 'campus') return 'campus';
                   if (item.type === 'external_link') return `ext-${item.id}`;
@@ -4660,7 +3723,6 @@ function LiveScreenInner() {
                     fonts={fonts}
                     t={t}
                     cardShadow={cardShadow}
-                    garbageEvents={garbageEvents}
                     alerts={alerts}
                     timeFormat={timeFormat}
                     campusData={selectedCampus}
@@ -4669,14 +3731,11 @@ function LiveScreenInner() {
                     onMoveRight={idx < savedBoard.length - 1 ? () => moveBoard(idx, idx + 1) : undefined}
                     onPress={() => {
                       if (item.type === 'external_link') { Linking.openURL(item.url).catch(() => {}); return; }
-                      if (item.type === 'garbage') { setGarbageModalVisible(true); return; }
                       if (item.type === 'bus_stop' || item.type === 'lrt_station') {
                         loadStop(item.id, item.name);
                         setBoardExpandItem(item);
                       }
-                      if (item.type === 'gas_prices') { setBoardExpandItem(item); }
                       if (item.type === 'campus') { if (!selectedCampus) setCampusPicker(true); else setCampusModal(true); return; }
-                      if (item.type === 'news') { /* scroll handled by section visibility */ }
                       if (item.type === 'neighbourhood') { router.push('/(tabs)/discover' as any); return; }
                       if (item.type === 'otrain' || item.type === 'services') { /* scroll handled by section visibility */ }
                     }}
