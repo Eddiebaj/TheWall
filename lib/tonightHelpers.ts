@@ -51,19 +51,6 @@ type SensGame = {
   period?: string;
 };
 
-type ScheduleGame = {
-  date: string;
-  opponent: string;
-  opponentAbbr: string;
-  homeAway: string;
-  status?: string;
-};
-
-type TeamSchedule = {
-  team: string;
-  games: ScheduleGame[];
-};
-
 export type TonightFocus = {
   lat: number;
   lng: number;
@@ -75,7 +62,6 @@ export function buildTonightSummary(
   events: { name: string; date: string; time?: string; venue: string; lat?: number; lng?: number }[],
   venues: HappyHourVenue[],
   weather: { temp: number; condition: string } | null,
-  sportsSchedule: TeamSchedule[],
   focus?: TonightFocus | null,
 ): TonightSummary {
   const now = new Date();
@@ -93,35 +79,6 @@ export function buildTonightSummary(
       sports.push({ label: 'Sens Live', detail: `${sensGame.homeScore}-${sensGame.awayScore} ${sensGame.period || ''}`.trim(), icon: 'hockey', colour: '#cc3b2a' });
     } else if (sensGame.state === 'pre' && sensGame.startTime) {
       sports.push({ label: 'Sens Tonight', detail: `vs ${sensGame.opponentAbbr || 'TBD'} @ ${sensGame.startTime}`, icon: 'hockey', colour: '#cc3b2a' });
-    }
-  }
-
-  // Other teams from schedule data
-  const TEAM_CONFIG: { [name: string]: { icon: SportEntry['icon']; colour: string; venue: { lat: number; lng: number } } } = {
-    'REDBLACKS': { icon: 'football', colour: '#000000', venue: { lat: TD_PLACE_LAT, lng: TD_PLACE_LNG } },
-    "67's": { icon: 'hockey', colour: '#e8a020', venue: { lat: TD_PLACE_LAT, lng: TD_PLACE_LNG } },
-    'Charge': { icon: 'hockey', colour: '#7b5ea7', venue: { lat: TD_PLACE_LAT, lng: TD_PLACE_LNG } },
-    'Blackjacks': { icon: 'basketball', colour: '#004890', venue: { lat: TD_PLACE_LAT, lng: TD_PLACE_LNG } },
-    'Atletico': { icon: 'soccer', colour: '#7b5ea7', venue: { lat: TD_PLACE_LAT, lng: TD_PLACE_LNG } },
-    'Rapid FC': { icon: 'soccer', colour: '#00A78D', venue: { lat: TD_PLACE_LAT, lng: TD_PLACE_LNG } },
-  };
-
-  for (const ts of sportsSchedule) {
-    if (ts.team === 'Senators') continue; // handled above via sensGame
-    const config = TEAM_CONFIG[ts.team];
-    if (!config) continue;
-    const todayGame = ts.games.find(g => {
-      const gameDate = new Date(g.date).toLocaleDateString('en-CA');
-      return gameDate === todayStr;
-    });
-    if (todayGame) {
-      const gameTime = new Date(todayGame.date).toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' });
-      sports.push({
-        label: `${ts.team} Tonight`,
-        detail: `${todayGame.homeAway} ${todayGame.opponent} @ ${gameTime}`,
-        icon: config.icon,
-        colour: config.colour,
-      });
     }
   }
 

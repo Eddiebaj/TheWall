@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { supabase } from '../lib/supabase';
 import {
   Modal, ScrollView, StatusBar,
   Text, TouchableOpacity, View,
@@ -39,6 +40,19 @@ export default function GroupFeedSheet({ group, visible, onClose, joinedGroups, 
   const insets = useSafeAreaInsets();
 
   const isJoined = group ? joinedGroups.includes(group.id) : false;
+  const [communityDeals, setCommunityDeals] = useState<{ id: string; venue_name: string; deal_description: string }[]>([]);
+
+  useEffect(() => {
+    if (!group) return;
+    supabase
+      .from('community_deals')
+      .select('id, venue_name, deal_description')
+      .eq('approved', true)
+      .order('created_at', { ascending: false })
+      .limit(10)
+      .then(({ data }) => { if (data) setCommunityDeals(data); })
+      .catch(() => {});
+  }, [group?.id]);
 
   const toggleJoin = async () => {
     if (!group) return;
@@ -180,23 +194,33 @@ export default function GroupFeedSheet({ group, visible, onClose, joinedGroups, 
             </View>
           )}
 
-          {/* Community deals — neighbourhood-filtered feed coming soon */}
-          <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
-            <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 10 }}>
-              {t('COMMUNITY DEALS', 'OFFRES COMMUNAUTAIRES')}
-            </Text>
-            <View style={{
-              flexDirection: 'row', alignItems: 'center', gap: 10,
-              padding: 14, borderRadius: 12,
-              borderWidth: 1, borderColor: colours.border,
-              backgroundColor: colours.surface,
-            }}>
-              <Ionicons name="pricetag-outline" size={20} color={colours.accent} />
-              <Text style={{ fontSize: fonts.sm, color: colours.muted, flex: 1 }}>
-                {t('Deals near you coming soon', 'Offres pres de vous bientot disponibles')}
+          {/* Community deals — approved deals from Supabase */}
+          {communityDeals.length > 0 && (
+            <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 10 }}>
+                {t('COMMUNITY DEALS', 'OFFRES COMMUNAUTAIRES')}
               </Text>
+              {communityDeals.map(deal => (
+                <View
+                  key={deal.id}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 10,
+                    padding: 12, borderRadius: 12, marginBottom: 8,
+                    borderWidth: 1, borderColor: colours.border,
+                    backgroundColor: colours.surface,
+                  }}
+                >
+                  <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="pricetag" size={15} color={colours.accent} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }} numberOfLines={1}>{deal.venue_name}</Text>
+                    <Text style={{ fontSize: 11, color: colours.muted, marginTop: 1 }} numberOfLines={2}>{deal.deal_description}</Text>
+                  </View>
+                </View>
+              ))}
             </View>
-          </View>
+          )}
         </ScrollView>
       </View>
     </Modal>

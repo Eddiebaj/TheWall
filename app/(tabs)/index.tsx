@@ -37,7 +37,6 @@ type SavedBoardItem =
   | { type: 'otrain' }
   | { type: 'services' }
   | { type: 'discover' }
-  | { type: 'saved_team'; id: string; name: string }
   | { type: 'external_link'; id: string; label_en: string; label_fr: string; icon: string; accent: string; url: string }
   | { type: 'campus' }
   | { type: 'news' }
@@ -66,7 +65,6 @@ import {
     SK_SAVED_BOARD,
     SK_SAVED_PLACES,
     SK_SAVED_ROUTES,
-    SK_SAVED_TEAMS,
     SK_SECTION_ORDER,
     SK_SEEN_ALERT_IDS, SK_TIME_FORMAT,
     SK_TODAY_EVENTS
@@ -80,7 +78,6 @@ import { SK_CROWDING_CACHE, SK_FREQUENT_ARRIVALS_CACHE, SK_FREQUENT_CARD_DISMISS
 // NeighbourhoodSection removed — inlined for scroll reliability
 // NeighbourhoodSheet removed — discover section moved to dedicated tab
 import ServicesGrid, { ServiceTile } from '../../components/ServicesGrid';
-import SportsModal, { OTTAWA_TEAMS } from '../../components/SportsModal';
 import TonightCard from '../../components/TonightCard';
 import WeatherModal from '../../components/WeatherModal';
 
@@ -289,16 +286,6 @@ const BIN_INFO: Record<string, { dot: string; color: string; label: string; acce
   'yard-waste':      { dot: '●', color: '#8b5a00', label: 'Yard Waste',        accepts: ['Leaves','Grass clippings','Branches (under 1.5m)','Garden plants'], rejects: ['Food waste','Soil','Rocks'] },
 };
 
-const TEAM_LOGOS: { [name: string]: any } = {
-  'Senators': require('../../assets/images/2025-01-ottawa-senators-logo.webp'),
-  'REDBLACKS': require('../../assets/images/ottawa-redblacks-logo-2023-featured.png'),
-  "67's": require('../../assets/images/Ottawa_67\'s_logo.svg.png'),
-  'Charge': require('../../assets/images/ottawa_charge_logosvg.webp'),
-  'Blackjacks': require('../../assets/images/Ottawa_Blackjacks_logo.png'),
-  'Atlético': require('../../assets/images/Atletico_Ottawa_logo.png'),
-  'Rapid FC': require('../../assets/images/Ottawa_Rapid_FC.png'),
-};
-
 const CAMPUS_LOGOS: Record<string, any> = {
   carleton: require('../../assets/schools/carleton.png'),
   uottawa: require('../../assets/schools/uottawa.png'),
@@ -314,12 +301,11 @@ const fmtTime = (date: Date): string => {
 const fmtAbsTime = (minsAway: number): string => fmtTime(new Date(Date.now() + minsAway * 60000));
 
 // ── SavedBoardCard component ─────────────────────────────────────
-function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, cardShadow, garbageEvents, alerts, sensGame, onMoveLeft, onMoveRight, timeFormat, campusData }: {
+function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, cardShadow, garbageEvents, alerts, onMoveLeft, onMoveRight, timeFormat, campusData }: {
   item: SavedBoardItem; colours: any; fonts: any; t: any;
   onPress: () => void; drag: () => void; isActive: boolean; cardShadow: any;
   garbageEvents: { date: string; flags: string[] }[];
   alerts: any[];
-  sensGame?: { state: 'live' | 'pre' | 'none'; period?: string; homeAbbr?: string; awayAbbr?: string; homeScore?: number; awayScore?: number; startTime?: string; opponentAbbr?: string } | null;
   onMoveLeft?: () => void;
   onMoveRight?: () => void;
   timeFormat?: 'relative' | 'absolute';
@@ -333,7 +319,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   const [gasFailed, setGasFailed] = useState(false);
 
   useEffect(() => {
-    if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'saved_team' || item.type === 'campus' || item.type === 'news' || item.type === 'neighbourhood') { setPreviewLoading(false); return; }
+    if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'external_link' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'campus' || item.type === 'news' || item.type === 'neighbourhood') { setPreviewLoading(false); return; }
     if (item.type === 'gas_prices') {
       setPreviewLoading(false);
       return;
@@ -542,41 +528,6 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
         </View>
         <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }} numberOfLines={2}>{t(item.name_en, item.name_fr)}</Text>
         <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }}>Tap to explore →</Text>
-      </TouchableOpacity>
-      </ScaleDecorator>
-    );
-  }
-
-  // ── Saved Team card ──
-  if (item.type === 'saved_team') {
-    const teamLogo = TEAM_LOGOS[item.name];
-    const isSens = item.name === 'Senators';
-    const sg = isSens ? sensGame : null;
-    return (
-      <ScaleDecorator>
-      <TouchableOpacity style={cardBase} onPress={onPress} onLongPress={drag} activeOpacity={0.85}>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          {sg?.state === 'live' && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#cc3b2a' }} />
-              <Text style={{ fontSize: 9, fontWeight: '800', color: '#cc3b2a', letterSpacing: 0.5 }}>LIVE · {sg.period}</Text>
-            </View>
-          )}
-          {teamLogo ? (
-            <Image source={teamLogo} style={{ width: sg ? 48 : 64, height: sg ? 48 : 64 }} resizeMode="contain" />
-          ) : (
-            <View style={{ width: 64, height: 64, borderRadius: 16, backgroundColor: '#c8102e18', alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons name="trophy" size={26} color="#c8102e" />
-            </View>
-          )}
-        </View>
-        <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text, textAlign: 'center' }} numberOfLines={1}>{item.name}</Text>
-        {sg?.state === 'live' && (
-          <Text style={{ fontSize: 11, fontWeight: '800', color: colours.text, textAlign: 'center', marginTop: 2 }}>{sg.homeAbbr} {sg.homeScore} · {sg.awayAbbr} {sg.awayScore}</Text>
-        )}
-        {sg?.state === 'pre' && (
-          <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted, textAlign: 'center', marginTop: 2 }} numberOfLines={1}>Tonight vs {sg.opponentAbbr} · {sg.startTime}</Text>
-        )}
       </TouchableOpacity>
       </ScaleDecorator>
     );
@@ -1434,8 +1385,6 @@ function LiveScreenInner() {
   const [eventsUserCoords, setEventsUserCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [eventsGeoCache, setEventsGeoCache] = useState<{ [addr: string]: { lat: number; lng: number } }>({});
   const [garbageModalVisible, setGarbageModalVisible] = useState(false);
-  const [sportsModal, setSportsModal] = useState(false);
-  const [sportsInitialTab, setSportsInitialTab] = useState<'teams' | 'scores' | 'schedule'>('teams');
   const [socialModal, setSocialModal] = useState(false);
   const [socialTab, setSocialTab] = useState<'all' | 'bars' | 'restaurants' | 'clubs'>('all');
   const [socialFeedbackVenue, setSocialFeedbackVenue] = useState<string | null>(null);
@@ -1447,8 +1396,6 @@ function LiveScreenInner() {
   const [socialDealDesc, setSocialDealDesc] = useState('');
   const [socialDealSending, setSocialDealSending] = useState(false);
   const [socialDealSent, setSocialDealSent] = useState(false);
-  const [savedTeams, setSavedTeams] = useState<string[]>([]);
-  const [sportsSchedule, setSportsSchedule] = useState<any[]>([]);
   const [sensGame, setSensGame] = useState<{ state: 'live' | 'pre' | 'none'; period?: string; homeAbbr?: string; awayAbbr?: string; homeScore?: number; awayScore?: number; startTime?: string; opponentAbbr?: string } | null>(null);
   const [campusModal, setCampusModal] = useState(false);
   const [campusTab, setCampusTab] = useState<'shuttle' | 'library' | 'upass' | 'food' | 'study'>('shuttle');
@@ -1465,13 +1412,6 @@ function LiveScreenInner() {
   const [garbageError, setGarbageError] = useState('');
   const [expandedBin, setExpandedBin] = useState<string | null>(null);
   const [addressSaved, setAddressSaved] = useState(false);
-
-  // 311 Report modal
-  const [show311Modal, setShow311Modal] = useState(false);
-  const [report311Category, setReport311Category] = useState('Pothole');
-  const [report311Desc, setReport311Desc] = useState('');
-  const [report311Photo, setReport311Photo] = useState<string | null>(null);
-  const [report311Location, setReport311Location] = useState('');
 
   const isLight = theme === 'light' || (theme === 'system' && colours.bg === '#f0f4f8');
   const cardShadow = useMemo(() => isLight ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 } : {}, [isLight]);
@@ -1520,7 +1460,6 @@ function LiveScreenInner() {
       } catch { fetchArrivals('CD995'); fetchStopReports('CD995'); }
     });
     AsyncStorage.getItem(SK_SAVED_PLACES).then(val => { try { if (val) setSavedPlaces(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved places failed:', e); } });
-    AsyncStorage.getItem(SK_SAVED_TEAMS).then(val => { try { if (val) setSavedTeams(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved teams failed:', e); } });
     AsyncStorage.getItem(SK_SAVED_ROUTES).then(val => { try { if (val) setSavedRoutes(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved routes failed:', e); } });
     AsyncStorage.getItem(SK_TIME_FORMAT).then(val => { if (val === 'absolute') setTimeFormat('absolute'); });
     AsyncStorage.getItem(SK_CAMPUS).then(val => { if (val) { const c = CAMPUSES.find(x => x.id === val); if (c) setSelectedCampus(c); } }).catch(() => {});
@@ -1676,7 +1615,6 @@ function LiveScreenInner() {
         if (i.type !== item.type) return false;
         if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'gas_prices' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'news') return true;
         if ((item.type === 'bus_stop' || item.type === 'lrt_station') && (i.type === 'bus_stop' || i.type === 'lrt_station')) return i.id === item.id;
-        if (item.type === 'saved_team' && i.type === 'saved_team') return i.id === item.id;
         if (item.type === 'external_link' && i.type === 'external_link') return i.id === item.id;
         if (item.type === 'neighbourhood' && i.type === 'neighbourhood') return i.id === item.id;
         return false;
@@ -1695,7 +1633,6 @@ function LiveScreenInner() {
         if (i.type !== item.type) return true;
         if (item.type === 'garbage' || item.type === 'service_alert' || item.type === 'gas_prices' || item.type === 'otrain' || item.type === 'services' || item.type === 'discover' || item.type === 'news') return false;
         if ((item.type === 'bus_stop' || item.type === 'lrt_station') && (i.type === 'bus_stop' || i.type === 'lrt_station')) return i.id !== item.id;
-        if (item.type === 'saved_team' && i.type === 'saved_team') return i.id !== item.id;
         if (item.type === 'external_link' && i.type === 'external_link') return i.id !== item.id;
         if (item.type === 'neighbourhood' && i.type === 'neighbourhood') return i.id !== item.id;
         return true;
@@ -1715,7 +1652,6 @@ function LiveScreenInner() {
     if (item.type === 'campus') return savedBoard.some(i => i.type === 'campus');
     if (item.type === 'news') return savedBoard.some(i => i.type === 'news');
     if (item.type === 'neighbourhood') return savedBoard.some(i => i.type === 'neighbourhood' && i.id === item.id);
-    if (item.type === 'saved_team') return savedBoard.some(i => i.type === 'saved_team' && i.id === item.id);
     if (item.type === 'external_link') return savedBoard.some(i => i.type === 'external_link' && i.id === item.id);
     return savedBoard.some(i => (i.type === 'bus_stop' || i.type === 'lrt_station') && i.id === item.id);
   };
@@ -2627,48 +2563,6 @@ function LiveScreenInner() {
     setReportSubmitting(false);
   };
 
-  const open311Modal = async () => {
-    setReport311Category('Pothole');
-    setReport311Desc('');
-    setReport311Photo(null);
-    setReport311Location('');
-    setShow311Modal(true);
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === 'granted') {
-        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        const geo = await Location.reverseGeocodeAsync({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
-        if (geo[0]) {
-          const g = geo[0];
-          setReport311Location([g.name, g.street, g.city, g.postalCode].filter(Boolean).join(', '));
-        }
-      }
-    } catch (e) { if (__DEV__) console.warn('get 311 location failed:', e); }
-  };
-
-  const pick311Photo = async () => {
-    if (!ImagePicker) return;
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
-    if (!result.canceled && result.assets[0]) setReport311Photo(result.assets[0].uri);
-  };
-
-  const submit311 = () => {
-    if (!report311Desc.trim()) {
-      Alert.alert(t('Missing description', 'Description manquante'), t('Please describe the issue before submitting.', 'Veuillez decrire le probleme avant de soumettre.'));
-      return;
-    }
-    if (!report311Location.trim()) {
-      Alert.alert(t('Missing location', 'Adresse manquante'), t('Please add a location for the report.', 'Veuillez ajouter un emplacement pour le rapport.'));
-      return;
-    }
-    const subject = encodeURIComponent(`311 Report: ${report311Category}`);
-    const body = encodeURIComponent(
-      `Category: ${report311Category}\nLocation: ${report311Location}\n\nDescription:\n${report311Desc}\n\n${report311Photo ? '[Photo attached separately]' : 'No photo attached'}`
-    );
-    Linking.openURL(`mailto:311@ottawa.ca?subject=${subject}&body=${body}`);
-    setShow311Modal(false);
-  };
-
   const handleQuickAction = (id: string, labelEn: string, labelFr: string) => {
     if (id === 'live') { router.push('/(tabs)/map'); return; }
     if (id === 'alerts') { setAlertsModalVisible(true); return; }
@@ -2679,10 +2573,9 @@ function LiveScreenInner() {
   };
 
   const handleServiceTile = (tile: ServiceTile) => {
-    if (tile.action === 'alert' && tile.target === 'sports') { setSportsInitialTab('teams'); setSportsModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'social') { setSocialModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'garbage') { setGarbageModalVisible(true); return; }
-    if (tile.action === 'alert' && tile.target === '311') { open311Modal(); return; }
+    if (tile.action === 'alert' && tile.target === '311') { Linking.openURL('https://ottawa.ca/en/311').catch(() => {}); return; }
     if (tile.action === 'alert' && tile.target === 'road_closures') { fetchRoadClosures(); setRoadEventsModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'parks') { fetchParks(); setParksModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'bikeshare') { fetchBikeShare(); setBikeShareModal(true); return; }
@@ -2716,23 +2609,6 @@ function LiveScreenInner() {
     await AsyncStorage.setItem(SK_GARBAGE_ADDRESS, garbageAddress);
     setAddressSaved(true);
     addToBoardIfMissing({ type: 'garbage' });
-  };
-
-  // ── Sports (toggleSavedTeam kept for board integration) ─────
-  const toggleSavedTeam = (name: string) => {
-    const team = OTTAWA_TEAMS.find((t: { name: string }) => t.name === name);
-    const boardItem: SavedBoardItem = { type: 'saved_team', id: name, name };
-    const removing = savedTeams.includes(name);
-    setSavedTeams(prev => {
-      const updated = removing ? prev.filter(n => n !== name) : [...prev, name];
-      AsyncStorage.setItem(SK_SAVED_TEAMS, JSON.stringify(updated));
-      return updated;
-    });
-    if (removing) {
-      removeFromBoard(boardItem);
-    } else {
-      addToBoardIfMissing(boardItem);
-    }
   };
 
   // ── Social / Happy Hour Modal ────────────────────────────────
@@ -4372,80 +4248,12 @@ function LiveScreenInner() {
         </Modal>}
 
         {!!boardExpandItem && renderBoardExpandModal()}
-        {sportsModal && <SportsModal visible={sportsModal} onClose={() => setSportsModal(false)} colours={colours} fonts={fonts} t={t} language={language} savedTeams={savedTeams} onToggleTeam={toggleSavedTeam} initialTab={sportsInitialTab} onScheduleLoaded={setSportsSchedule} />}
         {socialModal && renderSocialModal()}
         {eventsModal && renderEventsModal()}
         {roadEventsModal && renderRoadEventsModal()}
         {parksModal && renderParksModal()}
         {bikeShareModal && renderBikeShareModal()}
         {(campusPicker || campusModal) && renderCampusModal()}
-
-        {/* 311 Report Modal */}
-        {show311Modal && <Modal visible={show311Modal} animationType="slide" transparent onRequestClose={() => setShow311Modal(false)}>
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
-              <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40 }}>
-                <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 4 }} />
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colours.border }}>
-                  <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text }}>{t('311 Report', 'Signalement 311')}</Text>
-                  <TouchableOpacity style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, alignItems: 'center', justifyContent: 'center' }} onPress={() => setShow311Modal(false)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
-                    <Ionicons name="close" size={18} color={colours.text} />
-                  </TouchableOpacity>
-                </View>
-                <ScrollView style={{ maxHeight: 480 }} contentContainerStyle={{ padding: 20, gap: 14 }} keyboardShouldPersistTaps="handled">
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Category', 'Cat\u00E9gorie')}</Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                    {[
-                      { key: 'Pothole', label: t('Pothole', 'Nid-de-poule') },
-                      { key: 'Graffiti', label: t('Graffiti', 'Graffiti') },
-                      { key: 'Broken Sign', label: t('Broken Sign', 'Panneau cass\u00E9') },
-                      { key: 'Snow/Ice', label: t('Snow/Ice', 'Neige/Glace') },
-                      { key: 'Other', label: t('Other', 'Autre') },
-                    ].map(cat => (
-                      <TouchableOpacity key={cat.key} onPress={() => setReport311Category(cat.key)}
-                        style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, backgroundColor: report311Category === cat.key ? '#cc3b2a' + '18' : colours.surface, borderColor: report311Category === cat.key ? '#cc3b2a' : colours.border }}
-                        accessibilityRole="button" accessibilityLabel={cat.label} accessibilityState={{ selected: report311Category === cat.key }}>
-                        <Text style={{ fontSize: 13, fontWeight: '700', color: report311Category === cat.key ? '#cc3b2a' : colours.muted }}>{cat.label}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Location', 'Emplacement')}</Text>
-                  <TextInput
-                    value={report311Location}
-                    onChangeText={setReport311Location}
-                    placeholder={t('Auto-filled from GPS...', 'Rempli automatiquement par GPS...')}
-                    placeholderTextColor={colours.muted}
-                    style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 12, padding: 14, fontSize: fonts.md, color: colours.text, backgroundColor: colours.surface }}
-                    accessibilityLabel={t('Report location', 'Emplacement du signalement')}
-                  />
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Description', 'Description')}</Text>
-                  <TextInput
-                    value={report311Desc}
-                    onChangeText={setReport311Desc}
-                    placeholder={t('Describe the issue...', 'D\u00E9crivez le probl\u00E8me...')}
-                    placeholderTextColor={colours.muted}
-                    multiline numberOfLines={3}
-                    style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 12, padding: 14, fontSize: fonts.md, color: colours.text, backgroundColor: colours.surface, minHeight: 80, textAlignVertical: 'top' }}
-                    accessibilityLabel={t('Describe the issue', 'Decrivez le probleme')}
-                  />
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Photo (optional)', 'Photo (optionnel)')}</Text>
-                  <TouchableOpacity onPress={pick311Photo} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, borderWidth: 1, borderColor: colours.border, borderRadius: 12, backgroundColor: colours.surface, borderStyle: 'dashed' }} accessibilityRole="button" accessibilityLabel={t('Add photo', 'Ajouter une photo')}>
-                    <Ionicons name={report311Photo ? 'checkmark-circle' : 'camera-outline'} size={20} color={report311Photo ? '#2d7a3a' : colours.muted} />
-                    <Text style={{ fontSize: fonts.md, color: report311Photo ? '#2d7a3a' : colours.muted, fontWeight: '600' }}>
-                      {report311Photo ? t('Photo selected', 'Photo s\u00E9lectionn\u00E9e') : t('Tap to add photo', 'Appuyez pour ajouter')}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={submit311} style={{ backgroundColor: '#cc3b2a', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 }} accessibilityRole="button" accessibilityLabel={t('Send report via email to 311', 'Envoyer le signalement par courriel au 311')}>
-                    <Text style={{ color: 'white', fontWeight: '700', fontSize: fonts.lg }}>{t('Send via Email to 311', 'Envoyer par courriel au 311')}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => { setShow311Modal(false); Linking.openURL('https://ottawa.ca/en/311'); }} style={{ alignItems: 'center', paddingVertical: 8 }} accessibilityRole="link" accessibilityLabel={t('Report online at ottawa.ca/311', 'Signaler en ligne sur ottawa.ca/311')}>
-                    <Text style={{ color: colours.accent, fontWeight: '600', fontSize: fonts.sm }}>{t('Or report online at ottawa.ca/311', 'Ou signaler en ligne sur ottawa.ca/311')}</Text>
-                  </TouchableOpacity>
-                </ScrollView>
-              </View>
-            </View>
-          </TouchableWithoutFeedback>
-        </Modal>}
 
         {/* Stop Reports Sheet */}
         {showReportSheet && <Modal visible={showReportSheet} animationType="slide" transparent onRequestClose={() => setShowReportSheet(false)}>
@@ -4760,7 +4568,6 @@ function LiveScreenInner() {
                   if (item.type === 'news') return 'news';
                   if (item.type === 'neighbourhood') return `neighbourhood-${item.id}`;
                   if (item.type === 'campus') return 'campus';
-                  if (item.type === 'saved_team') return `team-${item.id}`;
                   if (item.type === 'external_link') return `ext-${item.id}`;
                   return `${item.type}-${(item as any).id}-${i}`;
                 }}
@@ -4788,7 +4595,6 @@ function LiveScreenInner() {
                     cardShadow={cardShadow}
                     garbageEvents={garbageEvents}
                     alerts={alerts}
-                    sensGame={sensGame}
                     timeFormat={timeFormat}
                     campusData={selectedCampus}
                     onMoveLeft={idx > 0 ? () => moveBoard(idx, idx - 1) : undefined}
@@ -4802,10 +4608,6 @@ function LiveScreenInner() {
                         setBoardExpandItem(item);
                       }
                       if (item.type === 'gas_prices') { setBoardExpandItem(item); }
-                      if (item.type === 'saved_team') {
-                        setSportsInitialTab('scores');
-                        setSportsModal(true);
-                      }
                       if (item.type === 'campus') { if (!selectedCampus) setCampusPicker(true); else setCampusModal(true); return; }
                       if (item.type === 'news') { /* scroll handled by section visibility */ }
                       if (item.type === 'neighbourhood') {
@@ -4828,8 +4630,6 @@ function LiveScreenInner() {
             sensGame={sensGame}
             events={events as any}
             weather={weather}
-            sportsSchedule={sportsSchedule}
-            onPressSports={() => { setSportsInitialTab('teams'); setSportsModal(true); }}
             onPressEvents={() => { setEventsSource('ticketmaster'); fetchTicketmasterEvents(); setEventsModal(true); }}
             onPressDeals={() => setSocialModal(true)}
           />

@@ -379,6 +379,7 @@ export default function MapScreen() {
   const [goNearbyTip, setGoNearbyTip] = useState<string | null>(null);
   const [planReliability, setPlanReliability] = useState<Record<string, number>>({});
   const [minimizeWalking, setMinimizeWalking] = useState(false);
+  const transferPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [planWeather, setPlanWeather] = useState<{ precipitation: boolean; windKmh: number } | null>(null);
   const [transferWarnings, setTransferWarnings] = useState<{ itinIdx: number; legIdx: number; bufferMins: number; incomingRoute: string }[]>([]);
   const [planNearbyVenue, setPlanNearbyVenue] = useState<{ venueName: string; routeIds: string[]; minutesUntilEnd: number } | null>(null);
@@ -825,6 +826,51 @@ export default function MapScreen() {
       })
       .catch(() => {});
   }, []);
+
+  // Transfer confidence: 30s live polling while plan results are visible
+  useEffect(() => {
+    if (!planResultsVisible || planItineraries.length === 0) {
+      if (transferPollRef.current) { clearInterval(transferPollRef.current); transferPollRef.current = null; }
+      return;
+    }
+    const pollTransfers = async () => {
+      // Collect all transfer stop codes (to-stop of transit leg where next leg is also transit)
+      const stopFetches: { itinIdx: number; legIdx: number; stopCode: string; incomingRoute: string; nextLegStart: number; legEnd: number }[] = [];
+      planItineraries.forEach((itin, itinIdx) => {
+        for (let i = 0; i < itin.legs.length - 1; i++) {
+          const leg = itin.legs[i];
+          const nextLeg = itin.legs[i + 1];
+          if (!leg.routeShortName || !nextLeg.routeShortName) continue;
+          if (leg.mode === 'WALK' || nextLeg.mode === 'WALK') continue;
+          const stopCode = leg.to.stopCode;
+          if (!stopCode) continue;
+          stopFetches.push({ itinIdx, legIdx: i, stopCode, incomingRoute: leg.routeShortName, nextLegStart: nextLeg.startTime, legEnd: leg.endTime });
+        }
+      });
+      if (stopFetches.length === 0) return;
+      const newWarnings: typeof transferWarnings = [];
+      await Promise.all(stopFetches.map(async (sf) => {
+        try {
+          const r = await fetchWithTimeout(`${BACKEND_URL}?stop=${encodeURIComponent(sf.stopCode)}`, { timeout: 5000 });
+          if (!r.ok) return;
+          const data = await r.json();
+          const arrivals = data.arrivals || [];
+          const match = arrivals.find((a: any) => String(a.routeId || '').split('-')[0] === sf.incomingRoute);
+          if (match && typeof match.minsAway === 'number') {
+            const liveArrMs = Date.now() + match.minsAway * 60000;
+            const bufferMins = Math.round((sf.nextLegStart - liveArrMs) / 60000);
+            if (bufferMins < 5) {
+              newWarnings.push({ itinIdx: sf.itinIdx, legIdx: sf.legIdx, bufferMins: Math.max(0, bufferMins), incomingRoute: sf.incomingRoute });
+            }
+          }
+        } catch {}
+      }));
+      setTransferWarnings(newWarnings);
+    };
+    pollTransfers();
+    transferPollRef.current = setInterval(pollTransfers, 30000);
+    return () => { if (transferPollRef.current) { clearInterval(transferPollRef.current); transferPollRef.current = null; } };
+  }, [planResultsVisible, planItineraries]);
 
   const routeToTapped = useCallback(() => {
     if (!tappedLocation) return;
@@ -1349,8 +1395,10 @@ export default function MapScreen() {
           const matched = matchVenueByName(ev.venue);
           if (matched && matched.name === venueMatch.name && (ev as any).endDateTime) {
             const endMs = new Date((ev as any).endDateTime).getTime();
-            minutesUntilEnd = Math.max(0, Math.round((endMs - Date.now()) / 60000));
-            break;
+            if (!isNaN(endMs) && endMs > Date.now()) {
+              minutesUntilEnd = Math.round((endMs - Date.now()) / 60000);
+              break;
+            }
           }
         }
         setPlanNearbyVenue({ venueName: venueMatch.name, routeIds: venueMatch.affectedRoutes, minutesUntilEnd });

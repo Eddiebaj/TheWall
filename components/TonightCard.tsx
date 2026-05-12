@@ -25,8 +25,6 @@ type Props = {
   sensGame: { state: 'live' | 'pre' | 'none'; opponentAbbr?: string; startTime?: string; homeScore?: number; awayScore?: number; period?: string } | null;
   events: { name: string; date: string; time?: string; venue: string; category?: string }[];
   weather: { temp: number; condition: string } | null;
-  sportsSchedule?: { team: string; games: any[] }[];
-  onPressSports?: () => void;
   onPressEvents?: () => void;
   onPressDeals?: () => void;
   onDismiss?: () => void;
@@ -42,7 +40,7 @@ function nearestNeighbourhood(lat: number, lng: number): Neighbourhood {
   return best;
 }
 
-function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sportsSchedule, onPressSports, onPressEvents, onPressDeals, onDismiss }: Props) {
+function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, onPressEvents, onPressDeals, onDismiss }: Props) {
   const { t, language } = useApp();
   const [show, setShow] = useState(false);
   const [summary, setSummary] = useState<TonightSummary | null>(null);
@@ -65,13 +63,13 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sp
     shouldShowTonightCard().then((ok: boolean) => {
       if (!ok) return;
       if (!weather && !sensGame && events.length === 0) return;
-      const s = buildTonightSummary(sensGame, events, HAPPY_HOUR_VENUES, weather, sportsSchedule || [], focus);
+      const s = buildTonightSummary(sensGame, events, HAPPY_HOUR_VENUES, weather, focus);
       if (s.sports.length > 0 || s.events.count > 0 || s.deals.count > 0) {
         setSummary(s);
         setShow(true);
       }
     });
-  }, [sensGame, events, weather, sportsSchedule, focus]);
+  }, [sensGame, events, weather, focus]);
 
   // RouteO Pick: score events by category preference + venue follows + recency
   useEffect(() => {
@@ -163,11 +161,11 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sp
         {summary.sports.map((sport: any, i: number) => {
           const teamColor = SPORT_COLOURS[sport.icon] || colours.accent;
           return (
-            <TouchableOpacity key={i} onPress={onPressSports} activeOpacity={onPressSports ? 0.7 : 1}
+            <View key={i}
               style={{ backgroundColor: teamColor + '0C', borderRadius: 10, padding: 10, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: teamColor }}>
               <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>{sport.label}</Text>
               <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>{sport.detail}</Text>
-            </TouchableOpacity>
+            </View>
           );
         })}
 
