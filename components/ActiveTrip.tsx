@@ -9,7 +9,7 @@ import { toTitleCase, decodePolyline } from '../lib/utils';
 import { getPlatformForRoute, hasPlatformData } from '../lib/platformData';
 
 // Types
-type WalkStep = { distance: number; relativeDirection: string; streetName: string; instruction?: string | null };
+type WalkStep = { distance: number; relativeDirection: string; streetName: string; instruction?: string | null; lat?: number; lon?: number };
 type Leg = {
   mode: string;
   startTime: number;
@@ -40,6 +40,13 @@ const LEG_COLOURS: Record<string, string> = {
 };
 const LEG_ICONS: Record<string, string> = {
   WALK: 'walk', BUS: 'bus', TRAM: 'train', RAIL: 'train', SUBWAY: 'train', FERRY: 'boat', CAR: 'car', BICYCLE: 'bicycle',
+};
+const STEP_DIR_ROTATION: Record<string, number> = {
+  DEPART: 0, CONTINUE: 0, FOLLOW_SIGNS: 0, BOARD: 0, EXIT_VEHICLE: 0, ELEVATOR: 0,
+  ENTER_STATION: 0, EXIT_STATION: 0,
+  SLIGHTLY_LEFT: -45, LEFT: -90, HARD_LEFT: -135,
+  SLIGHTLY_RIGHT: 45, RIGHT: 90, HARD_RIGHT: 135,
+  UTURN_LEFT: 180, UTURN_RIGHT: 180,
 };
 
 function fmtTimeFromMs(ms: number) {
@@ -117,6 +124,9 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
   const [stopsExpanded, setStopsExpanded] = useState(false);
   const [liveEta, setLiveEta] = useState<number | null>(null);
   const [tipVisible, setTipVisible] = useState(false);
+  const [activeStep, setActiveStep] = useState(0);
+  const [arrivingAtStop, setArrivingAtStop] = useState(false);
+  const stepAdvanceRef = useRef(false);
 
   const locationSubRef = useRef<any>(null);
   const arrivalPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -158,6 +168,13 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
       getOffAlertFired.current = false;
     }
   }, [visible]);
+
+  // Reset walk step state when leg changes
+  useEffect(() => {
+    setActiveStep(0);
+    setArrivingAtStop(false);
+    stepAdvanceRef.current = false;
+  }, [activeLeg]);
 
   // Clock tick every second
   useEffect(() => {
@@ -229,6 +246,34 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
       fireNotification(t('You have arrived', 'Vous etes arrive'), cleanStopName(currentLeg.to.name));
     }
   }, [userCoords, activeLeg, currentLeg, getOffAlert, tripEnded]);
+
+  // Walk step tracking — arriving banner + per-step proximity advance
+  useEffect(() => {
+    if (!userCoords || !currentLeg || currentLeg.mode !== 'WALK') {
+      setArrivingAtStop(false);
+      return;
+    }
+
+    // "Arriving at stop" prompt — 80m from walk destination
+    if (currentLeg.to.lat != null && currentLeg.to.lon != null) {
+      const destDist = distMetres(userCoords.lat, userCoords.lon, currentLeg.to.lat, currentLeg.to.lon);
+      setArrivingAtStop(destDist < 80 && !isLastLeg);
+    }
+
+    // Step auto-advance via GPS (only if OTP provided step coordinates)
+    const steps = currentLeg.steps;
+    if (!steps || steps.length === 0 || stepAdvanceRef.current) return;
+    const step = steps[activeStep];
+    if (step?.lat != null && step?.lon != null && activeStep < steps.length - 1) {
+      const d = distMetres(userCoords.lat, userCoords.lon, step.lat, step.lon);
+      if (d < 30) {
+        stepAdvanceRef.current = true;
+        setActiveStep(prev => prev + 1);
+        Haptics?.selectionAsync?.();
+        setTimeout(() => { stepAdvanceRef.current = false; }, 2000);
+      }
+    }
+  }, [userCoords, activeStep, activeLeg, currentLeg, isLastLeg]);
 
   // Poll arrivals for current transit leg
   const pollArrivals = useCallback(async () => {
@@ -797,6 +842,61 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
 
         {/* Bottom action area */}
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 8 }}>
+          {/* Turn-by-turn walk steps */}
+          {isWalk && currentLeg.steps.length > 0 && (
+            <View style={{ marginBottom: 8, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
+              {arrivingAtStop && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.green + '22', padding: 10, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+                  <Ionicons name="flag" size={14} color={colours.green} />
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: colours.green, flex: 1 }}>
+                    {t('Arriving at stop', 'Arrivée à l\'arrêt')}
+                  </Text>
+                </View>
+              )}
+              {currentLeg.steps.map((step, i) => {
+                const isActiveStep = i === activeStep;
+                const isPast = i < activeStep;
+                const rotation = STEP_DIR_ROTATION[step.relativeDirection] ?? 0;
+                const stepLabel = step.instruction || (step.streetName && step.streetName !== 'road' ? step.streetName : null) || t('Continue', 'Continuez');
+                return (
+                  <View
+                    key={i}
+                    style={{
+                      flexDirection: 'row', alignItems: 'center', gap: 10,
+                      padding: 10,
+                      backgroundColor: isActiveStep ? legColor + '12' : 'transparent',
+                      borderLeftWidth: isActiveStep ? 3 : 0,
+                      borderLeftColor: legColor,
+                      borderBottomWidth: i < currentLeg.steps.length - 1 ? 1 : 0,
+                      borderBottomColor: colours.border,
+                      opacity: isPast ? 0.4 : 1,
+                    }}
+                  >
+                    <View style={{
+                      width: 28, height: 28, borderRadius: 14,
+                      backgroundColor: isActiveStep ? legColor + '22' : colours.border,
+                      alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <Ionicons
+                        name="arrow-up"
+                        size={14}
+                        color={isActiveStep ? legColor : colours.muted}
+                        style={{ transform: [{ rotate: `${rotation}deg` }] }}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 12, fontWeight: isActiveStep ? '700' : '400', color: isActiveStep ? colours.text : colours.muted }} numberOfLines={1}>
+                        {stepLabel}
+                      </Text>
+                      <Text style={{ fontSize: 10, color: colours.muted }}>{fmtDistance(step.distance)}</Text>
+                    </View>
+                    {isPast && <Ionicons name="checkmark" size={12} color={colours.muted} />}
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
           {/* Warning banners */}
           {!gpsAvailable && (
             <View style={{ marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.orange + '22', borderWidth: 1, borderColor: colours.orange, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>

@@ -26,9 +26,10 @@ export interface NearbyStop {
   stopId: string;
   stopName: string;
   walkMeters: number;
-  arrivals: { routeId: string; headsign: string; minsAway: number }[];
+  arrivals: { routeId: string; headsign: string; minsAway: number; possiblyLate?: boolean; minutesLate?: number }[];
   arrivalsLoading: boolean;
   ghostRoutes?: string[];
+  ghostReports?: Record<string, { total: number; uniqueDevices: number; confirmedCount: number; netScore: number; likelyGhost: boolean }>;
   cached?: boolean;
   cachedAt?: number;
 }
@@ -55,7 +56,7 @@ interface NearbyTransitSheetProps {
   // Arrivals expansion (kept for compatibility / Leave Now Alert)
   expandedStopId: string | null;
   onExpandStop: (stopId: string | null) => void;
-  expandedArrivals: { routeId: string; headsign: string; minsAway: number; source?: string; cached?: boolean; cachedAt?: number }[];
+  expandedArrivals: { routeId: string; headsign: string; minsAway: number; source?: string; cached?: boolean; cachedAt?: number; possiblyLate?: boolean; minutesLate?: number }[];
   expandedArrivalsLoading: boolean;
 
   // Alerts
@@ -208,6 +209,10 @@ function SkeletonCard({ colours }: { colours: any }) {
 function ArrivalPills({ stop, colours, t, routeAlertMap }: { stop: NearbyStop; colours: any; t: (en: string, fr: string) => string; routeAlertMap?: Record<string, string> }) {
   const [thanks, setThanks] = useState<Record<string, boolean>>({});
   const [submitted, setSubmitted] = useState<Record<string, boolean>>({});
+  // Ghost prompt: track per-route dismiss timestamp and confirmed state
+  const [ghostDismissed, setGhostDismissed] = useState<Record<string, number>>({});
+  const [ghostConfirmed, setGhostConfirmed] = useState<Record<string, boolean>>({});
+  const [ghostReportCount, setGhostReportCount] = useState<Record<string, number>>({});
 
   const handleReport = useCallback(async (routeId: string) => {
     if (submitted[routeId]) return;
@@ -223,6 +228,33 @@ function ArrivalPills({ stop, colours, t, routeAlertMap }: { stop: NearbyStop; c
       }).catch(() => {});
     } catch {}
   }, [submitted, stop.stopId]);
+
+  const handleGhostNo = useCallback(async (routeId: string) => {
+    setGhostDismissed(prev => ({ ...prev, [routeId]: Date.now() }));
+    const existingCount = stop.ghostReports?.[routeId]?.total ?? 0;
+    setGhostReportCount(prev => ({ ...prev, [routeId]: existingCount + 1 }));
+    try {
+      const deviceId = (await AsyncStorage.getItem(SK_DEVICE_ID)) ?? 'unknown';
+      fetch('https://routeo-backend.vercel.app/api/community?action=ghost.report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stop_id: stop.stopId, route_id: routeId, report_type: 'never_showed', notes: 'possibly_late_prompt', device_id: deviceId }),
+      }).catch(() => {});
+    } catch {}
+  }, [stop.stopId, stop.ghostReports]);
+
+  const handleGhostYes = useCallback(async (routeId: string) => {
+    setGhostConfirmed(prev => ({ ...prev, [routeId]: true }));
+    setGhostDismissed(prev => ({ ...prev, [routeId]: Date.now() }));
+    try {
+      const deviceId = (await AsyncStorage.getItem(SK_DEVICE_ID)) ?? 'unknown';
+      fetch('https://routeo-backend.vercel.app/api/community?action=ghost.report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stop_id: stop.stopId, route_id: routeId, report_type: 'confirmed_arrived', device_id: deviceId }),
+      }).catch(() => {});
+    } catch {}
+  }, [stop.stopId]);
 
   if (stop.arrivalsLoading) {
     return <ActivityIndicator size="small" color={TEAL} style={{ alignSelf: 'flex-start' }} />;
@@ -302,6 +334,54 @@ function ArrivalPills({ stop, colours, t, routeAlertMap }: { stop: NearbyStop; c
           </Text>
         </View>
       )}
+      {/* Proactive ghost bus prompts — possiblyLate arrivals or ghostReports >= 2 */}
+      {stop.arrivals.slice(0, 2).map((a) => {
+        const reportData = stop.ghostReports?.[a.routeId];
+        const hasEnoughReports = (reportData?.total ?? 0) >= 2;
+        const showPrompt = (a.possiblyLate || hasEnoughReports) && !ghostConfirmed[a.routeId];
+        if (!showPrompt) return null;
+        // Auto-dismiss after 10 minutes
+        const dismissedAt = ghostDismissed[a.routeId];
+        if (dismissedAt && Date.now() - dismissedAt < 10 * 60 * 1000) return null;
+        const reportCount = ghostReportCount[a.routeId] ?? (reportData?.total ?? 0);
+        return (
+          <View key={`ghost-prompt-${a.routeId}`} style={{ backgroundColor: AMBER_BG, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, gap: 6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              <Ionicons name="time-outline" size={12} color={AMBER_TEXT} />
+              <Text style={{ fontSize: 11, fontWeight: '600', color: AMBER_TEXT, flex: 1 }}>
+                {a.possiblyLate
+                  ? t(
+                      `Route ${a.routeId} was due ${a.minutesLate} min ago — did it come?`,
+                      `Ligne ${a.routeId} était attendue il y a ${a.minutesLate} min — est-elle passée?`,
+                    )
+                  : t(
+                      `Route ${a.routeId} — ${reportCount} rider${reportCount !== 1 ? 's' : ''} say it didn't come. Did it?`,
+                      `Ligne ${a.routeId} — ${reportCount} usager${reportCount !== 1 ? 's' : ''} disent qu'elle n'est pas venue. Elle est passée?`,
+                    )}
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                onPress={() => handleGhostYes(a.routeId)}
+                style={{ flex: 1, alignItems: 'center', paddingVertical: 5, borderRadius: 6, backgroundColor: '#22c55e22', borderWidth: 1, borderColor: '#22c55e60' }}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#16a34a' }}>{t('Yes, it came', 'Oui, elle est passée')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleGhostNo(a.routeId)}
+                style={{ flex: 1, alignItems: 'center', paddingVertical: 5, borderRadius: 6, backgroundColor: '#ef444422', borderWidth: 1, borderColor: '#ef444460' }}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#dc2626' }}>{t('No, ghost bus', 'Non, bus fantôme')}</Text>
+              </TouchableOpacity>
+            </View>
+            {reportCount > 0 && (
+              <Text style={{ fontSize: 10, color: AMBER_TEXT, opacity: 0.8 }}>
+                {t(`${reportCount} report${reportCount !== 1 ? 's' : ''} in the last hour`, `${reportCount} signalement${reportCount !== 1 ? 's' : ''} dans la dernière heure`)}
+              </Text>
+            )}
+          </View>
+        );
+      })}
     </View>
   );
 }
