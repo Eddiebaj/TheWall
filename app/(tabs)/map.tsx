@@ -29,6 +29,7 @@ import { supabase } from '../../lib/supabase';
 import { HAPPY_HOUR_VENUES, HappyHourVenue } from '../../lib/happyHourData';
 import BusTrackingModal from '../../components/BusTrackingModal';
 import BottomSheet from '@gorhom/bottom-sheet';
+import NearbyTransitSheet, { NearbyStop } from '../../components/NearbyTransitSheet';
 import ActiveTrip from '../../components/ActiveTrip';
 import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -415,7 +416,7 @@ export default function MapScreen() {
   const [contribError, setContribError] = useState<string | null>(null);
 
   const nearbySheetRef = useRef<BottomSheet>(null);
-  const [nearbyStops, setNearbyStops] = useState<any[]>([]);
+  const [nearbyStops, setNearbyStops] = useState<NearbyStop[]>([]);
   const [nearbyLoading, setNearbyLoading] = useState(false);
   const [expandedStopId, setExpandedStopId] = useState<string | null>(null);
   const [expandedArrivals, setExpandedArrivals] = useState<{ routeId: string; headsign: string; minsAway: number; source?: string }[]>([]);
@@ -838,7 +839,7 @@ export default function MapScreen() {
         .sort((a, b) => a.dist - b.dist)
         .slice(0, 10);
 
-      const initial: any[] = sorted.map(s => ({
+      const initial: NearbyStop[] = sorted.map(s => ({
         stopId: s.stop_id,
         stopName: s.stop_name || `Stop #${s.stop_id}`,
         walkMeters: Math.round(s.dist),
@@ -2851,6 +2852,26 @@ export default function MapScreen() {
         </View>
       )}
 
+
+      {/* Nearby transit bottom sheet — stops + arrivals only */}
+      <NearbyTransitSheet
+        ref={nearbySheetRef}
+        colours={colours}
+        fonts={fonts}
+        t={t}
+        language={language}
+        nearbyStops={nearbyStops}
+        nearbyLoading={nearbyLoading}
+        onRefreshLocation={fetchNearbyStops}
+        expandedStopId={expandedStopId}
+        onExpandStop={handleExpandStop}
+        expandedArrivals={expandedArrivals}
+        expandedArrivalsLoading={expandedArrivalsLoading}
+        activeAlertCount={0}
+        hasDisruption={false}
+        communityDeals={[]}
+        onStopDetail={(stopId, stopName) => { setStopDetailStopId(stopId); setStopDetailStopName(stopName); setStopDetailVisible(true); }}
+      />
 
       {/* Trip plan results bottom sheet */}
       <Modal visible={planResultsVisible} animationType="slide" transparent onRequestClose={() => setPlanResultsVisible(false)}>
