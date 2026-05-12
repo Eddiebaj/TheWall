@@ -2575,7 +2575,7 @@ function LiveScreenInner() {
   const handleServiceTile = (tile: ServiceTile) => {
     if (tile.action === 'alert' && tile.target === 'social') { setSocialModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'garbage') { setGarbageModalVisible(true); return; }
-    if (tile.action === 'alert' && tile.target === '311') { Linking.openURL('https://ottawa.ca/en/311').catch(() => {}); return; }
+    if (tile.action === 'alert' && tile.target === '311') { Linking.openURL('https://ottawa.ca/en/residents/water-and-environment/waste-and-recycling/report-problem').catch(() => {}); return; }
     if (tile.action === 'alert' && tile.target === 'road_closures') { fetchRoadClosures(); setRoadEventsModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'parks') { fetchParks(); setParksModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'bikeshare') { fetchBikeShare(); setBikeShareModal(true); return; }
