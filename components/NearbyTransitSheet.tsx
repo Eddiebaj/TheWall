@@ -365,6 +365,13 @@ const IntersectionRow = React.memo(function IntersectionRow({
           </View>
         )}
 
+        {/* Social proof — ghost reports from any direction at this intersection */}
+        {group.stops.some(s => s.ghostRoutes && s.ghostRoutes.length > 0) && (
+          <Text style={{ fontSize: 11, color: '#cc3b2a', marginBottom: 4 }}>
+            {t('Riders reported delays here', 'Des passagers ont signal\u00e9 des retards ici')}
+          </Text>
+        )}
+
         {/* Arrivals for active direction */}
         <ArrivalPills stop={activeStop} colours={colours} t={t} />
 

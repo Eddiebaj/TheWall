@@ -44,7 +44,7 @@ const CITY_URL        = 'https://routeo-backend.vercel.app/api/city';
 type SavedRoute = { id: string; fromLabel: string; toLabel: string; fromLat: number; fromLng: number; toLat: number; toLng: number };
 type SavedFav = { id: string; name: string; icon: string };
 type SavedPin = { id: string; name: string; lat: number; lng: number; kind: 'stop' | 'route_from' | 'route_to' | 'place'; routeLabel?: string; vicinity?: string };
-type PlanLeg = { mode: string; startTime: number; endTime: number; duration: number; distance: number; from: { name: string }; to: { name: string }; routeShortName: string | null; headsign: string | null; legGeometry?: { points: string } };
+type PlanLeg = { mode: string; startTime: number; endTime: number; duration: number; distance: number; from: { name: string }; to: { name: string }; routeShortName: string | null; headsign: string | null; legGeometry?: { points: string }; agencyId?: string | null };
 type PlanItinerary = { duration: number; startTime: number; endTime: number; legs: PlanLeg[] };
 
 const OTTAWA_REGION: Region = {
@@ -348,6 +348,7 @@ export default function MapScreen() {
   const [goItinerary, setGoItinerary] = useState<PlanItinerary | null>(null);
   const [justGoLoading, setJustGoLoading] = useState(false);
   const [goNearbyTip, setGoNearbyTip] = useState<string | null>(null);
+  const [planReliability, setPlanReliability] = useState<Record<string, number>>({});
 
   // Tonight card data
   const [tonightWeather, setTonightWeather] = useState<{ temp: number; condition: string } | null>(null);
@@ -1289,8 +1290,29 @@ export default function MapScreen() {
       const r = await fetchWithTimeout(url, { timeout: 15000 });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const data = await r.json();
-      setPlanItineraries((data?.itineraries || []).slice(0, 3));
+      const itins: PlanItinerary[] = (data?.itineraries || []).slice(0, 3);
+      setPlanItineraries(itins);
       setPlanResultsVisible(true);
+      // Fetch reliability for bus legs (non-blocking)
+      try {
+        const routeIds = [...new Set(itins.flatMap(it => it.legs.filter(l => l.routeShortName).map(l => l.routeShortName!)))];
+        if (routeIds.length > 0) {
+          const { data: relData } = await supabase.from('route_reliability').select('route_id, delta_minutes').in('route_id', routeIds);
+          if (relData && relData.length > 0) {
+            const grouped: Record<string, { onTime: number; total: number }> = {};
+            for (const row of relData) {
+              if (!grouped[row.route_id]) grouped[row.route_id] = { onTime: 0, total: 0 };
+              grouped[row.route_id].total++;
+              if (Math.abs(row.delta_minutes || 0) <= 3) grouped[row.route_id].onTime++;
+            }
+            const rel: Record<string, number> = {};
+            for (const [rId, stats] of Object.entries(grouped)) {
+              if (stats.total >= 5) rel[rId] = Math.round((stats.onTime / stats.total) * 100);
+            }
+            setPlanReliability(rel);
+          }
+        }
+      } catch {}
     } catch (e) { if (__DEV__) console.warn('plan failed', e); }
     finally { setPlanLoading(false); }
   }, [planTransitMode, planToPlace]);
@@ -2426,27 +2448,73 @@ export default function MapScreen() {
             <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}>
               {planItineraries.length === 0 ? (
                 <Text style={{ color: colours.muted, textAlign: 'center', paddingVertical: 32 }}>{t('No routes found', 'Aucun itin\u00e9raire trouv\u00e9')}</Text>
-              ) : planItineraries.map((itin, idx) => (
-                <View key={idx} style={{ backgroundColor: colours.surface, borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: colours.border }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                    <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text }}>{fmtPlanDuration(itin.duration)}</Text>
-                    <Text style={{ fontSize: 13, color: colours.muted }}>{fmtPlanTime(itin.startTime)} \u2192 {fmtPlanTime(itin.endTime)}</Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-                    {itin.legs.map((leg, i) => (
-                      <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: (LEG_PLAN_COLORS[leg.mode] || '#888') + '22', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 }}>
-                        <Ionicons name={(LEG_PLAN_ICONS[leg.mode] || 'navigate') as any} size={12} color={LEG_PLAN_COLORS[leg.mode] || '#888'} />
-                        {leg.routeShortName ? <Text style={{ fontSize: 11, fontWeight: '700', color: LEG_PLAN_COLORS[leg.mode] || '#888' }}>{leg.routeShortName}</Text> : null}
+              ) : (() => {
+                const isWalkOnly = planItineraries.every(it => it.legs.every(l => l.mode === 'WALK'));
+                if (isWalkOnly) {
+                  return (
+                    <View style={{ paddingVertical: 28, alignItems: 'center', gap: 10 }}>
+                      <Ionicons name="walk-outline" size={36} color={colours.muted} />
+                      <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text, textAlign: 'center' }}>
+                        {t('Transit routing unavailable right now', 'Itin\u00e9raire en transport non disponible')}
+                      </Text>
+                      <Text style={{ fontSize: 13, color: colours.muted, textAlign: 'center' }}>
+                        {t('Showing walking directions only', 'Affichage des directions \u00e0 pied seulement')}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => { setPlanResultsVisible(false); executePlan(); }}
+                        style={{ marginTop: 8, paddingHorizontal: 28, paddingVertical: 10, backgroundColor: colours.accent, borderRadius: 12 }}>
+                        <Text style={{ color: '#fff', fontWeight: '700' }}>{t('Try again', 'R\u00e9essayer')}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                }
+                return planItineraries.map((itin, idx) => {
+                  const primaryRoute = itin.legs.find(l => l.mode !== 'WALK' && l.routeShortName)?.routeShortName ?? null;
+                  const onTimePct = primaryRoute != null ? planReliability[primaryRoute] : undefined;
+                  const relBadge = onTimePct === undefined ? null
+                    : onTimePct >= 85 ? { text: t('Usually on time', 'G\u00e9n\u00e9ralement \u00e0 l\'heure'), color: '#16a34a', bg: '#dcfce7' }
+                    : onTimePct >= 70 ? { text: t('Sometimes delayed', 'Parfois en retard'), color: '#b45309', bg: '#fef3c7' }
+                    : { text: t('Often delayed', 'Souvent en retard'), color: '#dc2626', bg: '#fee2e2' };
+                  const hasSTO = itin.legs.some(l => l.agencyId?.toLowerCase().includes('sto'));
+                  const hasOC = itin.legs.some(l => l.mode !== 'WALK' && (!l.agencyId || !l.agencyId.toLowerCase().includes('sto')));
+                  const isCrossBorder = hasSTO && hasOC;
+                  return (
+                    <View key={idx} style={{ backgroundColor: colours.surface, borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: colours.border }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: relBadge || isCrossBorder ? 6 : 10 }}>
+                        <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text }}>{fmtPlanDuration(itin.duration)}</Text>
+                        <Text style={{ fontSize: 13, color: colours.muted }}>{fmtPlanTime(itin.startTime)} \u2192 {fmtPlanTime(itin.endTime)}</Text>
                       </View>
-                    ))}
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => { setPlanResultsVisible(false); setGoNearbyTip(computeNearbyTip(planToPlace?.lat ?? 0, planToPlace?.lng ?? 0, itin.endTime, language)); setGoItinerary(itin); }}
-                    style={{ backgroundColor: '#00A78D', borderRadius: 12, paddingVertical: 10, alignItems: 'center' }}>
-                    <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.5 }}>{t('GO', 'PARTIR')}</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
+                      {(relBadge || isCrossBorder) && (
+                        <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                          {relBadge && (
+                            <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: relBadge.bg }}>
+                              <Text style={{ fontSize: 11, fontWeight: '600', color: relBadge.color }}>{relBadge.text}</Text>
+                            </View>
+                          )}
+                          {isCrossBorder && (
+                            <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: colours.tintBg ?? colours.surface, borderWidth: 1, borderColor: colours.border }}>
+                              <Text style={{ fontSize: 11, color: colours.muted }}>{t('Crosses into Gatineau \u00b7 different fare', 'Traverse en Outaouais \u00b7 tarif diff\u00e9rent')}</Text>
+                            </View>
+                          )}
+                        </View>
+                      )}
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                        {itin.legs.map((leg, i) => (
+                          <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: (LEG_PLAN_COLORS[leg.mode] || '#888') + '22', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 }}>
+                            <Ionicons name={(LEG_PLAN_ICONS[leg.mode] || 'navigate') as any} size={12} color={LEG_PLAN_COLORS[leg.mode] || '#888'} />
+                            {leg.routeShortName ? <Text style={{ fontSize: 11, fontWeight: '700', color: LEG_PLAN_COLORS[leg.mode] || '#888' }}>{leg.routeShortName}</Text> : null}
+                          </View>
+                        ))}
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => { setPlanResultsVisible(false); setGoNearbyTip(computeNearbyTip(planToPlace?.lat ?? 0, planToPlace?.lng ?? 0, itin.endTime, language)); setGoItinerary(itin); }}
+                        style={{ backgroundColor: '#00A78D', borderRadius: 12, paddingVertical: 10, alignItems: 'center' }}>
+                        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.5 }}>{t('GO', 'PARTIR')}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                });
+              })()}
             </ScrollView>
           </View>
         </View>
