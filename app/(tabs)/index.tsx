@@ -306,10 +306,12 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
 
   useEffect(() => {
     if (item.type !== 'neighbourhood') return;
-    supabase.from('community_deals').select('*', { count: 'exact', head: true })
-      .eq('approved', true)
-      .then(({ count }: { count: number | null }) => setNeighDealCount(count ?? 0))
-      .catch(() => {});
+    (async () => {
+      try {
+        const { count } = await supabase.from('community_deals').select('*', { count: 'exact', head: true }).eq('approved', true);
+        setNeighDealCount(count ?? 0);
+      } catch { /* ignore */ }
+    })();
   }, [(item as any).id]);
 
   const boardHour = new Date().getHours();
