@@ -84,6 +84,12 @@ interface NearbyTransitSheetProps {
   // Venue alerts — active events near a planned destination
   venueAlerts?: { venueName: string; routeIds: string[]; minutesUntilEnd: number }[];
 
+  // Stop detail callback — opens full stop detail sheet
+  onStopDetail?: (stopId: string, stopName: string) => void;
+
+  // Route alert map — routeId → alert summary for "Detour" badges
+  routeAlertMap?: Record<string, string>;
+
   // Extra content rendered below nearby transit (e.g. Services, Tonight)
   extraSections?: React.ReactNode;
 }
@@ -199,7 +205,7 @@ function SkeletonCard({ colours }: { colours: any }) {
 
 // Inline arrival pills for a stop — colored route badge + 3-state time pill + inline ghost warning
 
-function ArrivalPills({ stop, colours, t }: { stop: NearbyStop; colours: any; t: (en: string, fr: string) => string }) {
+function ArrivalPills({ stop, colours, t, routeAlertMap }: { stop: NearbyStop; colours: any; t: (en: string, fr: string) => string; routeAlertMap?: Record<string, string> }) {
   const [thanks, setThanks] = useState<Record<string, boolean>>({});
   const [submitted, setSubmitted] = useState<Record<string, boolean>>({});
 
@@ -264,6 +270,12 @@ function ArrivalPills({ stop, colours, t }: { stop: NearbyStop; colours: any; t:
                   {isGhost ? t('?', '?') : time.label}
                 </Text>
               </View>
+              {/* Detour badge */}
+              {routeAlertMap?.[a.routeId.split('-')[0]] && (
+                <View style={{ paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, backgroundColor: '#F9731618', borderWidth: 1, borderColor: '#F9731640' }}>
+                  <Text style={{ fontSize: 9, fontWeight: '800', color: '#F97316' }}>{t('DETOUR', 'DETOUR')}</Text>
+                </View>
+              )}
               {/* Flag button */}
               {!isGhost && !isReported && (
                 <TouchableOpacity
@@ -371,6 +383,8 @@ const IntersectionRow = React.memo(function IntersectionRow({
   expandedGroupId,
   onToggleExpand,
   safetySignalStopIds,
+  onStopDetail,
+  routeAlertMap,
 }: {
   group: IntersectionGroup;
   colours: any;
@@ -378,6 +392,8 @@ const IntersectionRow = React.memo(function IntersectionRow({
   expandedGroupId: string | null;
   onToggleExpand: (id: string) => void;
   safetySignalStopIds?: Set<string>;
+  onStopDetail?: (stopId: string, stopName: string) => void;
+  routeAlertMap?: Record<string, string>;
 }) {
   // Default to the first stop that has arrivals, or 0
   const defaultIdx = group.stops.findIndex(s => s.arrivals.length > 0 || s.arrivalsLoading);
@@ -459,11 +475,24 @@ const IntersectionRow = React.memo(function IntersectionRow({
         )}
 
         {/* Arrivals for active direction — ghost warnings render inline inside ArrivalPills */}
-        <ArrivalPills stop={activeStop} colours={colours} t={t} />
+        <ArrivalPills stop={activeStop} colours={colours} t={t} routeAlertMap={routeAlertMap} />
 
-        {/* Expanded leave-now alert */}
+        {/* Expanded: leave-now alert + stop details link */}
         {isExpanded && (
-          <LeaveNowButton stop={activeStop} colours={colours} t={t} />
+          <>
+            <LeaveNowButton stop={activeStop} colours={colours} t={t} />
+            {onStopDetail && (
+              <TouchableOpacity
+                onPress={() => onStopDetail(activeStop.stopId, activeStop.stopName)}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                style={{ marginTop: 8, alignSelf: 'flex-start' }}
+              >
+                <Text style={{ fontSize: 12, color: TEAL, fontWeight: '600' }}>
+                  {t('Stop details \u2192', "D\u00e9tails de l'arr\u00eat \u2192")}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </>
         )}
 
         {/* Safety signal — shown at night when reports exist */}
@@ -538,6 +567,8 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
       extraSections,
       safetySignalStopIds,
       venueAlerts,
+      onStopDetail,
+      routeAlertMap,
     },
     ref,
   ) => {
@@ -746,6 +777,8 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                     expandedGroupId={expandedGroupId}
                     onToggleExpand={handleToggleExpand}
                     safetySignalStopIds={safetySignalStopIds}
+                    onStopDetail={onStopDetail}
+                    routeAlertMap={routeAlertMap}
                   />
                 </React.Fragment>
               ))}

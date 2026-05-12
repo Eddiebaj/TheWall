@@ -19,7 +19,7 @@ import { CAMPUSES, CampusConfig } from '../../lib/campusData';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { PREMIUM_FEATURES, usePremium } from '../../lib/premium';
 import { ClassSchedule, nextClass, fmt12h as schedFmt12h } from '../../lib/scheduleData';
-import { SK_ACCESSIBILITY_ROUTING, SK_BATTERY_SAVER, SK_CAMPUS, SK_CLASS_SCHEDULE, SK_LEAVE_REMINDERS, SK_MOTION, SK_PLANNER_PREFS, SK_SAVED_ROUTES, SK_TRIP_HISTORY, SK_WALK_PACE, SK_WALK_PREFERENCE } from '../../lib/storageKeys';
+import { SK_ACCESSIBILITY_ROUTING, SK_BATTERY_SAVER, SK_CAMPUS, SK_CLASS_SCHEDULE, SK_HOME_ADDRESS, SK_LEAVE_REMINDERS, SK_MOTION, SK_PLANNER_PREFS, SK_RECENT_SEARCHES, SK_SAVED_ROUTES, SK_TRIP_HISTORY, SK_WALK_PACE, SK_WALK_PREFERENCE, SK_WORK_PLACE } from '../../lib/storageKeys';
 import { supabase } from '../../lib/supabase';
 import { decodePolyline, toTitleCase } from '../../lib/utils';
 import { haversineKm } from '../../lib/geo';
@@ -407,6 +407,11 @@ function PlannerScreenInner() {
   const [reminderTime, setReminderTime] = useState<Date>(new Date());
   const [leaveReminders, setLeaveReminders] = useState<{ id: string; destination: string; departAt: number; notifId: string }[]>([]);
 
+  // Recent searches + home/work (Features 3 & 4)
+  const [recentSearches, setRecentSearches] = useState<{ name: string; lat: number; lng: number; usedAt: number }[]>([]);
+  const [homePlace, setHomePlacePlanner] = useState<{ label: string; lat: number; lng: number } | null>(null);
+  const [workPlace, setWorkPlacePlanner] = useState<{ label: string; lat: number; lng: number } | null>(null);
+
   // Route detail modal state
   const [routeDetailLeg, setRouteDetailLeg] = useState<Leg | null>(null);
   const [routeDetailStops, setRouteDetailStops] = useState<{ stop_id: string; stop_name: string; arrival_time: string }[]>([]);
@@ -479,6 +484,16 @@ function PlannerScreenInner() {
     }).catch(() => {});
     AsyncStorage.getItem(SK_CLASS_SCHEDULE).then(val => {
       try { if (val) setPlannerSchedule(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn(e); }
+    }).catch(() => {});
+    // Load recent searches and home/work places
+    AsyncStorage.getItem(SK_RECENT_SEARCHES).then(val => {
+      try { if (val) setRecentSearches(JSON.parse(val)); } catch {}
+    }).catch(() => {});
+    AsyncStorage.getItem(SK_HOME_ADDRESS).then(val => {
+      try { if (val) setHomePlacePlanner(JSON.parse(val)); } catch {}
+    }).catch(() => {});
+    AsyncStorage.getItem(SK_WORK_PLACE).then(val => {
+      try { if (val) setWorkPlacePlanner(JSON.parse(val)); } catch {}
     }).catch(() => {});
     // Check for Sens game tonight
     fetchWithTimeout('https://api-web.nhle.com/v1/schedule/now').then(async r => {
@@ -817,6 +832,18 @@ function PlannerScreenInner() {
           // Non-transit modes (driving, bicycling, walking): show best result only
           setItineraries((data.itineraries || []).slice(0, 1));
         }
+      }
+      // Save destination to recent searches
+      if (data.itineraries?.length && resolvedTo.lat && resolvedTo.lng) {
+        AsyncStorage.getItem(SK_RECENT_SEARCHES).then(raw => {
+          try {
+            const existing: { name: string; lat: number; lng: number; usedAt: number }[] = raw ? JSON.parse(raw) : [];
+            const deduped = existing.filter(r => r.name !== resolvedTo.label);
+            const updated = [{ name: resolvedTo.label, lat: resolvedTo.lat!, lng: resolvedTo.lng!, usedAt: Date.now() }, ...deduped].slice(0, 10);
+            AsyncStorage.setItem(SK_RECENT_SEARCHES, JSON.stringify(updated)).catch(() => {});
+            setRecentSearches(updated);
+          } catch {}
+        }).catch(() => {});
       }
       // Auto-save to trip history
       if (data.itineraries?.length) {
@@ -2423,6 +2450,53 @@ function PlannerScreenInner() {
               >
                 <Ionicons name="location-outline" size={16} color={colours.muted} />
                 <Text style={{ flex: 1, fontSize: 13, color: colours.text }} numberOfLines={2}>{shortenLabel(r.label)}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+        {/* Home / Work / Recent searches — shown when To field is focused and empty */}
+        {activeInput === 'to' && toText.length === 0 && toResults.length === 0 && (homePlace || workPlace || recentSearches.length > 0) && (
+          <View style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }, cardShadow]}>
+            {homePlace && (
+              <TouchableOpacity
+                onPress={() => { setToPlace({ placeId: 'home', label: homePlace.label, lat: homePlace.lat, lng: homePlace.lng }); setToText(homePlace.label); setActiveInput(null); Keyboard.dismiss(); }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: (workPlace || recentSearches.length > 0) ? 1 : 0, borderBottomColor: colours.border }}
+              >
+                <Ionicons name="home-outline" size={16} color={colours.accent} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 12, color: colours.muted }}>{t('Home', 'Domicile')}</Text>
+                  <Text style={{ fontSize: 13, color: colours.text }} numberOfLines={1}>{homePlace.label}</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+            {workPlace && (
+              <TouchableOpacity
+                onPress={() => { setToPlace({ placeId: 'work', label: workPlace.label, lat: workPlace.lat, lng: workPlace.lng }); setToText(workPlace.label); setActiveInput(null); Keyboard.dismiss(); }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: recentSearches.length > 0 ? 1 : 0, borderBottomColor: colours.border }}
+              >
+                <Ionicons name="briefcase-outline" size={16} color={colours.accent} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 12, color: colours.muted }}>{t('Work', 'Travail')}</Text>
+                  <Text style={{ fontSize: 13, color: colours.text }} numberOfLines={1}>{workPlace.label}</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+            {recentSearches.slice(0, 5).map((r, i) => (
+              <TouchableOpacity
+                key={i}
+                onPress={() => { setToPlace({ placeId: `recent_${i}`, label: r.name, lat: r.lat, lng: r.lng }); setToText(r.name); setActiveInput(null); Keyboard.dismiss(); }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: i < Math.min(recentSearches.length, 5) - 1 ? 1 : 0, borderBottomColor: colours.border }}
+              >
+                <Ionicons name="time-outline" size={16} color={colours.muted} />
+                <Text style={{ flex: 1, fontSize: 13, color: colours.text }} numberOfLines={1}>{r.name}</Text>
+                <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={async e => {
+                  e.stopPropagation?.();
+                  const updated = recentSearches.filter((_, idx) => idx !== i);
+                  setRecentSearches(updated);
+                  try { await AsyncStorage.setItem(SK_RECENT_SEARCHES, JSON.stringify(updated)); } catch {}
+                }}>
+                  <Ionicons name="close" size={14} color={colours.muted} />
+                </TouchableOpacity>
               </TouchableOpacity>
             ))}
           </View>

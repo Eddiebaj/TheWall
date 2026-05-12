@@ -18,7 +18,7 @@ type Region = import('react-native-maps').Region;
 import { useApp } from '../../context/AppContext';
 import { useBoard } from '../../context/BoardContext';
 import stopsearchData from './stopsearch.json';
-import { SK_SAVED_ROUTES, SK_FAVS, SK_SAVED_PLACES, SK_TRIP_HISTORY } from '../../lib/storageKeys';
+import { SK_SAVED_ROUTES, SK_FAVS, SK_SAVED_PLACES, SK_TRIP_HISTORY, SK_RECENT_SEARCHES, SK_HOME_ADDRESS, SK_WORK_PLACE, SK_ACCESSIBILITY_ROUTING } from '../../lib/storageKeys';
 import { supabase } from '../../lib/supabase';
 import { HAPPY_HOUR_VENUES, HappyHourVenue } from '../../lib/happyHourData';
 import BusTrackingModal from '../../components/BusTrackingModal';
@@ -40,6 +40,8 @@ import { getRouteColour } from '../../lib/routeColors';
 import { NEIGHBOURHOOD_GROUPS } from '../../lib/neighbourhoodGroups';
 import { getPlatformForRoute, hasPlatformData } from '../../lib/platformData';
 import { nearbyVenueAlert, matchVenueByName } from '../../lib/venueTransitData';
+import RouteSheet from '../../components/RouteSheet';
+import StopDetailSheet from '../../components/StopDetailSheet';
 
 const VEHICLES_URL    = 'https://routeo-backend.vercel.app/api/vehicles';
 const BACKEND_URL     = 'https://routeo-backend.vercel.app/api/arrivals';
@@ -385,12 +387,46 @@ export default function MapScreen() {
   const [planNearbyVenue, setPlanNearbyVenue] = useState<{ venueName: string; routeIds: string[]; minutesUntilEnd: number } | null>(null);
   const [safetySignalStopIds, setSafetySignalStopIds] = useState<Set<string>>(new Set());
 
+  // Route sheet (Feature 1)
+  const [routeSheetVisible, setRouteSheetVisible] = useState(false);
+  const [routeSheetId, setRouteSheetId] = useState('');
+
+  // Stop detail sheet (Feature 2)
+  const [stopDetailVisible, setStopDetailVisible] = useState(false);
+  const [stopDetailStopId, setStopDetailStopId] = useState('');
+  const [stopDetailStopName, setStopDetailStopName] = useState('');
+
+  // Home / Work places (Feature 4)
+  const [homePlace, setHomePlace] = useState<{ label: string; lat: number; lng: number } | null>(null);
+  const [workPlace, setWorkPlace] = useState<{ label: string; lat: number; lng: number } | null>(null);
+
+  // Recent searches (Feature 3)
+  const [recentSearches, setRecentSearches] = useState<{ name: string; lat: number; lng: number; usedAt: number }[]>([]);
+
+  // Accessible routing (Feature 6)
+  const [accessibleRoutingMap, setAccessibleRoutingMap] = useState(false);
+
   // Tonight card data
   const [tonightWeather, setTonightWeather] = useState<{ temp: number; condition: string } | null>(null);
   const [tonightEvents, setTonightEvents] = useState<{ name: string; date: string; time?: string; venue: string }[]>([]);
 
   const sheetAnim = useRef(new Animated.Value(0)).current;
   const [loadingLayers, setLoadingLayers] = useState<Set<LayerKey>>(new Set());
+
+  // Build route → alert summary map for Detour badges + RouteSheet (Feature 5)
+  const routeAlertMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const a of sheetAlerts) {
+      const summary = a.title || a.header || '';
+      if (!summary) continue;
+      if (Array.isArray(a.routes)) {
+        for (const r of a.routes) { if (!map[String(r)]) map[String(r)] = summary; }
+      }
+      const matches = (`${a.title || ''} ${a.description || ''} ${a.header || ''}`).match(/\b(\d{1,3}[A-Z]?)\b/g) || [];
+      for (const m of matches) { if (!map[m]) map[m] = summary; }
+    }
+    return map;
+  }, [sheetAlerts]);
   const layerFetchedAt = useRef<Partial<Record<LayerKey, number>>>({});
   const pinCardAnim = useRef(new Animated.Value(0)).current;
 
@@ -787,6 +823,14 @@ export default function MapScreen() {
   }, []);
 
   useEffect(() => { fetchNearbyStops(); }, [fetchNearbyStops]);
+
+  // Load home/work places, recent searches, accessibility routing
+  useEffect(() => {
+    AsyncStorage.getItem(SK_HOME_ADDRESS).then(v => { try { if (v) setHomePlace(JSON.parse(v)); } catch {} }).catch(() => {});
+    AsyncStorage.getItem(SK_WORK_PLACE).then(v => { try { if (v) setWorkPlace(JSON.parse(v)); } catch {} }).catch(() => {});
+    AsyncStorage.getItem(SK_RECENT_SEARCHES).then(v => { try { if (v) setRecentSearches(JSON.parse(v)); } catch {} }).catch(() => {});
+    AsyncStorage.getItem(SK_ACCESSIBILITY_ROUTING).then(v => { if (v === 'true') setAccessibleRoutingMap(true); }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetchWithTimeout('https://routeo-backend.vercel.app/api/alerts', { timeout: 8000 })
@@ -1249,8 +1293,19 @@ export default function MapScreen() {
 
   const searchPlaces = useCallback(async (query: string) => {
     if (query.length < 3) { setPlaceSuggestions([]); return; }
-    // Match transit stops locally
     const q = query.toLowerCase();
+    // Route number detection: 1-3 digits + optional letter (e.g. "95", "62A", "O1")
+    const routePattern = /^\d{1,3}[a-zA-Z]?$|^[Oo]\d{1,2}$/;
+    const routeMatches: { placeId: string; name: string; address: string; routeId?: string }[] = [];
+    if (routePattern.test(query.trim())) {
+      routeMatches.push({
+        placeId: `route_${query.trim().toUpperCase()}`,
+        name: `${t('Route', 'Ligne')} ${query.trim().toUpperCase()}`,
+        address: t('Tap to view route details', 'Appuyer pour voir la ligne'),
+        routeId: query.trim().toUpperCase(),
+      });
+    }
+    // Match transit stops locally
     const stopMatches = (stopsearchData as { id: string; name: string }[])
       .filter(s => s.name.toLowerCase().includes(q) || s.id === query)
       .slice(0, 3)
@@ -1264,14 +1319,27 @@ export default function MapScreen() {
         name: p.structured_formatting?.main_text || p.description,
         address: p.structured_formatting?.secondary_text || '',
       }));
-      setPlaceSuggestions([...stopMatches, ...placeMatches].slice(0, 6));
-    } catch (_) { setPlaceSuggestions(stopMatches.length > 0 ? stopMatches : []); }
+      setPlaceSuggestions([...routeMatches, ...stopMatches, ...placeMatches].slice(0, 7));
+    } catch (_) { setPlaceSuggestions([...routeMatches, ...stopMatches].slice(0, 5)); }
   }, [t]);
 
-  const selectPlace = useCallback(async (suggestion: { placeId: string; name: string; address: string; stopId?: string }) => {
+  const selectPlace = useCallback(async (suggestion: { placeId: string; name: string; address: string; stopId?: string; routeId?: string }) => {
     hapticLight();
     Keyboard.dismiss();
     setPlaceSuggestions([]);
+    // Route number suggestion — open RouteSheet
+    if (suggestion.routeId) {
+      setRouteSheetId(suggestion.routeId);
+      setRouteSheetVisible(true);
+      // Fetch polyline shape and draw on map (non-blocking)
+      fetchWithTimeout(`https://routeo-backend.vercel.app/api/route?id=${encodeURIComponent(suggestion.routeId)}&action=shape`, { timeout: 10000 })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.shape && Array.isArray(data.shape)) setSelectedRouteShape(data.shape);
+        })
+        .catch(() => {});
+      return;
+    }
     try {
       if (suggestion.stopId) {
         // Transit stop — geocode by stop name
@@ -1339,14 +1407,20 @@ export default function MapScreen() {
     } catch { setPlanToSuggestions(stopMatches); }
   }, [t]);
 
-  const selectPlanTo = useCallback(async (s: { placeId: string; name: string; address: string; stopId?: string }) => {
+  const selectPlanTo = useCallback(async (s: { placeId: string; name: string; address: string; stopId?: string; lat?: number; lng?: number }) => {
     hapticLight();
     Keyboard.dismiss();
     setPlanToSuggestions([]);
     setPlanToText(s.name);
     try {
-      let lat = 45.4215, lng = -75.6972;
-      if (s.stopId) {
+      let lat = s.lat ?? 45.4215, lng = s.lng ?? -75.6972;
+      if (s.lat && s.lng) {
+        // coords provided directly (home/work/recent)
+      } else if (s.placeId === 'home' && homePlace) {
+        lat = homePlace.lat; lng = homePlace.lng;
+      } else if (s.placeId === 'work' && workPlace) {
+        lat = workPlace.lat; lng = workPlace.lng;
+      } else if (s.stopId) {
         const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=geocode&address=${encodeURIComponent(s.name + ', Ottawa, ON')}`);
         if (r.ok) { const d = await r.json(); if (d.results?.[0]?.geometry?.location) { lat = d.results[0].geometry.location.lat; lng = d.results[0].geometry.location.lng; } }
       } else {
@@ -1354,8 +1428,17 @@ export default function MapScreen() {
         if (r.ok) { const d = await r.json(); if (d.result?.geometry?.location) { lat = d.result.geometry.location.lat; lng = d.result.geometry.location.lng; } }
       }
       setPlanToPlace({ name: s.name, lat, lng });
+      // Save to recent searches
+      try {
+        const raw = await AsyncStorage.getItem(SK_RECENT_SEARCHES);
+        const existing: { name: string; lat: number; lng: number; usedAt: number }[] = raw ? JSON.parse(raw) : [];
+        const deduped = existing.filter(r => r.name !== s.name);
+        const updated = [{ name: s.name, lat, lng, usedAt: Date.now() }, ...deduped].slice(0, 10);
+        await AsyncStorage.setItem(SK_RECENT_SEARCHES, JSON.stringify(updated));
+        setRecentSearches(updated);
+      } catch {}
     } catch { if (__DEV__) console.warn('plan to geocode failed'); }
-  }, []);
+  }, [recentSearches, homePlace, workPlace]);
 
   const executePlan = useCallback(async (toLat?: number, toLng?: number, toName?: string) => {
     const destLat = toLat ?? planToPlace?.lat;
@@ -1406,6 +1489,7 @@ export default function MapScreen() {
 
       let url = `https://routeo-backend.vercel.app/api/plan?fromLat=${fromLat}&fromLng=${fromLng}&fromLabel=My+Location&toLat=${destLat}&toLng=${destLng}&toLabel=${encodeURIComponent(destName)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=false&mode=${planTransitMode}`;
       if (minimizeWalking) url += '&walkReluctance=5';
+      if (accessibleRoutingMap) url += '&wheelchair=true';
       const r = await fetchWithTimeout(url, { timeout: 15000 });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const data = await r.json();
@@ -1450,7 +1534,7 @@ export default function MapScreen() {
       } catch {}
     } catch (e) { if (__DEV__) console.warn('plan failed', e); }
     finally { setPlanLoading(false); }
-  }, [planTransitMode, planToPlace, minimizeWalking, tonightEvents]);
+  }, [planTransitMode, planToPlace, minimizeWalking, tonightEvents, accessibleRoutingMap]);
 
   const handleJustGo = useCallback(async () => {
     setJustGoLoading(true);
@@ -1741,7 +1825,7 @@ export default function MapScreen() {
                     <TouchableOpacity key={s.placeId} activeOpacity={0.7}
                       style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: colours.border }}
                       onPress={() => selectPlace(s)}>
-                      <Ionicons name={s.stopId ? 'bus-outline' : 'location-outline'} size={16} color={s.stopId ? '#CE1126' : colours.accent} style={{ marginRight: 10 }} />
+                      <Ionicons name={s.stopId ? 'bus-outline' : (s as any).routeId ? 'map-outline' : 'location-outline'} size={16} color={s.stopId ? '#CE1126' : (s as any).routeId ? '#F97316' : colours.accent} style={{ marginRight: 10 }} />
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 13, fontWeight: '600', color: colours.text }} numberOfLines={1}>{s.name}</Text>
                         <Text style={{ fontSize: 11, color: colours.muted }} numberOfLines={1}>{s.address}</Text>
@@ -1806,6 +1890,46 @@ export default function MapScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
+              {/* Home / Work / Recent chips when field is empty */}
+              {planToText.length === 0 && planToSuggestions.length === 0 && (homePlace || workPlace || recentSearches.length > 0) && (
+                <View style={{ marginTop: 6, gap: 4 }}>
+                  {(homePlace || workPlace) && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingBottom: 2 }}>
+                      {homePlace && (
+                        <TouchableOpacity
+                          onPress={() => selectPlanTo({ placeId: 'home', name: homePlace.label, address: t('Home', 'Domicile') })}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface }}>
+                          <Ionicons name="home-outline" size={13} color={colours.accent} />
+                          <Text style={{ fontSize: 12, fontWeight: '600', color: colours.text }}>{t('Home', 'Domicile')}</Text>
+                        </TouchableOpacity>
+                      )}
+                      {workPlace && (
+                        <TouchableOpacity
+                          onPress={() => selectPlanTo({ placeId: 'work', name: workPlace.label, address: t('Work', 'Travail') })}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface }}>
+                          <Ionicons name="briefcase-outline" size={13} color={colours.accent} />
+                          <Text style={{ fontSize: 12, fontWeight: '600', color: colours.text }}>{t('Work', 'Travail')}</Text>
+                        </TouchableOpacity>
+                      )}
+                    </ScrollView>
+                  )}
+                  {recentSearches.slice(0, 5).map((r, i) => (
+                    <TouchableOpacity key={i}
+                      onPress={() => { setPlanToText(r.name); setPlanToPlace({ name: r.name, lat: r.lat, lng: r.lng }); }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface }}>
+                      <Ionicons name="time-outline" size={14} color={colours.muted} />
+                      <Text style={{ fontSize: 13, color: colours.text, flex: 1 }} numberOfLines={1}>{r.name}</Text>
+                      <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={async () => {
+                        const updated = recentSearches.filter((_, idx) => idx !== i);
+                        setRecentSearches(updated);
+                        try { await AsyncStorage.setItem(SK_RECENT_SEARCHES, JSON.stringify(updated)); } catch {}
+                      }}>
+                        <Ionicons name="close" size={14} color={colours.muted} />
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
               {/* Plan To suggestions */}
               {planToSuggestions.length > 0 && (
                 <View style={{ backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginTop: 4, overflow: 'hidden' }}>
@@ -2541,6 +2665,8 @@ export default function MapScreen() {
         }}
         safetySignalStopIds={safetySignalStopIds}
         venueAlerts={planNearbyVenue ? [planNearbyVenue] : undefined}
+        onStopDetail={(stopId, stopName) => { setStopDetailStopId(stopId); setStopDetailStopName(stopName); setStopDetailVisible(true); }}
+        routeAlertMap={routeAlertMap}
         extraSections={
           <>
             <TonightCard
@@ -2689,6 +2815,11 @@ export default function MapScreen() {
                               <Text style={{ fontSize: 11, color: colours.muted }}>{t('Crosses into Gatineau \u00b7 different fare', 'Traverse en Outaouais \u00b7 tarif diff\u00e9rent')}</Text>
                             </View>
                           )}
+                          {accessibleRoutingMap && (
+                            <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: '#3B82F618', borderWidth: 1, borderColor: '#3B82F640' }}>
+                              <Text style={{ fontSize: 11, fontWeight: '600', color: '#3B82F6' }}>{t('♿ Accessible route', '♿ Trajet accessible')}</Text>
+                            </View>
+                          )}
                         </View>
                       )}
                       {/* Tight transfer warning */}
@@ -2764,6 +2895,30 @@ export default function MapScreen() {
         colours={colours}
         fonts={fonts}
         t={t}
+      />
+
+      {/* Feature 1 — Route detail sheet */}
+      <RouteSheet
+        visible={routeSheetVisible}
+        routeId={routeSheetId}
+        onClose={() => { setRouteSheetVisible(false); setSelectedRouteShape([]); }}
+        colours={colours}
+        fonts={fonts}
+        t={t}
+        language={language}
+        routeAlertMap={routeAlertMap}
+      />
+
+      {/* Feature 2 — Stop detail sheet */}
+      <StopDetailSheet
+        visible={stopDetailVisible}
+        stopId={stopDetailStopId}
+        stopName={stopDetailStopName}
+        onClose={() => setStopDetailVisible(false)}
+        colours={colours}
+        fonts={fonts}
+        t={t}
+        language={language}
       />
     </View>
     </ScreenErrorBoundary>

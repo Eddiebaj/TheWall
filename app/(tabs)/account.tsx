@@ -14,7 +14,7 @@ import { useApp, PALETTE_LABELS, PaletteId } from '../../context/AppContext';
 import { useBoard } from '../../context/BoardContext';
 import { supabase } from '../../lib/supabase';
 import { registerPushToken, syncSubscriptions } from '../../lib/pushNotifications';
-import { SK_NOTIF_SETTINGS, SK_DEVICE_ID } from '../../lib/storageKeys';
+import { SK_NOTIF_SETTINGS, SK_DEVICE_ID, SK_HOME_ADDRESS, SK_WORK_PLACE, SK_RECENT_SEARCHES } from '../../lib/storageKeys';
 import { useRouter } from 'expo-router';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { cardShadow as sharedCardShadow } from '../../lib/styles';
@@ -156,6 +156,11 @@ export default function AccountScreen() {
   const [bugSending, setBugSending] = useState(false);
   const [bugSent, setBugSent] = useState(false);
 
+  // My Places state
+  const [homeAddress, setHomeAddress] = useState('');
+  const [workAddress, setWorkAddress] = useState('');
+  const [recentSearchCount, setRecentSearchCount] = useState(0);
+
   useEffect(() => {
     (async () => {
       try {
@@ -168,6 +173,15 @@ export default function AccountScreen() {
     })();
     AsyncStorage.getItem(SK_CLASS_SCHEDULE).then(val => {
       if (val) { try { setClassSchedule(JSON.parse(val)); } catch {} }
+    }).catch(() => {});
+    AsyncStorage.getItem(SK_HOME_ADDRESS).then(val => {
+      try { if (val) { const p = JSON.parse(val); setHomeAddress(p.label || ''); } } catch {}
+    }).catch(() => {});
+    AsyncStorage.getItem(SK_WORK_PLACE).then(val => {
+      try { if (val) { const p = JSON.parse(val); setWorkAddress(p.label || ''); } } catch {}
+    }).catch(() => {});
+    AsyncStorage.getItem(SK_RECENT_SEARCHES).then(val => {
+      try { if (val) setRecentSearchCount(JSON.parse(val).length); } catch {}
     }).catch(() => {});
   }, []);
 
@@ -559,6 +573,80 @@ export default function AccountScreen() {
               accessibilityLabel={t('Reduce motion', 'R\u00e9duire les animations')}
             />
           </View>
+        </Card>
+
+        {/* ── MY PLACES ── */}
+        <SectionHeader label={t('My Places', 'Mes lieux')} icon="location-outline" colours={colours} fonts={fonts} />
+        <Card>
+          <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <Ionicons name="home-outline" size={16} color={colours.accent} />
+              <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted }}>{t('Home', 'Domicile')}</Text>
+            </View>
+            <TextInput
+              style={{ fontSize: fonts.md, color: colours.text, backgroundColor: colours.surface, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: colours.border }}
+              placeholder={t('e.g. 123 Main St, Ottawa', 'ex. 123 rue Principale, Ottawa')}
+              placeholderTextColor={colours.muted}
+              value={homeAddress}
+              onChangeText={setHomeAddress}
+              returnKeyType="done"
+              onSubmitEditing={async () => {
+                if (!homeAddress.trim()) { await AsyncStorage.removeItem(SK_HOME_ADDRESS).catch(() => {}); return; }
+                try {
+                  const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=geocode&address=${encodeURIComponent(homeAddress + ', Ottawa, ON')}`);
+                  if (r.ok) {
+                    const d = await r.json();
+                    if (d.results?.[0]?.geometry?.location) {
+                      const { lat, lng } = d.results[0].geometry.location;
+                      await AsyncStorage.setItem(SK_HOME_ADDRESS, JSON.stringify({ label: homeAddress, lat, lng }));
+                    }
+                  }
+                } catch {}
+              }}
+            />
+          </View>
+          <Divider colours={colours} />
+          <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <Ionicons name="briefcase-outline" size={16} color={colours.accent} />
+              <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted }}>{t('Work', 'Travail')}</Text>
+            </View>
+            <TextInput
+              style={{ fontSize: fonts.md, color: colours.text, backgroundColor: colours.surface, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: colours.border }}
+              placeholder={t('e.g. 90 Sparks St, Ottawa', 'ex. 90 rue Sparks, Ottawa')}
+              placeholderTextColor={colours.muted}
+              value={workAddress}
+              onChangeText={setWorkAddress}
+              returnKeyType="done"
+              onSubmitEditing={async () => {
+                if (!workAddress.trim()) { await AsyncStorage.removeItem(SK_WORK_PLACE).catch(() => {}); return; }
+                try {
+                  const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=geocode&address=${encodeURIComponent(workAddress + ', Ottawa, ON')}`);
+                  if (r.ok) {
+                    const d = await r.json();
+                    if (d.results?.[0]?.geometry?.location) {
+                      const { lat, lng } = d.results[0].geometry.location;
+                      await AsyncStorage.setItem(SK_WORK_PLACE, JSON.stringify({ label: workAddress, lat, lng }));
+                    }
+                  }
+                } catch {}
+              }}
+            />
+          </View>
+          <Divider colours={colours} />
+          <TouchableOpacity
+            onPress={async () => {
+              await AsyncStorage.removeItem(SK_RECENT_SEARCHES).catch(() => {});
+              setRecentSearchCount(0);
+            }}
+            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 }}
+            disabled={recentSearchCount === 0}
+          >
+            <Ionicons name="time-outline" size={18} color={recentSearchCount === 0 ? colours.muted : '#e74c3c'} />
+            <Text style={{ fontSize: fonts.md, color: recentSearchCount === 0 ? colours.muted : '#e74c3c', flex: 1 }}>
+              {recentSearchCount === 0 ? t('No search history', 'Aucun historique de recherche') : t(`Clear search history (${recentSearchCount})`, `Effacer l'historique (${recentSearchCount})`)}
+            </Text>
+          </TouchableOpacity>
         </Card>
 
         {/* ── TOOLS ── */}

@@ -85,3 +85,5 @@ export const SK_TASTE_PROFILE = 'routeo_taste_profile';
 export const SK_FOLLOWED_VENUES = 'routeo_followed_venues';
 export const SK_JOINED_GROUPS = 'routeo_joined_groups';
 export const SK_LAST_DEAL_CHECK = 'routeo_last_deal_check';
+export const SK_RECENT_SEARCHES = 'routeo_recent_searches';
+export const SK_WORK_PLACE = 'routeo_work_place';
