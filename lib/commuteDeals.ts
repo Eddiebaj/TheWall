@@ -211,7 +211,7 @@ export async function scheduleCommuteNotification(deals: CommuteDeal[], lang: 'e
         data: { type: 'commute_deals' },
         sound: 'default',
       },
-      trigger: { hour: 17, minute: 0, repeats: true },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 17, minute: 0 },
     });
     await AsyncStorage.setItem(SK_COMMUTE_DEALS_LAST_PUSH, id).catch(() => {});
   } catch {}

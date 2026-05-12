@@ -64,6 +64,7 @@ import {
 } from '../../lib/storageKeys';
 // neighbourhoodData import removed — discover section moved to dedicated tab
 // NewsArticle import removed — news lives in dedicated News tab
+import { haversineKm } from '../../lib/geo';
 import { getDelayContext } from '../../lib/delayContext';
 import { FrequentRoute, detectFrequentRoutes } from '../../lib/frequentRoutes';
 import { CommuteDeal, getCommuteDeals, isCommuteWindow, scheduleCommuteNotification } from '../../lib/commuteDeals';
@@ -79,8 +80,6 @@ const TRIP_UPDATES = 'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt
 const BACKEND_URL = 'https://routeo-backend.vercel.app/api/arrivals';
 const ALERTS_URL = 'https://routeo-backend.vercel.app/api/alerts';
 const EC_WEATHER_URL = 'https://dd.weather.gc.ca/today/citypage_weather/ON/';
-const ONTARIO_511_URL = 'https://511on.ca/api/v2';
-const OTTAWA_OPEN_DATA_URL = 'https://open.ottawa.ca/api/explore/v2.1/catalog/datasets';
 const COMMUNITY_URL = 'https://routeo-backend.vercel.app/api/community';
 
 const LRT_STOP_IDS = new Set([
@@ -917,7 +916,7 @@ function LiveScreenInner() {
       try {
         let board: SavedBoardItem[] = boardVal ? JSON.parse(boardVal) : [];
         // Migrate: remove stale service_alert items (replaced by persistent disruption banner)
-        board = board.filter((i: any) => i.type !== 'service_alert' && i.type !== 'garbage' && i.type !== 'gas_prices' && i.type !== 'news');
+        board = board.filter((i: any) => i.type !== 'service_alert' && i.type !== 'garbage' && i.type !== 'gas_prices' && i.type !== 'news' && i.type !== 'class_schedule');
         const existingFavs: Fav[] = favsVal ? JSON.parse(favsVal) : [];
         let changed = false;
         for (const fav of existingFavs) {
@@ -1202,16 +1201,6 @@ function LiveScreenInner() {
     }
   }, [alerts]);
 
-  // ── 511 Ontario road events ───────────────────────────────────
-  const haversineDist = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
-    const toRad = (d: number) => d * Math.PI / 180;
-    const R = 6371;
-    const dLat = toRad(lat2 - lat1);
-    const dLng = toRad(lng2 - lng1);
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  };
-
   const getUserCoords = async (): Promise<{ lat: number; lng: number }> => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -1243,7 +1232,7 @@ function LiveScreenInner() {
       for (const s of statuses) statusMap[s.station_id] = s;
       const merged = stations.map((s: any) => {
         const st = statusMap[s.station_id] || {};
-        const dist = haversineDist(coords.lat, coords.lng, s.lat, s.lon);
+        const dist = haversineKm(coords.lat, coords.lng, s.lat, s.lon);
         return {
           name: s.name || `Station ${s.station_id}`,
           bikes: st.num_bikes_available ?? 0,
@@ -1300,12 +1289,6 @@ function LiveScreenInner() {
       AsyncStorage.setItem(SK_TODAY_EVENTS, JSON.stringify(todayEvents));
     } catch { setEvents([]); }
     setEventsLoading(false);
-  };
-
-  const haversineKm = (lat1: number, lng1: number, lat2: number, lng2: number) => {
-    const R = 6371, dLat = (lat2 - lat1) * Math.PI / 180, dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   };
 
   const toggleNearMe = async () => {

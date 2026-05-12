@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Tabs, router } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MapPin, BookmarkSimple, NavigationArrow, User } from 'phosphor-react-native';
+import { MapPin, BookmarkSimple, User } from 'phosphor-react-native';
 import { useApp } from '../../context/AppContext';
 import { useBoard } from '../../context/BoardContext';
 
