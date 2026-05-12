@@ -18,7 +18,7 @@ type Region = import('react-native-maps').Region;
 import { useApp } from '../../context/AppContext';
 import { useBoard } from '../../context/BoardContext';
 import stopsearchData from './stopsearch.json';
-import { SK_SAVED_ROUTES, SK_FAVS, SK_SAVED_PLACES } from '../../lib/storageKeys';
+import { SK_SAVED_ROUTES, SK_FAVS, SK_SAVED_PLACES, SK_TRIP_HISTORY } from '../../lib/storageKeys';
 import { supabase } from '../../lib/supabase';
 import { HAPPY_HOUR_VENUES, HappyHourVenue } from '../../lib/happyHourData';
 import BusTrackingModal from '../../components/BusTrackingModal';
@@ -239,6 +239,29 @@ const venueHasActiveOrUpcomingToday = (venue: VenuePin): boolean => {
   return active.length > 0 || upcoming.length > 0;
 };
 
+// Nearby tip — checks happy hour venues within 400m of destination, ending within 2h of ETA
+function computeNearbyTip(destLat: number, destLng: number, etaMs: number, language: string): string | null {
+  if (!destLat || !destLng || !etaMs) return null;
+  const eta = new Date(etaMs);
+  const etaMins = eta.getHours() * 60 + eta.getMinutes();
+  const dow = eta.getDay();
+  const windowEnd = etaMins + 120;
+  for (const venue of HAPPY_HOUR_VENUES) {
+    const distM = haversineKm(destLat, destLng, venue.lat, venue.lng) * 1000;
+    if (distM > 400) continue;
+    for (const deal of venue.deals) {
+      if (!deal.days.includes(dow)) continue;
+      const [sh, sm] = deal.end.split(':').map(Number);
+      const endMins = sh * 60 + sm;
+      if (endMins < etaMins || endMins > windowEnd) continue;
+      const walkMins = Math.max(1, Math.round(distM / 80));
+      const desc = language === 'fr' ? deal.description_fr : deal.description;
+      return `${desc} at ${venue.name} — ends ${deal.end} · ${walkMins} min walk`;
+    }
+  }
+  return null;
+}
+
 // Today filter
 const getTodayStr = () => {
   const now = new Date();
@@ -323,6 +346,8 @@ export default function MapScreen() {
   const [planLoading, setPlanLoading] = useState(false);
   const [planResultsVisible, setPlanResultsVisible] = useState(false);
   const [goItinerary, setGoItinerary] = useState<PlanItinerary | null>(null);
+  const [justGoLoading, setJustGoLoading] = useState(false);
+  const [goNearbyTip, setGoNearbyTip] = useState<string | null>(null);
 
   // Tonight card data
   const [tonightWeather, setTonightWeather] = useState<{ temp: number; condition: string } | null>(null);
@@ -1270,6 +1295,42 @@ export default function MapScreen() {
     finally { setPlanLoading(false); }
   }, [planTransitMode, planToPlace]);
 
+  const handleJustGo = useCallback(async () => {
+    setJustGoLoading(true);
+    try {
+      const raw = await AsyncStorage.getItem(SK_TRIP_HISTORY);
+      const history: { toLat: number; toLng: number; toLabel: string }[] = raw ? JSON.parse(raw) : [];
+      if (history.length === 0) { setPlanMode(true); return; }
+      const counts: Record<string, { count: number; toLat: number; toLng: number; toLabel: string }> = {};
+      for (const r of history) {
+        const key = `${r.toLat.toFixed(4)},${r.toLng.toFixed(4)}`;
+        if (!counts[key]) counts[key] = { count: 0, toLat: r.toLat, toLng: r.toLng, toLabel: r.toLabel };
+        counts[key].count++;
+      }
+      const top = Object.values(counts).sort((a, b) => b.count - a.count)[0];
+      let fromLat = 45.4215, fromLng = -75.6972;
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).catch(() => null);
+      if (loc) { fromLat = loc.coords.latitude; fromLng = loc.coords.longitude; }
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const dateStr = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${now.getFullYear()}`;
+      const url = `https://routeo-backend.vercel.app/api/plan?fromLat=${fromLat}&fromLng=${fromLng}&fromLabel=My+Location&toLat=${top.toLat}&toLng=${top.toLng}&toLabel=${encodeURIComponent(top.toLabel)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=false&mode=transit`;
+      const r = await fetchWithTimeout(url, { timeout: 15000 });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const data = await r.json();
+      const itins: PlanItinerary[] = data?.itineraries || [];
+      if (itins.length === 0) { setPlanMode(true); return; }
+      const fastest = itins.reduce((a, b) => a.duration < b.duration ? a : b);
+      setGoNearbyTip(computeNearbyTip(top.toLat, top.toLng, fastest.endTime, language));
+      setGoItinerary(fastest);
+    } catch (e) {
+      if (__DEV__) console.warn('justGo failed', e);
+      setPlanMode(true);
+    } finally {
+      setJustGoLoading(false);
+    }
+  }, [language]);
+
   const hasSheet = selectedBus || selectedVenue || selectedSavedPin || searchedPlace;
 
   return (
@@ -1499,6 +1560,16 @@ export default function MapScreen() {
               {lastUpdated ? <Text style={{ fontSize: 9, color: colours.muted, textAlign: 'right', marginTop: 3 }}>{t('Updated', 'Mis \u00e0 jour')} {lastUpdated}</Text> : null}
               {/* Suggestion chips */}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }} contentContainerStyle={{ gap: 6 }}>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={handleJustGo}
+                  disabled={justGoLoading}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#00A78D' }}>
+                  {justGoLoading
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <Ionicons name="flash" size={13} color="#fff" />}
+                  <Text style={{ fontSize: 12, color: '#fff', fontWeight: '700' }}>{t('Just Go', 'Partir maintenant')}</Text>
+                </TouchableOpacity>
                 <TouchableOpacity
                   activeOpacity={0.8}
                   onPress={() => setPlanMode(true)}
@@ -2370,7 +2441,7 @@ export default function MapScreen() {
                     ))}
                   </View>
                   <TouchableOpacity
-                    onPress={() => { setPlanResultsVisible(false); setGoItinerary(itin); }}
+                    onPress={() => { setPlanResultsVisible(false); setGoNearbyTip(computeNearbyTip(planToPlace?.lat ?? 0, planToPlace?.lng ?? 0, itin.endTime, language)); setGoItinerary(itin); }}
                     style={{ backgroundColor: '#00A78D', borderRadius: 12, paddingVertical: 10, alignItems: 'center' }}>
                     <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.5 }}>{t('GO', 'PARTIR')}</Text>
                   </TouchableOpacity>
@@ -2386,7 +2457,8 @@ export default function MapScreen() {
         <ActiveTrip
           visible={!!goItinerary}
           itinerary={goItinerary as any}
-          onEnd={() => { setGoItinerary(null); setPlanResultsVisible(false); setPlanMode(false); setPlanToText(''); setPlanToPlace(null); }}
+          nearbyTip={goNearbyTip}
+          onEnd={() => { setGoItinerary(null); setGoNearbyTip(null); setPlanResultsVisible(false); setPlanMode(false); setPlanToText(''); setPlanToPlace(null); }}
           colours={colours}
           t={t}
           alerts={sheetAlerts.map((a: any) => ({ routes: a.routes || [], title: a.title || '' }))}

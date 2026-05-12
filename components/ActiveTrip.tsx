@@ -91,9 +91,10 @@ type ActiveTripProps = {
   batterySaver?: boolean;
   alerts?: { routes: string[]; title: string; description?: string }[];
   onConfirmArrival?: (routeId: string, stopId: string) => void;
+  nearbyTip?: string | null;
 };
 
-export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, reducedMotion, batterySaver, alerts, onConfirmArrival }: ActiveTripProps) {
+export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, reducedMotion, batterySaver, alerts, onConfirmArrival, nearbyTip }: ActiveTripProps) {
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
   const [activeLeg, setActiveLeg] = useState(0);
@@ -114,6 +115,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
   const [busPosition, setBusPosition] = useState<{ lat: number; lng: number; routeId: string; agency: string } | null>(null);
   const [stopsExpanded, setStopsExpanded] = useState(false);
   const [liveEta, setLiveEta] = useState<number | null>(null);
+  const [tipVisible, setTipVisible] = useState(false);
 
   const locationSubRef = useRef<any>(null);
   const arrivalPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -162,6 +164,14 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, [visible]);
+
+  // Nearby tip — show on mount if present, auto-dismiss after 8s
+  useEffect(() => {
+    if (!visible || !nearbyTip) { setTipVisible(false); return; }
+    setTipVisible(true);
+    const id = setTimeout(() => setTipVisible(false), 8000);
+    return () => clearTimeout(id);
+  }, [visible, nearbyTip]);
 
   // Location tracking
   useEffect(() => {
@@ -904,6 +914,16 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
             </View>
           )}
         </ScrollView>
+
+        {/* Nearby tip banner — auto-dismisses after 8s */}
+        {tipVisible && nearbyTip && (
+          <View style={{ marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colours.tintBg ?? colours.surface, borderRadius: 10, borderWidth: 1, borderColor: colours.border, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={{ fontSize: 13, color: colours.text, flex: 1 }}>{nearbyTip}</Text>
+            <TouchableOpacity onPress={() => setTipVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close" size={16} color={colours.muted} />
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* End trip button — full width, pinned to bottom */}
         <View style={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 12, paddingTop: 4 }}>
