@@ -12,12 +12,12 @@ export const LAYER_ICONS = {
 } as const;
 
 export const LAYER_CONFIG = {
-  deals: { color: '#FF9800', icon: 'pricetag', label: 'Deals', labelFr: 'Rabais' },
-  restaurants: { color: '#E91E63', icon: 'restaurant', label: 'Eats', labelFr: 'Restos' },
-  coffee: { color: '#795548', icon: 'cafe', label: 'Coffee', labelFr: 'Café' },
-  bars: { color: '#FF6B35', icon: 'wine', label: 'Bars', labelFr: 'Bars' },
-  ghost_buses: { color: '#9E9E9E', icon: 'alert-circle', label: 'Ghost Buses', labelFr: 'Bus fantômes' },
-  construction: { color: '#E67E22', icon: 'construct', label: 'Construction', labelFr: 'Construction' },
+  deals:        { color: '#F59E0B', icon: 'pricetag',    label: 'Deals',        labelFr: 'Rabais'        },
+  restaurants:  { color: '#EC4899', icon: 'restaurant',  label: 'Eats',         labelFr: 'Restos'        },
+  coffee:       { color: '#A16207', icon: 'cafe',        label: 'Coffee',       labelFr: 'Caf\u00e9'     },
+  bars:         { color: '#3B82F6', icon: 'wine',        label: 'Bars',         labelFr: 'Bars'          },
+  ghost_buses:  { color: '#00C07A', icon: 'alert-circle',label: 'Ghost Buses',  labelFr: 'Bus fant\u00f4mes' },
+  construction: { color: '#F97316', icon: 'construct',   label: 'Construction', labelFr: 'Construction'  },
 } as const;
 
 export type LayerKey = keyof typeof LAYER_CONFIG;

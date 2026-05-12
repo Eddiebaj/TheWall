@@ -139,6 +139,10 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sp
         {/* Header */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: summary.sports.length > 0 ? 12 : 4 }}>
           <View style={{ flex: 1 }}>
+            {/* Eyebrow — always teal caps */}
+            <Text style={{ fontSize: 10, fontWeight: '800', letterSpacing: 1.4, color: '#00C07A', marginBottom: 3 }}>
+              {t('TONIGHT IN OTTAWA', 'CE SOIR \u00c0 OTTAWA')}
+            </Text>
             <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text }}>{title}</Text>
             {weather && (
               <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
@@ -163,19 +167,21 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sp
           );
         })}
 
-        {/* RouteO Pick — gold highlight for top-scored event */}
+        {/* RouteO Pick — gold/amber badge with ✦ star */}
         {routeoPick && (
           <View style={{
-            flexDirection: 'row', alignItems: 'center', gap: 7,
-            backgroundColor: '#F59E0B10', borderRadius: 8,
-            paddingHorizontal: 10, paddingVertical: 6,
-            borderWidth: 1, borderColor: '#F59E0B30',
+            flexDirection: 'row', alignItems: 'center', gap: 8,
+            backgroundColor: '#F59E0B14', borderRadius: 10,
+            paddingHorizontal: 10, paddingVertical: 7,
+            borderWidth: 1, borderColor: '#F59E0B35',
             marginBottom: 8,
           }}>
-            <Text style={{ fontSize: 10, fontWeight: '800', color: '#D97706', letterSpacing: 0.5 }}>
-              {'\u2726'} ROUTEO PICK
-            </Text>
-            <Text style={{ fontSize: 12, color: colours.text, flex: 1 }} numberOfLines={1}>{routeoPick}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Text style={{ fontSize: 11, color: '#F59E0B' }}>{'\u2726'}</Text>
+              <Text style={{ fontSize: 9, fontWeight: '800', color: '#D97706', letterSpacing: 1.2 }}>ROUTEO PICK</Text>
+            </View>
+            <View style={{ width: 1, height: 12, backgroundColor: '#F59E0B30' }} />
+            <Text style={{ fontSize: 12, fontWeight: '600', color: colours.text, flex: 1 }} numberOfLines={1}>{routeoPick}</Text>
           </View>
         )}
 

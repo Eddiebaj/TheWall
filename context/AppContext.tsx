@@ -27,20 +27,20 @@ type AppContextType = {
 };
 
 const DARK_COLOURS = {
-  bg:       '#0d1117',
-  surface:  '#131a24',
-  card:     '#1a2230',
-  border:   '#1e2d42',
-  accent:   '#00A78D',
+  bg:       '#0C0E12',
+  surface:  '#181B22',
+  card:     '#1E2230',
+  border:   '#252933',
+  accent:   '#00C07A',
   accentAlt:'#004890',
   lrt:      '#004890',
   text:     '#eef2f7',
   muted:    '#6b7f99',
-  green:    '#00A78D',
+  green:    '#00C07A',
   orange:   '#e8a020',
   red:      '#cc3b2a',
   purple:   '#7b5ea7',
-  tintBg:   '#0f2420',
+  tintBg:   '#00C07A0F',
   warnBg:   '#1f1a0d',
   errorBg:  '#1f100e',
   live:     '#22c55e',
@@ -100,7 +100,7 @@ const HIGH_CONTRAST_LIGHT = {
 
 // Palette accent overrides (applied on top of dark/light base)
 const PALETTE_OVERRIDES: Record<PaletteId, { accent: string; accentAlt: string; green: string }> = {
-  default:   { accent: '#00A78D', accentAlt: '#004890', green: '#00A78D' },
+  default:   { accent: '#00C07A', accentAlt: '#004890', green: '#00C07A' },
   senators:  { accent: '#C8102E', accentAlt: '#C69214', green: '#C8102E' },
   midnight:  { accent: '#3B82F6', accentAlt: '#1E3A5F', green: '#3B82F6' },
   forest:    { accent: '#2D8659', accentAlt: '#6B8F71', green: '#2D8659' },
@@ -108,7 +108,7 @@ const PALETTE_OVERRIDES: Record<PaletteId, { accent: string; accentAlt: string; 
 };
 
 export const PALETTE_LABELS: Record<PaletteId, { en: string; fr: string; swatch: string }> = {
-  default:  { en: 'Default', fr: 'Defaut', swatch: '#00A78D' },
+  default:  { en: 'Default', fr: 'Defaut', swatch: '#00C07A' },
   senators: { en: 'Senators', fr: 'Senateurs', swatch: '#C8102E' },
   midnight: { en: 'Midnight', fr: 'Minuit', swatch: '#3B82F6' },
   forest:   { en: 'Forest', fr: 'Foret', swatch: '#2D8659' },

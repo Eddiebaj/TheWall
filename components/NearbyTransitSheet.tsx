@@ -83,11 +83,33 @@ interface NearbyTransitSheetProps {
 // Constants
 
 const SNAP_POINTS = ['25%', '55%', '90%'];
-const TEAL = '#00A78D';
-const AMBER_BG = 'rgba(232,160,32,0.15)';
-const AMBER_TEXT = '#b8860b';
+const TEAL = '#00C07A';
+const AMBER_BG = 'rgba(245,158,11,0.12)';
+const AMBER_TEXT = '#D97706';
 const DEFAULT_ROWS = 3;
 const GROUP_DIST_THRESHOLD = 60; // meters — stops within this distance can be merged
+
+// Route badge colors — deterministic by route ID
+const BADGE_PALETTE = ['#0EA5E9','#8B5CF6','#EC4899','#22C55E','#F59E0B','#EF4444','#14B8A6','#6366F1','#F97316','#06B6D4'];
+
+function routeBadgeStyle(routeId: string): { bg: string; fg: string } {
+  const id = routeId.split('-')[0].toUpperCase().trim();
+  const num = parseInt(id, 10);
+  if (id === '1' || id === 'R1' || id === 'LINE1') return { bg: '#004890', fg: '#fff' };
+  if (id === '2' || id === 'R2' || id === 'LINE2') return { bg: '#00843D', fg: '#fff' };
+  if (['95','96','97','98','99'].includes(id)) return { bg: '#CE1126', fg: '#fff' };
+  if (!isNaN(num) && num >= 300 && num < 400) return { bg: '#F97316', fg: '#fff' };
+  if (id.startsWith('N')) return { bg: '#6D28D9', fg: '#fff' };
+  let h = 5381;
+  for (let i = 0; i < id.length; i++) h = (((h << 5) + h) ^ id.charCodeAt(i)) | 0;
+  return { bg: BADGE_PALETTE[Math.abs(h) % BADGE_PALETTE.length], fg: '#fff' };
+}
+
+function timeStyle(minsAway: number): { bg: string; fg: string; label: string } {
+  if (minsAway <= 0) return { bg: '#00C07A18', fg: '#00C07A', label: 'Now' };
+  if (minsAway < 10)  return { bg: '#F59E0B18', fg: '#D97706', label: `${minsAway} min` };
+  return { bg: 'transparent', fg: '#6b7f99', label: `${minsAway} min` };
+}
 
 // Helpers
 
@@ -182,7 +204,7 @@ function SkeletonCard({ colours }: { colours: any }) {
   );
 }
 
-// Inline arrival pills for a stop — with one-tap ghost reporting
+// Inline arrival pills for a stop — colored route badge + 3-state time pill + inline ghost warning
 
 function ArrivalPills({ stop, colours, t }: { stop: NearbyStop; colours: any; t: (en: string, fr: string) => string }) {
   const [thanks, setThanks] = useState<Record<string, boolean>>({});
@@ -215,53 +237,66 @@ function ArrivalPills({ stop, colours, t }: { stop: NearbyStop; colours: any; t:
   }
 
   return (
-    <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-      {stop.arrivals.slice(0, 2).map((a, i) => {
-        const urgent = a.minsAway < 2;
-        const isGhost = stop.ghostRoutes?.includes(a.routeId) ?? false;
-        const isReported = submitted[a.routeId] ?? false;
-        const showThanks = thanks[a.routeId] ?? false;
+    <View style={{ gap: 6 }}>
+      <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
+        {stop.arrivals.slice(0, 2).map((a, i) => {
+          const isGhost = stop.ghostRoutes?.includes(a.routeId) ?? false;
+          const isReported = submitted[a.routeId] ?? false;
+          const showThanks = thanks[a.routeId] ?? false;
+          const badge = routeBadgeStyle(a.routeId);
+          const time = timeStyle(isGhost ? 99 : a.minsAway);
 
-        if (showThanks) {
+          if (showThanks) {
+            return (
+              <View key={`${a.routeId}-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Ionicons name="checkmark-circle" size={12} color={TEAL} />
+                <Text style={{ fontSize: 11, color: TEAL, fontWeight: '600' }}>
+                  {t("Thanks \u2014 we'll watch this route", "Merci \u2014 on surveille cette route")}
+                </Text>
+              </View>
+            );
+          }
+
           return (
-            <View key={`${a.routeId}-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Ionicons name="checkmark-circle" size={12} color={TEAL} />
-              <Text style={{ fontSize: 11, color: TEAL, fontWeight: '600' }}>
-                {t("Thanks \u2014 we'll watch this route", "Merci \u2014 on surveille cette route")}
-              </Text>
+            <View key={`${a.routeId}-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, opacity: isReported && !isGhost ? 0.4 : 1 }}>
+              {/* Route badge — color-coded */}
+              <View style={{ minWidth: 36, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 7, backgroundColor: isGhost ? '#EF444420' : badge.bg, alignItems: 'center' }}>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: isGhost ? '#EF4444' : badge.fg, letterSpacing: -0.3 }}>
+                  {a.routeId.split('-')[0]}
+                </Text>
+              </View>
+              {/* Time pill — Now / <10min / ≥10min */}
+              <View style={{ paddingHorizontal: 7, paddingVertical: 4, borderRadius: 7, backgroundColor: time.bg }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: time.fg }}>
+                  {isGhost ? t('?', '?') : time.label}
+                </Text>
+              </View>
+              {/* Flag button */}
+              {!isGhost && !isReported && (
+                <TouchableOpacity
+                  onPress={() => handleReport(a.routeId)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityLabel={t('Report not coming', 'Signaler pas venu')}
+                >
+                  <Ionicons name="flag-outline" size={12} color={colours.muted} />
+                </TouchableOpacity>
+              )}
             </View>
           );
-        }
-
-        return (
-          <View key={`${a.routeId}-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-            <View style={{
-              paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
-              backgroundColor: isGhost ? '#cc3b2a18' : colours.tintBg,
-              borderWidth: 1, borderColor: isGhost ? '#cc3b2a60' : colours.border,
-              opacity: isReported && !isGhost ? 0.45 : 1,
-              flexDirection: 'row', alignItems: 'center', gap: 4,
-            }}>
-              {isGhost && <Ionicons name="skull-outline" size={10} color="#cc3b2a" />}
-              <Text style={{ fontSize: 13, fontWeight: '700', color: isGhost ? '#cc3b2a' : isReported ? colours.muted : colours.accent }}>
-                {a.routeId.split('-')[0]}
-              </Text>
-            </View>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: urgent ? TEAL : isReported ? colours.muted : colours.text }}>
-              {a.minsAway <= 0 ? t('Now', 'Maint.') : `${a.minsAway} min`}
-            </Text>
-            {!isGhost && !isReported && (
-              <TouchableOpacity
-                onPress={() => handleReport(a.routeId)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityLabel={t('Report not coming', 'Signaler pas venu')}
-              >
-                <Ionicons name="flag-outline" size={12} color={colours.muted} />
-              </TouchableOpacity>
+        })}
+      </View>
+      {/* Inline ghost bus warning — red text + icon, no separate card */}
+      {stop.ghostRoutes && stop.ghostRoutes.length > 0 && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Ionicons name="skull-outline" size={11} color="#EF4444" />
+          <Text style={{ fontSize: 11, color: '#EF4444', fontWeight: '600' }}>
+            {t(
+              `Route${stop.ghostRoutes.length > 1 ? 's' : ''} ${stop.ghostRoutes.join(', ')} not appearing`,
+              `Route${stop.ghostRoutes.length > 1 ? 's' : ''} ${stop.ghostRoutes.join(', ')} absente${stop.ghostRoutes.length > 1 ? 's' : ''}`,
             )}
-          </View>
-        );
-      })}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -406,14 +441,7 @@ const IntersectionRow = React.memo(function IntersectionRow({
           </View>
         )}
 
-        {/* Social proof — ghost reports from any direction at this intersection */}
-        {group.stops.some(s => s.ghostRoutes && s.ghostRoutes.length > 0) && (
-          <Text style={{ fontSize: 11, color: '#cc3b2a', marginBottom: 4 }}>
-            {t('Riders reported delays here', 'Des passagers ont signal\u00e9 des retards ici')}
-          </Text>
-        )}
-
-        {/* Arrivals for active direction */}
+        {/* Arrivals for active direction — ghost warnings render inline inside ArrivalPills */}
         <ArrivalPills stop={activeStop} colours={colours} t={t} />
 
         {/* Expanded leave-now alert */}
@@ -520,22 +548,11 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
     const intersectionGroups = useMemo(() => groupNearbyStops(nearbyStops), [nearbyStops]);
     const visibleGroups = showAll ? intersectionGroups : intersectionGroups.slice(0, DEFAULT_ROWS);
 
+    // Urgency strip: LRT disruption only — ghost bus warnings now render inline per arrival
     const urgentItems = useMemo(() => {
-      const items: { key: string; text: string }[] = [];
-      for (const stop of nearbyStops) {
-        if (stop.ghostRoutes && stop.ghostRoutes.length > 0) {
-          const stopShort = stop.stopName.replace(/\s+(NB|SB|EB|WB)$/i, '').split('/')[0].trim().slice(0, 22);
-          for (const routeId of stop.ghostRoutes) {
-            items.push({ key: `ghost-${stop.stopId}-${routeId}`, text: `Route ${routeId} not showing at ${stopShort}` });
-            if (items.length >= 3) return items;
-          }
-        }
-      }
-      if (hasDisruption && items.length < 3) {
-        items.push({ key: 'lrt', text: 'O-Train delays on Confederation Line' });
-      }
-      return items.slice(0, 3);
-    }, [nearbyStops, hasDisruption]);
+      if (!hasDisruption) return [];
+      return [{ key: 'lrt', text: 'O-Train delays on Confederation Line' }];
+    }, [hasDisruption]);
     const hiddenCount = intersectionGroups.length - DEFAULT_ROWS;
 
     const Separator = useCallback(() => <SheetSeparator colours={colours} />, [colours]);
