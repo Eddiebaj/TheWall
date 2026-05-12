@@ -2016,9 +2016,9 @@ export default function MapScreen() {
                 <TouchableOpacity
                   activeOpacity={0.8}
                   onPress={() => router.push({ pathname: '/(tabs)/planner', params: { triggerIsochrone: '1' } } as any)}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface }}>
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface }}>
                   <Ionicons name="radio-button-on-outline" size={13} color='#00C07A' />
-                  <Text style={{ fontSize: 12, color: colours.text, fontWeight: '600' }}>{t('What can I reach in 20 min?', 'Ce que je peux atteindre en 20 min?')}</Text>
+                  <Text style={{ fontSize: 12, color: colours.text, fontWeight: '600' }}>{t('Reachable', 'Accessible')}</Text>
                 </TouchableOpacity>
               </ScrollView>
               {placeSuggestions.length > 0 && (
