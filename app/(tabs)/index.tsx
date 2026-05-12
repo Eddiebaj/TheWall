@@ -1974,7 +1974,7 @@ function LiveScreenInner() {
     if (eventsSource === 'eventbrite' && events.length > 0 && Date.now() - eventsCacheTime.current.eventbrite < 30 * 60 * 1000) return;
     setEventsLoading(true);
     try {
-      const resp = await fetchWithTimeout('https://routeo-backend.vercel.app/api/ebevents');
+      const resp = await fetchWithTimeout('https://routeo-backend.vercel.app/api/community?action=ticketmaster');
       if (!resp.ok) throw new Error(`${resp.status}`);
       const data = await resp.json();
       const allEvents = data.events || [];

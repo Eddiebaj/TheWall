@@ -202,7 +202,7 @@ function DiscoverScreenInner() {
       sunday.setDate(start.getDate() + (dayOfWeek === 6 ? 1 : dayOfWeek === 0 ? 0 : 2));
       const startDate = start.toISOString().split('T')[0] + 'T00:00:00Z';
       const endDate = sunday.toISOString().split('T')[0] + 'T23:59:59Z';
-      const resp = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/ebevents?action=ticketmaster&city=Ottawa&radius=50&size=50`);
+      const resp = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/community?action=ticketmaster&city=Ottawa&radius=50&size=50`);
       if (resp.ok) {
         const d = await resp.json();
         const evs: WeekendEvent[] = (d._embedded?.events || []).map((e: any) => ({

@@ -15,6 +15,11 @@ const Marker = (RNMaps as any)?.Marker ?? null;
 const Polyline = (RNMaps as any)?.Polyline ?? null;
 const Circle = (RNMaps as any)?.Circle ?? null;
 type Region = import('react-native-maps').Region;
+let RNSvg: any = null;
+try { RNSvg = require('react-native-svg'); } catch {}
+const Svg = RNSvg?.Svg ?? null;
+const SvgRect = RNSvg?.Rect ?? null;
+const SvgPolygon = RNSvg?.Polygon ?? null;
 import { useApp } from '../../context/AppContext';
 import { useBoard } from '../../context/BoardContext';
 import stopsearchData from './stopsearch.json';
@@ -62,6 +67,11 @@ type Bus = {
   id: string; routeId: string; lat: number; lng: number;
   fromStop: string; toStop: string; progress: number;
   agency?: 'OC_TRANSPO' | 'STO';
+  bearing?: number | null;
+  toStopLat?: number | null;
+  toStopLng?: number | null;
+  secsToNextStop?: number | null;
+  occupancy?: 'low' | 'moderate' | 'high' | null;
 };
 
 
@@ -158,42 +168,96 @@ function clusterVenues(venues: HappyHourVenue[], radiusMeters: number): ClusterR
   return clusters;
 }
 
-// Styled square badge bus marker — OC red (#CE1126), STO teal (#00C07A)
-// tracksViewChanges must be true for first render so the custom View is captured
-// as a bitmap, then switches to false for scroll performance.
-// tracksViewChanges briefly re-enables when position changes so iOS re-snapshots.
+// Bus-shaped SVG marker viewed from above, rotates to bearing, colors by occupancy.
+// Occupancy: green=low, yellow=moderate, red=high; default = agency brand color.
+// tracksViewChanges re-enables briefly when position/bearing changes for iOS re-snapshot.
 const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) => void }) => {
   const [tracked, setTracked] = React.useState(true);
-  const prevCoord = React.useRef(`${bus.lat},${bus.lng}`);
+  const prevKey = React.useRef(`${bus.lat},${bus.lng},${bus.bearing}`);
 
   React.useEffect(() => {
-    const coord = `${bus.lat},${bus.lng}`;
-    if (coord !== prevCoord.current) {
-      prevCoord.current = coord;
+    const key = `${bus.lat},${bus.lng},${bus.bearing}`;
+    if (key !== prevKey.current) {
+      prevKey.current = key;
       setTracked(true);
     }
-    const id = setTimeout(() => setTracked(false), 300);
+    const id = setTimeout(() => setTracked(false), 400);
     return () => clearTimeout(id);
-  }, [bus.lat, bus.lng]);
+  }, [bus.lat, bus.lng, bus.bearing]);
 
   if (!validCoord(bus.lat, bus.lng) || !bus.routeId || bus.routeId === '?') return null;
   const isSTO = bus.agency === 'STO';
   const label = isLRT(bus.routeId) ? 'LRT' : bus.routeId.split('-')[0];
   if (!label) return null;
-  const bg = isSTO ? '#00C07A' : '#CE1126';
+
+  const bodyColor = bus.occupancy === 'low' ? '#22C55E'
+    : bus.occupancy === 'moderate' ? '#F59E0B'
+    : bus.occupancy === 'high' ? '#EF4444'
+    : isSTO ? '#00A78D' : '#CE1126';
+
+  const bearing = bus.bearing ?? 0;
+
   return (
     <Marker
       coordinate={{ latitude: bus.lat, longitude: bus.lng }}
       tracksViewChanges={tracked}
-      anchor={{ x: 0.5, y: 0.5 }}
+      anchor={{ x: 0.5, y: 0.45 }}
       onPress={() => onPress(bus)}
     >
-      <View style={{ backgroundColor: bg, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, minWidth: 26, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' }}>
-        <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }} allowFontScaling={false}>{label}</Text>
+      <View style={{ alignItems: 'center', width: 32, height: 46 }}>
+        {/* Bus body rotated to bearing */}
+        <View style={{ transform: [{ rotate: `${bearing}deg` }], width: 22, height: 32 }}>
+          {Svg && SvgRect && SvgPolygon ? (
+            <Svg width={22} height={32} viewBox="0 0 22 32">
+              <SvgRect x="2" y="3" width="18" height="26" rx="5" ry="5" fill={bodyColor} />
+              <SvgRect x="3" y="3" width="16" height="8" rx="5" ry="5" fill="rgba(0,0,0,0.25)" />
+              <SvgRect x="4" y="12" width="14" height="4" rx="2" fill="rgba(255,255,255,0.35)" />
+              <SvgRect x="4" y="18" width="14" height="4" rx="2" fill="rgba(255,255,255,0.35)" />
+              <SvgRect x="5" y="28" width="12" height="2" rx="1" fill="rgba(0,0,0,0.2)" />
+              <SvgPolygon points="11,0 15,5 7,5" fill="white" opacity="0.85" />
+            </Svg>
+          ) : (
+            <View style={{ width: 22, height: 32, backgroundColor: bodyColor, borderRadius: 5, borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' }} />
+          )}
+        </View>
+        {/* Route label badge — does not rotate */}
+        <View style={{ backgroundColor: bodyColor, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, marginTop: 2, borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)', minWidth: 22, alignItems: 'center' }}>
+          <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800', lineHeight: 12 }} allowFontScaling={false}>{label}</Text>
+        </View>
       </View>
     </Marker>
   );
-}, (prev, next) => prev.bus.id === next.bus.id && prev.bus.lat === next.bus.lat && prev.bus.lng === next.bus.lng && prev.bus.routeId === next.bus.routeId);
+}, (prev, next) =>
+  prev.bus.id === next.bus.id &&
+  prev.bus.lat === next.bus.lat &&
+  prev.bus.lng === next.bus.lng &&
+  prev.bus.routeId === next.bus.routeId &&
+  prev.bus.bearing === next.bus.bearing &&
+  prev.bus.occupancy === next.bus.occupancy
+);
+
+// Stop arrival countdown marker: shown for buses within 10 min of their next stop.
+const NextStopMarker = React.memo(({ lat, lng, secsToNextStop }: {
+  lat: number; lng: number; secsToNextStop: number;
+}) => {
+  const mins = Math.ceil(secsToNextStop / 60);
+  const label = mins <= 0 ? 'Now' : `${mins}m`;
+  return (
+    <Marker
+      coordinate={{ latitude: lat, longitude: lng }}
+      tracksViewChanges={false}
+      anchor={{ x: 0.5, y: 1.0 }}
+    >
+      <View style={{ alignItems: 'center' }}>
+        <View style={{ backgroundColor: '#1C2333', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }}>
+          <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }} allowFontScaling={false}>{label}</Text>
+        </View>
+        <View style={{ width: 1, height: 5, backgroundColor: '#1C2333' }} />
+        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#1C2333', borderWidth: 2, borderColor: 'white' }} />
+      </View>
+    </Marker>
+  );
+});
 
 // Styled category marker — colored rounded square with white Ionicon inside
 const PlaceMarker = React.memo(({ coordinate, icon, color, title, description, onPress }: {
@@ -333,6 +397,7 @@ export default function MapScreen() {
   const [selectedRouteShape, setSelectedRouteShape] = useState<{latitude: number; longitude: number}[]>([]);
   const [busEtaInfo, setBusEtaInfo] = useState<{ mins: number; stopName: string; stopId: string } | null>(null);
   const [trackingBus, setTrackingBus] = useState<Bus | null>(null);
+  const [selectedBusNextStops, setSelectedBusNextStops] = useState<{ stopId: string; stopName: string; lat: number; lon: number; secsToNextStop: number }[]>([]);
 
   const [tappedLocation, setTappedLocation] = useState<{ lat: number; lng: number; address: string } | null>(null);
   const tappedLocationRef = useRef<{ lat: number; lng: number; address: string } | null>(null);
@@ -663,6 +728,7 @@ export default function MapScreen() {
     if (bus) hapticMedium(); else hapticLight();
     if (tappedLocationRef.current) { setTappedLocation(null); tappedAnim.setValue(0); }
     setSelectedBus(bus || null); setSelectedVenue(venue || null);
+    setSelectedBusNextStops([]);
     if (bus || venue) {
       setSelectedSavedPin(null);
     }
@@ -670,6 +736,32 @@ export default function MapScreen() {
       setSelectedRouteShape([]);
       setRoutePolylineAgency(bus.agency === 'STO' ? 'STO' : 'OC');
       fetchRouteShape(bus.routeId, bus.agency);
+      // Fetch next 3 stops along route when bus is tapped
+      if (bus.toStop && bus.secsToNextStop != null) {
+        const bareId = bus.routeId.split('-')[0];
+        fetchWithTimeout(`https://routeo-backend.vercel.app/api/route?id=${encodeURIComponent(bareId)}`, { timeout: 10000 })
+          .then(r => r.ok ? r.json() : null)
+          .then(data => {
+            const dirs: { stops: { stop_id: string; stop_name: string; stop_lat: number | null; stop_lon: number | null }[] }[] = data?.directions || [];
+            for (const dir of dirs) {
+              const idx = dir.stops.findIndex(s => s.stop_id === bus.toStop);
+              if (idx >= 0) {
+                const nextStops = dir.stops.slice(idx, idx + 3)
+                  .filter(s => s.stop_lat != null && s.stop_lon != null)
+                  .map((s, i) => ({
+                    stopId: s.stop_id,
+                    stopName: s.stop_name,
+                    lat: s.stop_lat!,
+                    lon: s.stop_lon!,
+                    secsToNextStop: (bus.secsToNextStop ?? 0) + i * 120,
+                  }));
+                setSelectedBusNextStops(nextStops);
+                break;
+              }
+            }
+          })
+          .catch(() => {});
+      }
     } else {
       setSelectedRouteShape([]);
       setRoutePolylineAgency('OC');
@@ -681,7 +773,7 @@ export default function MapScreen() {
     hapticLight();
     Animated.spring(sheetAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start(() => {
       setSelectedBus(null); setSelectedVenue(null); setSelectedSavedPin(null);
-      setSelectedRouteShape([]); setBusEtaInfo(null);
+      setSelectedRouteShape([]); setBusEtaInfo(null); setSelectedBusNextStops([]);
     });
   }, [sheetAnim]);
 
@@ -882,7 +974,7 @@ export default function MapScreen() {
       })
       .catch(() => {});
     // Events for TonightCard
-    fetchWithTimeout('https://routeo-backend.vercel.app/api/ebevents')
+    fetchWithTimeout('https://routeo-backend.vercel.app/api/community?action=ticketmaster')
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         const raw = (data?.events ?? data) || [];
@@ -1246,6 +1338,21 @@ export default function MapScreen() {
   }, [mapReady, filteredBuses.length]);
 
   const visibleBuses = useMemo(() => filteredBuses.slice(0, visibleBusCount), [filteredBuses, visibleBusCount]);
+
+  // Passive countdown: one marker per unique toStop where a bus is ≤10 min away
+  const passiveCountdownStops = useMemo(() => {
+    const seen = new Map<string, Bus>();
+    for (const bus of visibleBuses) {
+      if (bus.toStop && bus.secsToNextStop != null && bus.secsToNextStop < 600 &&
+          bus.toStopLat != null && bus.toStopLng != null) {
+        const existing = seen.get(bus.toStop);
+        if (!existing || bus.secsToNextStop < (existing.secsToNextStop ?? 600)) {
+          seen.set(bus.toStop, bus);
+        }
+      }
+    }
+    return [...seen.values()];
+  }, [visibleBuses]);
 
   const showVenueFilters = hasAll || filters.has('food') || filters.has('bars') || filters.has('gyms') || filters.has('happy_hour') || filters.has('clubs') || filters.has('fitness');
   const searchLower = searchText.toLowerCase();
@@ -1646,6 +1753,26 @@ export default function MapScreen() {
           {/* Bus markers — rendered incrementally */}
           {visibleBuses.map((bus: Bus) => (
             <BusMarker key={bus.id} bus={bus} onPress={openSheet} />
+          ))}
+
+          {/* Passive countdown markers — shown without tapping, buses ≤10 min away */}
+          {passiveCountdownStops.map((bus: Bus) => bus.toStopLat != null && bus.toStopLng != null ? (
+            <NextStopMarker
+              key={`passive-${bus.toStop}`}
+              lat={bus.toStopLat}
+              lng={bus.toStopLng}
+              secsToNextStop={bus.secsToNextStop ?? 0}
+            />
+          ) : null)}
+
+          {/* Selected bus: next 3 stop markers */}
+          {selectedBusNextStops.map((stop) => (
+            <NextStopMarker
+              key={`next-${stop.stopId}`}
+              lat={stop.lat}
+              lng={stop.lon}
+              secsToNextStop={stop.secsToNextStop}
+            />
           ))}
 
           {/* Saved pin markers */}
