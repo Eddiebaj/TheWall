@@ -11,7 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
-import { SK_LEAVE_NOW_ALERTS, SK_WALK_PACE } from '../lib/storageKeys';
+import { SK_LEAVE_NOW_ALERTS, SK_WALK_PACE, SK_DEVICE_ID } from '../lib/storageKeys';
 import { LAYER_CONFIG, LAYER_ICONS, LayerKey, MapPin } from '../lib/mapLayers';
 import { LayerFeedCard } from './LayerFeedCard';
 import { writeWidgetData, getTopSavedStopId } from '../lib/widgetData';
@@ -182,9 +182,27 @@ function SkeletonCard({ colours }: { colours: any }) {
   );
 }
 
-// Inline arrival pills for a stop
+// Inline arrival pills for a stop — with one-tap ghost reporting
 
 function ArrivalPills({ stop, colours, t }: { stop: NearbyStop; colours: any; t: (en: string, fr: string) => string }) {
+  const [thanks, setThanks] = useState<Record<string, boolean>>({});
+  const [submitted, setSubmitted] = useState<Record<string, boolean>>({});
+
+  const handleReport = useCallback(async (routeId: string) => {
+    if (submitted[routeId]) return;
+    setSubmitted(prev => ({ ...prev, [routeId]: true }));
+    setThanks(prev => ({ ...prev, [routeId]: true }));
+    setTimeout(() => setThanks(prev => ({ ...prev, [routeId]: false })), 3000);
+    try {
+      const deviceId = (await AsyncStorage.getItem(SK_DEVICE_ID)) ?? 'unknown';
+      fetch('https://routeo-backend.vercel.app/api/community?action=ghost.report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stop_id: stop.stopId, route_id: routeId, report_type: 'not_arrived', notes: '', device_id: deviceId }),
+      }).catch(() => {});
+    } catch {}
+  }, [submitted, stop.stopId]);
+
   if (stop.arrivalsLoading) {
     return <ActivityIndicator size="small" color={TEAL} style={{ alignSelf: 'flex-start' }} />;
   }
@@ -195,32 +213,55 @@ function ArrivalPills({ stop, colours, t }: { stop: NearbyStop; colours: any; t:
       </Text>
     );
   }
+
   return (
     <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
       {stop.arrivals.slice(0, 2).map((a, i) => {
         const urgent = a.minsAway < 2;
+        const isGhost = stop.ghostRoutes?.includes(a.routeId) ?? false;
+        const isReported = submitted[a.routeId] ?? false;
+        const showThanks = thanks[a.routeId] ?? false;
+
+        if (showThanks) {
+          return (
+            <View key={`${a.routeId}-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Ionicons name="checkmark-circle" size={12} color={TEAL} />
+              <Text style={{ fontSize: 11, color: TEAL, fontWeight: '600' }}>
+                {t("Thanks \u2014 we'll watch this route", "Merci \u2014 on surveille cette route")}
+              </Text>
+            </View>
+          );
+        }
+
         return (
           <View key={`${a.routeId}-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
             <View style={{
               paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
-              backgroundColor: colours.tintBg, borderWidth: 1, borderColor: colours.border,
+              backgroundColor: isGhost ? '#cc3b2a18' : colours.tintBg,
+              borderWidth: 1, borderColor: isGhost ? '#cc3b2a60' : colours.border,
+              opacity: isReported && !isGhost ? 0.45 : 1,
+              flexDirection: 'row', alignItems: 'center', gap: 4,
             }}>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>{a.routeId.split('-')[0]}</Text>
+              {isGhost && <Ionicons name="skull-outline" size={10} color="#cc3b2a" />}
+              <Text style={{ fontSize: 13, fontWeight: '700', color: isGhost ? '#cc3b2a' : isReported ? colours.muted : colours.accent }}>
+                {a.routeId.split('-')[0]}
+              </Text>
             </View>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: urgent ? TEAL : colours.text }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: urgent ? TEAL : isReported ? colours.muted : colours.text }}>
               {a.minsAway <= 0 ? t('Now', 'Maint.') : `${a.minsAway} min`}
             </Text>
+            {!isGhost && !isReported && (
+              <TouchableOpacity
+                onPress={() => handleReport(a.routeId)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityLabel={t('Report not coming', 'Signaler pas venu')}
+              >
+                <Ionicons name="flag-outline" size={12} color={colours.muted} />
+              </TouchableOpacity>
+            )}
           </View>
         );
       })}
-      {stop.ghostRoutes && stop.ghostRoutes.length > 0 && (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, alignSelf: 'center' }}>
-          <Ionicons name="alert-circle" size={11} color="#cc3b2a" />
-          <Text style={{ fontSize: 10, color: '#cc3b2a', fontWeight: '600' }}>
-            {t('Ghost reported', 'Bus fantome')}
-          </Text>
-        </View>
-      )}
     </View>
   );
 }
@@ -478,6 +519,23 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
     // Build intersection groups from raw stops
     const intersectionGroups = useMemo(() => groupNearbyStops(nearbyStops), [nearbyStops]);
     const visibleGroups = showAll ? intersectionGroups : intersectionGroups.slice(0, DEFAULT_ROWS);
+
+    const urgentItems = useMemo(() => {
+      const items: { key: string; text: string }[] = [];
+      for (const stop of nearbyStops) {
+        if (stop.ghostRoutes && stop.ghostRoutes.length > 0) {
+          const stopShort = stop.stopName.replace(/\s+(NB|SB|EB|WB)$/i, '').split('/')[0].trim().slice(0, 22);
+          for (const routeId of stop.ghostRoutes) {
+            items.push({ key: `ghost-${stop.stopId}-${routeId}`, text: `Route ${routeId} not showing at ${stopShort}` });
+            if (items.length >= 3) return items;
+          }
+        }
+      }
+      if (hasDisruption && items.length < 3) {
+        items.push({ key: 'lrt', text: 'O-Train delays on Confederation Line' });
+      }
+      return items.slice(0, 3);
+    }, [nearbyStops, hasDisruption]);
     const hiddenCount = intersectionGroups.length - DEFAULT_ROWS;
 
     const Separator = useCallback(() => <SheetSeparator colours={colours} />, [colours]);
@@ -508,6 +566,18 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
           contentContainerStyle={{ paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
         >
+          {/* Urgency strip — ghost bus / disruption alerts from nearby data */}
+          {urgentItems.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingTop: 6, paddingBottom: 8 }}>
+              {urgentItems.map(item => (
+                <View key={item.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#cc3b2a10', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: '#cc3b2a30' }}>
+                  <Ionicons name="warning-outline" size={12} color="#cc3b2a" />
+                  <Text style={{ fontSize: 11, color: '#cc3b2a', fontWeight: '600' }}>{item.text}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+
           {/* Header */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 4, paddingBottom: 10 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>

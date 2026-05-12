@@ -68,6 +68,7 @@ function DiscoverScreenInner() {
     : allCommunityDeals;
   const [weekendEvents, setWeekendEvents] = useState<WeekendEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
+  const [rsvpCounts, setRsvpCounts] = useState<Record<string, number>>({});
   const [dealsLoading, setDealsLoading] = useState(true);
   const [dealsError, setDealsError] = useState(false);
   const [eventsError, setEventsError] = useState(false);
@@ -172,6 +173,17 @@ function DiscoverScreenInner() {
           source: 'ticketmaster' as const,
         }));
         setWeekendEvents(evs);
+      // Batch-fetch RSVP counts for all events
+      if (evs.length > 0) {
+        Promise.resolve(
+          supabase.from('event_rsvps').select('event_id').in('event_id', evs.map((e: WeekendEvent) => e.id))
+        ).then(({ data }) => {
+          if (!data) return;
+          const counts: Record<string, number> = {};
+          for (const row of data) counts[row.event_id] = (counts[row.event_id] ?? 0) + 1;
+          setRsvpCounts(counts);
+        }).catch(() => {});
+      }
       }
     } catch (e) { if (__DEV__) console.warn('fetch weekend events failed:', e); setEventsError(true); }
     setEventsLoading(false);
@@ -334,10 +346,20 @@ function DiscoverScreenInner() {
                   {ev.image ? (
                     <ImageBackground source={{ uri: ev.image }} style={{ width: '100%', height: 100 }} resizeMode="cover">
                       <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 40, backgroundColor: 'rgba(0,0,0,0.3)' }} />
+                      {(rsvpCounts[ev.id] ?? 0) > 0 && (
+                        <View style={{ position: 'absolute', top: 6, right: 6, backgroundColor: '#00A78D', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3 }}>
+                          <Text style={{ fontSize: 10, fontWeight: '700', color: '#fff' }}>{rsvpCounts[ev.id]} {t('going', 'participants')}</Text>
+                        </View>
+                      )}
                     </ImageBackground>
                   ) : (
                     <View style={{ width: '100%', height: 100, backgroundColor: '#026CDF18', alignItems: 'center', justifyContent: 'center' }}>
                       <Ionicons name="ticket" size={28} color="#026CDF" />
+                      {(rsvpCounts[ev.id] ?? 0) > 0 && (
+                        <View style={{ position: 'absolute', top: 6, right: 6, backgroundColor: '#00A78D', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3 }}>
+                          <Text style={{ fontSize: 10, fontWeight: '700', color: '#fff' }}>{rsvpCounts[ev.id]} {t('going', 'participants')}</Text>
+                        </View>
+                      )}
                     </View>
                   )}
                   <View style={{ padding: 10 }}>
