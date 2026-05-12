@@ -820,8 +820,8 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
         .slice(0, 15);
     }, [activeLayers, layerPins]);
 
-    // Build intersection groups from raw stops
-    const intersectionGroups = useMemo(() => groupNearbyStops(nearbyStops), [nearbyStops]);
+    // Build intersection groups from raw stops — only show groups with live arrivals (or still loading)
+    const intersectionGroups = useMemo(() => groupNearbyStops(nearbyStops).filter(g => g.hasArrivals), [nearbyStops]);
     const visibleGroups = showAll ? intersectionGroups : intersectionGroups.slice(0, DEFAULT_ROWS);
 
     const hiddenCount = intersectionGroups.length - DEFAULT_ROWS;
@@ -984,7 +984,9 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
             <View style={{ paddingHorizontal: 16, paddingVertical: 20, alignItems: 'center' }}>
               <Ionicons name="bus-outline" size={28} color={colours.muted} style={{ marginBottom: 8 }} />
               <Text style={{ fontSize: 14, color: colours.muted, textAlign: 'center' }}>
-                {t('No nearby stops found', 'Aucun arret a proximite')}
+                {nearbyStops.length === 0
+                  ? t('No nearby stops found', 'Aucun arret a proximite')
+                  : t('No buses running nearby right now', 'Aucun bus en service a proximite')}
               </Text>
             </View>
           ) : (
