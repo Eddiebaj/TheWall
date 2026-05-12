@@ -23,7 +23,7 @@ type Props = {
   fonts: any;
   cardShadow: any;
   sensGame: { state: 'live' | 'pre' | 'none'; opponentAbbr?: string; startTime?: string; homeScore?: number; awayScore?: number; period?: string } | null;
-  events: { name: string; date: string; time?: string; venue: string }[];
+  events: { name: string; date: string; time?: string; venue: string; category?: string }[];
   weather: { temp: number; condition: string } | null;
   sportsSchedule?: { team: string; games: any[] }[];
   onPressSports?: () => void;
@@ -73,7 +73,7 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sp
     });
   }, [sensGame, events, weather, sportsSchedule, focus]);
 
-  // RouteO Pick: score events by taste profile + venue follows
+  // RouteO Pick: score events by category preference + venue follows + recency
   useEffect(() => {
     if (events.length === 0) return;
     (async () => {
@@ -82,7 +82,7 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sp
         const profile: TasteProfile = profileRaw ? { ...EMPTY_PROFILE, ...JSON.parse(profileRaw) } : EMPTY_PROFILE;
         const followedRaw = await AsyncStorage.getItem(SK_FOLLOWED_VENUES);
         const followed: string[] = followedRaw ? JSON.parse(followedRaw) : [];
-        const totalVenue = Object.values(profile.venues).reduce((s, n) => s + n, 0) || 1;
+        const totalCat = Object.values(profile.categories).reduce((s, n) => s + n, 0) || 1;
         const now = Date.now();
         let bestName: string | null = null;
         let bestScore = -1;
@@ -90,13 +90,14 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sp
           const evMs = ev.date ? new Date(ev.date + 'T12:00:00').getTime() : now;
           const daysDiff = Math.abs(evMs - now) / 86400000;
           const recency = Math.max(0, 1 - daysDiff / 7);
-          const venueScore = (profile.venues[ev.venue] ?? 0) / totalVenue;
+          // Category match: event classification vs user's RSVP category history
+          const catScore = ev.category ? (profile.categories[ev.category] ?? 0) / totalCat : 0;
+          // Venue follow: user follows the specific venue
           const followMatch = followed.some(f =>
-            ev.venue.toLowerCase().includes(f.toLowerCase()) ||
-            f.toLowerCase().includes(ev.venue.toLowerCase())
+            ev.venue.toLowerCase().includes(f.toLowerCase())
           ) ? 1 : 0;
           const indexBonus = i === 0 ? 1 : 0;
-          const score = venueScore * 0.4 + followMatch * 0.3 + recency * 0.2 + indexBonus * 0.1;
+          const score = catScore * 0.4 + followMatch * 0.3 + recency * 0.2 + indexBonus * 0.1;
           if (score > bestScore) { bestScore = score; bestName = ev.name; }
         });
         if (bestName) setRouteopick(bestName);
@@ -115,9 +116,10 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sp
 
   if (!show || !summary) return null;
 
+  const eyebrow = focusName ? t('TONIGHT IN OTTAWA', 'CE SOIR \u00c0 OTTAWA') : null;
   const title = focusName
-    ? t(`Tonight in ${focusName.en}`, `Ce soir a ${focusName.fr}`)
-    : t('Tonight in Ottawa', 'Ce soir a Ottawa');
+    ? (language === 'fr' ? focusName.fr : focusName.en)
+    : t('Tonight in Ottawa', 'Ce soir \u00e0 Ottawa');
 
   // Build a compact subtitle: "3 events · 5 deals" or "2 events"
   const parts: string[] = [];
@@ -139,10 +141,12 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, sp
         {/* Header */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: summary.sports.length > 0 ? 12 : 4 }}>
           <View style={{ flex: 1 }}>
-            {/* Eyebrow — always teal caps */}
-            <Text style={{ fontSize: 10, fontWeight: '800', letterSpacing: 1.4, color: '#00C07A', marginBottom: 3 }}>
-              {t('TONIGHT IN OTTAWA', 'CE SOIR \u00c0 OTTAWA')}
-            </Text>
+            {/* Eyebrow — only when showing a specific neighbourhood */}
+            {eyebrow && (
+              <Text style={{ fontSize: 10, fontWeight: '800', letterSpacing: 1.4, color: '#00C07A', marginBottom: 3 }}>
+                {eyebrow}
+              </Text>
+            )}
             <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text }}>{title}</Text>
             {weather && (
               <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>

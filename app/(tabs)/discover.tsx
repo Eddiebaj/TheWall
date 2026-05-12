@@ -11,7 +11,7 @@ import { useApp } from '../../context/AppContext';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { cardShadow as sharedCardShadow } from '../../lib/styles';
 import { NewsArticle, timeAgo } from '../../lib/newsData';
-import { SK_NEWS_CACHE, SK_EVENT_PREFERENCES, SK_FOLLOWED_VENUES, SK_JOINED_GROUPS, SK_LAST_DEAL_CHECK } from '../../lib/storageKeys';
+import { SK_NEWS_CACHE, SK_FOLLOWED_VENUES, SK_JOINED_GROUPS, SK_LAST_DEAL_CHECK } from '../../lib/storageKeys';
 import { supabase } from '../../lib/supabase';
 import { ScreenErrorBoundary } from '../../components/ScreenErrorBoundary';
 import { FeedCardSkeleton, HorizontalCardsSkeleton } from '../../components/Shimmer';
@@ -20,7 +20,7 @@ import { PREMIUM_ENABLED } from '../../lib/flags';
 import RsvpButton from '../../components/RsvpButton';
 import { NEIGHBOURHOOD_GROUPS, NeighbourhoodGroup } from '../../lib/neighbourhoodGroups';
 import GroupFeedSheet from '../../components/GroupFeedSheet';
-import { addAndSave, TASTE_POINTS } from '../../lib/tasteProfile';
+import { addAndSave, loadProfile, TASTE_POINTS } from '../../lib/tasteProfile';
 
 const COMMUNITY_URL = 'https://routeo-backend.vercel.app/api/community';
 const STRIPE_PAYMENT_LINK = process.env.EXPO_PUBLIC_STRIPE_PAYMENT_LINK ?? '';
@@ -73,7 +73,7 @@ function DiscoverScreenInner() {
   const [weekendEvents, setWeekendEvents] = useState<WeekendEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [rsvpCounts, setRsvpCounts] = useState<Record<string, number>>({});
-  const [eventPrefs, setEventPrefs] = useState<Record<string, number>>({});
+  const [categoryPrefs, setCategoryPrefs] = useState<Record<string, number>>({});
   const [followedVenues, setFollowedVenues] = useState<string[]>([]);
   const [joinedGroups, setJoinedGroups] = useState<string[]>([]);
   const [groupFeedGroup, setGroupFeedGroup] = useState<NeighbourhoodGroup | null>(null);
@@ -116,9 +116,7 @@ function DiscoverScreenInner() {
       .catch(() => { setDealsLoading(false); setDealsError(true); });
     fetchWeekendEvents();
     fetchBusinessDeals();
-    AsyncStorage.getItem(SK_EVENT_PREFERENCES).then(raw => {
-      if (raw) { try { setEventPrefs(JSON.parse(raw)); } catch (e) {} }
-    }).catch(() => {});
+    loadProfile().then(p => setCategoryPrefs(p.categories)).catch(() => {});
     AsyncStorage.getItem(SK_FOLLOWED_VENUES).then(raw => {
       if (raw) { try { setFollowedVenues(JSON.parse(raw)); } catch {} }
     }).catch(() => {});
@@ -133,10 +131,10 @@ function DiscoverScreenInner() {
         if (followed.length === 0) return;
         const lastCheck = parseInt((await AsyncStorage.getItem(SK_LAST_DEAL_CHECK)) ?? '0', 10);
         const since = new Date(Math.max(lastCheck, Date.now() - 24 * 60 * 60 * 1000)).toISOString();
-        await AsyncStorage.setItem(SK_LAST_DEAL_CHECK, String(Date.now()));
         const { data } = await Promise.resolve(
           supabase.from('community_deals').select('venue_name, deal_text').gte('submitted_at', since).limit(20)
         );
+        await AsyncStorage.setItem(SK_LAST_DEAL_CHECK, String(Date.now()));
         const matches = (data ?? []).filter((d: { venue_name: string }) =>
           followed.some(f => d.venue_name.toLowerCase().includes(f.toLowerCase()))
         );
@@ -274,17 +272,16 @@ function DiscoverScreenInner() {
   const handleEventGoing = useCallback((eventId: string) => {
     const ev = weekendEvents.find(e => e.id === eventId);
     if (!ev?.category) return;
-    const updated = { ...eventPrefs, [ev.category]: (eventPrefs[ev.category] ?? 0) + 1 };
-    setEventPrefs(updated);
-    AsyncStorage.setItem(SK_EVENT_PREFERENCES, JSON.stringify(updated)).catch(() => {});
-  }, [weekendEvents, eventPrefs]);
+    addAndSave('categories', ev.category, TASTE_POINTS.rsvp);
+    setCategoryPrefs(prev => ({ ...prev, [ev.category!]: (prev[ev.category!] ?? 0) + TASTE_POINTS.rsvp }));
+  }, [weekendEvents]);
 
   const sortedEvents = useMemo(() => {
     const now = new Date();
-    const totalPrefs = Object.values(eventPrefs).reduce((s, n) => s + n, 0) || 1;
+    const totalPrefs = Object.values(categoryPrefs).reduce((s, n) => s + n, 0) || 1;
     return [...weekendEvents].sort((a, b) => {
-      const prefA = a.category ? (eventPrefs[a.category] ?? 0) / totalPrefs : 0;
-      const prefB = b.category ? (eventPrefs[b.category] ?? 0) / totalPrefs : 0;
+      const prefA = a.category ? (categoryPrefs[a.category] ?? 0) / totalPrefs : 0;
+      const prefB = b.category ? (categoryPrefs[b.category] ?? 0) / totalPrefs : 0;
       const dateA = a.date ? new Date(a.date + 'T00:00:00').getTime() : 0;
       const dateB = b.date ? new Date(b.date + 'T00:00:00').getTime() : 0;
       const recencyA = dateA > 0 ? Math.max(0, 1 - (dateA - now.getTime()) / (7 * 24 * 60 * 60 * 1000)) : 0;
@@ -293,7 +290,7 @@ function DiscoverScreenInner() {
       const scoreB = prefB * 0.6 + recencyB * 0.4;
       return scoreB - scoreA;
     });
-  }, [weekendEvents, eventPrefs]);
+  }, [weekendEvents, categoryPrefs]);
 
   return (
     <View style={{ flex: 1, backgroundColor: colours.bg }}>

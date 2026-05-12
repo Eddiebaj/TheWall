@@ -16,7 +16,7 @@ export const LAYER_CONFIG = {
   restaurants:  { color: '#EC4899', icon: 'restaurant',  label: 'Eats',         labelFr: 'Restos'        },
   coffee:       { color: '#A16207', icon: 'cafe',        label: 'Coffee',       labelFr: 'Caf\u00e9'     },
   bars:         { color: '#3B82F6', icon: 'wine',        label: 'Bars',         labelFr: 'Bars'          },
-  ghost_buses:  { color: '#00C07A', icon: 'alert-circle',label: 'Ghost Buses',  labelFr: 'Bus fant\u00f4mes' },
+  ghost_buses:  { color: '#EF4444', icon: 'alert-circle',label: 'Ghost Buses',  labelFr: 'Bus fant\u00f4mes' },
   construction: { color: '#F97316', icon: 'construct',   label: 'Construction', labelFr: 'Construction'  },
 } as const;
 

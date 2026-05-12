@@ -48,7 +48,26 @@ export async function saveProfile(profile: TasteProfile): Promise<void> {
   } catch {}
 }
 
-/** Load profile, add points, and persist — fire-and-forget. */
+/** Load profile, add points, and persist — fire-and-forget with mutex queue.
+ *  Concurrent calls batch rather than clobber each other. */
+type WriteOp = { field: keyof TasteProfile; key: string; pts: number };
+let _writing = false;
+const _queue: WriteOp[] = [];
+
+async function _flush(): Promise<void> {
+  if (_writing || _queue.length === 0) return;
+  _writing = true;
+  try {
+    const batch = _queue.splice(0);          // drain queue atomically
+    const profile = await loadProfile();
+    const updated = batch.reduce((p, op) => addPoints(p, op.field, op.key, op.pts), profile);
+    await saveProfile(updated);
+  } catch {}
+  _writing = false;
+  if (_queue.length > 0) _flush();          // process any ops that arrived during write
+}
+
 export function addAndSave(field: keyof TasteProfile, key: string, pts: number): void {
-  loadProfile().then(p => saveProfile(addPoints(p, field, key, pts))).catch(() => {});
+  _queue.push({ field, key, pts });
+  _flush();
 }

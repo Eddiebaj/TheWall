@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
-  ActivityIndicator, Modal, ScrollView, StatusBar,
+  Modal, ScrollView, StatusBar,
   Text, TouchableOpacity, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,15 +12,6 @@ import { HAPPY_HOUR_VENUES, HappyHourVenue } from '../lib/happyHourData';
 import { NeighbourhoodGroup } from '../lib/neighbourhoodGroups';
 import { SK_JOINED_GROUPS } from '../lib/storageKeys';
 import { addAndSave, TASTE_POINTS } from '../lib/tasteProfile';
-import { supabase } from '../lib/supabase';
-
-type CommunityDeal = {
-  id: string;
-  venue_name: string;
-  deal_text: string;
-  day_of_week: number;
-  submitted_at: string;
-};
 
 function activeNow(venue: HappyHourVenue): boolean {
   const now = new Date();
@@ -47,25 +38,7 @@ export default function GroupFeedSheet({ group, visible, onClose, joinedGroups, 
   const isLight = resolvedTheme === 'light';
   const insets = useSafeAreaInsets();
 
-  const [deals, setDeals] = useState<CommunityDeal[]>([]);
-  const [loading, setLoading] = useState(false);
-
   const isJoined = group ? joinedGroups.includes(group.id) : false;
-
-  useEffect(() => {
-    if (!visible || !group) return;
-    setLoading(true);
-    Promise.resolve(
-      supabase
-        .from('community_deals')
-        .select('*')
-        .gte('submitted_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-        .order('submitted_at', { ascending: false })
-        .limit(20)
-    ).then(({ data }) => {
-      setDeals(data ?? []);
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, [visible, group?.id]);
 
   const toggleJoin = async () => {
     if (!group) return;
@@ -86,10 +59,6 @@ export default function GroupFeedSheet({ group, visible, onClose, joinedGroups, 
     haversineKm(group.lat, group.lng, v.lat, v.lng) <= group.radiusKm
   );
   const activeVenues = nearbyVenues.filter(activeNow);
-  const todayDow = new Date().getDay();
-  const dayNames = language === 'fr'
-    ? ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
-    : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -211,45 +180,22 @@ export default function GroupFeedSheet({ group, visible, onClose, joinedGroups, 
             </View>
           )}
 
-          {/* Community deals this week */}
+          {/* Community deals — neighbourhood-filtered feed coming soon */}
           <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
             <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 10 }}>
-              {t('COMMUNITY DEALS THIS WEEK', 'OFFRES COMMUNAUTAIRES CETTE SEMAINE')}
+              {t('COMMUNITY DEALS', 'OFFRES COMMUNAUTAIRES')}
             </Text>
-            {loading ? (
-              <ActivityIndicator color={colours.accent} style={{ paddingVertical: 20 }} />
-            ) : deals.length === 0 ? (
-              <Text style={{ fontSize: fonts.sm, color: colours.muted, paddingVertical: 12 }}>
-                {t('No community deals this week', 'Aucune offre communautaire cette semaine')}
+            <View style={{
+              flexDirection: 'row', alignItems: 'center', gap: 10,
+              padding: 14, borderRadius: 12,
+              borderWidth: 1, borderColor: colours.border,
+              backgroundColor: colours.surface,
+            }}>
+              <Ionicons name="pricetag-outline" size={20} color={colours.accent} />
+              <Text style={{ fontSize: fonts.sm, color: colours.muted, flex: 1 }}>
+                {t('Deals near you coming soon', 'Offres pres de vous bientot disponibles')}
               </Text>
-            ) : (
-              deals.map(deal => {
-                const isToday = deal.day_of_week === todayDow;
-                return (
-                  <View
-                    key={deal.id}
-                    style={{
-                      flexDirection: 'row', alignItems: 'center', gap: 10,
-                      padding: 12, borderRadius: 12, marginBottom: 8,
-                      borderWidth: 1,
-                      borderColor: isToday ? '#22c55e40' : colours.border,
-                      backgroundColor: isToday ? '#22c55e08' : colours.surface,
-                    }}
-                  >
-                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: isToday ? '#22c55e18' : colours.tintBg || colours.bg, alignItems: 'center', justifyContent: 'center' }}>
-                      <Ionicons name="pricetag" size={15} color={isToday ? '#22c55e' : colours.accent} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>{deal.venue_name}</Text>
-                      <Text style={{ fontSize: 11, color: colours.muted, marginTop: 1 }}>{deal.deal_text}</Text>
-                    </View>
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: isToday ? '#22c55e' : colours.muted }}>
-                      {isToday ? t('TODAY', "AUJOURD'HUI") : dayNames[deal.day_of_week]}
-                    </Text>
-                  </View>
-                );
-              })
-            )}
+            </View>
           </View>
         </ScrollView>
       </View>

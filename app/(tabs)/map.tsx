@@ -36,6 +36,7 @@ import { cacheArrivals, getCachedArrivals } from '../../lib/arrivalCache';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { haversineKm } from '../../lib/geo';
 import { LAYER_CONFIG, LAYER_ICONS, DEFAULT_LAYERS, MapPin, LayerKey, saveLayerPrefs, loadLayerPrefs } from '../../lib/mapLayers';
+import { getRouteColour } from '../../lib/routeColors';
 
 const VEHICLES_URL    = 'https://routeo-backend.vercel.app/api/vehicles';
 const BACKEND_URL     = 'https://routeo-backend.vercel.app/api/arrivals';
@@ -59,14 +60,6 @@ type Bus = {
 };
 
 
-const ROUTE_COLOURS: { [key: string]: string } = {
-  '1': '#00A78D', '2': '#7b5ea7', '4': '#004890', '7': '#cc3b2a',
-  '8': '#e8a020', '14': '#004890', '16': '#00A78D', '18': '#cc3b2a',
-  '19': '#e8a020', '85': '#004890', '86': '#7b5ea7', '87': '#cc3b2a',
-  '88': '#00A78D', '91': '#004890', '95': '#cc3b2a', '96': '#e8a020',
-  '97': '#7b5ea7', '98': '#004890', '99': '#00A78D',
-};
-const getRouteColour = (routeId: string) => ROUTE_COLOURS[routeId.split('-')[0]] || '#004890';
 const isLRT = (routeId: string) => {
   const base = routeId.split('-')[0].toLowerCase();
   return base === '1' || base === '2' || base === 'o1' || base === 'o2' ||
@@ -127,7 +120,7 @@ function clusterVenues(venues: HappyHourVenue[], radiusMeters: number): ClusterR
   return clusters;
 }
 
-// Styled square badge bus marker — OC red (#CE1126), STO teal (#00A78D)
+// Styled square badge bus marker — OC red (#CE1126), STO teal (#00C07A)
 // tracksViewChanges must be true for first render so the custom View is captured
 // as a bitmap, then switches to false for scroll performance.
 // tracksViewChanges briefly re-enables when position changes so iOS re-snapshots.
@@ -149,7 +142,7 @@ const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) =>
   const isSTO = bus.agency === 'STO';
   const label = isLRT(bus.routeId) ? 'LRT' : bus.routeId.split('-')[0];
   if (!label) return null;
-  const bg = isSTO ? '#00A78D' : '#CE1126';
+  const bg = isSTO ? '#00C07A' : '#CE1126';
   return (
     <Marker
       coordinate={{ latitude: bus.lat, longitude: bus.lng }}
@@ -1162,7 +1155,7 @@ export default function MapScreen() {
     return `${h % 12 || 12}:${mi}${h >= 12 ? 'pm' : 'am'}`;
   }
   const LEG_PLAN_ICONS: Record<string, string> = { WALK: 'walk', BUS: 'bus', TRAM: 'train', RAIL: 'train', SUBWAY: 'train', FERRY: 'boat', BICYCLE: 'bicycle' };
-  const LEG_PLAN_COLORS: Record<string, string> = { WALK: '#9aaabb', BUS: '#00A78D', TRAM: '#0057B8', RAIL: '#0057B8', SUBWAY: '#0057B8', FERRY: '#7b5ea7', BICYCLE: '#34c759' };
+  const LEG_PLAN_COLORS: Record<string, string> = { WALK: '#9aaabb', BUS: '#00C07A', TRAM: '#0057B8', RAIL: '#0057B8', SUBWAY: '#0057B8', FERRY: '#7b5ea7', BICYCLE: '#34c759' };
 
   const searchPlaces = useCallback(async (query: string) => {
     if (query.length < 3) { setPlaceSuggestions([]); return; }
@@ -1514,7 +1507,7 @@ export default function MapScreen() {
           return (
             <Polyline
               coordinates={selectedRouteShape}
-              strokeColor={selectedBus?.agency === 'STO' ? '#00A78D' : '#CE1126'}
+              strokeColor={selectedBus?.agency === 'STO' ? '#00C07A' : '#CE1126'}
               strokeWidth={4}
               zIndex={10}
             />
@@ -1560,7 +1553,7 @@ export default function MapScreen() {
                 <TouchableOpacity
                   activeOpacity={0.85}
                   onPress={() => setPlanMode(true)}
-                  style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#00A78D', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 3 }}
+                  style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#00C07A', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 3 }}
                   accessibilityRole="button"
                   accessibilityLabel={t('Plan a trip', 'Planifier un trajet')}>
                   <Ionicons name="navigate" size={20} color="#fff" />
@@ -1588,7 +1581,7 @@ export default function MapScreen() {
                   activeOpacity={0.8}
                   onPress={handleJustGo}
                   disabled={justGoLoading}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#00A78D' }}>
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#00C07A' }}>
                   {justGoLoading
                     ? <ActivityIndicator size="small" color="#fff" />
                     : <Ionicons name="flash" size={13} color="#fff" />}
@@ -1598,7 +1591,7 @@ export default function MapScreen() {
                   activeOpacity={0.8}
                   onPress={() => setPlanMode(true)}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface }}>
-                  <Ionicons name="radio-button-on-outline" size={13} color='#00A78D' />
+                  <Ionicons name="radio-button-on-outline" size={13} color='#00C07A' />
                   <Text style={{ fontSize: 12, color: colours.text, fontWeight: '600' }}>{t('What can I reach in 20 min?', 'Ce que je peux atteindre en 20 min?')}</Text>
                 </TouchableOpacity>
               </ScrollView>
@@ -1635,7 +1628,7 @@ export default function MapScreen() {
                 </View>
                 {/* To row */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 6 }}>
-                  <Ionicons name="location-outline" size={18} color='#00A78D' />
+                  <Ionicons name="location-outline" size={18} color='#00C07A' />
                   <TextInput
                     style={{ flex: 1, marginLeft: 10, fontSize: 14, color: colours.text, paddingVertical: 6 }}
                     placeholder={t('Where to?', 'O\u00f9 aller?')}
@@ -1661,14 +1654,14 @@ export default function MapScreen() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingBottom: 10, paddingTop: 4, gap: 8 }}>
                   {(['BUS', 'WALK', 'BICYCLE'] as const).map(mode => (
                     <TouchableOpacity key={mode} onPress={() => setPlanTransitMode(mode)}
-                      style={{ paddingHorizontal: 14, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: planTransitMode === mode ? '#00A78D' : colours.border, backgroundColor: planTransitMode === mode ? '#00A78D' : colours.surface }}>
+                      style={{ paddingHorizontal: 14, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: planTransitMode === mode ? '#00C07A' : colours.border, backgroundColor: planTransitMode === mode ? '#00C07A' : colours.surface }}>
                       <Ionicons name={mode === 'BUS' ? 'bus-outline' : mode === 'WALK' ? 'walk-outline' : 'bicycle-outline'} size={15} color={planTransitMode === mode ? '#fff' : colours.muted} />
                     </TouchableOpacity>
                   ))}
                   <TouchableOpacity
                     onPress={() => executePlan()}
                     disabled={!planToPlace || planLoading}
-                    style={{ flex: 1, backgroundColor: (!planToPlace || planLoading) ? colours.border : '#00A78D', borderRadius: 14, paddingVertical: 8, alignItems: 'center', justifyContent: 'center' }}>
+                    style={{ flex: 1, backgroundColor: (!planToPlace || planLoading) ? colours.border : '#00C07A', borderRadius: 14, paddingVertical: 8, alignItems: 'center', justifyContent: 'center' }}>
                     {planLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{t('Plan', 'Planifier')}</Text>}
                   </TouchableOpacity>
                 </View>
@@ -1801,7 +1794,7 @@ export default function MapScreen() {
             <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 16 }} />
             {contribSent ? (
               <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 }}>
-                <Ionicons name="checkmark-circle" size={48} color="#00A78D" />
+                <Ionicons name="checkmark-circle" size={48} color="#00C07A" />
                 <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text, marginTop: 12 }}>{t('Thank you!', 'Merci!')}</Text>
                 <Text style={{ fontSize: 14, color: colours.muted, textAlign: 'center', marginTop: 6, lineHeight: 20 }}>
                   {t('Deal submitted! It will appear on the map shortly.', 'Offre soumise! Elle apparaitra bientot sur la carte.')}
@@ -2053,8 +2046,8 @@ export default function MapScreen() {
             const busLrt = isLRT(selectedBus.routeId);
             const busIsSTO = selectedBus.agency === 'STO';
             const sheetIconBg = busLrt ? getRouteColour(selectedBus.routeId) : busIsSTO ? '#ffffff' : '#CE1126';
-            const sheetIconBorder = busIsSTO ? '#00A78D' : undefined;
-            const sheetIconText = busIsSTO ? '#00A78D' : '#ffffff';
+            const sheetIconBorder = busIsSTO ? '#00C07A' : undefined;
+            const sheetIconText = busIsSTO ? '#00C07A' : '#ffffff';
             const agencyLabel = busIsSTO ? 'STO' : 'OC Transpo';
             return (
             <View>
@@ -2082,7 +2075,7 @@ export default function MapScreen() {
                   <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Stop', 'Arrêt')} #{selectedBus.toStop}</Text>
                 </View>
                 <View style={{ height: 6, backgroundColor: colours.border, borderRadius: 3 }}>
-                  <View style={{ height: 6, borderRadius: 3, backgroundColor: busIsSTO ? '#00A78D' : '#CE1126', width: `${Math.min(100, selectedBus.progress ?? 0)}%` as `${number}%` }} />
+                  <View style={{ height: 6, borderRadius: 3, backgroundColor: busIsSTO ? '#00C07A' : '#CE1126', width: `${Math.min(100, selectedBus.progress ?? 0)}%` as `${number}%` }} />
                 </View>
                 {busEtaInfo && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, backgroundColor: colours.tintBg, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 }}>
@@ -2100,7 +2093,7 @@ export default function MapScreen() {
                 <TouchableOpacity
                   activeOpacity={0.7}
                   onPress={() => { setTrackingBus(selectedBus); }}
-                  style={{ backgroundColor: busIsSTO ? '#00A78D' : '#CE1126', borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 12 }}
+                  style={{ backgroundColor: busIsSTO ? '#00C07A' : '#CE1126', borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 12 }}
                   accessibilityRole="button"
                   accessibilityLabel={t('Track this bus', 'Suivre ce bus')}
                 >
@@ -2239,7 +2232,7 @@ export default function MapScreen() {
                     addToBoardIfMissing({ type: 'bus_stop', id: searchedPlace.stopId!, name: searchedPlace.name });
                     hapticLight();
                   }}
-                  style={{ marginTop: 14, backgroundColor: '#00A78D', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+                  style={{ marginTop: 14, backgroundColor: '#00C07A', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
                   accessibilityRole="button"
                   accessibilityLabel={t('Save to My Favourites', 'Ajouter a Mes favoris')}>
                   <Ionicons name="bookmark-outline" size={16} color="white" />
@@ -2510,7 +2503,7 @@ export default function MapScreen() {
                       </View>
                       <TouchableOpacity
                         onPress={() => { setPlanResultsVisible(false); setGoNearbyTip(computeNearbyTip(planToPlace?.lat ?? 0, planToPlace?.lng ?? 0, itin.endTime, language)); setGoItinerary(itin); }}
-                        style={{ backgroundColor: '#00A78D', borderRadius: 12, paddingVertical: 10, alignItems: 'center' }}>
+                        style={{ backgroundColor: '#00C07A', borderRadius: 12, paddingVertical: 10, alignItems: 'center' }}>
                         <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.5 }}>{t('GO', 'PARTIR')}</Text>
                       </TouchableOpacity>
                     </View>

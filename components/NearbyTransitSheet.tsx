@@ -13,6 +13,7 @@ import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { SK_LEAVE_NOW_ALERTS, SK_WALK_PACE, SK_DEVICE_ID } from '../lib/storageKeys';
 import { LAYER_CONFIG, LAYER_ICONS, LayerKey, MapPin } from '../lib/mapLayers';
+import { routeBadgeStyle } from '../lib/routeColors';
 import { LayerFeedCard } from './LayerFeedCard';
 import { writeWidgetData, getTopSavedStopId } from '../lib/widgetData';
 let Notifications: typeof import('expo-notifications') | null = null;
@@ -89,21 +90,6 @@ const AMBER_TEXT = '#D97706';
 const DEFAULT_ROWS = 3;
 const GROUP_DIST_THRESHOLD = 60; // meters — stops within this distance can be merged
 
-// Route badge colors — deterministic by route ID
-const BADGE_PALETTE = ['#0EA5E9','#8B5CF6','#EC4899','#22C55E','#F59E0B','#EF4444','#14B8A6','#6366F1','#F97316','#06B6D4'];
-
-function routeBadgeStyle(routeId: string): { bg: string; fg: string } {
-  const id = routeId.split('-')[0].toUpperCase().trim();
-  const num = parseInt(id, 10);
-  if (id === '1' || id === 'R1' || id === 'LINE1') return { bg: '#004890', fg: '#fff' };
-  if (id === '2' || id === 'R2' || id === 'LINE2') return { bg: '#00843D', fg: '#fff' };
-  if (['95','96','97','98','99'].includes(id)) return { bg: '#CE1126', fg: '#fff' };
-  if (!isNaN(num) && num >= 300 && num < 400) return { bg: '#F97316', fg: '#fff' };
-  if (id.startsWith('N')) return { bg: '#6D28D9', fg: '#fff' };
-  let h = 5381;
-  for (let i = 0; i < id.length; i++) h = (((h << 5) + h) ^ id.charCodeAt(i)) | 0;
-  return { bg: BADGE_PALETTE[Math.abs(h) % BADGE_PALETTE.length], fg: '#fff' };
-}
 
 function timeStyle(minsAway: number): { bg: string; fg: string; label: string } {
   if (minsAway <= 0) return { bg: '#00C07A18', fg: '#00C07A', label: 'Now' };
@@ -548,11 +534,6 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
     const intersectionGroups = useMemo(() => groupNearbyStops(nearbyStops), [nearbyStops]);
     const visibleGroups = showAll ? intersectionGroups : intersectionGroups.slice(0, DEFAULT_ROWS);
 
-    // Urgency strip: LRT disruption only — ghost bus warnings now render inline per arrival
-    const urgentItems = useMemo(() => {
-      if (!hasDisruption) return [];
-      return [{ key: 'lrt', text: 'O-Train delays on Confederation Line' }];
-    }, [hasDisruption]);
     const hiddenCount = intersectionGroups.length - DEFAULT_ROWS;
 
     const Separator = useCallback(() => <SheetSeparator colours={colours} />, [colours]);
@@ -583,18 +564,6 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
           contentContainerStyle={{ paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
         >
-          {/* Urgency strip — ghost bus / disruption alerts from nearby data */}
-          {urgentItems.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingTop: 6, paddingBottom: 8 }}>
-              {urgentItems.map(item => (
-                <View key={item.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#cc3b2a10', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: '#cc3b2a30' }}>
-                  <Ionicons name="warning-outline" size={12} color="#cc3b2a" />
-                  <Text style={{ fontSize: 11, color: '#cc3b2a', fontWeight: '600' }}>{item.text}</Text>
-                </View>
-              ))}
-            </ScrollView>
-          )}
-
           {/* Header */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 4, paddingBottom: 10 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
