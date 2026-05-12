@@ -1991,14 +1991,14 @@ export default function MapScreen() {
                       {t('Bus data unavailable', 'Donnees bus indisponibles')}
                     </Text>
                   </View>
-                ) : (
+                ) : (zoomTooFar || visibleBuses.length > 0) ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.tintBg, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 18 }}>
                     <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: zoomTooFar ? colours.muted : colours.accent }} />
                     <Text style={{ color: zoomTooFar ? colours.muted : colours.accent, fontSize: 10, fontWeight: '700' }}>
                       {zoomTooFar ? t('Zoom in', 'Zoomer') : `${visibleBuses.length}`}
                     </Text>
                   </View>
-                )}
+                ) : null}
               </View>
               {lastUpdated ? <Text style={{ fontSize: 9, color: colours.muted, textAlign: 'right', marginTop: 3 }}>{t('Updated', 'Mis \u00e0 jour')} {lastUpdated}</Text> : null}
               {/* Suggestion chips */}
