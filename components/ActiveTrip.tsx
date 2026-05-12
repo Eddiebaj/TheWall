@@ -6,6 +6,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fetchWithTimeout } from '../lib/fetchWithTimeout';
 import { toTitleCase, decodePolyline } from '../lib/utils';
+import { getPlatformForRoute, hasPlatformData } from '../lib/platformData';
 
 // Types
 type WalkStep = { distance: number; relativeDirection: string; streetName: string; instruction?: string | null };
@@ -885,6 +886,22 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
                 <Text style={{ fontSize: 11, fontWeight: '600', color: colours.muted }}>{fmtTimeFromMs(nextLeg.startTime)}</Text>
               )}
             </View>
+            {/* Platform indicator — only when boarding at a major station */}
+            {nextLeg && (nextLeg.mode === 'BUS' || nextLeg.mode === 'TRAM' || nextLeg.mode === 'RAIL') && nextLeg.routeShortName && hasPlatformData(nextLeg.from.name) && (() => {
+              const platform = getPlatformForRoute(nextLeg.from.name, nextLeg.routeShortName);
+              if (!platform) return null;
+              return (
+                <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#00C07A18', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start' }}>
+                  <Ionicons name="git-branch-outline" size={13} color="#00C07A" />
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#00C07A' }}>
+                    {t(`Platform ${platform}`, `Quai ${platform}`)}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: '#00C07A', opacity: 0.7 }}>
+                    {t('· Check signs', '· Verifier les affiches')}
+                  </Text>
+                </View>
+              );
+            })()}
           </View>
 
           {/* Leg pills — hide when single leg */}

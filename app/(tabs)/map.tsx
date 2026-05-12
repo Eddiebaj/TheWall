@@ -38,6 +38,8 @@ import { haversineKm } from '../../lib/geo';
 import { LAYER_CONFIG, LAYER_ICONS, DEFAULT_LAYERS, MapPin, LayerKey, saveLayerPrefs, loadLayerPrefs } from '../../lib/mapLayers';
 import { getRouteColour } from '../../lib/routeColors';
 import { NEIGHBOURHOOD_GROUPS } from '../../lib/neighbourhoodGroups';
+import { getPlatformForRoute, hasPlatformData } from '../../lib/platformData';
+import { nearbyVenueAlert, matchVenueByName } from '../../lib/venueTransitData';
 
 const VEHICLES_URL    = 'https://routeo-backend.vercel.app/api/vehicles';
 const BACKEND_URL     = 'https://routeo-backend.vercel.app/api/arrivals';
@@ -46,7 +48,7 @@ const CITY_URL        = 'https://routeo-backend.vercel.app/api/city';
 type SavedRoute = { id: string; fromLabel: string; toLabel: string; fromLat: number; fromLng: number; toLat: number; toLng: number };
 type SavedFav = { id: string; name: string; icon: string };
 type SavedPin = { id: string; name: string; lat: number; lng: number; kind: 'stop' | 'route_from' | 'route_to' | 'place'; routeLabel?: string; vicinity?: string };
-type PlanLeg = { mode: string; startTime: number; endTime: number; duration: number; distance: number; from: { name: string }; to: { name: string }; routeShortName: string | null; headsign: string | null; legGeometry?: { points: string }; agencyId?: string | null };
+type PlanLeg = { mode: string; startTime: number; endTime: number; duration: number; distance: number; from: { name: string; stopCode?: string | null }; to: { name: string; stopCode?: string | null }; routeShortName: string | null; headsign: string | null; legGeometry?: { points: string }; agencyId?: string | null };
 type PlanItinerary = { duration: number; startTime: number; endTime: number; legs: PlanLeg[] };
 
 const OTTAWA_REGION: Region = {
@@ -376,6 +378,11 @@ export default function MapScreen() {
   const [justGoLoading, setJustGoLoading] = useState(false);
   const [goNearbyTip, setGoNearbyTip] = useState<string | null>(null);
   const [planReliability, setPlanReliability] = useState<Record<string, number>>({});
+  const [minimizeWalking, setMinimizeWalking] = useState(false);
+  const [planWeather, setPlanWeather] = useState<{ precipitation: boolean; windKmh: number } | null>(null);
+  const [transferWarnings, setTransferWarnings] = useState<{ itinIdx: number; legIdx: number; bufferMins: number; incomingRoute: string }[]>([]);
+  const [planNearbyVenue, setPlanNearbyVenue] = useState<{ venueName: string; routeIds: string[]; minutesUntilEnd: number } | null>(null);
+  const [safetySignalStopIds, setSafetySignalStopIds] = useState<Set<string>>(new Set());
 
   // Tonight card data
   const [tonightWeather, setTonightWeather] = useState<{ temp: number; condition: string } | null>(null);
@@ -763,6 +770,9 @@ export default function MapScreen() {
         }));
       setExpandedArrivals(arrivals);
       cacheArrivals(stopId, { arrivals, source: 'expanded', stopName: null });
+      if (data.safetySignal) {
+        setSafetySignalStopIds(prev => { const next = new Set(prev); next.add(stopId); return next; });
+      }
     } catch (e) {
       if (__DEV__) console.warn('Expanded arrivals fetch failed:', e);
       const cached = await getCachedArrivals(stopId);
@@ -1308,6 +1318,8 @@ export default function MapScreen() {
     if (!destLat || !destLng) return;
     setPlanLoading(true);
     setPlanItineraries([]);
+    setPlanNearbyVenue(null);
+    setTransferWarnings([]);
     try {
       let fromLat = 45.4215, fromLng = -75.6972;
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).catch(() => null);
@@ -1315,13 +1327,59 @@ export default function MapScreen() {
       const now = new Date();
       const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       const dateStr = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${now.getFullYear()}`;
-      const url = `https://routeo-backend.vercel.app/api/plan?fromLat=${fromLat}&fromLng=${fromLng}&fromLabel=My+Location&toLat=${destLat}&toLng=${destLng}&toLabel=${encodeURIComponent(destName)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=false&mode=${planTransitMode}`;
+
+      // Fetch weather in parallel with plan (non-blocking)
+      fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?latitude=${fromLat}&longitude=${fromLng}&hourly=precipitation,windspeed_10m&forecast_days=1&timezone=America%2FToronto`, { timeout: 5000 })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (!data?.hourly) return;
+          const hour = now.getHours();
+          const precip = (data.hourly.precipitation?.[hour] ?? 0) > 0.1;
+          const wind = data.hourly.windspeed_10m?.[hour] ?? 0;
+          setPlanWeather({ precipitation: precip, windKmh: wind });
+        })
+        .catch(() => {});
+
+      // Check if destination is near a major event venue
+      const venueMatch = nearbyVenueAlert(destLat, destLng);
+      if (venueMatch) {
+        // Find matching event end time from tonightEvents
+        let minutesUntilEnd = 0;
+        for (const ev of tonightEvents) {
+          const matched = matchVenueByName(ev.venue);
+          if (matched && matched.name === venueMatch.name && (ev as any).endDateTime) {
+            const endMs = new Date((ev as any).endDateTime).getTime();
+            minutesUntilEnd = Math.max(0, Math.round((endMs - Date.now()) / 60000));
+            break;
+          }
+        }
+        setPlanNearbyVenue({ venueName: venueMatch.name, routeIds: venueMatch.affectedRoutes, minutesUntilEnd });
+      }
+
+      let url = `https://routeo-backend.vercel.app/api/plan?fromLat=${fromLat}&fromLng=${fromLng}&fromLabel=My+Location&toLat=${destLat}&toLng=${destLng}&toLabel=${encodeURIComponent(destName)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=false&mode=${planTransitMode}`;
+      if (minimizeWalking) url += '&walkReluctance=5';
       const r = await fetchWithTimeout(url, { timeout: 15000 });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const data = await r.json();
       const itins: PlanItinerary[] = (data?.itineraries || []).slice(0, 3);
       setPlanItineraries(itins);
       setPlanResultsVisible(true);
+
+      // Compute tight transfer warnings from static OTP data
+      const warnings: { itinIdx: number; legIdx: number; bufferMins: number; incomingRoute: string }[] = [];
+      itins.forEach((itin, itinIdx) => {
+        for (let i = 0; i < itin.legs.length - 1; i++) {
+          const leg = itin.legs[i];
+          const nextLegItem = itin.legs[i + 1];
+          if (leg.mode === 'WALK' || nextLegItem.mode === 'WALK') continue;
+          if (!leg.routeShortName || !nextLegItem.routeShortName) continue;
+          const bufferMins = Math.round((nextLegItem.startTime - leg.endTime) / 60000);
+          if (bufferMins < 5) {
+            warnings.push({ itinIdx, legIdx: i, bufferMins, incomingRoute: leg.routeShortName });
+          }
+        }
+      });
+      setTransferWarnings(warnings);
       // Fetch reliability for bus legs (non-blocking)
       try {
         const routeIds = [...new Set(itins.flatMap(it => it.legs.filter(l => l.routeShortName).map(l => l.routeShortName!)))];
@@ -1344,7 +1402,7 @@ export default function MapScreen() {
       } catch {}
     } catch (e) { if (__DEV__) console.warn('plan failed', e); }
     finally { setPlanLoading(false); }
-  }, [planTransitMode, planToPlace]);
+  }, [planTransitMode, planToPlace, minimizeWalking, tonightEvents]);
 
   const handleJustGo = useCallback(async () => {
     setJustGoLoading(true);
@@ -2433,6 +2491,8 @@ export default function MapScreen() {
         onSubmitDeal={() => {
           router.push('/(tabs)/discover' as any);
         }}
+        safetySignalStopIds={safetySignalStopIds}
+        venueAlerts={planNearbyVenue ? [planNearbyVenue] : undefined}
         extraSections={
           <>
             <TonightCard
@@ -2474,6 +2534,48 @@ export default function MapScreen() {
                 <Ionicons name="close" size={22} color={colours.muted} />
               </TouchableOpacity>
             </View>
+
+            {/* Weather context + minimize walking toggle */}
+            {planWeather && (planWeather.precipitation || planWeather.windKmh > 30) && (
+              <View style={{ marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colours.surface, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: colours.border }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name={planWeather.precipitation ? 'rainy-outline' : 'warning-outline'} size={14} color={colours.muted} />
+                  <Text style={{ fontSize: 12, color: colours.muted }}>
+                    {planWeather.precipitation
+                      ? t('Rain expected', 'Pluie prevue')
+                      : t(`Strong wind ${Math.round(planWeather.windKmh)} km/h`, `Vent fort ${Math.round(planWeather.windKmh)} km/h`)}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => { setMinimizeWalking(prev => !prev); }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: minimizeWalking ? '#00C07A' : colours.border, backgroundColor: minimizeWalking ? '#00C07A18' : 'transparent' }}
+                >
+                  <Ionicons name="walk-outline" size={13} color={minimizeWalking ? '#00C07A' : colours.muted} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: minimizeWalking ? '#00C07A' : colours.muted }}>
+                    {t('Less walking', 'Moins de marche')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Venue alert — event ending near destination */}
+            {planNearbyVenue && (
+              <View style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: '#F9731615', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: '#F9731640' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="ticket-outline" size={13} color="#F97316" />
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#F97316' }}>
+                    {planNearbyVenue.minutesUntilEnd > 0
+                      ? t(`${planNearbyVenue.venueName} ends in ${planNearbyVenue.minutesUntilEnd} min`, `${planNearbyVenue.venueName} se termine dans ${planNearbyVenue.minutesUntilEnd} min`)
+                      : t(`${planNearbyVenue.venueName} recently ended`, `${planNearbyVenue.venueName} vient de se terminer`)}
+                  </Text>
+                </View>
+                {planNearbyVenue.routeIds.length > 0 && (
+                  <Text style={{ fontSize: 11, color: '#F97316', marginTop: 2 }}>
+                    {t(`Expect crowds on Routes ${planNearbyVenue.routeIds.join(', ')}`, `Prevoyez des foules sur les routes ${planNearbyVenue.routeIds.join(', ')}`)}
+                  </Text>
+                )}
+              </View>
+            )}
             <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}>
               {planItineraries.length === 0 ? (
                 <Text style={{ color: colours.muted, textAlign: 'center', paddingVertical: 32 }}>{t('No routes found', 'Aucun itin\u00e9raire trouv\u00e9')}</Text>
@@ -2498,6 +2600,7 @@ export default function MapScreen() {
                   );
                 }
                 return planItineraries.map((itin, idx) => {
+                  const isMinimizeWalkingResult = minimizeWalking;
                   const primaryRoute = itin.legs.find(l => l.mode !== 'WALK' && l.routeShortName)?.routeShortName ?? null;
                   const onTimePct = primaryRoute != null ? planReliability[primaryRoute] : undefined;
                   const relBadge = onTimePct === undefined ? null
@@ -2507,10 +2610,23 @@ export default function MapScreen() {
                   const hasSTO = itin.legs.some(l => l.agencyId?.toLowerCase().includes('sto'));
                   const hasOC = itin.legs.some(l => l.mode !== 'WALK' && (!l.agencyId || !l.agencyId.toLowerCase().includes('sto')));
                   const isCrossBorder = hasSTO && hasOC;
+                  // Tight transfer warnings for this specific itinerary
+                  const itinTransferWarnings = transferWarnings.filter(w => w.itinIdx === idx);
+                  const walkOnlyLabel = isMinimizeWalkingResult && idx === planItineraries.length - 1
+                    ? t('Less walking', 'Moins de marche')
+                    : idx === 0 ? t('Fastest', 'Le plus rapide') : null;
+
                   return (
                     <View key={idx} style={{ backgroundColor: colours.surface, borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: colours.border }}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: relBadge || isCrossBorder ? 6 : 10 }}>
-                        <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text }}>{fmtPlanDuration(itin.duration)}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text }}>{fmtPlanDuration(itin.duration)}</Text>
+                          {walkOnlyLabel && (
+                            <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: '#00C07A18' }}>
+                              <Text style={{ fontSize: 10, fontWeight: '700', color: '#00C07A' }}>{walkOnlyLabel}</Text>
+                            </View>
+                          )}
+                        </View>
                         <Text style={{ fontSize: 13, color: colours.muted }}>{fmtPlanTime(itin.startTime)} \u2192 {fmtPlanTime(itin.endTime)}</Text>
                       </View>
                       {(relBadge || isCrossBorder) && (
@@ -2527,13 +2643,34 @@ export default function MapScreen() {
                           )}
                         </View>
                       )}
+                      {/* Tight transfer warning */}
+                      {itinTransferWarnings.map((w, wi) => (
+                        <View key={wi} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6, backgroundColor: '#F59E0B18', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
+                          <Ionicons name="warning-outline" size={12} color="#D97706" />
+                          <Text style={{ fontSize: 11, fontWeight: '600', color: '#D97706' }}>
+                            {t(`Tight transfer — ${w.bufferMins} min buffer on Route ${w.incomingRoute}`, `Correspondance serree — ${w.bufferMins} min sur la route ${w.incomingRoute}`)}
+                          </Text>
+                        </View>
+                      ))}
                       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-                        {itin.legs.map((leg, i) => (
-                          <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: (LEG_PLAN_COLORS[leg.mode] || '#888') + '22', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 }}>
-                            <Ionicons name={(LEG_PLAN_ICONS[leg.mode] || 'navigate') as any} size={12} color={LEG_PLAN_COLORS[leg.mode] || '#888'} />
-                            {leg.routeShortName ? <Text style={{ fontSize: 11, fontWeight: '700', color: LEG_PLAN_COLORS[leg.mode] || '#888' }}>{leg.routeShortName}</Text> : null}
-                          </View>
-                        ))}
+                        {itin.legs.map((leg, i) => {
+                          const platform = (leg.mode === 'BUS' || leg.mode === 'TRAM' || leg.mode === 'RAIL') && leg.routeShortName && hasPlatformData(leg.from.name)
+                            ? getPlatformForRoute(leg.from.name, leg.routeShortName)
+                            : null;
+                          return (
+                            <View key={i} style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: (LEG_PLAN_COLORS[leg.mode] || '#888') + '22', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 }}>
+                                <Ionicons name={(LEG_PLAN_ICONS[leg.mode] || 'navigate') as any} size={12} color={LEG_PLAN_COLORS[leg.mode] || '#888'} />
+                                {leg.routeShortName ? <Text style={{ fontSize: 11, fontWeight: '700', color: LEG_PLAN_COLORS[leg.mode] || '#888' }}>{leg.routeShortName}</Text> : null}
+                              </View>
+                              {platform && (
+                                <Text style={{ fontSize: 10, fontWeight: '600', color: '#00C07A', paddingHorizontal: 4 }}>
+                                  {t(`Platform ${platform}`, `Quai ${platform}`)}
+                                </Text>
+                              )}
+                            </View>
+                          );
+                        })}
                       </View>
                       <TouchableOpacity
                         onPress={() => { setPlanResultsVisible(false); setGoNearbyTip(computeNearbyTip(planToPlace?.lat ?? 0, planToPlace?.lng ?? 0, itin.endTime, language)); setGoItinerary(itin); }}

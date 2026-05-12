@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
+import { supabase } from '../lib/supabase';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { SK_LEAVE_NOW_ALERTS, SK_WALK_PACE, SK_DEVICE_ID } from '../lib/storageKeys';
@@ -76,6 +77,12 @@ interface NearbyTransitSheetProps {
 
   // Deal submission
   onSubmitDeal?: () => void;
+
+  // Safety signals — stops with recent "feel unsafe" reports (night hours only)
+  safetySignalStopIds?: Set<string>;
+
+  // Venue alerts — active events near a planned destination
+  venueAlerts?: { venueName: string; routeIds: string[]; minutesUntilEnd: number }[];
 
   // Extra content rendered below nearby transit (e.g. Services, Tonight)
   extraSections?: React.ReactNode;
@@ -363,17 +370,41 @@ const IntersectionRow = React.memo(function IntersectionRow({
   t,
   expandedGroupId,
   onToggleExpand,
+  safetySignalStopIds,
 }: {
   group: IntersectionGroup;
   colours: any;
   t: (en: string, fr: string) => string;
   expandedGroupId: string | null;
   onToggleExpand: (id: string) => void;
+  safetySignalStopIds?: Set<string>;
 }) {
   // Default to the first stop that has arrivals, or 0
   const defaultIdx = group.stops.findIndex(s => s.arrivals.length > 0 || s.arrivalsLoading);
   const [activeIdx, setActiveIdx] = useState(defaultIdx >= 0 ? defaultIdx : 0);
+  const [safetyThanks, setSafetyThanks] = useState(false);
   const isExpanded = expandedGroupId === group.id;
+
+  const hasSafetySignal = safetySignalStopIds
+    ? group.stops.some(s => safetySignalStopIds.has(s.stopId))
+    : false;
+
+  const handleSafetyReport = useCallback(async () => {
+    if (safetyThanks) return;
+    setSafetyThanks(true);
+    const activeStop = group.stops[Math.min(activeIdx, group.stops.length - 1)];
+    const hour = new Date().getHours();
+    const timeOfDay = hour >= 20 || hour < 6 ? 'night' : hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
+    try {
+      const deviceId = (await AsyncStorage.getItem(SK_DEVICE_ID)) ?? 'unknown';
+      supabase.from('stop_safety_reports').insert({
+        stop_id: activeStop.stopId,
+        stop_code: activeStop.stopId,
+        device_id: deviceId,
+        time_of_day: timeOfDay,
+      }).then(() => {}).catch(() => {});
+    } catch {}
+  }, [safetyThanks, group.stops, activeIdx]);
 
   const activeStop = group.stops[Math.min(activeIdx, group.stops.length - 1)];
   const multiDir = group.stops.length > 1;
@@ -434,6 +465,31 @@ const IntersectionRow = React.memo(function IntersectionRow({
         {isExpanded && (
           <LeaveNowButton stop={activeStop} colours={colours} t={t} />
         )}
+
+        {/* Safety signal — shown at night when reports exist */}
+        {hasSafetySignal && (
+          <View style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: AMBER_BG, borderRadius: 7, paddingHorizontal: 8, paddingVertical: 4, alignSelf: 'flex-start' }}>
+            <Ionicons name="warning-outline" size={12} color={AMBER_TEXT} />
+            <Text style={{ fontSize: 11, fontWeight: '600', color: AMBER_TEXT }}>
+              {t('Riders reported feeling unsafe here', 'Des usagers ont signale un malaise ici')}
+            </Text>
+          </View>
+        )}
+
+        {/* Feel unsafe here? — night hours only */}
+        {(new Date().getHours() >= 20 || new Date().getHours() < 6) && (
+          <TouchableOpacity
+            onPress={handleSafetyReport}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={{ marginTop: 5, alignSelf: 'flex-start' }}
+          >
+            <Text style={{ fontSize: 11, color: safetyThanks ? TEAL : colours.muted }}>
+              {safetyThanks
+                ? t('Thanks for letting us know', 'Merci de nous avoir informe')
+                : t('Feel unsafe here?', 'Vous sentez-vous en insecurite?')}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -480,6 +536,8 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
       happeningNow,
       onSubmitDeal,
       extraSections,
+      safetySignalStopIds,
+      venueAlerts,
     },
     ref,
   ) => {
@@ -636,6 +694,30 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
             </View>
           )}
 
+          {/* Venue alert banner — shown when active event nearby a planned destination */}
+          {venueAlerts && venueAlerts.length > 0 && (
+            <View style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: '#F97316' + '15', borderWidth: 1, borderColor: '#F97316' + '50', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                <Ionicons name="ticket-outline" size={13} color="#F97316" />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#F97316' }}>
+                  {t('Event ending nearby', 'Evenement qui se termine a proximite')}
+                </Text>
+              </View>
+              {venueAlerts.map((va, i) => (
+                <Text key={i} style={{ fontSize: 11, color: '#F97316', marginTop: 1 }}>
+                  {va.venueName}
+                  {va.minutesUntilEnd > 0
+                    ? t(` ends in ${va.minutesUntilEnd} min`, ` se termine dans ${va.minutesUntilEnd} min`)
+                    : t(' recently ended', ' vient de se terminer')}
+                  {va.routeIds.length > 0 ? t(` · Routes ${va.routeIds.join(', ')}`, ` · Routes ${va.routeIds.join(', ')}`) : ''}
+                </Text>
+              ))}
+              <Text style={{ fontSize: 10, color: '#F97316', marginTop: 4, opacity: 0.8 }}>
+                {t('Expect crowds at stops', 'Prevoyez des foules aux arrets')}
+              </Text>
+            </View>
+          )}
+
           {/* Intersection stop list */}
           {nearbyLoading ? (
             <>
@@ -663,6 +745,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
                     t={t}
                     expandedGroupId={expandedGroupId}
                     onToggleExpand={handleToggleExpand}
+                    safetySignalStopIds={safetySignalStopIds}
                   />
                 </React.Fragment>
               ))}
