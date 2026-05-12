@@ -849,6 +849,9 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
           opacity: 0.4,
         }}
         enablePanDownToClose={false}
+        enableDynamicSizing={false}
+        enableHandlePanningGesture={true}
+        enableContentPanningGesture={true}
       >
         <BottomSheetScrollView
           contentContainerStyle={{ paddingBottom: 120 }}
