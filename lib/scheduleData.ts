@@ -20,6 +20,10 @@ export type ClassEntry = {
   startTime: string; // 'HH:MM' 24h
   endTime: string;   // 'HH:MM' 24h
   colour: string;
+  buildingId?: string;
+  buildingName?: string;
+  buildingLat?: number;
+  buildingLng?: number;
 };
 
 export type ClassSchedule = {

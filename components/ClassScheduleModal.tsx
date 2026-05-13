@@ -12,6 +12,7 @@ import {
 } from '../lib/scheduleData';
 import { SK_CLASS_SCHEDULE, SK_COMMUTE_DURATION, SK_CAMPUS } from '../lib/storageKeys';
 import { CAMPUSES } from '../lib/campusData';
+import { CAMPUS_BUILDINGS, CampusBuilding } from '../lib/campusBuildings';
 import { fetchWithTimeout } from '../lib/fetchWithTimeout';
 import { useIsPremium, FREE_CLASS_LIMIT, PREMIUM_CLASS_LIMIT } from '../lib/premium';
 import { PREMIUM_ENABLED } from '../lib/flags';
@@ -211,6 +212,9 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('10:30');
   const [colour, setColour] = useState('');
+  const [selectedBuilding, setSelectedBuilding] = useState<CampusBuilding | null>(null);
+  const [showBuildingPicker, setShowBuildingPicker] = useState(false);
+  const [buildingSearch, setBuildingSearch] = useState('');
 
   useEffect(() => {
     if (visible && schedule) {
@@ -280,6 +284,8 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
     setEndTime('10:30');
     setColour(getClassColour(schedule?.classes?.length ?? 0));
     setEditingId(null);
+    setSelectedBuilding(null);
+    setBuildingSearch('');
   };
 
   const openAdd = () => {
@@ -299,6 +305,8 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
     setEndTime(c.endTime);
     setColour(c.colour);
     setEditingId(c.id);
+    setSelectedBuilding(c.buildingId ? (CAMPUS_BUILDINGS.find(b => b.id === c.buildingId) ?? null) : null);
+    setBuildingSearch('');
     setStep('add');
   };
 
@@ -319,9 +327,16 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
       Alert.alert(t('Invalid time', 'Heure invalide'), t('End time must be after start time', "L'heure de fin doit etre apres l'heure de debut"));
       return;
     }
+    if (!selectedBuilding) {
+      Alert.alert(
+        t('Building required', 'Bâtiment requis'),
+        t('Please select a building so RouteO can route you there.', 'Veuillez sélectionner un bâtiment pour que RouteO puisse vous y amener.')
+      );
+      return;
+    }
 
     if (editingId) {
-      setClasses(prev => prev.map(c => c.id === editingId ? { ...c, name: name.trim(), room: room.trim(), days: selectedDays, startTime, endTime, colour } : c));
+      setClasses(prev => prev.map(c => c.id === editingId ? { ...c, name: name.trim(), room: room.trim(), days: selectedDays, startTime, endTime, colour, buildingId: selectedBuilding?.id, buildingName: selectedBuilding?.name, buildingLat: selectedBuilding?.lat, buildingLng: selectedBuilding?.lng } : c));
     } else {
       const entry: ClassEntry = {
         id: genClassId(),
@@ -331,6 +346,10 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
         startTime,
         endTime,
         colour,
+        buildingId: selectedBuilding?.id,
+        buildingName: selectedBuilding?.name,
+        buildingLat: selectedBuilding?.lat,
+        buildingLng: selectedBuilding?.lng,
       };
       setClasses(prev => [...prev, entry]);
     }
@@ -536,6 +555,20 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
               }}
             />
 
+            {/* Building field */}
+            <Text style={{ fontSize: 14, fontWeight: '600', color: colours.text, marginBottom: 6 }}>
+              {t('Building', 'Bâtiment')}
+            </Text>
+            <TouchableOpacity
+              onPress={() => setShowBuildingPicker(true)}
+              style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+            >
+              <Text style={{ fontSize: 15, color: selectedBuilding ? colours.text : colours.muted }}>
+                {selectedBuilding ? selectedBuilding.name : t('e.g. Loeb Building', 'ex. Édifice Loeb')}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color={colours.muted} />
+            </TouchableOpacity>
+
             {/* Days */}
             <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.text, marginBottom: 6 }}>
               {t('Days', 'Jours')}
@@ -587,6 +620,52 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
         onClose={() => setPaywallVisible(false)}
         featureHint={t(`Free plan tracks up to ${FREE_CLASS_LIMIT} classes. Upgrade for up to ${PREMIUM_CLASS_LIMIT}.`, `Le forfait gratuit prend en charge jusqu'a ${FREE_CLASS_LIMIT} cours. Passez a Premium pour ${PREMIUM_CLASS_LIMIT}.`)}
       />
+
+      {/* Building picker modal */}
+      <Modal visible={showBuildingPicker} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowBuildingPicker(false)}>
+        <View style={{ flex: 1, backgroundColor: colours.bg }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderColor: colours.border }}>
+            <TouchableOpacity onPress={() => setShowBuildingPicker(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close" size={24} color={colours.text} />
+            </TouchableOpacity>
+            <Text style={{ fontSize: 17, fontWeight: '700', color: colours.text }}>{t('Select Building', 'Choisir un bâtiment')}</Text>
+            <TouchableOpacity onPress={() => { setSelectedBuilding(null); setShowBuildingPicker(false); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={{ fontSize: 14, color: colours.muted }}>{t('Clear', 'Effacer')}</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }}>
+            <TextInput
+              value={buildingSearch}
+              onChangeText={setBuildingSearch}
+              placeholder={t('Search buildings...', 'Rechercher un bâtiment...')}
+              placeholderTextColor={colours.muted}
+              autoFocus
+              style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, color: colours.text }}
+            />
+          </View>
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}>
+            {CAMPUS_BUILDINGS.filter(b => {
+              if (!buildingSearch.trim()) return true;
+              const needle = buildingSearch.toLowerCase();
+              if (b.name.toLowerCase().includes(needle)) return true;
+              return (b.aliases ?? []).some(a => a.toLowerCase().includes(needle));
+            }).map(b => (
+              <TouchableOpacity
+                key={b.id}
+                onPress={() => { setSelectedBuilding(b); setShowBuildingPicker(false); setBuildingSearch(''); }}
+                style={{ paddingVertical: 14, borderBottomWidth: 1, borderColor: colours.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+                activeOpacity={0.7}
+              >
+                <View>
+                  <Text style={{ fontSize: 15, fontWeight: selectedBuilding?.id === b.id ? '700' : '500', color: colours.text }}>{b.name}</Text>
+                  <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>{b.campusKey === 'uottawa' ? 'uOttawa' : b.campusKey === 'carleton' ? 'Carleton' : 'Algonquin'}</Text>
+                </View>
+                {selectedBuilding?.id === b.id && <Ionicons name="checkmark" size={18} color={colours.accent} />}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </Modal>
     </Modal>
   );
 }
