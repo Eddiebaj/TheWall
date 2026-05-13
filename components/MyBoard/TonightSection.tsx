@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { ActivityIndicator, Alert, Image, Linking, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, Linking, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 
 interface Props {
   events: any[];
@@ -24,6 +24,7 @@ export default function TonightSection({ events, eventsLoading, colours, t, getS
     }),
   ];
   const [selectedDateIdx, setSelectedDateIdx] = React.useState(0);
+  const [rsvpEvent, setRsvpEvent] = React.useState<any>(null);
   const selectedDate = dateOptions[selectedDateIdx].date.toLocaleDateString('en-CA');
 
   if (eventsLoading) return (
@@ -87,18 +88,7 @@ export default function TonightSection({ events, eventsLoading, colours, t, getS
               </View>
               {/* Who's in? button */}
               <TouchableOpacity
-                onPress={() => {
-                  Alert.alert(
-                    ev.name,
-                    'Are you going?',
-                    [
-                      { text: "I'm in 🙋", onPress: () => onWhoIsIn(ev, 'going') },
-                      { text: 'Interested 👀', onPress: () => onWhoIsIn(ev, 'interested') },
-                      { text: 'Share to group', onPress: () => onWhoIsIn(ev, 'share') },
-                      { text: 'Cancel', style: 'cancel' },
-                    ]
-                  );
-                }}
+                onPress={() => setRsvpEvent(ev)}
                 style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colours.border }}
               >
                 <Text style={{ fontSize: 11 }}>👥</Text>
@@ -127,6 +117,28 @@ export default function TonightSection({ events, eventsLoading, colours, t, getS
             ))}
           </ScrollView>
         </View>
+      )}
+      {rsvpEvent && (
+        <Modal visible={!!rsvpEvent} transparent animationType="slide" onRequestClose={() => setRsvpEvent(null)}>
+          <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} activeOpacity={1} onPress={() => setRsvpEvent(null)} />
+          <View style={{ backgroundColor: colours.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, alignSelf: 'center', marginBottom: 20 }} />
+            <Text style={{ fontSize: 17, fontWeight: '800', color: colours.text, marginBottom: 4 }}>{rsvpEvent.name}</Text>
+            <Text style={{ fontSize: 13, color: colours.muted, marginBottom: 24 }}>{rsvpEvent.venue}</Text>
+            <TouchableOpacity onPress={() => { onWhoIsIn(rsvpEvent, 'going'); setRsvpEvent(null); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 16, backgroundColor: colours.accent + '15', borderWidth: 1, borderColor: colours.accent + '40', marginBottom: 10 }}>
+              <Text style={{ fontSize: 22 }}>🙋</Text>
+              <View><Text style={{ fontSize: 15, fontWeight: '700', color: colours.accent }}>I'm in</Text><Text style={{ fontSize: 12, color: colours.muted }}>Let your friends know you're going</Text></View>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { onWhoIsIn(rsvpEvent, 'interested'); setRsvpEvent(null); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 16, backgroundColor: colours.border + '40', borderWidth: 1, borderColor: colours.border, marginBottom: 10 }}>
+              <Text style={{ fontSize: 22 }}>👀</Text>
+              <View><Text style={{ fontSize: 15, fontWeight: '700', color: colours.text }}>Interested</Text><Text style={{ fontSize: 12, color: colours.muted }}>Maybe — you'll see who else is going</Text></View>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { onWhoIsIn(rsvpEvent, 'share'); setRsvpEvent(null); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 16, backgroundColor: colours.border + '40', borderWidth: 1, borderColor: colours.border }}>
+              <Text style={{ fontSize: 22 }}>💬</Text>
+              <View><Text style={{ fontSize: 15, fontWeight: '700', color: colours.text }}>Share to group</Text><Text style={{ fontSize: 12, color: colours.muted }}>Send to a friend group chat</Text></View>
+            </TouchableOpacity>
+          </View>
+        </Modal>
       )}
     </View>
   );
