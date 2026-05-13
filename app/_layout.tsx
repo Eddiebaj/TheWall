@@ -6,6 +6,7 @@ import { Animated, Image, View, Text, ScrollView, StyleSheet } from 'react-nativ
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppProvider } from '../context/AppContext';
 import { BoardProvider } from '../context/BoardContext';
+import { AuthProvider, useAuth } from '../context/AuthContext';
 import NetworkBanner from '../components/NetworkBanner';
 import { SK_ONBOARDED, SK_CRASH_LOG, SK_LANGUAGE } from '../lib/storageKeys';
 import { initSentry, captureException } from '../lib/sentry';
@@ -120,6 +121,7 @@ function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
 function RootNav() {
   const [showSplash, setShowSplash] = useState(true);
   const [destination, setDestination] = useState<'onboarding' | 'tabs' | null>(null);
+  const { session, profile, loading: authLoading } = useAuth();
 
   // Declare ref BEFORE the useEffect that assigns to it
   const animationResolveRef = useRef<(() => void) | null>(null);
@@ -172,19 +174,32 @@ function RootNav() {
   };
 
   useEffect(() => {
-    if (__DEV__) console.log('[RootNav] showSplash/destination changed — showSplash=', showSplash, 'destination=', destination);
+    if (__DEV__) console.log('[RootNav] showSplash/destination changed — showSplash=', showSplash, 'destination=', destination, 'authLoading=', authLoading);
     if (!showSplash && destination === 'onboarding') {
       if (__DEV__) console.log('[RootNav] Routing to /onboarding');
       setTimeout(() => {
         router.replace('/onboarding');
       }, 0);
-    } else if (!showSplash && destination === 'tabs') {
-      if (__DEV__) console.log('[RootNav] Routing to /(tabs)/map');
-      setTimeout(() => {
-        router.replace('/(tabs)/map');
-      }, 0);
+    } else if (!showSplash && destination === 'tabs' && !authLoading) {
+      if (!session) {
+        if (__DEV__) console.log('[RootNav] No session — routing to /auth');
+        setTimeout(() => {
+          router.replace('/auth');
+        }, 0);
+      } else {
+        (async () => {
+          const setupDone = await AsyncStorage.getItem('routeo_profile_setup_done');
+          if (!setupDone) {
+            if (__DEV__) console.log('[RootNav] Profile setup not done — routing to /profile-setup');
+            router.replace('/profile-setup');
+          } else {
+            if (__DEV__) console.log('[RootNav] Routing to /(tabs)/map');
+            router.replace('/(tabs)/map');
+          }
+        })();
+      }
     }
-  }, [showSplash, destination]);
+  }, [showSplash, destination, authLoading, session]);
 
   if (showSplash) {
     return <AnimatedSplash onFinish={handleSplashFinish} />;
@@ -194,6 +209,8 @@ function RootNav() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
+      <Stack.Screen name="auth" options={{ headerShown: false }} />
+      <Stack.Screen name="profile-setup" options={{ headerShown: false }} />
       <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       <Stack.Screen name="stop/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="route/[id]" options={{ headerShown: false }} />
@@ -204,16 +221,18 @@ function RootNav() {
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <RootErrorBoundary>
-        <AppProvider>
-          <BoardProvider>
-            <RootNav />
-            <NetworkBanner />
-          </BoardProvider>
-        </AppProvider>
-      </RootErrorBoundary>
-    </SafeAreaProvider>
+    <AuthProvider>
+      <SafeAreaProvider>
+        <RootErrorBoundary>
+          <AppProvider>
+            <BoardProvider>
+              <RootNav />
+              <NetworkBanner />
+            </BoardProvider>
+          </AppProvider>
+        </RootErrorBoundary>
+      </SafeAreaProvider>
+    </AuthProvider>
   );
 }
 

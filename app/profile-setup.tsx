@@ -1,0 +1,120 @@
+import React, { useState } from 'react';
+import {
+  View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView,
+  Platform, ActivityIndicator, Alert, ScrollView
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
+import { useAuth } from '../context/AuthContext';
+import { useApp } from '../context/AppContext';
+
+const CAMPUSES = [
+  { id: 'carleton', label: 'Carleton University' },
+  { id: 'uottawa', label: 'University of Ottawa' },
+  { id: 'algonquin', label: 'Algonquin College' },
+  { id: 'other', label: 'Other / Not a student' },
+];
+
+export default function ProfileSetupScreen() {
+  const { profile, updateProfile } = useAuth();
+  const { colours } = useApp();
+  const router = useRouter();
+  const [username, setUsername] = useState(profile?.username || '');
+  const [displayName, setDisplayName] = useState(profile?.display_name || '');
+  const [campus, setCampus] = useState(profile?.campus || '');
+  const [loading, setLoading] = useState(false);
+
+  const handleSave = async () => {
+    if (!username.trim()) {
+      Alert.alert('Username required', 'Please choose a username.');
+      return;
+    }
+    if (username.includes(' ')) {
+      Alert.alert('Invalid username', 'Username cannot contain spaces.');
+      return;
+    }
+    setLoading(true);
+    const { error } = await updateProfile({
+      username: username.trim().toLowerCase(),
+      display_name: displayName.trim() || username.trim(),
+      campus: campus || null,
+    });
+    setLoading(false);
+    if (error) {
+      if (error.message?.includes('unique')) {
+        Alert.alert('Username taken', 'That username is already taken. Try another.');
+      } else {
+        Alert.alert('Error', error.message);
+      }
+    } else {
+      await AsyncStorage.setItem('routeo_profile_setup_done', 'true');
+      router.replace('/(tabs)/map' as any);
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colours.bg }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 32, justifyContent: 'center' }}>
+        <Text style={{ fontSize: 28, fontWeight: '800', color: colours.text, marginBottom: 8 }}>
+          Set up your profile
+        </Text>
+        <Text style={{ fontSize: 15, color: colours.muted, marginBottom: 40, lineHeight: 22 }}>
+          This is how your friends will find you on RouteO.
+        </Text>
+
+        {/* Username */}
+        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+          Username
+        </Text>
+        <TextInput
+          style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: colours.text, marginBottom: 24 }}
+          placeholder="e.g. eddie_ott"
+          placeholderTextColor={colours.muted}
+          value={username}
+          onChangeText={t => setUsername(t.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+
+        {/* Display name */}
+        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+          Display Name
+        </Text>
+        <TextInput
+          style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: colours.text, marginBottom: 24 }}
+          placeholder="e.g. Eddie"
+          placeholderTextColor={colours.muted}
+          value={displayName}
+          onChangeText={setDisplayName}
+        />
+
+        {/* Campus */}
+        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+          Campus (optional)
+        </Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 40 }}>
+          {CAMPUSES.map(c => (
+            <TouchableOpacity
+              key={c.id}
+              onPress={() => setCampus(campus === c.id ? '' : c.id)}
+              style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, backgroundColor: campus === c.id ? colours.accent : colours.surface, borderColor: campus === c.id ? colours.accent : colours.border }}
+            >
+              <Text style={{ fontSize: 13, fontWeight: '600', color: campus === c.id ? 'white' : colours.text }}>{c.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <TouchableOpacity
+          onPress={handleSave}
+          disabled={loading || !username.trim()}
+          style={{ backgroundColor: username.trim() ? colours.accent : colours.border, borderRadius: 14, paddingVertical: 16, alignItems: 'center' }}
+        >
+          {loading ? <ActivityIndicator color="white" /> : <Text style={{ fontSize: 16, fontWeight: '700', color: 'white' }}>Let's go</Text>}
+        </TouchableOpacity>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}

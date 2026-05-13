@@ -11,6 +11,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import { useBoard } from '../../context/BoardContext';
 import { supabase } from '../../lib/supabase';
 import { registerPushToken, syncSubscriptions } from '../../lib/pushNotifications';
@@ -126,6 +127,7 @@ export default function AccountScreen() {
     highContrast, setHighContrast,
     reducedMotion, setReducedMotion,
   } = useApp();
+  const { profile, signOut, isAdmin, isPremium } = useAuth();
   const { savedBoard } = useBoard();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -133,8 +135,6 @@ export default function AccountScreen() {
   const [classModalVisible, setClassModalVisible] = useState(false);
   const [classSchedule, setClassSchedule] = useState<ClassSchedule | null>(null);
   const [paywallVisible, setPaywallVisible] = useState(false);
-  const isPremium = useIsPremium();
-
   const isLight = resolvedTheme === 'light';
   const cardShadow = isLight ? sharedCardShadow : {};
 
@@ -282,11 +282,39 @@ export default function AccountScreen() {
       <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}>
 
-        <View style={{ paddingTop: insets.top + 12, paddingBottom: 12 }} />
+        <View style={{ backgroundColor: colours.surface, borderBottomWidth: 1, borderBottomColor: colours.border, paddingTop: insets.top + 20, paddingBottom: 20, paddingHorizontal: 20 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            {/* Avatar */}
+            <View style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 22, fontWeight: '800', color: colours.accent }}>
+                {profile?.display_name?.[0]?.toUpperCase() || profile?.username?.[0]?.toUpperCase() || '?'}
+              </Text>
+            </View>
+            {/* Info */}
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                <Text style={{ fontSize: 17, fontWeight: '800', color: colours.text }}>
+                  {profile?.display_name || profile?.username || 'Your Name'}
+                </Text>
+                <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: isAdmin ? '#e8a020' + '25' : colours.accent + '18', borderWidth: 1, borderColor: isAdmin ? '#e8a020' + '60' : colours.accent + '40' }}>
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: isAdmin ? '#e8a020' : colours.accent, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    {isAdmin ? 'Admin' : isPremium ? 'Premium' : 'Free'}
+                  </Text>
+                </View>
+              </View>
+              <Text style={{ fontSize: 13, color: colours.muted }}>@{profile?.username || 'username'}</Text>
+              {profile?.campus && (
+                <Text style={{ fontSize: 12, color: colours.accent, marginTop: 2 }}>
+                  {profile.campus === 'carleton' ? 'Carleton University' : profile.campus === 'uottawa' ? 'University of Ottawa' : profile.campus === 'algonquin' ? 'Algonquin College' : profile.campus}
+                </Text>
+              )}
+            </View>
+          </View>
+        </View>
 
         <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
           <Text
-            style={{ fontSize: fonts.xxl, fontWeight: '700', color: colours.text }}
+            style={{ fontSize: fonts.xxl, fontWeight: '700', color: colours.text, marginTop: 20 }}
             accessibilityRole="header"
           >
             {t('Settings', 'Param\u00e8tres')}
@@ -716,6 +744,13 @@ export default function AccountScreen() {
             {t('Live data from OC Transpo and STO', 'Donnees en direct d\'OC Transpo et STO')}
           </Text>
         </View>
+
+        <TouchableOpacity
+          onPress={signOut}
+          style={{ marginHorizontal: 20, marginTop: 24, marginBottom: 16, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: '#cc3b2a40', backgroundColor: '#cc3b2a12', alignItems: 'center' }}
+        >
+          <Text style={{ fontSize: 15, fontWeight: '700', color: '#cc3b2a' }}>Sign out</Text>
+        </TouchableOpacity>
 
       </ScrollView>
 
