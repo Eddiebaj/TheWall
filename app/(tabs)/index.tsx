@@ -78,6 +78,7 @@ import { SK_CROWDING_CACHE, SK_FREQUENT_ARRIVALS_CACHE, SK_FREQUENT_CARD_DISMISS
 import ServicesGrid, { ServiceTile } from '../../components/ServicesGrid';
 import TonightCard from '../../components/TonightCard';
 import WeatherModal from '../../components/WeatherModal';
+import MyStopsSection from '../../components/MyBoard/MyStopsSection';
 
 const TRIP_UPDATES = 'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt-tp/beta/v1/TripUpdates?format=json';
 const BACKEND_URL = 'https://routeo-backend.vercel.app/api/arrivals';
@@ -3660,31 +3661,15 @@ function LiveScreenInner() {
           })()}
 
           {/* Saved Stops */}
-          {boardContextStops.filter(i => i.type === 'bus_stop' || i.type === 'lrt_station').length > 0 && (
-            <View style={{ paddingTop: 16, paddingBottom: 8 }}>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, paddingHorizontal: 20, marginBottom: 10 }}>
-                {t('My Stops', 'Mes arrêts')}
-              </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
-                {boardContextStops.filter(i => i.type === 'bus_stop' || i.type === 'lrt_station').map((item, idx) => (
-                  <TouchableOpacity
-                    key={idx}
-                    onPress={() => {
-                      loadStop((item as any).id, (item as any).name);
-                      setBoardExpandItem(item);
-                    }}
-                    style={{ width: 140, padding: 14, borderRadius: 16, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}
-                  >
-                    <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-                      <Ionicons name={item.type === 'lrt_station' ? 'train' : 'bus'} size={14} color={colours.accent} />
-                    </View>
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }} numberOfLines={2}>{(item as any).name}</Text>
-                    <Text style={{ fontSize: 11, color: colours.muted, marginTop: 4 }}>{t('Tap for arrivals', 'Appuyez')}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
+          <MyStopsSection
+            boardItems={boardContextStops}
+            colours={colours}
+            t={t}
+            onStopPress={(item) => {
+              loadStop((item as any).id, (item as any).name);
+              setBoardExpandItem(item as any);
+            }}
+          />
 
           {/* Your Spots */}
           <View style={{ paddingTop: 16 }}>
