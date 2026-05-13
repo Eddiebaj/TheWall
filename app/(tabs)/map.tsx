@@ -440,6 +440,7 @@ export default function MapScreen() {
 
   const nearbySheetRef = useRef<BottomSheet>(null);
   const [nearbyStops, setNearbyStops] = useState<NearbyStop[]>([]);
+  const [stopPinCoords, setStopPinCoords] = useState<{ id: string; lat: number; lng: number; name: string; isLrt: boolean }[]>([]);
   const [nearbyLoading, setNearbyLoading] = useState(false);
   const [expandedStopId, setExpandedStopId] = useState<string | null>(null);
   const [expandedArrivals, setExpandedArrivals] = useState<{ routeId: string; headsign: string; minsAway: number; source?: string }[]>([]);
@@ -889,6 +890,13 @@ export default function MapScreen() {
         arrivalsLoading: true,
       }));
       setNearbyStops(initial);
+      setStopPinCoords(sorted.map(s => ({
+        id: s.stop_id,
+        lat: s.stop_lat,
+        lng: s.stop_lon,
+        name: s.stop_name || `Stop #${s.stop_id}`,
+        isLrt: LRT_STOP_IDS.has(s.stop_id),
+      })));
       setNearbyLoading(false);
 
       const results = await Promise.allSettled(
@@ -968,6 +976,29 @@ export default function MapScreen() {
   }, []);
 
   useEffect(() => { fetchNearbyStops(); }, [fetchNearbyStops]);
+
+  const fetchNearbyStopsForRegion = useCallback(async (centerLat: number, centerLng: number) => {
+    const delta = 0.015;
+    const { data: stops } = await supabase
+      .from('stops')
+      .select('stop_id,stop_name,stop_lat,stop_lon')
+      .gte('stop_lat', centerLat - delta)
+      .lte('stop_lat', centerLat + delta)
+      .gte('stop_lon', centerLng - delta)
+      .lte('stop_lon', centerLng + delta)
+      .limit(100);
+    if (!stops || stops.length === 0) { return; }
+    setStopPinCoords(stops
+      .filter(s => s.stop_lat && s.stop_lon)
+      .map(s => ({
+        id: s.stop_id,
+        lat: s.stop_lat,
+        lng: s.stop_lon,
+        name: s.stop_name || `Stop #${s.stop_id}`,
+        isLrt: LRT_STOP_IDS.has(s.stop_id),
+      }))
+    );
+  }, []);
 
   // Fetch mini arrivals when a bus stop is selected from search
   useEffect(() => {
@@ -1455,6 +1486,8 @@ export default function MapScreen() {
     return { singles, clusters };
   }, [filteredVenues, debouncedDelta]);
 
+  const showStopPins = debouncedDelta < 0.04;
+
   const getVenuePinColor = (v: VenuePin): string => {
     // Time-aware coloring: active = green, soon = amber, upcoming = muted, closed = type color
     const { active, upcoming } = getVenueTodayDeals(v);
@@ -1831,7 +1864,13 @@ export default function MapScreen() {
         onMapReady={() => setMapReady(true)}
         onPress={handleMapTap}
         onPanDrag={() => { if (tappedLocation) dismissTapped(); }}
-        onRegionChangeComplete={(r) => setRegion(r)}
+        onRegionChangeComplete={(region) => {
+          setRegion(region);
+          setDebouncedDelta(region.latitudeDelta);
+          if (region.latitudeDelta < 0.05) {
+            fetchNearbyStopsForRegion(region.latitude, region.longitude);
+          }
+        }}
       >
         {/* Heat zone circles — visible when Deals layer is active and zoomed to neighbourhood level */}
         {mapReady && Circle && !zoomTooFar && activeLayers.deals && heatZones.map(zone => (
@@ -1930,6 +1969,30 @@ export default function MapScreen() {
             </Marker>
           ))}
         </>}
+
+        {/* Nearby stop pins — visible when zoomed in */}
+        {showStopPins && Marker && stopPinCoords.map(stop => (
+          <Marker
+            key={`stop-pin-${stop.id}`}
+            coordinate={{ latitude: stop.lat, longitude: stop.lng }}
+            anchor={{ x: 0.5, y: 0.5 }}
+            tracksViewChanges={false}
+            onPress={() => {
+              nearbySheetRef.current?.snapToIndex(0);
+              handleExpandStop(stop.id);
+            }}
+          >
+            <View style={{
+              width: debouncedDelta < 0.01 ? 12 : debouncedDelta < 0.02 ? 10 : 8,
+              height: debouncedDelta < 0.01 ? 12 : debouncedDelta < 0.02 ? 10 : 8,
+              borderRadius: 6,
+              backgroundColor: stop.isLrt ? '#00A78D' : '#cc3b2a',
+              borderWidth: debouncedDelta < 0.02 ? 2 : 1.5,
+              borderColor: 'white',
+              opacity: debouncedDelta < 0.02 ? 1 : 0.6,
+            }} />
+          </Marker>
+        ))}
 
         {/* Searched place marker */}
         {searchedPlace && validCoord(searchedPlace.lat, searchedPlace.lng) && (
