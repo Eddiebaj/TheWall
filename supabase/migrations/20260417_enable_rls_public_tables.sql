@@ -27,6 +27,7 @@
 
 ALTER TABLE community_deals ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "cd_public_read_approved" ON community_deals;
 CREATE POLICY "cd_public_read_approved"
   ON community_deals
   FOR SELECT
@@ -40,6 +41,7 @@ CREATE POLICY "cd_public_read_approved"
 
 ALTER TABLE community_deal_votes ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "cdv_public_read" ON community_deal_votes;
 CREATE POLICY "cdv_public_read"
   ON community_deal_votes
   FOR SELECT
@@ -61,6 +63,7 @@ ALTER TABLE bus_crowding_reports ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE route_reliability ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "rr_public_read" ON route_reliability;
 CREATE POLICY "rr_public_read"
   ON route_reliability
   FOR SELECT
@@ -73,6 +76,7 @@ CREATE POLICY "rr_public_read"
 
 ALTER TABLE gas_prices ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "gp_public_read" ON gas_prices;
 CREATE POLICY "gp_public_read"
   ON gas_prices
   FOR SELECT
@@ -86,6 +90,7 @@ CREATE POLICY "gp_public_read"
 
 ALTER TABLE social_feedback ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "sf_anon_insert" ON social_feedback;
 CREATE POLICY "sf_anon_insert"
   ON social_feedback
   FOR INSERT
@@ -107,7 +112,10 @@ ALTER TABLE api_logs ENABLE ROW LEVEL SECURITY;
 -- ── 8. lrt_notifications_sent ────────────────────────────────
 -- Cron dedup table — internal only. Full lockdown for anon key.
 
-ALTER TABLE lrt_notifications_sent ENABLE ROW LEVEL SECURITY;
+DO $$ BEGIN
+  ALTER TABLE lrt_notifications_sent ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN undefined_table THEN NULL;
+END $$;;
 
 
 -- ============================================================
