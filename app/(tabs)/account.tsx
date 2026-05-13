@@ -156,6 +156,11 @@ export default function AccountScreen() {
   const [recentSearchCount, setRecentSearchCount] = useState(0);
   const [homeSaveStatus, setHomeSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [workSaveStatus, setWorkSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [isStudent, setIsStudent] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem('routeo_is_student').then(val => setIsStudent(val === 'true')).catch(() => {});
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -421,6 +426,25 @@ export default function AccountScreen() {
               </View>
             </>
           )}
+        </Card>
+
+        {/* ── STUDENT MODE ── */}
+        <Card>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text }}>{t('Student Mode', 'Mode étudiant')}</Text>
+              <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>{t('Shows class schedule and campus info on My Board', 'Affiche l\'horaire et infos campus')}</Text>
+            </View>
+            <Switch
+              value={isStudent}
+              onValueChange={async (val) => {
+                setIsStudent(val);
+                await AsyncStorage.setItem('routeo_is_student', val ? 'true' : 'false');
+              }}
+              trackColor={{ false: colours.border, true: colours.accent }}
+              thumbColor="white"
+            />
+          </View>
         </Card>
 
         {/* ── APPEARANCE ── */}
