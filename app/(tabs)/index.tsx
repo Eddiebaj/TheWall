@@ -918,6 +918,9 @@ function LiveScreenInner() {
       };
       loadScheduleAndCampus();
 
+      // Fetch events for Tonight section if not already loaded
+      fetchTicketmasterEvents();
+
       // Set up live countdown — recalculate every 30s
       const countdownInterval = setInterval(() => {
         AsyncStorage.getItem(SK_CLASS_SCHEDULE).then(val => {
@@ -3518,19 +3521,14 @@ function LiveScreenInner() {
         )}
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true} contentContainerStyle={{ paddingBottom: 20 }} onScrollBeginDrag={() => { Keyboard.dismiss(); setSearchResults([]); }}>
           {/* Header */}
-          <View style={styles.header}>
-            <View>
-              <Text style={{ fontSize: fonts.xxl, fontWeight: '800', color: colours.text, letterSpacing: -1 }}>Route<Text style={{ color: colours.accent }}>O</Text></Text>
-              <Text style={{ fontSize: fonts.sm, color: colours.muted, letterSpacing: 2, marginTop: -2 }}>OTTAWA & GATINEAU TRANSIT</Text>
-            </View>
-            <View style={styles.headerRight}>
-              {isNight && (<View style={[styles.nightBadge, { backgroundColor: colours.accentAlt + '22', borderColor: colours.accentAlt }]}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Ionicons name="moon" size={12} color={colours.accentAlt} /><Text style={{ color: colours.accentAlt, fontSize: 12, fontWeight: '700' }}>{t('Night', 'Nuit')}</Text></View></View>)}
-              {weather && (<TouchableOpacity onPress={() => setWeatherModalVisible(true)} style={[styles.nightBadge, { backgroundColor: colours.surface, borderColor: colours.border, flexDirection: 'row', alignItems: 'center', gap: 4 }]} accessibilityRole="button" accessibilityLabel={t(`Weather ${weather.temp} degrees`, `Meteo ${weather.temp} degres`)}><Ionicons name={weather.icon as any} size={13} color={iconColor(weather.icon)} /><Text style={{ color: colours.text, fontSize: 12, fontWeight: '700' }}>{weather.temp}°</Text></TouchableOpacity>)}
-              <View style={[styles.liveBadge, { backgroundColor: colours.accent + '18', borderColor: colours.accent + '40' }]}><View style={[styles.liveDot, { backgroundColor: colours.accent }]} /><Text style={{ color: colours.accent, fontSize: 12, fontWeight: '700' }}>LIVE</Text></View>
-              <TouchableOpacity onPress={() => { if (editMode) { saveCustomization(sectionOrder, quickActionIds, ottawaLifeIds); } setEditMode(!editMode); }} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: editMode ? colours.accent : colours.border, backgroundColor: editMode ? colours.accent : colours.surface }} accessibilityRole="button" accessibilityLabel={editMode ? t('Done editing', 'Terminer la modification') : t('Edit layout', 'Modifier la disposition')}>
-                <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: editMode ? 'white' : colours.text }}>{editMode ? t('Done', 'Terminé') : t('Edit', 'Modifier')}</Text>
-              </TouchableOpacity>
-            </View>
+          <View style={{ paddingHorizontal: 20, paddingTop: 56, paddingBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={{ fontSize: 22, fontWeight: '800', color: colours.text }}>
+              {t('My Board', 'Mon tableau')}
+            </Text>
+            <TouchableOpacity onPress={() => setWeatherModalVisible(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface }}>
+              {weather && <Ionicons name={weather.icon as any} size={13} color="#e8a020" />}
+              <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>{weather ? `${weather.temp}°` : '—'}</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Class Schedule Hero Card */}
@@ -3723,7 +3721,15 @@ function LiveScreenInner() {
             ];
             const [selectedDateIdx, setSelectedDateIdx] = React.useState(0);
             const selectedDate = dateOptions[selectedDateIdx].date.toLocaleDateString('en-CA');
-            const tonightEvents = events.filter(ev => ev.date === selectedDate);
+            if (eventsLoading) return (
+              <View style={{ paddingTop: 20, alignItems: 'center', paddingBottom: 20 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, paddingHorizontal: 20, marginBottom: 12 }}>
+                  {t('Tonight', 'Ce soir')}
+                </Text>
+                <ActivityIndicator color={colours.accent} />
+              </View>
+            );
+            const tonightEvents = events.filter(ev => ev.date === selectedDate || (selectedDateIdx === 0 && ev.date >= new Date().toLocaleDateString('en-CA')));
             const now = new Date();
             const isAfter3pm = now.getHours() >= 15;
             const todayDeals = getSocialVenues();
@@ -3849,27 +3855,44 @@ function LiveScreenInner() {
                 {aoLoading ? (
                   <ActivityIndicator color={colours.accent} style={{ marginTop: 20 }} />
                 ) : (
-                  <View style={{ paddingHorizontal: 20, gap: 10 }}>
+                  <View style={{ paddingHorizontal: 20, flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
                     {aoPlaces.map((place, i) => (
                       <TouchableOpacity
                         key={i}
                         onPress={() => Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(place.name + ' Ottawa')}`)}
-                        style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}
+                        style={{ width: '46%', borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}
                       >
-                        <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
-                          <Ionicons name="location" size={20} color={colours.accent} />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }} numberOfLines={1}>{place.name}</Text>
-                          <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }} numberOfLines={1}>{place.vicinity}</Text>
-                          {place.rating && (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                              <Ionicons name="star" size={11} color="#e8a020" />
-                              <Text style={{ fontSize: 11, fontWeight: '600', color: colours.text }}>{place.rating}</Text>
+                        {/* Square photo */}
+                        <View style={{ width: '100%', aspectRatio: 1.1 }}>
+                          {place.photos?.[0]?.photo_reference ? (
+                            <Image
+                              source={{ uri: `https://routeo-backend.vercel.app/api/places?action=photo&photo_reference=${place.photos[0].photo_reference}&maxwidth=300` }}
+                              style={{ width: '100%', height: '100%' }}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colours.accent + '12' }}>
+                              <Ionicons name="location" size={24} color={colours.accent} />
+                            </View>
+                          )}
+                          {place.opening_hours?.open_now !== undefined && (
+                            <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: place.opening_hours.open_now ? '#00A78D' : '#cc3b2a', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                              <Text style={{ fontSize: 9, fontWeight: '800', color: 'white' }}>
+                                {place.opening_hours.open_now ? t('Open', 'Ouvert') : t('Closed', 'Fermé')}
+                              </Text>
                             </View>
                           )}
                         </View>
-                        <Ionicons name="chevron-forward" size={16} color={colours.muted} />
+                        {/* Info */}
+                        <View style={{ padding: 8 }}>
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: colours.text }} numberOfLines={1}>{place.name}</Text>
+                          {place.rating && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3 }}>
+                              <Ionicons name="star" size={10} color="#e8a020" />
+                              <Text style={{ fontSize: 11, fontWeight: '600', color: colours.muted }}>{place.rating}</Text>
+                            </View>
+                          )}
+                        </View>
                       </TouchableOpacity>
                     ))}
                   </View>
