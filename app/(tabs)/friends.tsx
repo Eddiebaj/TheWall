@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Alert, Share, Clipboard
+  ActivityIndicator, Alert, Share, Clipboard, Modal
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -12,6 +13,7 @@ import { supabase } from '../../lib/supabase';
 export default function FriendsScreen() {
   const { colours } = useApp();
   const { user, profile } = useAuth();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
 
   const [friends, setFriends] = useState<any[]>([]);
@@ -22,6 +24,8 @@ export default function FriendsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
+  const [showNewGroup, setShowNewGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
 
   useEffect(() => {
     if (!user) return;
@@ -144,23 +148,21 @@ export default function FriendsScreen() {
     });
   };
 
-  const createGroup = async () => {
-    if (friends.length === 0) {
-      Alert.alert('Add friends first', 'Add some friends before creating a group.');
-      return;
+  const createGroup = () => setShowNewGroup(true);
+
+  const submitNewGroup = async () => {
+    if (!newGroupName.trim()) return;
+    const { data: conv } = await supabase
+      .from('conversations')
+      .insert({ name: newGroupName.trim(), created_by: user!.id })
+      .select()
+      .single();
+    if (conv) {
+      await supabase.from('conversation_members').insert({ conversation_id: conv.id, user_id: user!.id });
+      setNewGroupName('');
+      setShowNewGroup(false);
+      loadConversations();
     }
-    Alert.prompt('New Group', 'Group name:', async (name) => {
-      if (!name?.trim()) return;
-      const { data: conv } = await supabase
-        .from('conversations')
-        .insert({ name: name.trim(), created_by: user!.id })
-        .select()
-        .single();
-      if (conv) {
-        await supabase.from('conversation_members').insert({ conversation_id: conv.id, user_id: user!.id });
-        loadConversations();
-      }
-    });
   };
 
   if (!user) {
@@ -311,7 +313,7 @@ export default function FriendsScreen() {
               Groups
             </Text>
             {conversations.map(conv => (
-              <TouchableOpacity key={conv.id} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, padding: 14, marginBottom: 8 }}>
+              <TouchableOpacity key={conv.id} onPress={() => router.push({ pathname: '/chat/[id]', params: { id: conv.id, name: conv.name } } as any)} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, padding: 14, marginBottom: 8 }}>
                 <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#7b5ea7' + '20', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
                   <Ionicons name="people" size={20} color="#7b5ea7" />
                 </View>
@@ -356,6 +358,30 @@ export default function FriendsScreen() {
         </View>
 
       </ScrollView>
+
+      <Modal visible={showNewGroup} transparent animationType="fade" onRequestClose={() => setShowNewGroup(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+          <View style={{ backgroundColor: colours.surface, borderRadius: 20, padding: 24, width: '100%' }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text, marginBottom: 16 }}>New Group</Text>
+            <TextInput
+              style={{ backgroundColor: colours.bg, borderRadius: 12, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colours.text, marginBottom: 16 }}
+              placeholder="Group name..."
+              placeholderTextColor={colours.muted}
+              value={newGroupName}
+              onChangeText={setNewGroupName}
+              autoFocus
+            />
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity onPress={() => setShowNewGroup(false)} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: colours.muted }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={submitNewGroup} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: colours.accent, alignItems: 'center' }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: 'white' }}>Create</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

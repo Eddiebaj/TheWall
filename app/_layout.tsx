@@ -215,6 +215,7 @@ function RootNav() {
       <Stack.Screen name="stop/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="route/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="insights" options={{ headerShown: false }} />
+      <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
     </Stack>
   );
 }
