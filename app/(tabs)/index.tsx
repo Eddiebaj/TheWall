@@ -69,8 +69,6 @@ import {
 // NewsArticle import removed — news lives in dedicated News tab
 import { haversineKm } from '../../lib/geo';
 import { getDelayContext } from '../../lib/delayContext';
-import { FrequentRoute, detectFrequentRoutes } from '../../lib/frequentRoutes';
-import { CommuteDeal, getCommuteDeals, isCommuteWindow, scheduleCommuteNotification } from '../../lib/commuteDeals';
 import { SK_CROWDING_CACHE, SK_FREQUENT_ARRIVALS_CACHE, SK_FREQUENT_CARD_DISMISSED, SK_LAST_CROWDING_REPORT, SK_TRIP_HISTORY, SK_TRIP_SHARING, SK_CLASS_SCHEDULE } from '../../lib/storageKeys';
 // NewsSection removed from home — news lives in Account tab modal
 // NeighbourhoodSection removed — inlined for scroll reliability
@@ -83,6 +81,7 @@ import YourSpotsSection from '../../components/MyBoard/YourSpotsSection';
 import TonightSection from '../../components/MyBoard/TonightSection';
 import AroundOttawaSection from '../../components/MyBoard/AroundOttawaSection';
 import SocialModal from '../../components/SocialModal';
+import EventsModal from '../../components/EventsModal';
 import SavedPlaceCard from '../../components/SavedPlaceCard';
 
 const TRIP_UPDATES = 'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt-tp/beta/v1/TripUpdates?format=json';
@@ -758,11 +757,6 @@ function LiveScreenInner() {
   const [crowdingReportItem, setCrowdingReportItem] = useState<Arrival | null>(null);
   const [crowdingSubmitting, setCrowdingSubmitting] = useState(false);
   const [crowdingToast, setCrowdingToast] = useState(false);
-  const [frequentRoutes, setFrequentRoutes] = useState<FrequentRoute[]>([]);
-  const [frequentArrivals, setFrequentArrivals] = useState<Record<string, { minsAway: number; delay: number; headsign: string } | null>>({});
-  const [frequentCardDismissed, setFrequentCardDismissed] = useState(true);
-  const [commuteDeals, setCommuteDeals] = useState<CommuteDeal[]>([]);
-  const [commuteDealsLoading, setCommuteDealsLoading] = useState(false);
   const commuteCardDismissedRef = useRef(false);
   const [timeFormat, setTimeFormat] = useState<'relative' | 'absolute'>('relative');
   const [passedHintShown, setPassedHintShown] = useState(false);
@@ -803,23 +797,11 @@ function LiveScreenInner() {
       });
   }, [boardExpandItem]);
   const [savedRoutes, setSavedRoutes] = useState<{ id: string; fromLabel: string; toLabel: string; fromLat: number; fromLng: number; toLat: number; toLng: number }[]>([]);
-  const [showLine1, setShowLine1] = useState(false);
-  const [showLine2, setShowLine2] = useState(false);
-  const [showEast, setShowEast] = useState(false);
-  const [showWest, setShowWest] = useState(false);
-  const [showNorth, setShowNorth] = useState(false);
-  const [showSouth, setShowSouth] = useState(false);
   // newsArticles, selectedNeighbourhood, neighbourhoodSheetVisible removed — discover section moved to dedicated tab
   const [alerts, setAlerts] = useState<ServiceAlert[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [alertsModalVisible, setAlertsModalVisible] = useState(false);
   const [dismissedAlertIds, setDismissedAlertIds] = useState<Set<string>>(new Set());
-  const [editMode, setEditMode] = useState(false);
-  const [sectionOrder, setSectionOrder] = useState<string[]>(DEFAULT_SECTION_ORDER);
-  const [quickActionIds, setQuickActionIds] = useState<string[]>(DEFAULT_QUICK_ACTION_IDS);
-  const [ottawaLifeIds, setOttawaLifeIds] = useState<string[]>(DEFAULT_OTTAWA_LIFE_IDS);
-  const [swapTileIndex, setSwapTileIndex] = useState<number | null>(null);
-  const [swapSheetVisible, setSwapSheetVisible] = useState(false);
   const [activeServicesTab, setActiveServicesTab] = useState('transit');
   const [servicesExpanded, setServicesExpanded] = useState(false);
   const [weather, setWeather] = useState<{ temp: number; condition: string; icon: string } | null>(null);
@@ -828,8 +810,6 @@ function LiveScreenInner() {
   const [dailyForecast, setDailyForecast] = useState<{ day: string; date: string; high: number; low: number; icon: string; precip: number }[]>([]);
   const [locationName, setLocationName] = useState('Ottawa, Ontario');
   // Ottawa road closures
-  // Commute insights
-  const [commuteInsight, setCommuteInsight] = useState<{ fromLabel: string; toLabel: string; avgDuration: number; count: number; affectedAlert?: string } | null>(null);
   const [weatherBannerDismissed, setWeatherBannerDismissed] = useState(false);
   // Events modal (Ticketmaster + Eventbrite)
   const [eventsModal, setEventsModal] = useState(false);
@@ -990,31 +970,6 @@ function LiveScreenInner() {
         }
       } catch (e) { if (__DEV__) console.warn('JSON parse reports failed:', e); }
     });
-    AsyncStorage.getItem(SK_SECTION_ORDER).then(val => {
-      try {
-        if (val) {
-          let saved: string[] = JSON.parse(val);
-          // Remove legacy keys
-          saved = saved.filter(s => s !== 'quick' && s !== 'ottawa' && s !== 'map' && s !== 'gas' && s !== 'news' && s !== 'discover');
-          // Ensure all required sections exist
-          const required = DEFAULT_SECTION_ORDER;
-          for (const key of required) {
-            if (!saved.includes(key)) saved.push(key);
-          }
-          // Remove any unknown sections
-          saved = saved.filter(s => required.includes(s));
-          setSectionOrder(saved);
-          AsyncStorage.setItem(SK_SECTION_ORDER, JSON.stringify(saved));
-        }
-      } catch (e) {
-        if (__DEV__) console.warn('JSON parse section order failed:', e);
-        // Reset to default on parse failure
-        setSectionOrder(DEFAULT_SECTION_ORDER);
-        AsyncStorage.setItem(SK_SECTION_ORDER, JSON.stringify(DEFAULT_SECTION_ORDER));
-      }
-    });
-    AsyncStorage.removeItem(SK_QUICK_ACTIONS);
-    AsyncStorage.removeItem(SK_OTTAWA_LIFE);
     fetchAlerts();
     fetchWeather();
     // Load dismissed alert IDs
@@ -1026,88 +981,9 @@ function LiveScreenInner() {
     // Register push token and configure notification handler
     configureNotificationHandler();
     registerPushToken(language).catch(() => {});
-    // Detect frequent routes for glanceable card
-    detectFrequentRoutes().then(routes => {
-      setFrequentRoutes(routes);
-      if (routes.length > 0) {
-        AsyncStorage.getItem(SK_FREQUENT_CARD_DISMISSED).then(val => {
-          if (val) {
-            const ts = parseInt(val, 10);
-            if (Date.now() - ts < 86400000) return; // 24hr cooldown
-          }
-          setFrequentCardDismissed(false);
-        }).catch(() => setFrequentCardDismissed(false));
-      }
-    }).catch(() => {});
-    // Detect commute patterns from trip history
-    AsyncStorage.getItem(SK_TRIP_HISTORY).then(val => {
-      if (!val) return;
-      try {
-        const trips: { fromLabel: string; fromLat: number; fromLng: number; toLabel: string; toLat: number; toLng: number; durationMins: number; plannedAt: string }[] = JSON.parse(val);
-        if (trips.length < 3) return;
-        // Group similar trips (same from/to within 500m)
-        const groups: { fromLabel: string; toLabel: string; durations: number[]; count: number }[] = [];
-        for (const trip of trips) {
-          const match = groups.find(g => {
-            const fromMatch = trips.filter(t => t.fromLabel === g.fromLabel).length > 0;
-            return fromMatch && g.toLabel === trip.toLabel;
-          });
-          if (match) { match.durations.push(trip.durationMins); match.count++; }
-          else { groups.push({ fromLabel: trip.fromLabel, toLabel: trip.toLabel, durations: [trip.durationMins], count: 1 }); }
-        }
-        const commute = groups.find(g => g.count >= 3);
-        if (commute) {
-          const avg = Math.round(commute.durations.reduce((a, b) => a + b, 0) / commute.durations.length);
-          setCommuteInsight({ fromLabel: commute.fromLabel, toLabel: commute.toLabel, avgDuration: avg, count: commute.count });
-        }
-      } catch {}
-    }).catch(() => {});
   }, []);
 
-  // Commute deals — separate effect with 60s interval so card appears when window starts
-  useEffect(() => {
-    const loadCommuteDeals = () => {
-      if (!isCommuteWindow() || commuteCardDismissedRef.current) return;
-      setCommuteDealsLoading(true);
-      getCommuteDeals(language as 'en' | 'fr').then(deals => {
-        setCommuteDeals(deals);
-        scheduleCommuteNotification(deals, language as 'en' | 'fr').catch(() => {});
-      }).catch(() => {}).finally(() => setCommuteDealsLoading(false));
-    };
-    loadCommuteDeals();
-    const interval = setInterval(loadCommuteDeals, 60_000);
-    return () => clearInterval(interval);
-  }, [language]);
 
-  const saveCustomization = async (order: string[], qaIds: string[], olIds: string[]) => {
-    await AsyncStorage.setItem(SK_SECTION_ORDER, JSON.stringify(order));
-    await AsyncStorage.setItem(SK_QUICK_ACTIONS, JSON.stringify(qaIds));
-    await AsyncStorage.setItem(SK_OTTAWA_LIFE, JSON.stringify(olIds));
-  };
-
-  const moveSectionUp = (id: string) => {
-    const idx = sectionOrder.indexOf(id);
-    if (idx <= 0) return;
-    const newOrder = [...sectionOrder];
-    [newOrder[idx - 1], newOrder[idx]] = [newOrder[idx], newOrder[idx - 1]];
-    setSectionOrder(newOrder);
-  };
-
-  const moveSectionDown = (id: string) => {
-    const idx = sectionOrder.indexOf(id);
-    if (idx >= sectionOrder.length - 1) return;
-    const newOrder = [...sectionOrder];
-    [newOrder[idx], newOrder[idx + 1]] = [newOrder[idx + 1], newOrder[idx]];
-    setSectionOrder(newOrder);
-  };
-
-  const swapOttawaLifeTile = (tileIndex: number, newId: string) => {
-    const newIds = [...ottawaLifeIds];
-    newIds[tileIndex] = newId;
-    setOttawaLifeIds(newIds);
-    setSwapSheetVisible(false);
-    setSwapTileIndex(null);
-  };
 
   const saveBoardItems = (items: SavedBoardItem[]) => {
     setSavedBoard(items);
@@ -1237,14 +1113,6 @@ function LiveScreenInner() {
     catch { setAlerts([]); } finally { setAlertsLoading(false); }
   };
 
-  // Cross-reference commute with active alerts
-  useEffect(() => {
-    if (!commuteInsight || alerts.length === 0) return;
-    const critical = alerts.find(a => a.category === 'cancellation' || a.category === 'lrt' || a.category === 'delay');
-    if (critical) {
-      setCommuteInsight(prev => prev ? { ...prev, affectedAlert: critical.title } : null);
-    }
-  }, [alerts]);
 
   const getUserCoords = async (): Promise<{ lat: number; lng: number }> => {
     try {
@@ -1577,67 +1445,15 @@ function LiveScreenInner() {
     setCrowdingSubmitting(false);
   };
 
-  // ── Frequent rider card arrivals polling ──────────────────────
-  const fetchFrequentArrivals = async (routes: FrequentRoute[], skipCache = false) => {
-    // Show cached data instantly while fetching fresh
-    if (!skipCache) {
-      try {
-        const cached = await AsyncStorage.getItem(SK_FREQUENT_ARRIVALS_CACHE);
-        if (cached) {
-          const { data, ts } = JSON.parse(cached);
-          if (Date.now() - ts < 60000 && data) {
-            setFrequentArrivals(data);
-          }
-        }
-      } catch { /* ignore */ }
-    }
-
-    const stopIds = [...new Set(routes.filter(r => r.stopId).map(r => r.stopId))];
-    const results: Record<string, { minsAway: number; delay: number; headsign: string } | null> = {};
-    await Promise.allSettled(stopIds.map(async sid => {
-      try {
-        const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${sid}`, { timeout: 5000 });
-        if (!resp.ok) return;
-        const data = await resp.json();
-        const trips = data.trips || data.result?.trips || [];
-        for (const route of routes.filter(r => r.stopId === sid)) {
-          if (route.routeId) {
-            const match = trips.find((t: any) => String(t.routeId || t.RouteNo) === route.routeId);
-            if (match) {
-              const mins = typeof match.minsAway === 'number' ? match.minsAway : parseInt(match.AdjustedScheduleTime || '0', 10);
-              const delay = typeof match.delay === 'number' ? match.delay : (parseFloat(match.AdjustmentAge || '0') > 0 ? Math.round(parseFloat(match.AdjustmentAge)) : 0);
-              results[route.routeId] = { minsAway: mins, delay, headsign: match.headsign || match.TripDestination || '' };
-            }
-          } else {
-            const first = trips[0];
-            if (first) {
-              const mins = typeof first.minsAway === 'number' ? first.minsAway : parseInt(first.AdjustedScheduleTime || '0', 10);
-              results[sid] = { minsAway: mins, delay: 0, headsign: first.headsign || first.TripDestination || '' };
-            }
-          }
-        }
-      } catch { /* network error */ }
-    }));
-    setFrequentArrivals(results);
-    // Cache successful results
-    if (Object.keys(results).length > 0) {
-      AsyncStorage.setItem(SK_FREQUENT_ARRIVALS_CACHE, JSON.stringify({ data: results, ts: Date.now() })).catch(() => {});
-    }
-  };
-
-  useEffect(() => {
-    if (frequentRoutes.length > 0) fetchFrequentArrivals(frequentRoutes);
-  }, [frequentRoutes]);
 
   useEffect(() => {
     const interval = setInterval(() => {
       if (AppState.currentState === 'active') {
         fetchArrivals(stopId);
-        if (frequentRoutes.length > 0 && !frequentCardDismissed) fetchFrequentArrivals(frequentRoutes, true);
       }
     }, 30000);
     return () => clearInterval(interval);
-  }, [stopId, fetchArrivals, frequentRoutes, frequentCardDismissed]);
+  }, [stopId, fetchArrivals]);
 
   useEffect(() => {
     if (arrivals.length > 0 && arrivals[0].minsAway > 15) {
@@ -1940,216 +1756,7 @@ function LiveScreenInner() {
   };
 
 
-  // ── Events Modal (Ticketmaster / Eventbrite) ─────────────────
-  const renderEventsModal = () => {
-    const EB_CATS = ['Music', 'Food & Drink', 'Arts & Culture', 'Health', 'Sports', 'Business', 'Community', 'Family', 'Science & Tech', 'Hobbies'];
-    const TM_CATS = eventsSource === 'ticketmaster' ? [...new Set(events.map(e => e.category || 'Other'))].sort() : [];
 
-    const filteredEvents = events.filter(ev => {
-      const q = eventsSearch.toLowerCase();
-      if (q && !ev.name.toLowerCase().includes(q) && !(ev.venue || '').toLowerCase().includes(q)) return false;
-      if (eventsCategory) {
-        if (eventsSource === 'ticketmaster') {
-          if ((ev.category || 'Other') !== eventsCategory) return false;
-        } else {
-          if ((ev.category || '') !== eventsCategory) return false;
-        }
-      }
-      if (eventsFreeOnly && !ev.free) return false;
-      return true;
-    });
-
-    const catPills = eventsSource === 'ticketmaster' ? TM_CATS : EB_CATS;
-
-    // Sort by distance if Near Me active
-    let displayEvents = filteredEvents;
-    if (eventsNearMe && eventsUserCoords) {
-      displayEvents = [...filteredEvents].sort((a, b) => {
-        const coordA = a.address ? eventsGeoCache[a.address] : null;
-        const coordB = b.address ? eventsGeoCache[b.address] : null;
-        const distA = coordA ? haversineKm(eventsUserCoords.lat, eventsUserCoords.lng, coordA.lat, coordA.lng) : 999;
-        const distB = coordB ? haversineKm(eventsUserCoords.lat, eventsUserCoords.lng, coordB.lat, coordB.lng) : 999;
-        return distA - distB;
-      });
-    }
-
-    return (
-    <Modal visible={eventsModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => { setEventsModal(false); setEventsSearch(''); setEventsCategory(null); setEventsNearMe(false); }}>
-      <View style={[styles.modalContainer, { backgroundColor: colours.bg }]}>
-        <View style={[styles.modalHeader, { borderBottomColor: colours.border }]}>
-          <View>
-            <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>
-              {eventsSource === 'ticketmaster' ? 'Live Events' : 'Community Events'}
-            </Text>
-            <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
-              {eventsSource === 'ticketmaster' ? 'Ticketmaster · Ottawa' : 'Arts & Community · Ottawa'}
-            </Text>
-          </View>
-          <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => { setEventsModal(false); setEventsSearch(''); setEventsCategory(null); setEventsNearMe(false); }} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
-            <Ionicons name="close" size={18} color={colours.text} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Source toggle tabs */}
-        <View style={{ flexDirection: 'row', marginHorizontal: 16, marginTop: 12, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: colours.border }}>
-          <TouchableOpacity
-            onPress={() => { setEventsSource('ticketmaster'); setEventsCategory(null); fetchTicketmasterEvents(); }}
-            style={{ flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: eventsSource === 'ticketmaster' ? colours.accent : colours.surface }}
-          >
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: eventsSource === 'ticketmaster' ? '#fff' : colours.text }}>{t('Live Events', 'Événements')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => { setEventsSource('eventbrite'); setEventsCategory(null); fetchEventbriteEvents(); }}
-            style={{ flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: eventsSource === 'eventbrite' ? colours.accent : colours.surface }}
-          >
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: eventsSource === 'eventbrite' ? '#fff' : colours.text }}>{t('Community', 'Communauté')}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Search bar + Near Me + Free */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
-            <Ionicons name="search-outline" size={16} color={colours.muted} />
-            <TextInput
-              value={eventsSearch}
-              onChangeText={setEventsSearch}
-              placeholder={t('Search events...', 'Rechercher des \u00E9v\u00E9nements...')}
-              placeholderTextColor={colours.muted}
-              style={{ flex: 1, fontSize: fonts.sm, color: colours.text }}
-            />
-            {eventsSearch.length > 0 && (
-              <TouchableOpacity onPress={() => setEventsSearch('')}>
-                <Ionicons name="close-circle" size={16} color={colours.muted} />
-              </TouchableOpacity>
-            )}
-          </View>
-          <TouchableOpacity onPress={toggleNearMe} accessibilityRole="button" accessibilityState={{ selected: eventsNearMe }} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, backgroundColor: eventsNearMe ? colours.accent : colours.surface, borderColor: eventsNearMe ? colours.accent : colours.border }}>
-            <Ionicons name="location" size={14} color={eventsNearMe ? 'white' : colours.muted} />
-            <Text style={{ fontSize: 12, fontWeight: '700', color: eventsNearMe ? 'white' : colours.text }}>{t('Near Me', 'Pr\u00E8s de moi')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setEventsFreeOnly(f => !f)} accessibilityRole="button" accessibilityState={{ selected: eventsFreeOnly }} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, backgroundColor: eventsFreeOnly ? '#2d7a3a' : colours.surface, borderColor: eventsFreeOnly ? '#2d7a3a' : colours.border }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: eventsFreeOnly ? 'white' : colours.text }}>{t('Free', 'Gratuit')}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Category filter pills */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ height: 50, flexGrow: 0, flexShrink: 0 }} contentContainerStyle={{ paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center' }}>
-          {(['All', ...catPills] as string[]).map(cat => {
-            const active = cat === 'All' ? eventsCategory === null : eventsCategory === cat;
-            // Estimate width: ~9px per char + 32px padding
-            const minW = Math.max(52, cat.length * 9 + 32);
-            return (
-              <Pressable
-                key={cat}
-                onPress={() => setEventsCategory(cat === 'All' ? null : (active ? null : cat))}
-                style={({ pressed }) => ({
-                  marginRight: 8,
-                  width: minW,
-                  height: 34,
-                  borderRadius: 17,
-                  opacity: pressed ? 0.7 : 1,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: active ? colours.accent : colours.surface,
-                  borderWidth: 1,
-                  borderColor: active ? colours.accent : colours.border,
-                })}>
-                <Text style={{ fontSize: 13, color: active ? '#ffffff' : '#111111' }}>{cat}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-
-        <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-          {eventsLoading ? (
-            <View style={styles.modalCenter}><ActivityIndicator color={colours.accent} size="large" /></View>
-          ) : displayEvents.length === 0 ? (
-            <View style={styles.modalCenter}>
-              <Ionicons name="calendar-outline" size={36} color={colours.muted} />
-              <Text style={{ color: colours.muted, marginTop: 12, textAlign: 'center' }}>
-                {eventsSearch || eventsCategory ? t('No events match your filters.', 'Aucun événement ne correspond.') : t('No upcoming events found in Ottawa.', 'Aucun événement à venir à Ottawa.')}
-              </Text>
-              {!eventsSearch && !eventsCategory && (
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  accessibilityLabel={t('Refresh events', 'Actualiser les événements')}
-                  style={{ marginTop: 14, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: colours.accent, backgroundColor: colours.accent + '15' }}
-                  onPress={() => { eventsCacheTime.current.ticketmaster = 0; eventsCacheTime.current.eventbrite = 0; fetchTicketmasterEvents(); fetchEventbriteEvents(); }}
-                >
-                  <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.accent }}>{t('Refresh', 'Actualiser')}</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          ) : (
-            displayEvents.map(ev => renderEventCard(ev))
-          )}
-        </ScrollView>
-      </View>
-    </Modal>
-  );
-  };
-
-  const inferEventCategory = (name: string, venue: string): { label: string; color: string } => {
-    const txt = (name + ' ' + venue).toLowerCase();
-    if (/concert|music|jazz|band|orchestra|choir|karaoke|vinyl|piano|singer|live.*music|opéra|opera|folk|rock|metal|indie|acoustic|blues|country.*night|dj\b|dubstep|hip.hop|rnb|r&b|punk|funk|reggae|dueling piano|open mic|standup|stand-up|comedy|improv/.test(txt)) return { label: 'Music & Arts', color: '#6c3fc7' };
-    if (/drag|theatre|théâtre|lecture.*théâtrale|spoken|storytelling|poetry|burlesque|cabaret|variety|film|cinema|screening|art show|gallery|exhibit|museum|craft|paint|drawing|sketch|photography|ceramic|mural|studio|wallack|art supply|art fair|art hang/.test(txt)) return { label: 'Arts & Culture', color: '#b5450b' };
-    if (/food|eat|drink|wine|beer|cocktail|dinner|lunch|brunch|breakfast|tasting|culinary|cuisine|chef|iftar|feast|brew|supper|tea|bistro|pub night|trivia|bingo|bowl/.test(txt)) return { label: 'Food & Drink', color: '#1a7a4a' };
-    if (/yoga|fitness|run|5k|10k|race|workout|gym|wellness|pilates|meditation|health|dance|zumba|sport|hockey|basketball|soccer|tennis|swim|hike|cycling|bike/.test(txt)) return { label: 'Wellness', color: '#0077b6' };
-    if (/career|hiring|job|networking|entrepreneur|business|startup|invest|workshop|seminar|conference|summit|panel|professional|tech|ai\b|data science|machine learning|fastest growing|breakfast of champions/.test(txt)) return { label: 'Business', color: '#444' };
-    if (/family|kids|children|child|parent|youth|teen|baby|toddler|camp|school|tinkering|playgroup|march break/.test(txt)) return { label: 'Family', color: '#e67e22' };
-    if (/disco|party|mixer|singles|social|nightclub|gala|celebration|fest|festival|reunion|meetup|meet-up|speed dating|trivia night/.test(txt)) return { label: 'Social', color: '#8e44ad' };
-    if (/charity|fundrais|volunteer|community|indigenous|multicultural|cultural|awareness|inclusion|diversity|women|black|pride|spiritual|religious|church|mosque|iftar|reconcili/.test(txt)) return { label: 'Community', color: '#0077a0' };
-    return { label: 'Community', color: '#0077a0' };
-  };
-
-  const CATEGORY_COLORS: { [key: string]: string } = {
-    'Music': '#6c3fc7', 'Food & Drink': '#1a7a4a', 'Arts & Culture': '#b5450b',
-    'Health': '#0077b6', 'Sports': '#006400', 'Business': '#444',
-    'Community': '#0077a0', 'Family': '#e67e22', 'Science & Tech': '#2c3e7a', 'Hobbies': '#7b5ea7',
-  };
-
-  const renderEventCard = (ev: typeof events[0]) => {
-    const catLabel = eventsSource === 'eventbrite' ? (ev.category || 'Community') : null;
-    const catColor = catLabel ? (CATEGORY_COLORS[catLabel] || '#555') : null;
-    return (
-      <TouchableOpacity key={ev.id} onPress={() => ev.url && Linking.openURL(ev.url)} style={{ marginHorizontal: 16, marginTop: 10, padding: 12, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, ...cardShadow }}>
-        {ev.image && (
-          <View style={{ height: 85, borderRadius: 9, overflow: 'hidden', marginBottom: 9, backgroundColor: colours.border }}>
-            <ImageBackground source={{ uri: ev.image }} style={{ flex: 1 }} resizeMode="cover">
-              <View style={{ position: 'absolute', top: 7, left: 7, flexDirection: 'row', gap: 5 }}>
-                {catLabel && catColor && (
-                  <View style={{ backgroundColor: catColor + 'ee', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }}>
-                    <Text style={{ color: 'white', fontSize: 10, fontWeight: '700' }}>{catLabel}</Text>
-                  </View>
-                )}
-                {ev.free && (
-                  <View style={{ backgroundColor: '#2d7a3aee', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }}>
-                    <Text style={{ color: 'white', fontSize: 10, fontWeight: '800' }}>FREE</Text>
-                  </View>
-                )}
-              </View>
-            </ImageBackground>
-          </View>
-        )}
-        {!ev.image && catLabel && catColor && (
-          <View style={{ backgroundColor: catColor + '18', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2, alignSelf: 'flex-start', marginBottom: 6, borderWidth: 1, borderColor: catColor + '40' }}>
-            <Text style={{ color: catColor, fontSize: 10, fontWeight: '700' }}>{catLabel}</Text>
-          </View>
-        )}
-        <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text, marginBottom: 3 }} numberOfLines={2}>{ev.name}</Text>
-        {ev.date && (
-          <Text style={{ fontSize: fonts.sm, color: colours.accent, fontWeight: '600', marginBottom: 1 }}>
-            {new Date(ev.date + 'T12:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })}
-            {ev.time ? ` · ${ev.time}` : ''}
-          </Text>
-        )}
-        {ev.venue ? <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{ev.venue}</Text> : null}
-        {ev.url && <Text style={{ fontSize: fonts.sm, color: colours.accent, fontWeight: '600', marginTop: 7 }}>
-          {eventsSource === 'ticketmaster' ? 'Get tickets →' : ev.source === 'City of Ottawa' ? 'View on ottawa.ca →' : 'Get tickets →'}
-        </Text>}
-      </TouchableOpacity>
-    );
-  };
 
 
 
@@ -2488,24 +2095,6 @@ function LiveScreenInner() {
 
   const alertDotColour = () => { if (!hasAlerts) return colours.accent; return CATEGORY_COLOUR[activeAlerts[0]?.category] || colours.orange; };
 
-  const wrapSection = (id: string, children: React.ReactNode) => {
-    if (!editMode) return children;
-    const idx = sectionOrder.indexOf(id);
-    return (
-      <View style={{ position: 'relative' }}>
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderWidth: 2, borderColor: colours.accent + '40', borderRadius: 16, margin: 8, borderStyle: 'dashed', zIndex: 1, pointerEvents: 'none' }} />
-        <View style={{ position: 'absolute', right: 16, top: 8, flexDirection: 'row', gap: 4, zIndex: 10 }}>
-          <TouchableOpacity onPress={() => moveSectionUp(id)} style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Move section up', 'Deplacer la section vers le haut')}>
-            <Ionicons name="chevron-up" size={14} color={idx === 0 ? colours.muted : colours.accent} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => moveSectionDown(id)} style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Move section down', 'Deplacer la section vers le bas')}>
-            <Ionicons name="chevron-down" size={14} color={idx === sectionOrder.length - 1 ? colours.muted : colours.accent} />
-          </TouchableOpacity>
-        </View>
-        {children}
-      </View>
-    );
-  };
 
 
 
@@ -2782,25 +2371,6 @@ function LiveScreenInner() {
     </Modal>
   );
 
-  const renderSwapSheet = () => (
-    <Modal visible={swapSheetVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setSwapSheetVisible(false)}>
-      <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-        <TouchableWithoutFeedback onPress={() => setSwapSheetVisible(false)}><View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)' }} /></TouchableWithoutFeedback>
-        <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40 }}>
-          <View style={{ width: 36, height: 4, backgroundColor: colours.border, borderRadius: 2, alignSelf: 'center', marginBottom: 16 }} />
-          <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text, marginBottom: 4 }}>{t('Change Tile', 'Changer la tuile')}</Text>
-          <Text style={{ fontSize: fonts.sm, color: colours.muted, marginBottom: 16 }}>{t('Pick a category for this slot', 'Choisissez une catégorie pour cet emplacement')}</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-            {ALL_OTTAWA_LIFE.map(item => {
-              const isActive = swapTileIndex !== null && ottawaLifeIds[swapTileIndex] === item.id;
-              const isUsed = ottawaLifeIds.includes(item.id) && !isActive;
-              return (<TouchableOpacity key={item.id} disabled={isUsed} onPress={() => swapTileIndex !== null && swapOttawaLifeTile(swapTileIndex, item.id)} style={{ width: '21%', alignItems: 'center', padding: 10, borderRadius: 14, borderWidth: 2, borderColor: isActive ? item.accent : isUsed ? colours.border : colours.border, backgroundColor: isActive ? item.accent + '18' : isUsed ? colours.bg : colours.surface, opacity: isUsed ? 0.4 : 1 }}><Ionicons name={item.icon as any} size={22} color={isActive ? item.accent : isUsed ? colours.muted : item.accent} /><Text style={{ fontSize: 10, fontWeight: '700', color: isActive ? item.accent : colours.text, marginTop: 4, textAlign: 'center' }} numberOfLines={1}>{language === 'fr' ? item.label_fr : item.label_en}</Text></TouchableOpacity>);
-            })}
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
 
   const renderExpandedArrivals = () => {
     const expandedFav = favs.find(f => f.id === expandedStopId);
@@ -2935,116 +2505,7 @@ function LiveScreenInner() {
     </Modal>
   );
 
-  const quickActions = ALL_QUICK_ACTIONS.filter(a => quickActionIds.includes(a.id));
-  const ottawaLife = ottawaLifeIds.map(id => ALL_OTTAWA_LIFE.find(o => o.id === id)).filter(Boolean) as typeof ALL_OTTAWA_LIFE;
 
-  const renderSection = (sectionId: string) => {
-    switch (sectionId) {
-      case 'otrain': return (
-        <React.Fragment key="otrain">{wrapSection('otrain', <>
-          <Text style={[styles.sectionLabel, { color: colours.muted, fontSize: fonts.sm, marginBottom: 6 }]}>{t('O-Train', 'O-Train')}</Text>
-          <TouchableOpacity style={[{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 20, marginBottom: showLine1 ? 0 : 8, borderWidth: 1, borderRadius: 14, borderBottomLeftRadius: showLine1 ? 0 : 14, borderBottomRightRadius: showLine1 ? 0 : 14, padding: 12, backgroundColor: showLine1 ? colours.lrt + '12' : colours.surface, borderColor: showLine1 ? colours.lrt : colours.border }, cardShadow]} onPress={() => { setShowLine1(!showLine1); setShowLine2(false); setShowEast(false); setShowWest(false); setShowNorth(false); setShowSouth(false); }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colours.lrt + '20', alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 11, fontWeight: '900', color: colours.lrt }}>L1</Text></View>
-              <View><Text style={{ fontSize: fonts.md, fontWeight: '700', color: showLine1 ? colours.lrt : colours.text }}>{t('Confederation Line', 'Ligne Confédération')}</Text><Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>{t("Tunney's Pasture ↔ Blair", "Tunney's ↔ Blair")}</Text></View>
-            </View>
-            <Ionicons name={showLine1 ? 'chevron-up' : 'chevron-down'} size={16} color={colours.muted} />
-          </TouchableOpacity>
-          {showLine1 && (
-            <View style={[{ marginHorizontal: 20, marginBottom: 10, borderWidth: 1, borderTopWidth: 0, borderBottomLeftRadius: 16, borderBottomRightRadius: 16, backgroundColor: colours.surface, borderColor: colours.lrt, overflow: 'hidden' }, cardShadow]}>
-              <View style={{ flexDirection: 'row', gap: 10, padding: 12, paddingBottom: 8 }}>
-                {[{ label: t('Eastbound', 'Est'), sub: '→ Blair', active: showEast, onPress: () => { setShowEast(!showEast); setShowWest(false); } }, { label: t('Westbound', 'Ouest'), sub: "→ Tunney's", active: showWest, onPress: () => { setShowWest(!showWest); setShowEast(false); } }].map((dir, i) => (
-                  <TouchableOpacity key={i} style={{ flex: 1, borderWidth: 1, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: dir.active ? colours.lrt + '15' : colours.bg, borderColor: dir.active ? colours.lrt : colours.border }} onPress={dir.onPress}>
-                    <Text style={{ fontSize: fonts.md, fontWeight: '700', color: dir.active ? colours.lrt : colours.text }}>{dir.label}</Text>
-                    <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{dir.sub}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              {showEast && LRT_EAST.map((station, index) => (<TouchableOpacity key={station.id} style={[styles.stationRow, { borderBottomColor: colours.border }, stopId === station.id && { backgroundColor: colours.lrt + '12' }]} onPress={() => { loadStop(station.id, station.name); setExpandedStopId(station.id); setShowLine1(false); setShowEast(false); }} activeOpacity={0.7}><View style={styles.stationDotCol}><View style={[styles.stationDot, { borderColor: colours.border }, stopId === station.id && { backgroundColor: colours.lrt, borderColor: colours.lrt }]} />{index < LRT_EAST.length - 1 && <View style={[styles.stationLine, { backgroundColor: colours.border }]} />}</View><Text style={{ flex: 1, fontSize: fonts.md, fontWeight: stopId === station.id ? '700' : '500', color: stopId === station.id ? colours.lrt : colours.text }}>{station.name}</Text><Ionicons name="chevron-forward" size={14} color={colours.muted} /></TouchableOpacity>))}
-              {showWest && LRT_WEST.map((station, index) => (<TouchableOpacity key={station.id} style={[styles.stationRow, { borderBottomColor: colours.border }, stopId === station.id && { backgroundColor: colours.lrt + '12' }]} onPress={() => { loadStop(station.id, station.name); setExpandedStopId(station.id); setShowLine1(false); setShowWest(false); }} activeOpacity={0.7}><View style={styles.stationDotCol}><View style={[styles.stationDot, { borderColor: colours.border }, stopId === station.id && { backgroundColor: colours.lrt, borderColor: colours.lrt }]} />{index < LRT_WEST.length - 1 && <View style={[styles.stationLine, { backgroundColor: colours.border }]} />}</View><Text style={{ flex: 1, fontSize: fonts.md, fontWeight: stopId === station.id ? '700' : '500', color: stopId === station.id ? colours.lrt : colours.text }}>{station.name}</Text><Ionicons name="chevron-forward" size={14} color={colours.muted} /></TouchableOpacity>))}
-            </View>
-          )}
-          <TouchableOpacity style={[{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 20, marginBottom: showLine2 ? 0 : 12, borderWidth: 1, borderRadius: 14, borderBottomLeftRadius: showLine2 ? 0 : 14, borderBottomRightRadius: showLine2 ? 0 : 14, padding: 12, backgroundColor: showLine2 ? '#7b5ea7' + '12' : colours.surface, borderColor: showLine2 ? '#7b5ea7' : colours.border }, cardShadow]} onPress={() => { setShowLine2(!showLine2); setShowLine1(false); setShowEast(false); setShowWest(false); setShowNorth(false); setShowSouth(false); }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#7b5ea7' + '20', alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 11, fontWeight: '900', color: '#7b5ea7' }}>L2</Text></View>
-              <View><Text style={{ fontSize: fonts.md, fontWeight: '700', color: showLine2 ? '#7b5ea7' : colours.text }}>{t('Trillium Line', 'Ligne Trillium')}</Text><Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>{t('Bayview ↔ Limebank', 'Bayview ↔ Limebank')}</Text></View>
-            </View>
-            <Ionicons name={showLine2 ? 'chevron-up' : 'chevron-down'} size={16} color={colours.muted} />
-          </TouchableOpacity>
-          {showLine2 && (
-            <View style={[{ marginHorizontal: 20, marginBottom: 16, borderWidth: 1, borderTopWidth: 0, borderBottomLeftRadius: 16, borderBottomRightRadius: 16, backgroundColor: colours.surface, borderColor: '#7b5ea7', overflow: 'hidden' }, cardShadow]}>
-              <View style={{ flexDirection: 'row', gap: 10, padding: 12, paddingBottom: 8 }}>
-                {[{ label: t('Northbound', 'Nord'), sub: '→ Bayview', active: showNorth, onPress: () => { setShowNorth(!showNorth); setShowSouth(false); } }, { label: t('Southbound', 'Sud'), sub: '→ Limebank', active: showSouth, onPress: () => { setShowSouth(!showSouth); setShowNorth(false); } }].map((dir, i) => (
-                  <TouchableOpacity key={i} style={{ flex: 1, borderWidth: 1, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: dir.active ? '#7b5ea7' + '15' : colours.bg, borderColor: dir.active ? '#7b5ea7' : colours.border }} onPress={dir.onPress}>
-                    <Text style={{ fontSize: fonts.md, fontWeight: '700', color: dir.active ? '#7b5ea7' : colours.text }}>{dir.label}</Text>
-                    <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{dir.sub}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              {showNorth && LRT2_NORTH.map((station, index) => (<TouchableOpacity key={`n${index}`} style={[styles.stationRow, { borderBottomColor: colours.border }, stopId === station.id && { backgroundColor: '#7b5ea7' + '12' }]} onPress={() => { loadStop(station.id, station.name); setExpandedStopId(station.id); setShowLine2(false); setShowNorth(false); }} activeOpacity={0.7}><View style={styles.stationDotCol}><View style={[styles.stationDot, { borderColor: colours.border }, stopId === station.id && { backgroundColor: '#7b5ea7', borderColor: '#7b5ea7' }]} />{index < LRT2_NORTH.length - 1 && <View style={[styles.stationLine, { backgroundColor: colours.border }]} />}</View><Text style={{ flex: 1, fontSize: fonts.md, fontWeight: stopId === station.id ? '700' : '500', color: stopId === station.id ? '#7b5ea7' : colours.text }}>{station.name}</Text><Ionicons name="chevron-forward" size={14} color={colours.muted} /></TouchableOpacity>))}
-              {showSouth && LRT2_SOUTH.map((station, index) => (<TouchableOpacity key={`s${index}`} style={[styles.stationRow, { borderBottomColor: colours.border }, stopId === station.id && { backgroundColor: '#7b5ea7' + '12' }]} onPress={() => { loadStop(station.id, station.name); setExpandedStopId(station.id); setShowLine2(false); setShowSouth(false); }} activeOpacity={0.7}><View style={styles.stationDotCol}><View style={[styles.stationDot, { borderColor: colours.border }, stopId === station.id && { backgroundColor: '#7b5ea7', borderColor: '#7b5ea7' }]} />{index < LRT2_SOUTH.length - 1 && <View style={[styles.stationLine, { backgroundColor: colours.border }]} />}</View><Text style={{ flex: 1, fontSize: fonts.md, fontWeight: stopId === station.id ? '700' : '500', color: stopId === station.id ? '#7b5ea7' : colours.text }}>{station.name}</Text><Ionicons name="chevron-forward" size={14} color={colours.muted} /></TouchableOpacity>))}
-            </View>
-          )}
-        </>)}</React.Fragment>
-      );
-
-      case 'saved': return savedPlaces.length === 0 ? null : (
-        <React.Fragment key="saved">{wrapSection('saved', <>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 10 }}>
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('Saved Places', 'Lieux sauvegardés')}</Text>
-            <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{t('Long press to remove', 'Appui long pour retirer')}</Text>
-          </View>
-          <FlatList horizontal data={savedPlaces} keyExtractor={p => p.id} showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 20, paddingRight: 20, gap: 10, paddingBottom: 4 }} style={{ marginBottom: 20 }} snapToInterval={170} decelerationRate="fast" renderItem={({ item: place }) => (<SavedPlaceCard place={place} colours={colours} fonts={fonts} language={language} t={t} onPress={() => Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(`${place.name} ${place.vicinity}`)}`)} onLongPress={() => Alert.alert(t('Remove?', 'Retirer?'), place.name, [{ text: t('Cancel', 'Annuler'), style: 'cancel' }, { text: t('Remove', 'Retirer'), style: 'destructive', onPress: () => removeSavedPlace(place.id) }])} cardShadow={cardShadow} />)} />
-        </>)}</React.Fragment>
-      );
-
-      case 'services': return (
-          <React.Fragment key="services">{wrapSection('services', <>
-            <TouchableOpacity
-              onPress={() => setServicesExpanded(v => !v)}
-              activeOpacity={0.8}
-              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 20, marginBottom: servicesExpanded ? 12 : 16, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, ...cardShadow }}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name="grid" size={18} color={colours.accent} />
-                </View>
-                <View>
-                  <Text style={{ fontSize: 14, fontWeight: '800', color: colours.text }}>{t('Explore Ottawa', 'Explorer Ottawa')}</Text>
-                  <Text style={{ fontSize: 11, color: colours.muted, marginTop: 1 }}>{t('City services & tools', 'Services et outils')}</Text>
-                </View>
-              </View>
-              <Ionicons name={servicesExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={colours.muted} />
-            </TouchableOpacity>
-            {servicesExpanded && (
-              <ServicesGrid colours={colours} fonts={fonts} t={t} language={language} activeTab={activeServicesTab} onTabChange={setActiveServicesTab} onTileTap={handleServiceTile} cardShadow={cardShadow} />
-            )}
-          </>)}</React.Fragment>
-        );
-
-      case 'alerts': return (
-        <React.Fragment key="alerts">{wrapSection('alerts', <>
-          <View style={{ paddingHorizontal: 20, marginBottom: 6 }}>
-            <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.muted, letterSpacing: 1, textTransform: 'uppercase' }}>{t('Service Alerts', 'Alertes')}</Text>
-          </View>
-          <View style={[styles.notifBar, { backgroundColor: hasAlerts ? alertDotColour() + '12' : colours.surface, borderColor: hasAlerts ? alertDotColour() : colours.border, ...cardShadow }]}>
-            <View style={styles.notifLeft}>
-              {alertsLoading ? <ActivityIndicator size="small" color={colours.muted} style={{ marginRight: 8 }} /> : <View style={[styles.notifDot, { backgroundColor: alertDotColour() }]} />}
-              <Text style={{ color: colours.text, fontSize: fonts.md, fontWeight: '500', flex: 1 }} numberOfLines={1}>{alertBarText()}</Text>
-            </View>
-          </View>
-        </>)}</React.Fragment>
-      );
-
-      // 'map' case removed — Live Map is accessible via the dedicated tab
-
-      // 'news' case removed — news lives in Account tab modal
-
-      // 'discover' case removed — neighbourhoods live in dedicated Discover tab
-
-      default: return null;
-    }
-  };
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -3052,7 +2513,6 @@ function LiveScreenInner() {
         <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
         {alertsModalVisible && renderAlertsModal()}
         {weatherModalVisible && <WeatherModal visible={weatherModalVisible} onClose={() => setWeatherModalVisible(false)} colours={colours} fonts={fonts} t={t} weather={weather} forecast={forecast} dailyForecast={dailyForecast} locationName={locationName} />}
-        {swapSheetVisible && renderSwapSheet()}
         {!!expandedStopId && renderExpandedArrivals()}
         {showReportModal && renderStopReportModal()}
 
@@ -3155,7 +2615,32 @@ function LiveScreenInner() {
           supabase={supabase}
           toggleSaveVenue={toggleSaveVenue}
         />
-        {eventsModal && renderEventsModal()}
+        <EventsModal
+          visible={eventsModal}
+          onClose={() => { setEventsModal(false); setEventsSearch(''); setEventsCategory(null); setEventsNearMe(false); }}
+          colours={colours}
+          fonts={fonts}
+          t={t}
+          language={language}
+          events={events}
+          eventsLoading={eventsLoading}
+          eventsSource={eventsSource}
+          setEventsSource={setEventsSource}
+          eventsSearch={eventsSearch}
+          setEventsSearch={setEventsSearch}
+          eventsCategory={eventsCategory}
+          setEventsCategory={setEventsCategory}
+          eventsFreeOnly={eventsFreeOnly}
+          setEventsFreeOnly={setEventsFreeOnly}
+          eventsNearMe={eventsNearMe}
+          toggleNearMe={toggleNearMe}
+          eventsUserCoords={eventsUserCoords}
+          eventsGeoCache={eventsGeoCache}
+          eventsCacheTime={eventsCacheTime}
+          fetchTicketmasterEvents={fetchTicketmasterEvents}
+          fetchEventbriteEvents={fetchEventbriteEvents}
+          cardShadow={cardShadow}
+        />
         {(campusPicker || campusModal) && renderCampusModal()}
 
         {/* Stop Reports Sheet */}
