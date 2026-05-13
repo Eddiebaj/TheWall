@@ -79,6 +79,10 @@ import ServicesGrid, { ServiceTile } from '../../components/ServicesGrid';
 import TonightCard from '../../components/TonightCard';
 import WeatherModal from '../../components/WeatherModal';
 import MyStopsSection from '../../components/MyBoard/MyStopsSection';
+import YourSpotsSection from '../../components/MyBoard/YourSpotsSection';
+import TonightSection from '../../components/MyBoard/TonightSection';
+import AroundOttawaSection from '../../components/MyBoard/AroundOttawaSection';
+import SavedPlaceCard from '../../components/SavedPlaceCard';
 
 const TRIP_UPDATES = 'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt-tp/beta/v1/TripUpdates?format=json';
 const BACKEND_URL = 'https://routeo-backend.vercel.app/api/arrivals';
@@ -622,25 +626,6 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
 }
 
 
-function SavedPlaceCard({ place, colours, fonts, language, t, onPress, onLongPress, cardShadow }: any) {
-  const photoUrl = place.photoRef ? `https://routeo-backend.vercel.app/api/places?action=photo&photo_reference=${place.photoRef}&maxwidth=400` : null;
-  const label = language === 'fr' ? place.categoryLabel_fr : place.categoryLabel_en;
-  return (
-    <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 16, overflow: 'hidden', backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }, cardShadow]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
-      <ImageBackground source={photoUrl ? { uri: photoUrl } : undefined} style={{ width: '100%', height: 100, backgroundColor: place.categoryColor + '18', alignItems: photoUrl ? undefined : 'center', justifyContent: photoUrl ? undefined : 'center' }} resizeMode="cover">
-        {!photoUrl && <Ionicons name={place.categoryIcon} size={28} color={place.categoryColor} />}
-        <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: place.categoryColor, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-          <Text style={{ fontSize: 9, fontWeight: '800', color: 'white', textTransform: 'uppercase' }}>{label}</Text>
-        </View>
-      </ImageBackground>
-      <View style={{ padding: 10, flex: 1, justifyContent: 'center' }}>
-        <Text style={{ fontSize: 12, fontWeight: '800', color: colours.text, marginBottom: 2 }} numberOfLines={1}>{place.name}</Text>
-        <Text style={{ fontSize: 10, color: colours.muted }} numberOfLines={1}>{place.vicinity}</Text>
-        {place.rating && (<View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4 }}><Ionicons name="star" size={10} color={colours.orange} /><Text style={{ fontSize: 10, fontWeight: '600', color: colours.text }}>{place.rating}</Text></View>)}
-      </View>
-    </TouchableOpacity>
-  );
-}
 
 // ── Notification helpers ─────────────────────────────────────────
 if (Notifications) {
@@ -3672,254 +3657,33 @@ function LiveScreenInner() {
           />
 
           {/* Your Spots */}
-          <View style={{ paddingTop: 16 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 10 }}>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>
-                {t('Your Spots', 'Vos lieux')}
-              </Text>
-            </View>
-            {savedPlaces.length === 0 ? (
-              <TouchableOpacity
-                onPress={() => router.push('/(tabs)/map' as any)}
-                style={{ marginHorizontal: 20, padding: 20, borderRadius: 16, borderWidth: 1, borderColor: colours.border, borderStyle: 'dashed', alignItems: 'center', gap: 8 }}
-              >
-                <Text style={{ fontSize: 22 }}>📍</Text>
-                <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>
-                  {t('No saved spots yet', 'Aucun lieu sauvegardé')}
-                </Text>
-                <Text style={{ fontSize: 12, color: colours.muted, textAlign: 'center' }}>
-                  {t('Save places on the Live Map for one-tap routing', 'Sauvegardez des lieux sur la carte pour un itinéraire rapide')}
-                </Text>
-              </TouchableOpacity>
-            ) : (
-              <FlatList
-                horizontal
-                data={savedPlaces}
-                keyExtractor={p => p.id}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingLeft: 20, paddingRight: 20, gap: 10, paddingBottom: 4 }}
-                style={{ marginBottom: 8 }}
-                snapToInterval={170}
-                decelerationRate="fast"
-                renderItem={({ item: place }) => (
-                  <SavedPlaceCard
-                    place={place}
-                    colours={colours}
-                    fonts={fonts}
-                    language={language}
-                    t={t}
-                    onPress={() => router.push({
-                      pathname: '/(tabs)/planner',
-                      params: { toLabel: place.name, toLat: String(place.lat), toLng: String(place.lng) }
-                    } as any)}
-                    onLongPress={() => Alert.alert(
-                      t('Remove?', 'Retirer?'),
-                      place.name,
-                      [
-                        { text: t('Cancel', 'Annuler'), style: 'cancel' },
-                        { text: t('Remove', 'Retirer'), style: 'destructive', onPress: () => removeSavedPlace(place.id) }
-                      ]
-                    )}
-                    cardShadow={cardShadow}
-                  />
-                )}
-              />
-            )}
-          </View>
+          <YourSpotsSection
+            savedPlaces={savedPlaces}
+            colours={colours}
+            fonts={fonts}
+            language={language}
+            t={t}
+            cardShadow={cardShadow}
+            onRemove={removeSavedPlace}
+          />
 
           {/* Tonight + Deals */}
-          {(() => {
-            const today = new Date();
-            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-            const dateOptions = [
-              { label: t('Tonight', 'Ce soir'), date: today },
-              { label: t('Tomorrow', 'Demain'), date: new Date(today.getTime() + 86400000) },
-              ...Array.from({ length: 4 }, (_, i) => {
-                const d = new Date(today.getTime() + (i + 2) * 86400000);
-                return { label: days[d.getDay()], date: d };
-              }),
-            ];
-            const [selectedDateIdx, setSelectedDateIdx] = React.useState(0);
-            const selectedDate = dateOptions[selectedDateIdx].date.toLocaleDateString('en-CA');
-            if (eventsLoading) return (
-              <View style={{ paddingTop: 20, alignItems: 'center', paddingBottom: 20 }}>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, paddingHorizontal: 20, marginBottom: 12 }}>
-                  {t('Tonight', 'Ce soir')}
-                </Text>
-                <ActivityIndicator color={colours.accent} />
-              </View>
-            );
-            const tonightEvents = events.filter(ev => ev.date === selectedDate || (selectedDateIdx === 0 && ev.date >= new Date().toLocaleDateString('en-CA')));
-            const now = new Date();
-            const isAfter3pm = now.getHours() >= 15;
-            const todayDeals = getSocialVenues();
-
-            return (
-              <View style={{ paddingTop: 20 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 12 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>
-                    {dateOptions[selectedDateIdx].label}
-                  </Text>
-                </View>
-
-                {/* Date scroller */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 8, marginBottom: 12 }}>
-                  {dateOptions.map((opt, i) => (
-                    <TouchableOpacity
-                      key={i}
-                      onPress={() => setSelectedDateIdx(i)}
-                      style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, backgroundColor: selectedDateIdx === i ? colours.accent : colours.surface, borderColor: selectedDateIdx === i ? colours.accent : colours.border }}
-                    >
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: selectedDateIdx === i ? 'white' : colours.text }}>{opt.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-
-                {/* Events */}
-                {tonightEvents.length === 0 ? (
-                  <View style={{ marginHorizontal: 20, padding: 20, borderRadius: 16, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
-                    <Text style={{ fontSize: 14, color: colours.muted }}>{t('No events found', 'Aucun événement')}</Text>
-                  </View>
-                ) : (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
-                    {tonightEvents.slice(0, 8).map(ev => (
-                      <TouchableOpacity
-                        key={ev.id}
-                        onPress={() => ev.url && Linking.openURL(ev.url)}
-                        style={{ width: 200, borderRadius: 16, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}
-                      >
-                        {ev.image && <Image source={{ uri: ev.image }} style={{ width: '100%', height: 100 }} resizeMode="cover" />}
-                        <View style={{ padding: 12 }}>
-                          <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }} numberOfLines={2}>{ev.name}</Text>
-                          <Text style={{ fontSize: 11, color: colours.muted, marginTop: 4 }} numberOfLines={1}>{ev.venue}</Text>
-                          {selectedDateIdx === 0 && ev.time && (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
-                              <Ionicons name="time-outline" size={11} color={colours.accent} />
-                              <Text style={{ fontSize: 11, fontWeight: '600', color: colours.accent }}>{ev.time}</Text>
-                            </View>
-                          )}
-                        </View>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                )}
-
-                {/* Deals — time-gated after 3pm */}
-                {isAfter3pm && selectedDateIdx === 0 && todayDeals.length > 0 && (
-                  <View style={{ marginTop: 16 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, paddingHorizontal: 20, marginBottom: 10 }}>
-                      {t('Deals Near You', 'Offres près de vous')}
-                    </Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
-                      {todayDeals.slice(0, 6).map((v, i) => (
-                        <View key={i} style={{ width: 180, padding: 14, borderRadius: 16, backgroundColor: colours.surface, borderWidth: 1, borderColor: v.isActive ? '#7b5ea7' + '40' : colours.border }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                            {v.isActive && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#7b5ea7' }} />}
-                            <Text style={{ fontSize: 12, fontWeight: '800', color: colours.text }} numberOfLines={1}>{v.name}</Text>
-                          </View>
-                          <Text style={{ fontSize: 11, color: colours.muted }} numberOfLines={2}>{v.activeDeals?.[0]?.description || v.upcomingDeals?.[0]?.description}</Text>
-                        </View>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-              </View>
-            );
-          })()}
+          <TonightSection
+            events={events}
+            eventsLoading={eventsLoading}
+            colours={colours}
+            t={t}
+            getSocialVenues={getSocialVenues}
+            onEventPress={(url) => url && Linking.openURL(url)}
+          />
 
           {/* Around Ottawa */}
-          {(() => {
-            const [aoCategory, setAoCategory] = React.useState<string>('all');
-            const [aoPlaces, setAoPlaces] = React.useState<any[]>([]);
-            const [aoLoading, setAoLoading] = React.useState(false);
-
-            React.useEffect(() => {
-              setAoLoading(true);
-              const type = aoCategory === 'all' ? 'restaurant' : aoCategory;
-              fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=nearby&location=45.4215,-75.6972&radius=1500&type=${type}`)
-                .then(r => r.json())
-                .then(d => setAoPlaces((d.results || []).slice(0, 10)))
-                .catch(() => setAoPlaces([]))
-                .finally(() => setAoLoading(false));
-            }, [aoCategory]);
-
-            const categories = [
-              { id: 'all', label: t('All', 'Tout'), icon: 'grid-outline' },
-              { id: 'restaurant', label: t('Eats', 'Restos'), icon: 'restaurant-outline' },
-              { id: 'cafe', label: t('Coffee', 'Café'), icon: 'cafe-outline' },
-              { id: 'bar', label: t('Bars', 'Bars'), icon: 'beer-outline' },
-              { id: 'gym', label: t('Fitness', 'Sport'), icon: 'barbell-outline' },
-            ];
-
-            return (
-              <View style={{ paddingTop: 20, paddingBottom: 20 }}>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, paddingHorizontal: 20, marginBottom: 12 }}>
-                  {t('Around Ottawa', 'Autour d\'Ottawa')}
-                </Text>
-
-                {/* Category filter */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 8, marginBottom: 12 }}>
-                  {categories.map(cat => (
-                    <TouchableOpacity
-                      key={cat.id}
-                      onPress={() => setAoCategory(cat.id)}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, backgroundColor: aoCategory === cat.id ? colours.accent : colours.surface, borderColor: aoCategory === cat.id ? colours.accent : colours.border }}
-                    >
-                      <Ionicons name={cat.icon as any} size={13} color={aoCategory === cat.id ? 'white' : colours.muted} />
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: aoCategory === cat.id ? 'white' : colours.text }}>{cat.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-
-                {/* Places */}
-                {aoLoading ? (
-                  <ActivityIndicator color={colours.accent} style={{ marginTop: 20 }} />
-                ) : (
-                  <View style={{ paddingHorizontal: 20, flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-                    {aoPlaces.map((place, i) => (
-                      <TouchableOpacity
-                        key={i}
-                        onPress={() => Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(place.name + ' Ottawa')}`)}
-                        style={{ width: '46%', borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}
-                      >
-                        {/* Square photo */}
-                        <View style={{ width: '100%', aspectRatio: 1.1 }}>
-                          {place.photos?.[0]?.photo_reference ? (
-                            <Image
-                              source={{ uri: `https://routeo-backend.vercel.app/api/places?action=photo&photo_reference=${place.photos[0].photo_reference}&maxwidth=300` }}
-                              style={{ width: '100%', height: '100%' }}
-                              resizeMode="cover"
-                            />
-                          ) : (
-                            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colours.accent + '12' }}>
-                              <Ionicons name="location" size={24} color={colours.accent} />
-                            </View>
-                          )}
-                          {place.opening_hours?.open_now !== undefined && (
-                            <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: place.opening_hours.open_now ? '#00A78D' : '#cc3b2a', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                              <Text style={{ fontSize: 9, fontWeight: '800', color: 'white' }}>
-                                {place.opening_hours.open_now ? t('Open', 'Ouvert') : t('Closed', 'Fermé')}
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                        {/* Info */}
-                        <View style={{ padding: 8 }}>
-                          <Text style={{ fontSize: 12, fontWeight: '700', color: colours.text }} numberOfLines={1}>{place.name}</Text>
-                          {place.rating && (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3 }}>
-                              <Ionicons name="star" size={10} color="#e8a020" />
-                              <Text style={{ fontSize: 11, fontWeight: '600', color: colours.muted }}>{place.rating}</Text>
-                            </View>
-                          )}
-                        </View>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </View>
-            );
-          })()}
+          <AroundOttawaSection
+            colours={colours}
+            t={t}
+            cardShadow={cardShadow}
+            language={language}
+          />
 
         </ScrollView>
 
