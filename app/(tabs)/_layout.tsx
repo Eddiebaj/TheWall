@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Tabs, router } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MapPin, BookmarkSimple, User, House } from 'phosphor-react-native';
+import { MapPin, BookmarkSimple, User } from 'phosphor-react-native';
 import { useApp } from '../../context/AppContext';
 import { useBoard } from '../../context/BoardContext';
 
@@ -50,9 +50,9 @@ function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          tabBarLabel: fr ? 'Accueil' : 'Home',
+          tabBarLabel: fr ? 'Mon tableau' : 'My Board',
           tabBarIcon: ({ focused, color }) => (
-            <House size={22} color={color} weight={focused ? 'fill' : 'regular'} />
+            <BookmarkSimple size={22} color={color} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />

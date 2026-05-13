@@ -46,6 +46,9 @@ import { getPlatformForRoute, hasPlatformData } from '../../lib/platformData';
 import { nearbyVenueAlert, matchVenueByName } from '../../lib/venueTransitData';
 import RouteSheet from '../../components/RouteSheet';
 import StopDetailSheet from '../../components/StopDetailSheet';
+import NearYouNowSection from '../../components/NearYouNowSection';
+import HappeningInOttawaSection, { EventItem as MapEventItem } from '../../components/HappeningInOttawaSection';
+import FromTheCommunitySection from '../../components/FromTheCommunitySection';
 
 const VEHICLES_URL    = 'https://routeo-backend.vercel.app/api/vehicles';
 const BACKEND_URL     = 'https://routeo-backend.vercel.app/api/arrivals';
@@ -192,7 +195,7 @@ const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) =>
   const bodyColor = bus.occupancy === 'low' ? '#22C55E'
     : bus.occupancy === 'moderate' ? '#F59E0B'
     : bus.occupancy === 'high' ? '#EF4444'
-    : isSTO ? '#00A78D' : '#CE1126';
+    : isSTO ? '#00C07A' : '#CE1126';
 
   const bearing = (bus.bearing != null && !isNaN(bus.bearing)) ? bus.bearing : 0;
 
@@ -232,7 +235,8 @@ const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) =>
   prev.bus.lng === next.bus.lng &&
   prev.bus.routeId === next.bus.routeId &&
   prev.bus.bearing === next.bus.bearing &&
-  prev.bus.occupancy === next.bus.occupancy
+  prev.bus.occupancy === next.bus.occupancy &&
+  prev.bus.agency === next.bus.agency
 );
 
 // Stop arrival countdown marker: shown for buses within 10 min of their next stop.
@@ -430,6 +434,8 @@ export default function MapScreen() {
 
   const [sheetAlerts, setSheetAlerts] = useState<any[]>([]);
   const [sheetDeals, setSheetDeals] = useState<{ id: string; venue_name: string; deal_text: string; day_of_week: number }[]>([]);
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [mapEvents, setMapEvents] = useState<MapEventItem[]>([]);
   const [servicesTab, setServicesTab] = useState('explore');
 
   // Inline trip planner
@@ -735,6 +741,7 @@ export default function MapScreen() {
     setSelectedBusNextStops([]);
     if (bus || venue) {
       setSelectedSavedPin(null);
+      nearbySheetRef.current?.snapToIndex(0);
     }
     if (bus?.routeId) {
       setSelectedRouteShape([]);
@@ -785,27 +792,37 @@ export default function MapScreen() {
   const tappedTranslate = tappedAnim.interpolate({ inputRange: [0, 1], outputRange: [200, 0] });
 
   const handleMapTap = useCallback(async (e: any) => {
+    if (__DEV__) console.log('[MapTap] Tapped - selectedBus:', !!selectedBus, 'venue:', !!selectedVenue, 'savedPin:', !!selectedSavedPin, 'searchedPlace:', !!searchedPlace);
     if (selectedBus || selectedVenue || selectedSavedPin || searchedPlace) {
+      if (__DEV__) console.log('[MapTap] Already selected, hiding sheet');
       hideSheet();
       return;
     }
     const coord = e.nativeEvent?.coordinate;
-    if (!coord) return;
+    if (!coord) { if (__DEV__) console.log('[MapTap] No coordinate'); return; }
     const { latitude, longitude } = coord;
-    if (!validCoord(latitude, longitude)) return;
+    if (!validCoord(latitude, longitude)) { if (__DEV__) console.log('[MapTap] Invalid coord'); return; }
+    if (__DEV__) console.log('[MapTap] Setting tappedLocation:', { latitude, longitude });
     setTappedLocation({ lat: latitude, lng: longitude, address: '' });
     Animated.spring(tappedAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
     try {
       const results = await Location.reverseGeocodeAsync({ latitude, longitude });
+      if (__DEV__) console.log('[MapTap] Reverse geocode results:', results?.[0]);
       if (results?.[0]) {
         const r = results[0];
         const parts = [r.streetNumber, r.street, r.city].filter(Boolean);
-        setTappedLocation(prev => prev ? { ...prev, address: parts.join(' ') || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}` } : null);
+        const address = parts.join(' ') || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+        if (__DEV__) console.log('[MapTap] Geocoded address:', address);
+        setTappedLocation(prev => prev ? { ...prev, address } : null);
       } else {
-        setTappedLocation(prev => prev ? { ...prev, address: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}` } : null);
+        const fallback = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+        if (__DEV__) console.log('[MapTap] No geocode results, using fallback:', fallback);
+        setTappedLocation(prev => prev ? { ...prev, address: fallback } : null);
       }
-    } catch {
-      setTappedLocation(prev => prev ? { ...prev, address: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}` } : null);
+    } catch (err) {
+      const fallback = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+      if (__DEV__) console.log('[MapTap] Geocode error:', err, 'using fallback:', fallback);
+      setTappedLocation(prev => prev ? { ...prev, address: fallback } : null);
     }
   }, [selectedBus, selectedVenue, selectedSavedPin, searchedPlace, hideSheet, tappedAnim]);
 
@@ -823,6 +840,8 @@ export default function MapScreen() {
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const uLat = loc.coords.latitude;
       const uLng = loc.coords.longitude;
+      setUserCoords({ lat: uLat, lng: uLng });
+      if (__DEV__) console.log('[NearbyStops] GPS coords:', { uLat, uLng });
 
       const delta = 0.015; // ~1.5km bounding box
       const { data: stops } = await supabase
@@ -834,12 +853,16 @@ export default function MapScreen() {
         .lte('stop_lon', uLng + delta)
         .limit(100);
 
+      if (__DEV__) console.log('[NearbyStops] Supabase query found', stops?.length ?? 0, 'stops:', stops?.slice(0, 3).map(s => ({ id: s.stop_id, name: s.stop_name })));
+
       if (!stops || stops.length === 0) { setNearbyStops([]); setNearbyLoading(false); return; }
 
       const sorted = stops
         .map(s => ({ ...s, dist: haversineKm(uLat, uLng, s.stop_lat, s.stop_lon) * 1000 }))
         .sort((a, b) => a.dist - b.dist)
         .slice(0, 10);
+
+      if (__DEV__) console.log('[NearbyStops] Top 10 sorted:', sorted.map(s => ({ id: s.stop_id, dist: Math.round(s.dist) + 'm' })));
 
       const initial: NearbyStop[] = sorted.map(s => ({
         stopId: s.stop_id,
@@ -854,17 +877,19 @@ export default function MapScreen() {
       const results = await Promise.allSettled(
         sorted.map(async s => {
           const r = await fetchWithTimeout(`${BACKEND_URL}?stop=${s.stop_id}`, { timeout: 8000 });
-          if (!r.ok) return { stopId: s.stop_id, arrivals: [] };
+          if (!r.ok) {
+            if (__DEV__) console.log(`[NearbyStops] Stop ${s.stop_id}: API returned ${r.status}`);
+            return { stopId: s.stop_id, arrivals: [] };
+          }
           const data = await r.json();
-          const now = Date.now();
-          const arrivals = (data.trips || [])
-            .filter((tr: any) => tr.adjustedTime > now)
+          const arrivals = (data.arrivals || [])
             .slice(0, 4)
             .map((tr: any) => ({
               routeId: tr.routeId || tr.route || '',
               headsign: tr.headsign || tr.destination || '',
-              minsAway: Math.max(0, Math.round((tr.adjustedTime - now) / 60000)),
+              minsAway: tr.minsAway ?? 0,
             }));
+          if (__DEV__) console.log(`[NearbyStops] Stop ${s.stop_id}: ${arrivals.length} arrivals:`, arrivals.map((a: any) => `${a.routeId} (${a.minsAway}m)`));
           return { stopId: s.stop_id, arrivals };
         })
       );
@@ -882,9 +907,10 @@ export default function MapScreen() {
         }
         return { ...stop, arrivalsLoading: false };
       }));
+      if (__DEV__) console.log('[NearbyStops] Final state:', updatedStops.map(s => ({ id: s.stopId, arrivalsCount: s.arrivals.length, cached: s.cached })));
       setNearbyStops(updatedStops);
     } catch (e) {
-      if (__DEV__) console.warn('Nearby stops fetch failed:', e);
+      if (__DEV__) console.warn('[NearbyStops] Fetch failed:', e);
       setNearbyLoading(false);
     }
   }, []);
@@ -977,7 +1003,7 @@ export default function MapScreen() {
         setTonightWeather({ temp: data.current_weather.temperature, condition: cond });
       })
       .catch(() => {});
-    // Events for TonightCard
+    // Events for TonightCard + HappeningInOttawaSection
     fetchWithTimeout('https://routeo-backend.vercel.app/api/community?action=ticketmaster')
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -988,6 +1014,16 @@ export default function MapScreen() {
           date: e.date || '',
           time: e.time || e.startTime || '',
           venue: typeof e.venue === 'string' ? e.venue : (e.venue?.name || ''),
+        })));
+        setMapEvents(raw.slice(0, 20).map((e: any) => ({
+          id: e.id || String(e.name) + String(e.date),
+          name: e.name || e.title || '',
+          date: e.date || '',
+          time: e.time || e.startTime || undefined,
+          venue: typeof e.venue === 'string' ? e.venue : (e.venue?.name || ''),
+          url: e.url || '',
+          image: e.image || e.imageUrl || undefined,
+          category: e.category || undefined,
         })));
       })
       .catch(() => {});
@@ -1072,6 +1108,7 @@ export default function MapScreen() {
         if (cancelled) return;
         const uLat = loc.coords.latitude;
         const uLng = loc.coords.longitude;
+        setUserCoords({ lat: uLat, lng: uLng });
 
         const delta = 0.02; // ~2km bounding box
         const routeNum = selectedBus.routeId.split('-')[0];
@@ -1835,6 +1872,7 @@ export default function MapScreen() {
                 description={pin.routeLabel ? `${kindLabel} — ${pin.routeLabel}` : kindLabel}
                 onPress={() => {
                   setSelectedSavedPin(pin);
+                  nearbySheetRef.current?.snapToIndex(0);
                   openSheet();
                 }}
               />
@@ -1886,6 +1924,7 @@ export default function MapScreen() {
             description={searchedPlace.address}
             onPress={() => {
               setSelectedBus(null); setSelectedVenue(null); setSelectedSavedPin(null); setSelectedRouteShape([]);
+              nearbySheetRef.current?.snapToIndex(0);
               Animated.spring(sheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
             }}
           />
@@ -1935,7 +1974,7 @@ export default function MapScreen() {
           return (
             <Polyline
               coordinates={selectedRouteShape}
-              strokeColor={(selectedBus?.agency ?? routePolylineAgency) === 'STO' ? '#00A78D' : '#CE1126'}
+              strokeColor={(selectedBus?.agency ?? routePolylineAgency) === 'STO' ? '#00C07A' : '#CE1126'}
               strokeWidth={4}
               zIndex={10}
             />
@@ -2467,10 +2506,10 @@ export default function MapScreen() {
               onPress={routeToTapped}
               style={{ flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 12, backgroundColor: colours.accent }}
               accessibilityRole="button"
-              accessibilityLabel={t('Route here', 'M\'y rendre')}
+              accessibilityLabel={t('Plan here', 'Planifier')}
             >
               <Ionicons name="navigate" size={16} color="#fff" />
-              <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: '#fff' }}>{t('Route here', 'M\'y rendre')}</Text>
+              <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: '#fff' }}>{t('Plan here', 'Planifier')}</Text>
               <Ionicons name="arrow-forward" size={14} color="#fff" />
             </TouchableOpacity>
           </View>
@@ -2886,8 +2925,32 @@ export default function MapScreen() {
         expandedArrivalsLoading={expandedArrivalsLoading}
         activeAlertCount={0}
         hasDisruption={false}
-        communityDeals={[]}
+        communityDeals={sheetDeals}
         onStopDetail={(stopId, stopName) => { setStopDetailStopId(stopId); setStopDetailStopName(stopName); setStopDetailVisible(true); }}
+        extraSections={
+          <>
+            <NearYouNowSection
+              userLat={userCoords?.lat ?? region.latitude}
+              userLng={userCoords?.lng ?? region.longitude}
+              savedBoardAnchors={[]}
+              onPressVenue={venue => {
+                Alert.alert(venue.name, venue.address);
+              }}
+            />
+            <HappeningInOttawaSection
+              events={mapEvents}
+              onPressEvent={ev => {
+                if (ev.url) Linking.openURL(ev.url).catch(() => {});
+              }}
+            />
+            <FromTheCommunitySection
+              communityDeals={sheetDeals}
+              onPressDeal={deal => {
+                Alert.alert(deal.venue_name, deal.deal_text);
+              }}
+            />
+          </>
+        }
       />
 
       {/* Trip plan results bottom sheet */}
