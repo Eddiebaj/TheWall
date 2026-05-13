@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
-  KeyboardAvoidingView, Platform, ActivityIndicator
+  KeyboardAvoidingView, Platform, ActivityIndicator, Modal
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,10 +22,21 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [members, setMembers] = useState<any[]>([]);
+
+  const loadMembers = async () => {
+    const { data } = await supabase
+      .from('conversation_members')
+      .select('profiles(id, username, display_name, avatar_url)')
+      .eq('conversation_id', id);
+    if (data) setMembers(data.map((d: any) => d.profiles).filter(Boolean));
+  };
 
   useEffect(() => {
     if (!id) return;
     loadMessages();
+    loadMembers();
 
     const channel = supabase
       .channel(`conversation:${id}`)
@@ -135,6 +146,9 @@ export default function ChatScreen() {
           <Ionicons name="people" size={18} color="#7b5ea7" />
         </View>
         <Text style={{ fontSize: 17, fontWeight: '700', color: colours.text, flex: 1 }}>{name || 'Group Chat'}</Text>
+        <TouchableOpacity onPress={() => setShowSettings(true)}>
+          <Ionicons name="ellipsis-horizontal" size={22} color={colours.muted} />
+        </TouchableOpacity>
       </View>
 
       {/* Messages */}
@@ -179,6 +193,49 @@ export default function ChatScreen() {
           <Ionicons name="send" size={18} color="white" />
         </TouchableOpacity>
       </View>
+      <Modal visible={showSettings} transparent animationType="slide" onRequestClose={() => setShowSettings(false)}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }} onPress={() => setShowSettings(false)} />
+        <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
+          <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, alignSelf: 'center', marginBottom: 20 }} />
+
+          <View style={{ alignItems: 'center', marginBottom: 24 }}>
+            <View style={{ width: 64, height: 64, borderRadius: 18, backgroundColor: '#7b5ea7' + '20', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+              <Ionicons name="people" size={28} color="#7b5ea7" />
+            </View>
+            <Text style={{ fontSize: 20, fontWeight: '800', color: colours.text }}>{name}</Text>
+            <Text style={{ fontSize: 13, color: colours.muted, marginTop: 2 }}>{members.length} members</Text>
+          </View>
+
+          <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Members</Text>
+          {members.map((m, i) => (
+            <View key={m.id || i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: i < members.length - 1 ? 1 : 0, borderBottomColor: colours.border }}>
+              <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: colours.accent }}>{(m.display_name || m.username || '?')[0].toUpperCase()}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: colours.text }}>{m.display_name || m.username}</Text>
+                <Text style={{ fontSize: 12, color: colours.muted }}>@{m.username}</Text>
+              </View>
+              {m.id === user?.id && <Text style={{ fontSize: 11, color: colours.muted }}>You</Text>}
+            </View>
+          ))}
+
+          <View style={{ gap: 10, marginTop: 20 }}>
+            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
+              <Ionicons name="person-add-outline" size={20} color={colours.accent} />
+              <Text style={{ fontSize: 15, fontWeight: '600', color: colours.text }}>Add members</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
+              <Ionicons name="pencil-outline" size={20} color={colours.accent} />
+              <Text style={{ fontSize: 15, fontWeight: '600', color: colours.text }}>Rename group</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, backgroundColor: '#cc3b2a' + '12', borderWidth: 1, borderColor: '#cc3b2a' + '40' }}>
+              <Ionicons name="exit-outline" size={20} color="#cc3b2a" />
+              <Text style={{ fontSize: 15, fontWeight: '600', color: '#cc3b2a' }}>Leave group</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }

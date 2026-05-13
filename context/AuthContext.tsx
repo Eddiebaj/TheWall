@@ -80,7 +80,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .from('profiles')
       .update(updates)
       .eq('id', user.id);
-    if (!error) setProfile(prev => prev ? { ...prev, ...updates } : null);
+    if (!error) {
+      await fetchProfile(user.id); // re-fetch instead of local merge
+    }
     return { error };
   };
 

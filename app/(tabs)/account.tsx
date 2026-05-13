@@ -4,10 +4,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator, Alert, DeviceEventEmitter, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView,
+    ActivityIndicator, Alert, DeviceEventEmitter, Image, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView,
     StatusBar, Switch, Text, TextInput,
     TouchableOpacity, View,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../context/AppContext';
@@ -127,7 +128,7 @@ export default function AccountScreen() {
     highContrast, setHighContrast,
     reducedMotion, setReducedMotion,
   } = useApp();
-  const { profile, signOut, isAdmin, isPremium } = useAuth();
+  const { profile, user, signOut, isAdmin, isPremium, updateProfile } = useAuth();
   const { savedBoard } = useBoard();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -267,6 +268,48 @@ export default function AccountScreen() {
     { key: 'commuteDeals', label: t('On my way home deals', 'Offres sur mon chemin'), icon: 'navigate' },
   ];
 
+  const handleAvatarPress = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Please allow photo access to set a profile picture.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'] as any,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      uploadAvatar(result.assets[0].uri);
+    }
+  };
+
+  const uploadAvatar = async (uri: string) => {
+    if (!user) return;
+    const fileExt = uri.split('.').pop()?.toLowerCase() || 'jpg';
+    const filePath = `${user.id}/avatar.${fileExt}`;
+
+    const formData = new FormData();
+    formData.append('file', {
+      uri,
+      name: `avatar.${fileExt}`,
+      type: `image/${fileExt}`,
+    } as any);
+
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filePath, formData, { upsert: true, contentType: 'multipart/form-data' });
+
+    console.log('[Avatar] upload error:', uploadError?.message);
+
+    if (!uploadError) {
+      const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+      console.log('[Avatar] public url:', data.publicUrl);
+      await updateProfile({ avatar_url: data.publicUrl });
+    }
+  };
+
   const Card = ({ children, style }: { children: React.ReactNode; style?: any }) => (
     <View style={[{
       borderWidth: 1, borderColor: colours.border, borderRadius: 16,
@@ -285,11 +328,20 @@ export default function AccountScreen() {
         <View style={{ backgroundColor: colours.surface, borderBottomWidth: 1, borderBottomColor: colours.border, paddingTop: insets.top + 20, paddingBottom: 20, paddingHorizontal: 20 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
             {/* Avatar */}
-            <View style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ fontSize: 22, fontWeight: '800', color: colours.accent }}>
-                {profile?.display_name?.[0]?.toUpperCase() || profile?.username?.[0]?.toUpperCase() || '?'}
-              </Text>
-            </View>
+            <TouchableOpacity onPress={handleAvatarPress} style={{ position: 'relative' }}>
+              {profile?.avatar_url ? (
+                <Image source={{ uri: profile.avatar_url + '?t=' + Date.now() }} style={{ width: 56, height: 56, borderRadius: 14 }} />
+              ) : (
+                <View style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 22, fontWeight: '800', color: colours.accent }}>
+                    {profile?.display_name?.[0]?.toUpperCase() || profile?.username?.[0]?.toUpperCase() || '?'}
+                  </Text>
+                </View>
+              )}
+              <View style={{ position: 'absolute', bottom: -4, right: -4, width: 20, height: 20, borderRadius: 10, backgroundColor: colours.accent, alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="camera" size={11} color="white" />
+              </View>
+            </TouchableOpacity>
             {/* Info */}
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 }}>
