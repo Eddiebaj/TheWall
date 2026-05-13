@@ -375,6 +375,7 @@ function PlannerScreenInner() {
   const [tracking, setTracking] = useState(false);
   const [activeTripItinerary, setActiveTripItinerary] = useState<Itinerary | null>(null);
   const mapRef = useRef<any>(null);
+  const bgMapRef = useRef<any>(null);
   const locationSubRef = useRef<any>(null);
   const stepsScrollRef = useRef<ScrollView>(null);
 
@@ -522,16 +523,45 @@ function PlannerScreenInner() {
     };
   }, []);
 
+  // ── Fit background map to from/to pins when both are set ──────
+  useEffect(() => {
+    if (!bgMapRef.current) return;
+    const coords = [];
+    if (fromPlace?.lat && fromPlace?.lng) coords.push({ latitude: fromPlace.lat, longitude: fromPlace.lng });
+    if (toPlace?.lat && toPlace?.lng) coords.push({ latitude: toPlace.lat, longitude: toPlace.lng });
+    if (coords.length === 2) {
+      bgMapRef.current.fitToCoordinates(coords, {
+        edgePadding: { top: 100, right: 40, bottom: 100, left: 40 },
+        animated: true,
+      });
+    } else if (coords.length === 1) {
+      bgMapRef.current.animateToRegion({
+        latitude: coords[0].latitude,
+        longitude: coords[0].longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }, 500);
+    }
+  }, [fromPlace?.lat, fromPlace?.lng, toPlace?.lat, toPlace?.lng]);
+
   // ── Handle deep-link params from home screen ──────────────────
   // Auto-plan immediately when arriving from a saved route or schedule GO
   useEffect(() => {
-    if (params.toLabel && params.toLat) {
-      const to: PlaceResult = {
-        placeId: 'saved',
-        label: params.toLabel as string,
-        lat: parseFloat(params.toLat as string),
-        lng: parseFloat(params.toLng as string),
-      };
+    if (params.toLabel) {
+      const toLabel = params.toLabel as string;
+      const hasCoords = !!(params.toLat && params.toLng);
+
+      // Auto-fill From with current location
+      (async () => {
+        try {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === 'granted') {
+            const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            setFromPlace({ placeId: 'current', label: 'My Location', lat: pos.coords.latitude, lng: pos.coords.longitude });
+            setFromText('My Location');
+          }
+        } catch {}
+      })();
 
       // Handle arriveBy + time params (from class schedule GO button)
       if (params.time && params.date) {
@@ -543,37 +573,57 @@ function PlannerScreenInner() {
         timeOverride.current = { time: new Date(), arriveBy: true };
       }
 
-      if (params.fromLabel && params.fromLat) {
-        // Both from + to provided (saved route with known origin) — plan immediately
-        const from: PlaceResult = {
+      const continueWithTo = (to: PlaceResult) => {
+        if (params.fromLabel && params.fromLat) {
+          const from: PlaceResult = {
+            placeId: 'saved',
+            label: params.fromLabel as string,
+            lat: parseFloat(params.fromLat as string),
+            lng: parseFloat(params.fromLng as string),
+          };
+          setFromPlace(from); setFromText(shortenLabel(from.label));
+          setToPlace(to); setToText(shortenLabel(to.label));
+          setTimeout(() => planWithPlaces(from, to), 200);
+        } else {
+          setToPlace(to); setToText(shortenLabel(to.label));
+          (async () => {
+            try {
+              const { status } = await Location.requestForegroundPermissionsAsync();
+              if (status !== 'granted') { setFromText(''); return; }
+              const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+              const { latitude: lat, longitude: lng } = pos.coords;
+              const geo = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+              const label = geo[0] ? [geo[0].name, geo[0].street, geo[0].city].filter(Boolean).join(', ') : 'My Location';
+              const from: PlaceResult = { placeId: 'current', label, lat, lng };
+              setFromPlace(from); setFromText(shortenLabel(label));
+              setTimeout(() => planWithPlaces(from, to), 200);
+            } catch (e) { if (__DEV__) console.warn('get current location failed:', e); }
+          })();
+        }
+      };
+
+      if (hasCoords) {
+        const to: PlaceResult = {
           placeId: 'saved',
-          label: params.fromLabel as string,
-          lat: parseFloat(params.fromLat as string),
-          lng: parseFloat(params.fromLng as string),
+          label: toLabel,
+          lat: parseFloat(params.toLat as string),
+          lng: parseFloat(params.toLng as string),
         };
-        setFromPlace(from); setFromText(shortenLabel(from.label));
-        setToPlace(to); setToText(shortenLabel(to.label));
-        // Auto-trigger plan after state settles
-        setTimeout(() => planWithPlaces(from, to), 200);
+        continueWithTo(to);
       } else {
-        // No origin — get current location then auto-plan
-        setToPlace(to); setToText(shortenLabel(to.label));
+        // No coords — geocode the label then continue
+        setToText(toLabel);
         (async () => {
           try {
-            const { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== 'granted') {
-              setFromText(''); // let user fill in manually
-              return;
+            const resp = await fetchWithTimeout(`${PLACES_URL}?action=autocomplete-geocode&input=${encodeURIComponent(toLabel)}`);
+            if (resp.ok) {
+              const json = await resp.json();
+              if (json?.lat && json?.lng) {
+                const to: PlaceResult = { placeId: 'geocoded', label: json.label || toLabel, lat: json.lat, lng: json.lng };
+                continueWithTo(to);
+              }
             }
-            const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-            const { latitude: lat, longitude: lng } = pos.coords;
-            const geo = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
-            const label = geo[0] ? [geo[0].name, geo[0].street, geo[0].city].filter(Boolean).join(', ') : 'My Location';
-            const from: PlaceResult = { placeId: 'current', label, lat, lng };
-            setFromPlace(from); setFromText(shortenLabel(label));
-            // Auto-trigger plan — longer delay for arriveBy state to settle
-            setTimeout(() => planWithPlaces(from, to), 200);
-          } catch (e) { if (__DEV__) console.warn('get current location failed:', e); }
+          } catch (e) { if (__DEV__) console.warn('toLabel geocode failed:', e); }
         })();
       }
     }
@@ -2219,21 +2269,9 @@ function PlannerScreenInner() {
         />
       )}
 
-      <ScrollView ref={mainScrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 40 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={async () => {
-              if (!fromPlace?.lat || !toPlace?.lat) return;
-              setRefreshing(true);
-              await plan();
-              setRefreshing(false);
-            }}
-            tintColor={colours.accent}
-            colors={[colours.accent]}
-          />
-        }
-      >
+      {/* Input section */}
+      <View style={{ backgroundColor: colours.bg }}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: Platform.OS === 'ios' ? 60 : 40 }}>
         {/* Input card */}
         <View style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 16, borderWidth: 1, borderColor: colours.border, padding: 8, marginBottom: 12 }, cardShadow]}>
           {/* From */}
@@ -2447,7 +2485,6 @@ function PlannerScreenInner() {
                   accessibilityState={{ selected: active }}
                 >
                   <Ionicons name={m.icon as any} size={15} color={active ? colours.accent : colours.muted} />
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: active ? colours.accent : colours.muted }}>{t(m.label_en, m.label_fr)}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -2610,6 +2647,7 @@ function PlannerScreenInner() {
         </View>
 
         {/* AI Trip Assistant — Premium */}
+        {!params.toLabel && (
         <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
           <TouchableOpacity
             onPress={() => { if (!premiumActive) setPaywallVisible(true); }}
@@ -2628,11 +2666,13 @@ function PlannerScreenInner() {
             {!premiumActive && <PremiumBadge />}
           </TouchableOpacity>
         </View>
+        )}
 
         {/* What can I reach? */}
         {travelMode === 'transit' && (
           <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
             {/* Time selector */}
+            {!params.toLabel && (
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
               {([10, 20, 30, 45] as const).map(mins => (
                 <TouchableOpacity
@@ -2655,6 +2695,8 @@ function PlannerScreenInner() {
                 </TouchableOpacity>
               ))}
             </View>
+            )}
+            {!params.toLabel && (
             <TouchableOpacity
               onPress={fetchIsochrone}
               disabled={isoLoading}
@@ -2666,6 +2708,7 @@ function PlannerScreenInner() {
               <Ionicons name="locate-outline" size={16} color={colours.accent} />
               <Text style={{ color: colours.accent, fontWeight: '700', fontSize: 14 }}>{t(`What can I reach in ${isoMinutes} min?`, `Que puis-je atteindre en ${isoMinutes} min?`)}</Text>
             </TouchableOpacity>
+            )}
 
             {isoVisible && (<>
               <View style={[{ marginTop: 12, backgroundColor: colours.surface, borderRadius: 16, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }, cardShadow]}>
@@ -2747,6 +2790,64 @@ function PlannerScreenInner() {
           </View>
         )}
 
+      </ScrollView>
+      </View>
+
+      {/* Map + Results area */}
+      <View style={{ flex: 1 }}>
+        {MapView && RNMaps && (
+          <MapView
+            ref={bgMapRef}
+            style={{ flex: 1, minHeight: 300 }}
+            provider={PROVIDER_DEFAULT}
+            userInterfaceStyle="dark"
+            initialRegion={{ latitude: 45.4215, longitude: -75.6972, latitudeDelta: 0.08, longitudeDelta: 0.08 }}
+            showsUserLocation={false}
+            showsCompass={false}
+            showsScale={false}
+            rotateEnabled={false}
+            pitchEnabled={false}
+          >
+            {!!Marker && userLocation && (
+              <Marker coordinate={userLocation} anchor={{ x: 0.5, y: 0.5 }}>
+                <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: '#007AFF', borderWidth: 3, borderColor: 'white' }} />
+              </Marker>
+            )}
+            {!!Marker && fromPlace?.lat && (
+              <Marker coordinate={{ latitude: fromPlace.lat, longitude: fromPlace.lng! }} anchor={{ x: 0.5, y: 0.5 }}>
+                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: colours.accent, borderWidth: 2, borderColor: 'white' }} />
+              </Marker>
+            )}
+            {!!Marker && toPlace?.lat && (
+              <Marker coordinate={{ latitude: toPlace.lat, longitude: toPlace.lng! }} anchor={{ x: 0.5, y: 1 }}>
+                <View style={{ alignItems: 'center' }}>
+                  <View style={{ backgroundColor: colours.accent, borderRadius: 6, paddingHorizontal: 5, paddingVertical: 3 }}>
+                    <Ionicons name="location" size={12} color="white" />
+                  </View>
+                  <View style={{ width: 0, height: 0, borderLeftWidth: 4, borderRightWidth: 4, borderTopWidth: 5, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: colours.accent }} />
+                </View>
+              </Marker>
+            )}
+          </MapView>
+        )}
+        {(loading || searched) && (
+        <ScrollView ref={mainScrollRef} keyboardShouldPersistTaps="handled"
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colours.bg }}
+          contentContainerStyle={{ paddingBottom: 40 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={async () => {
+                if (!fromPlace?.lat || !toPlace?.lat) return;
+                setRefreshing(true);
+                await plan();
+                setRefreshing(false);
+              }}
+              tintColor={colours.accent}
+              colors={[colours.accent]}
+            />
+          }
+        >
         {/* Results */}
         {loading && searched ? (
           <View style={{ paddingHorizontal: 20, paddingTop: 12 }}>{[0,1,2].map(i => <ItinerarySkeleton key={i} colours={colours} />)}</View>
@@ -3232,6 +3333,8 @@ function PlannerScreenInner() {
           </View>
         ) : null}
       </ScrollView>
+        )}
+      </View>
 
       {/* ── Leave Reminder Modal ──────────────────────────────────── */}
       {reminderModal && (() => {

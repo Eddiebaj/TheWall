@@ -800,6 +800,21 @@ function LiveScreenInner() {
   const [savedBoard, setSavedBoard] = useState<SavedBoardItem[]>([]);
   const [boardLoaded, setBoardLoaded] = useState(false);
   const [boardExpandItem, setBoardExpandItem] = useState<SavedBoardItem | null>(null);
+  const [expandedStopCoords, setExpandedStopCoords] = React.useState<{ lat: number; lng: number } | null>(null);
+  React.useEffect(() => {
+    if (!boardExpandItem || (boardExpandItem.type !== 'bus_stop' && boardExpandItem.type !== 'lrt_station')) {
+      setExpandedStopCoords(null);
+      return;
+    }
+    supabase
+      .from('stops')
+      .select('stop_lat,stop_lon')
+      .eq('stop_id', (boardExpandItem as any).id)
+      .single()
+      .then(({ data }) => {
+        if (data?.stop_lat) setExpandedStopCoords({ lat: data.stop_lat, lng: data.stop_lon });
+      });
+  }, [boardExpandItem]);
   const [savedRoutes, setSavedRoutes] = useState<{ id: string; fromLabel: string; toLabel: string; fromLat: number; fromLng: number; toLat: number; toLng: number }[]>([]);
   const [showLine1, setShowLine1] = useState(false);
   const [showLine2, setShowLine2] = useState(false);
@@ -3027,7 +3042,25 @@ function LiveScreenInner() {
                   <Text style={{ color: colours.muted, marginTop: 8 }}>No upcoming arrivals</Text>
                 </View>
               ) : (
-                arrivals.map(renderArrival)
+                arrivals.map(item => (
+                  <TouchableOpacity
+                    key={item.id}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      setBoardExpandItem(null);
+                      router.push({
+                        pathname: '/(tabs)/planner',
+                        params: {
+                          toLabel: (boardExpandItem as any)?.name,
+                          toLat: String(expandedStopCoords?.lat || ''),
+                          toLng: String(expandedStopCoords?.lng || ''),
+                        }
+                      } as any);
+                    }}
+                  >
+                    {renderArrival(item)}
+                  </TouchableOpacity>
+                ))
               )}
             </ScrollView>
           </View>
