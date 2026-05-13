@@ -15,6 +15,7 @@ export default function FriendsScreen() {
   const insets = useSafeAreaInsets();
 
   const [friends, setFriends] = useState<any[]>([]);
+  const [myHangouts, setMyHangouts] = useState<any[]>([]);
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [conversations, setConversations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,9 +28,23 @@ export default function FriendsScreen() {
     loadFriendsData();
   }, [user]);
 
+  const loadMyHangouts = async () => {
+    const { data } = await supabase
+      .from('hangout_rsvps')
+      .select(`
+        status,
+        hangout:hangouts(id, venue_name, event_name, happening_at,
+          creator:profiles!hangouts_created_by_fkey(username, display_name))
+      `)
+      .eq('user_id', user!.id)
+      .order('created_at', { ascending: false })
+      .limit(10);
+    if (data) setMyHangouts(data.filter(d => d.hangout));
+  };
+
   const loadFriendsData = async () => {
     setLoading(true);
-    await Promise.all([loadFriends(), loadPendingRequests(), loadConversations()]);
+    await Promise.all([loadFriends(), loadPendingRequests(), loadConversations(), loadMyHangouts()]);
     setLoading(false);
   };
 
@@ -229,6 +244,37 @@ export default function FriendsScreen() {
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 20 }}>
+
+        {/* Your Plans */}
+        {myHangouts.length > 0 && (
+          <View>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+              Your Plans
+            </Text>
+            {myHangouts.map((rsvp, i) => (
+              <View key={i} style={{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: rsvp.status === 'going' ? colours.accent + '40' : colours.border, padding: 14, marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: rsvp.status === 'going' ? colours.accent + '20' : colours.border + '40', alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 18 }}>{rsvp.status === 'going' ? '🙋' : '👀'}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }} numberOfLines={1}>
+                      {rsvp.hangout.event_name || rsvp.hangout.venue_name}
+                    </Text>
+                    <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>
+                      {rsvp.status === 'going' ? "You're going" : "You're interested"} · {rsvp.hangout.venue_name}
+                    </Text>
+                  </View>
+                  <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: rsvp.status === 'going' ? colours.accent + '18' : colours.border + '40' }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: rsvp.status === 'going' ? colours.accent : colours.muted }}>
+                      {rsvp.status === 'going' ? "I'm in" : 'Interested'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* Pending requests */}
         {pendingRequests.length > 0 && (

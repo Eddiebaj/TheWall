@@ -2457,16 +2457,38 @@ function LiveScreenInner() {
               const eventPayload = { name: event.name, venue: event.venue, date: event.date, url: event.url, image: event.image };
               if (action === 'going' || action === 'interested') {
                 const { data: { user } } = await supabase.auth.getUser();
+                console.log('[WhoIsIn] action:', action, 'user:', user?.id);
                 if (user) {
-                  await supabase.from('hangouts').insert({
-                    creator_id: user.id,
-                    event_name: event.name,
-                    event_venue: event.venue,
-                    event_date: event.date,
-                    event_url: event.url,
-                    event_image: event.image,
-                    rsvp_status: action,
-                  });
+                  // Insert hangout
+                  const { error } = await supabase
+                    .from('hangouts')
+                    .insert({
+                      created_by: user.id,
+                      venue_name: event.venue || event.name,
+                      event_name: event.name,
+                      venue_lat: null,
+                      venue_lng: null,
+                    });
+                  console.log('[WhoIsIn] insert error:', error?.message);
+
+                  // Fetch the hangout we just created
+                  const { data: hangout } = await supabase
+                    .from('hangouts')
+                    .select('id')
+                    .eq('created_by', user.id)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .single();
+                  console.log('[WhoIsIn] hangout result:', hangout?.id);
+
+                  if (hangout) {
+                    // Insert RSVP
+                    await supabase.from('hangout_rsvps').insert({
+                      hangout_id: hangout.id,
+                      user_id: user.id,
+                      status: action,
+                    });
+                  }
                 }
               }
               router.push({
