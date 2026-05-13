@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MapPin, BookmarkSimple, User } from 'phosphor-react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../context/AppContext';
 
 function TabLayout() {
@@ -46,6 +47,15 @@ function TabLayout() {
           tabBarLabel: fr ? 'Mon tableau' : 'My Board',
           tabBarIcon: ({ focused, color }) => (
             <BookmarkSimple size={22} color={color} weight={focused ? 'fill' : 'regular'} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="friends"
+        options={{
+          tabBarLabel: 'Friends',
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={focused ? 'people' : 'people-outline'} size={22} color={color} />
           ),
         }}
       />
