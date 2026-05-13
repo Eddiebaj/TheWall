@@ -2453,6 +2453,27 @@ function LiveScreenInner() {
             t={t}
             getSocialVenues={getSocialVenues}
             onEventPress={(url) => url && Linking.openURL(url)}
+            onWhoIsIn={async (event, action) => {
+              const eventPayload = { name: event.name, venue: event.venue, date: event.date, url: event.url, image: event.image };
+              if (action === 'going' || action === 'interested') {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                  await supabase.from('hangouts').insert({
+                    creator_id: user.id,
+                    event_name: event.name,
+                    event_venue: event.venue,
+                    event_date: event.date,
+                    event_url: event.url,
+                    event_image: event.image,
+                    rsvp_status: action,
+                  });
+                }
+              }
+              router.push({
+                pathname: '/(tabs)/friends',
+                params: { shareEvent: JSON.stringify(eventPayload) }
+              } as any);
+            }}
           />
 
           {/* Around Ottawa */}

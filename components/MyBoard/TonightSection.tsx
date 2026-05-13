@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { ActivityIndicator, Image, Linking, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Linking, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 
 interface Props {
   events: any[];
@@ -9,9 +9,10 @@ interface Props {
   t: (en: string, fr: string) => string;
   getSocialVenues: () => any[];
   onEventPress: (url: string) => void;
+  onWhoIsIn: (event: any, action: 'going' | 'interested' | 'share') => void;
 }
 
-export default function TonightSection({ events, eventsLoading, colours, t, getSocialVenues, onEventPress }: Props) {
+export default function TonightSection({ events, eventsLoading, colours, t, getSocialVenues, onEventPress, onWhoIsIn }: Props) {
   const today = new Date();
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const dateOptions = [
@@ -84,6 +85,25 @@ export default function TonightSection({ events, eventsLoading, colours, t, getS
                   </View>
                 )}
               </View>
+              {/* Who's in? button */}
+              <TouchableOpacity
+                onPress={() => {
+                  Alert.alert(
+                    ev.name,
+                    'Are you going?',
+                    [
+                      { text: "I'm in 🙋", onPress: () => onWhoIsIn(ev, 'going') },
+                      { text: 'Interested 👀', onPress: () => onWhoIsIn(ev, 'interested') },
+                      { text: 'Share to group', onPress: () => onWhoIsIn(ev, 'share') },
+                      { text: 'Cancel', style: 'cancel' },
+                    ]
+                  );
+                }}
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colours.border }}
+              >
+                <Text style={{ fontSize: 11 }}>👥</Text>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accent }}>Who's in?</Text>
+              </TouchableOpacity>
             </TouchableOpacity>
           ))}
         </ScrollView>
