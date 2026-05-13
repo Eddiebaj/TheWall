@@ -360,6 +360,23 @@ function computeNearbyTip(destLat: number, destLng: number, etaMs: number, langu
   return null;
 }
 
+const LRT_STOP_IDS = new Set([
+  'NA998','NA999','NA995','NA990','NA996','NA997',
+  'CJ995','CJ990','CA995','CA990','CB995','CB990',
+  'CD995','CD999','CD998','CD990','CE995','CE990',
+  'AF995','AF990','AE995','AE990','EB995','EB990',
+  'EC995','EC990','EE995','EE990',
+  'RR990','RR991','RE994','RE995','RE990','RE991',
+  'RE992','RE996','RE997','RF990','RF995','RF996',
+  'RC990','RA990','CG995','CG990','NB990','NB995','NB996',
+  '9942','9943','9944','9945','9946','9947','9948',
+  '10027','10028','9870','9871','9957','9958',
+  '9928','9929','9822','9868','9833','9869','10004','10734',
+  '10735','10736','10042','10043','9951','9952','9953','9954','9955',
+  '10728','10729','10014','10015','10016','10017',
+  '9872','9873','9961','9963','9922','10144','10149','10743','10744',
+]);
+
 // Today filter
 const getTodayStr = () => {
   const now = new Date();
@@ -370,7 +387,7 @@ const getTodayStr = () => {
 
 export default function MapScreen() {
   const { colours, theme, resolvedTheme, t, fonts, language } = useApp();
-  const { savedBoard: boardItems, addToBoardIfMissing } = useBoard();
+  const { savedBoard: boardItems, addToBoardIfMissing, removeFromBoard } = useBoard();
   const insets = useSafeAreaInsets();
   const isLight = resolvedTheme === 'light';
   const mapRef = useRef<any>(null);
@@ -2085,6 +2102,26 @@ export default function MapScreen() {
                         <Text style={{ fontSize: 13, fontWeight: '600', color: colours.text }} numberOfLines={1}>{s.name}</Text>
                         <Text style={{ fontSize: 11, color: colours.muted }} numberOfLines={1}>{s.address}</Text>
                       </View>
+                      {s.stopId && (
+                        <TouchableOpacity
+                          onPress={() => {
+                            const isAlreadySaved = boardItems.some(i => (i.type === 'bus_stop' || i.type === 'lrt_station') && (i as any).id === s.stopId);
+                            if (isAlreadySaved) {
+                              removeFromBoard({ type: 'bus_stop', id: s.stopId!, name: s.name });
+                            } else {
+                              addToBoardIfMissing({ type: LRT_STOP_IDS.has(s.stopId!) ? 'lrt_station' : 'bus_stop', id: s.stopId!, name: s.name });
+                            }
+                          }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          style={{ padding: 8 }}
+                        >
+                          <Ionicons
+                            name={boardItems.some(i => (i.type === 'bus_stop' || i.type === 'lrt_station') && (i as any).id === s.stopId) ? 'bookmark' : 'bookmark-outline'}
+                            size={18}
+                            color={boardItems.some(i => (i.type === 'bus_stop' || i.type === 'lrt_station') && (i as any).id === s.stopId) ? colours.accent : colours.muted}
+                          />
+                        </TouchableOpacity>
+                      )}
                     </TouchableOpacity>
                   ))}
                 </View>

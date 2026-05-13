@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { ArrivalRowSkeleton } from '../../components/Shimmer';
 import { useApp } from '../../context/AppContext';
+import { useBoard } from '../../context/BoardContext';
 import { supabase } from '../../lib/supabase';
 import stopMap from './stopmap.json';
 import stopNameMap from './stopnamemap.json';
@@ -744,6 +745,7 @@ class HomeErrorBoundary extends React.Component<
 // ── Main Screen ──────────────────────────────────────────────────
 function LiveScreenInner() {
   const { colours, theme, language, t, fonts } = useApp();
+  const { savedBoard: boardContextStops } = useBoard();
   const router = useRouter();
   const { width: screenWidth } = useWindowDimensions();
   const CARD_W = screenWidth - 40;
@@ -3625,13 +3627,13 @@ function LiveScreenInner() {
           })()}
 
           {/* Saved Stops */}
-          {savedBoard.filter(i => i.type === 'bus_stop' || i.type === 'lrt_station').length > 0 && (
+          {boardContextStops.filter(i => i.type === 'bus_stop' || i.type === 'lrt_station').length > 0 && (
             <View style={{ paddingTop: 16, paddingBottom: 8 }}>
               <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, paddingHorizontal: 20, marginBottom: 10 }}>
                 {t('My Stops', 'Mes arrêts')}
               </Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
-                {savedBoard.filter(i => i.type === 'bus_stop' || i.type === 'lrt_station').map((item, idx) => (
+                {boardContextStops.filter(i => i.type === 'bus_stop' || i.type === 'lrt_station').map((item, idx) => (
                   <TouchableOpacity
                     key={idx}
                     onPress={() => {
