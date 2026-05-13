@@ -179,7 +179,10 @@ function RootNav() {
         router.replace('/onboarding');
       }, 0);
     } else if (!showSplash && destination === 'tabs') {
-      if (__DEV__) console.log('[RootNav] Rendering tabs Stack — Expo Router should pick up (tabs) route');
+      if (__DEV__) console.log('[RootNav] Routing to /(tabs)/map');
+      setTimeout(() => {
+        router.replace('/(tabs)/map');
+      }, 0);
     }
   }, [showSplash, destination]);
 
