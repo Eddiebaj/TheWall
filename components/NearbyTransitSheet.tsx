@@ -1,4 +1,5 @@
-import React, { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { useAnimatedReaction, runOnJS } from 'react-native-reanimated';
 import {
   View,
   Text,
@@ -10,7 +11,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
-import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView, useBottomSheetInternal } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { SK_LEAVE_NOW_ALERTS, SK_WALK_PACE, SK_DEVICE_ID } from '../lib/storageKeys';
 import { watchBus, unwatchBus, isWatched } from '../lib/watchedBuses';
@@ -101,7 +102,7 @@ interface NearbyTransitSheetProps {
 
 // Constants
 
-const SNAP_POINTS = ['25%', '55%', '90%'];
+const SNAP_POINTS = [32, '55%', '90%'];
 const TEAL = '#00C07A';
 const AMBER_BG = 'rgba(245,158,11,0.12)';
 const AMBER_TEXT = '#D97706';
@@ -765,6 +766,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
     const [showAll, setShowAll] = useState(false);
     const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
     const [showGhostTooltip, setShowGhostTooltip] = useState(false);
+    const [currentSnapIndex, setCurrentSnapIndex] = useState(0);
 
     useEffect(() => {
       shouldShowPrompt('ghost_flag', 3).then(ok => { if (ok) setShowGhostTooltip(true); });
@@ -831,6 +833,42 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
       <SheetSectionHeader label={label} colours={colours} tight={tight} />
     ), [colours]);
 
+    // Header component that conditionally hides at minimum snap point
+    const HeaderContent = () => {
+      const { animatedIndex } = useBottomSheetInternal();
+      const [isMinIndex, setIsMinIndex] = useState(true);
+
+      useAnimatedReaction(
+        () => animatedIndex.value,
+        (value) => {
+          runOnJS(setIsMinIndex)(value === 0);
+        }
+      );
+
+      if (isMinIndex) return null;
+
+      return (
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 4, paddingBottom: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={{ fontSize: 17, fontWeight: '700', color: colours.text }}>
+              {t('Nearby Transit', 'Transport a proximite')}
+            </Text>
+            {activeLayers && Object.values(activeLayers).filter(Boolean).length > 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 8, backgroundColor: colours.tintBg, borderRadius: 12, paddingHorizontal: 6, paddingVertical: 2 }}>
+                <Ionicons name="layers" size={12} color={colours.accent} />
+                <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent }}>
+                  {Object.values(activeLayers).filter(Boolean).length}
+                </Text>
+              </View>
+            )}
+          </View>
+          <TouchableOpacity onPress={onRefreshLocation} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityLabel={t('Refresh location', 'Actualiser la position')}>
+            <Ionicons name="location-outline" size={20} color={TEAL} />
+          </TouchableOpacity>
+        </View>
+      );
+    };
+
     return (
       <BottomSheet
         ref={ref}
@@ -857,25 +895,8 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
           contentContainerStyle={{ paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
         >
-          {/* Header */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 4, paddingBottom: 10 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={{ fontSize: 17, fontWeight: '700', color: colours.text }}>
-                {t('Nearby Transit', 'Transport a proximite')}
-              </Text>
-              {activeLayers && Object.values(activeLayers).filter(Boolean).length > 0 && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 8, backgroundColor: colours.tintBg, borderRadius: 12, paddingHorizontal: 6, paddingVertical: 2 }}>
-                  <Ionicons name="layers" size={12} color={colours.accent} />
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent }}>
-                    {Object.values(activeLayers).filter(Boolean).length}
-                  </Text>
-                </View>
-              )}
-            </View>
-            <TouchableOpacity onPress={onRefreshLocation} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityLabel={t('Refresh location', 'Actualiser la position')}>
-              <Ionicons name="location-outline" size={20} color={TEAL} />
-            </TouchableOpacity>
-          </View>
+          {/* Header — hidden when at minimum snap point */}
+          <HeaderContent />
 
           {/* Disruption pill */}
           {hasDisruption && (

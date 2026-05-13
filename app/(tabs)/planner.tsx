@@ -4,7 +4,7 @@ import * as Location from 'expo-location';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, DeviceEventEmitter, Dimensions, FlatList, Image, Keyboard, KeyboardAvoidingView,
+  ActivityIndicator, Alert, Dimensions, FlatList, Image, Keyboard, KeyboardAvoidingView,
   Linking, Modal, NativeScrollEvent, NativeSyntheticEvent,
   Platform, RefreshControl, ScrollView, Share,
   Text,
@@ -19,11 +19,9 @@ import { CAMPUSES, CampusConfig } from '../../lib/campusData';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { PREMIUM_FEATURES, usePremium } from '../../lib/premium';
 import { ClassSchedule, nextClass, fmt12h as schedFmt12h } from '../../lib/scheduleData';
-import { SK_ACCESSIBILITY_ROUTING, SK_BATTERY_SAVER, SK_CAMPUS, SK_CLASS_SCHEDULE, SK_HOME_ADDRESS, SK_LEAVE_REMINDERS, SK_MOTION, SK_PLANNER_PREFS, SK_RECENT_SEARCHES, SK_SAVED_ROUTES, SK_TRIP_HISTORY, SK_WALK_PACE, SK_WALK_PREFERENCE, SK_WORK_PLACE } from '../../lib/storageKeys';
+import { SK_ACCESSIBILITY_ROUTING, SK_BATTERY_SAVER, SK_CAMPUS, SK_CLASS_SCHEDULE, SK_LEAVE_REMINDERS, SK_MOTION, SK_PLANNER_PREFS, SK_SAVED_ROUTES, SK_TRIP_HISTORY, SK_WALK_PACE, SK_WALK_PREFERENCE } from '../../lib/storageKeys';
 import { supabase } from '../../lib/supabase';
 import { decodePolyline, toTitleCase } from '../../lib/utils';
-import { haversineKm } from '../../lib/geo';
-import { NEIGHBOURHOOD_GROUPS } from '../../lib/neighbourhoodGroups';
 let Haptics: typeof import('expo-haptics') | null = null;
 try { Haptics = require('expo-haptics'); } catch {}
 let Notifications: typeof import('expo-notifications') | null = null;
@@ -70,6 +68,7 @@ class PlannerErrorBoundary extends React.Component<
   }
 }
 
+
 const CAMPUS_LOGOS: Record<string, any> = {
   carleton: require('../../assets/schools/carleton.png'),
   uottawa: require('../../assets/schools/uottawa.png'),
@@ -83,6 +82,13 @@ const PLACES_URL = 'https://routeo-backend.vercel.app/api/places';
 const CTC_LAT = 45.2973;
 const CTC_LNG = -75.9267;
 
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 type PlaceResult = { placeId: string; label: string; lat?: number; lng?: number };
 type WalkStep = { distance: number; relativeDirection: string; streetName: string; instruction?: string | null };
@@ -127,22 +133,10 @@ type TripRecord = {
   durationMins: number;
   distanceKm?: number;
   plannedAt: string; // ISO string
-  // Transit Memory enrichment fields
-  neighbourhood?: string;  // destination neighbourhood name_en
-  routeId?: string;        // primary bus leg routeShortName
-  hourOfDay?: number;      // 0-23
-  dayOfWeek?: number;      // 0 (Sun) - 6 (Sat)
 };
 
 const SAVED_ROUTES_KEY = SK_SAVED_ROUTES;
-const MAX_TRIP_HISTORY = 200;
-
-function destNeighbourhood(lat: number, lng: number): string | undefined {
-  for (const g of NEIGHBOURHOOD_GROUPS) {
-    if (haversineKm(lat, lng, g.lat, g.lng) <= g.radiusKm) return g.name_en;
-  }
-  return undefined;
-}
+const MAX_TRIP_HISTORY = 15;
 
 const LEG_COLOURS: Record<string, string> = {
   WALK: '#9aaabb',
@@ -400,11 +394,6 @@ function PlannerScreenInner() {
   const [reminderTime, setReminderTime] = useState<Date>(new Date());
   const [leaveReminders, setLeaveReminders] = useState<{ id: string; destination: string; departAt: number; notifId: string }[]>([]);
 
-  // Recent searches + home/work (Features 3 & 4)
-  const [recentSearches, setRecentSearches] = useState<{ name: string; lat: number; lng: number; usedAt: number }[]>([]);
-  const [homePlace, setHomePlacePlanner] = useState<{ label: string; lat: number; lng: number } | null>(null);
-  const [workPlace, setWorkPlacePlanner] = useState<{ label: string; lat: number; lng: number } | null>(null);
-
   // Route detail modal state
   const [routeDetailLeg, setRouteDetailLeg] = useState<Leg | null>(null);
   const [routeDetailStops, setRouteDetailStops] = useState<{ stop_id: string; stop_name: string; arrival_time: string }[]>([]);
@@ -478,17 +467,6 @@ function PlannerScreenInner() {
     AsyncStorage.getItem(SK_CLASS_SCHEDULE).then(val => {
       try { if (val) setPlannerSchedule(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn(e); }
     }).catch(() => {});
-    // Load recent searches and home/work places
-    AsyncStorage.getItem(SK_RECENT_SEARCHES).then(val => {
-      try { if (val) setRecentSearches(JSON.parse(val)); } catch {}
-    }).catch(() => {});
-    AsyncStorage.getItem(SK_HOME_ADDRESS).then(val => {
-      try { if (val) setHomePlacePlanner(JSON.parse(val)); } catch {}
-    }).catch(() => {});
-    AsyncStorage.getItem(SK_WORK_PLACE).then(val => {
-      try { if (val) setWorkPlacePlanner(JSON.parse(val)); } catch {}
-    }).catch(() => {});
-    const clearSub = DeviceEventEmitter.addListener('clearRecentSearches', () => setRecentSearches([]));
     // Check for Sens game tonight
     fetchWithTimeout('https://api-web.nhle.com/v1/schedule/now').then(async r => {
       if (!r.ok) return;
@@ -500,7 +478,6 @@ function PlannerScreenInner() {
       );
       if (game) setSensGameTonight(true);
     }).catch(() => {});
-    return () => clearSub.remove();
   }, []);
 
   // ── Fetch alerts for transfer warnings ─────────────────────────
@@ -828,35 +805,17 @@ function PlannerScreenInner() {
           setItineraries((data.itineraries || []).slice(0, 1));
         }
       }
-      // Save destination to recent searches
-      if (data.itineraries?.length && resolvedTo.lat && resolvedTo.lng) {
-        AsyncStorage.getItem(SK_RECENT_SEARCHES).then(raw => {
-          try {
-            const existing: { name: string; lat: number; lng: number; usedAt: number }[] = raw ? JSON.parse(raw) : [];
-            const deduped = existing.filter(r => r.name !== resolvedTo.label);
-            const updated = [{ name: resolvedTo.label, lat: resolvedTo.lat!, lng: resolvedTo.lng!, usedAt: Date.now() }, ...deduped].slice(0, 10);
-            AsyncStorage.setItem(SK_RECENT_SEARCHES, JSON.stringify(updated)).catch(() => {});
-            setRecentSearches(updated);
-          } catch {}
-        }).catch(() => {});
-      }
       // Auto-save to trip history
       if (data.itineraries?.length) {
         const bestItin = data.itineraries[0];
         const totalDistM = (bestItin.legs || []).reduce((sum: number, l: Leg) => sum + (l.distance || 0), 0);
-        const primaryBusLeg = (bestItin.legs || []).find((l: Leg) => l.mode === 'BUS' || l.mode === 'TRAM' || l.mode === 'RAIL');
-        const now2 = new Date();
         const record: TripRecord = {
           id: `trip_${Date.now()}`,
           fromLabel: resolvedFrom.label, fromLat: resolvedFrom.lat!, fromLng: resolvedFrom.lng!,
           toLabel: resolvedTo.label, toLat: resolvedTo.lat!, toLng: resolvedTo.lng!,
           durationMins: Math.round((bestItin.duration || 0) / 60),
           distanceKm: Math.round(totalDistM / 100) / 10,
-          plannedAt: now2.toISOString(),
-          neighbourhood: destNeighbourhood(resolvedTo.lat!, resolvedTo.lng!),
-          routeId: primaryBusLeg?.routeShortName ?? undefined,
-          hourOfDay: now2.getHours(),
-          dayOfWeek: now2.getDay(),
+          plannedAt: new Date().toISOString(),
         };
         setTripHistory(prev => {
           // Deduplicate: if same from/to exists, move it to top with updated timestamp
@@ -974,19 +933,13 @@ function PlannerScreenInner() {
         setItineraries([combined]);
         // Save to trip history
         const multiDistM = allLegs.reduce((sum: number, l: Leg) => sum + (l.distance || 0), 0);
-        const primaryBusLegMulti = allLegs.find((l: Leg) => l.mode === 'BUS' || l.mode === 'TRAM' || l.mode === 'RAIL');
-        const now3 = new Date();
         const record: TripRecord = {
           id: `trip_${Date.now()}`,
           fromLabel: resolvedFrom.label, fromLat: resolvedFrom.lat!, fromLng: resolvedFrom.lng!,
           toLabel: resolvedTo.label, toLat: resolvedTo.lat!, toLng: resolvedTo.lng!,
           durationMins: Math.round(totalDuration / 60),
           distanceKm: Math.round(multiDistM / 100) / 10,
-          plannedAt: now3.toISOString(),
-          neighbourhood: destNeighbourhood(resolvedTo.lat!, resolvedTo.lng!),
-          routeId: primaryBusLegMulti?.routeShortName ?? undefined,
-          hourOfDay: now3.getHours(),
-          dayOfWeek: now3.getDay(),
+          plannedAt: new Date().toISOString(),
         };
         setTripHistory(prev => {
           const existingIdx = prev.findIndex(p => p.fromLabel === record.fromLabel && p.toLabel === record.toLabel);
@@ -1281,13 +1234,6 @@ function PlannerScreenInner() {
     setIsoLoading(false);
   };
 
-  // ── Auto-trigger isochrone when navigated from map chip ──
-  useEffect(() => {
-    if (params.triggerIsochrone === '1') {
-      setTimeout(() => fetchIsochrone(), 300);
-    }
-  }, [params.triggerIsochrone]);
-
   // ── Route detail modal ───────────────────────────────────────
   const openRouteDetail = useCallback(async (leg: Leg) => {
     if (!leg.routeShortName) return;
@@ -1507,7 +1453,7 @@ function PlannerScreenInner() {
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginBottom: 8 }}>
           <Text style={{ fontSize: 22, fontWeight: '900', color: colours.text }}>{fmtDuration(itin.duration)}</Text>
           <Text style={{ fontSize: 13, color: colours.muted }}>
-            {t('Leave', 'Départ')} {fmtTime(itin.startTime)} · {t('Arrive', 'Arrivée')} {fmtTime(itin.endTime)}
+            {fmtTime(itin.startTime)} → {fmtTime(itin.endTime)}
           </Text>
         </View>
 
@@ -1846,7 +1792,7 @@ function PlannerScreenInner() {
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colours.border }}>
             <View>
               <Text style={{ fontSize: 20, fontWeight: '900', color: colours.text }}>{fmtDuration(expandedItinerary.duration)}</Text>
-              <Text style={{ fontSize: 13, color: colours.muted, marginTop: 2 }}>{t('Leave', 'Départ')} {fmtTime(expandedItinerary.startTime)} · {t('Arrive', 'Arrivée')} {fmtTime(expandedItinerary.endTime)}</Text>
+              <Text style={{ fontSize: 13, color: colours.muted, marginTop: 2 }}>{fmtTime(expandedItinerary.startTime)} → {fmtTime(expandedItinerary.endTime)}</Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               {/* Share button */}
@@ -2453,57 +2399,6 @@ function PlannerScreenInner() {
                 <Ionicons name="location-outline" size={16} color={colours.muted} />
                 <Text style={{ flex: 1, fontSize: 13, color: colours.text }} numberOfLines={2}>{shortenLabel(r.label)}</Text>
               </TouchableOpacity>
-            ))}
-          </View>
-        )}
-        {/* Home / Work / Recent searches — shown when To field is focused and empty */}
-        {activeInput === 'to' && toText.length === 0 && toResults.length === 0 && (homePlace || workPlace || recentSearches.length > 0) && (
-          <View style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }, cardShadow]}>
-            {homePlace && (
-              <TouchableOpacity
-                onPress={() => { setToPlace({ placeId: 'home', label: homePlace.label, lat: homePlace.lat, lng: homePlace.lng }); setToText(homePlace.label); setActiveInput(null); Keyboard.dismiss(); }}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: (workPlace || recentSearches.length > 0) ? 1 : 0, borderBottomColor: colours.border }}
-              >
-                <Ionicons name="home-outline" size={16} color={colours.accent} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 12, color: colours.muted }}>{t('Home', 'Domicile')}</Text>
-                  <Text style={{ fontSize: 13, color: colours.text }} numberOfLines={1}>{homePlace.label}</Text>
-                </View>
-              </TouchableOpacity>
-            )}
-            {workPlace && (
-              <TouchableOpacity
-                onPress={() => { setToPlace({ placeId: 'work', label: workPlace.label, lat: workPlace.lat, lng: workPlace.lng }); setToText(workPlace.label); setActiveInput(null); Keyboard.dismiss(); }}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: recentSearches.length > 0 ? 1 : 0, borderBottomColor: colours.border }}
-              >
-                <Ionicons name="briefcase-outline" size={16} color={colours.accent} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 12, color: colours.muted }}>{t('Work', 'Travail')}</Text>
-                  <Text style={{ fontSize: 13, color: colours.text }} numberOfLines={1}>{workPlace.label}</Text>
-                </View>
-              </TouchableOpacity>
-            )}
-            {recentSearches.slice(0, 5).map((r, i) => (
-              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', borderBottomWidth: i < Math.min(recentSearches.length, 5) - 1 ? 1 : 0, borderBottomColor: colours.border }}>
-                <TouchableOpacity
-                  onPress={() => { setToPlace({ placeId: `recent_${i}`, label: r.name, lat: r.lat, lng: r.lng }); setToText(r.name); setActiveInput(null); Keyboard.dismiss(); }}
-                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12 }}
-                >
-                  <Ionicons name="time-outline" size={16} color={colours.muted} />
-                  <Text style={{ flex: 1, fontSize: 13, color: colours.text }} numberOfLines={1}>{r.name}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  style={{ paddingHorizontal: 14, paddingVertical: 12 }}
-                  onPress={async () => {
-                    const updated = recentSearches.filter((_, idx) => idx !== i);
-                    setRecentSearches(updated);
-                    try { await AsyncStorage.setItem(SK_RECENT_SEARCHES, JSON.stringify(updated)); } catch {}
-                  }}
-                >
-                  <Ionicons name="close" size={14} color={colours.muted} />
-                </TouchableOpacity>
-              </View>
             ))}
           </View>
         )}

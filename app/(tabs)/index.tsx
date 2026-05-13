@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator, Alert, AppState, FlatList, Image, ImageBackground, Keyboard,
@@ -39,6 +39,7 @@ type SavedBoardItem =
   | { type: 'neighbourhood'; id: string; name_en: string; name_fr: string };
 
 import { CAMPUSES, CampusConfig, fmt12h, getDayLabel, getNextDeparture, isLibraryOpen } from '../../lib/campusData';
+import { ClassSchedule, nextClass, fmt12h as schedFmt12h } from '../../lib/scheduleData';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { HAPPY_HOUR_VENUES } from '../../lib/happyHourData';
 import {
@@ -57,6 +58,7 @@ import {
     SK_SAVED_BOARD,
     SK_SAVED_PLACES,
     SK_SAVED_ROUTES,
+    SK_SAVED_VENUES,
     SK_SECTION_ORDER,
     SK_SEEN_ALERT_IDS, SK_TIME_FORMAT,
     SK_TODAY_EVENTS,
@@ -68,7 +70,7 @@ import { haversineKm } from '../../lib/geo';
 import { getDelayContext } from '../../lib/delayContext';
 import { FrequentRoute, detectFrequentRoutes } from '../../lib/frequentRoutes';
 import { CommuteDeal, getCommuteDeals, isCommuteWindow, scheduleCommuteNotification } from '../../lib/commuteDeals';
-import { SK_CROWDING_CACHE, SK_FREQUENT_ARRIVALS_CACHE, SK_FREQUENT_CARD_DISMISSED, SK_LAST_CROWDING_REPORT, SK_TRIP_HISTORY, SK_TRIP_SHARING } from '../../lib/storageKeys';
+import { SK_CROWDING_CACHE, SK_FREQUENT_ARRIVALS_CACHE, SK_FREQUENT_CARD_DISMISSED, SK_LAST_CROWDING_REPORT, SK_TRIP_HISTORY, SK_TRIP_SHARING, SK_CLASS_SCHEDULE } from '../../lib/storageKeys';
 // NewsSection removed from home — news lives in Account tab modal
 // NeighbourhoodSection removed — inlined for scroll reliability
 // NeighbourhoodSheet removed — discover section moved to dedicated tab
@@ -853,6 +855,7 @@ function LiveScreenInner() {
   const [socialDealDesc, setSocialDealDesc] = useState('');
   const [socialDealSending, setSocialDealSending] = useState(false);
   const [socialDealSent, setSocialDealSent] = useState(false);
+  const [savedVenues, setSavedVenues] = useState<any[]>([]);
   const [sensGame, setSensGame] = useState<{ state: 'live' | 'pre' | 'none'; period?: string; homeAbbr?: string; awayAbbr?: string; homeScore?: number; awayScore?: number; startTime?: string; opponentAbbr?: string } | null>(null);
   const [campusModal, setCampusModal] = useState(false);
   const [campusTab, setCampusTab] = useState<'shuttle' | 'library' | 'upass' | 'food' | 'study'>('shuttle');
@@ -860,6 +863,10 @@ function LiveScreenInner() {
   const [campusPicker, setCampusPicker] = useState(false);
   const [campusFood, setCampusFood] = useState<any[]>([]);
   const [campusFoodLoading, setCampusFoodLoading] = useState(false);
+  // Class schedule for hero card
+  const [classSchedule, setClassSchedule] = useState<ClassSchedule | null>(null);
+  const [heroCampus, setHeroCampus] = useState<CampusConfig | null>(null);
+  const [nextClassResult, setNextClassResult] = useState<{ entry: any; day: string; minsUntilLeave: number } | null>(null);
 
   const isLight = theme === 'light' || (theme === 'system' && colours.bg === '#f0f4f8');
   const cardShadow = useMemo(() => isLight ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 } : {}, [isLight]);
@@ -898,6 +905,38 @@ function LiveScreenInner() {
     return () => clearInterval(interval);
   }, []);
 
+  // Load class schedule and campus for hero card — refresh when returning from Account tab, with live countdown
+  useFocusEffect(
+    useCallback(() => {
+      const loadScheduleAndCampus = () => {
+        AsyncStorage.getItem(SK_CLASS_SCHEDULE).then(val => {
+          try { if (val) setClassSchedule(JSON.parse(val)); else setClassSchedule(null); } catch (e) { if (__DEV__) console.warn('JSON parse class schedule failed:', e); }
+        }).catch(() => {});
+        AsyncStorage.getItem(SK_CAMPUS).then(val => {
+          if (val) { const c = CAMPUSES.find(x => x.id === val); if (c) setHeroCampus(c); } else setHeroCampus(null);
+        }).catch(() => {});
+      };
+      loadScheduleAndCampus();
+
+      // Set up live countdown — recalculate every 30s
+      const countdownInterval = setInterval(() => {
+        AsyncStorage.getItem(SK_CLASS_SCHEDULE).then(val => {
+          try {
+            if (val) {
+              const schedule = JSON.parse(val) as ClassSchedule;
+              const nc = nextClass(schedule);
+              setNextClassResult(nc);
+            } else {
+              setNextClassResult(null);
+            }
+          } catch { /* silent */ }
+        }).catch(() => {});
+      }, 30000);
+
+      return () => clearInterval(countdownInterval);
+    }, [])
+  );
+
   useEffect(() => {
     AsyncStorage.getItem(SK_FAVS).then(val => {
       try {
@@ -908,6 +947,7 @@ function LiveScreenInner() {
       } catch { fetchArrivals('CD995'); fetchStopReports('CD995'); }
     });
     AsyncStorage.getItem(SK_SAVED_PLACES).then(val => { try { if (val) setSavedPlaces(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved places failed:', e); } });
+    AsyncStorage.getItem(SK_SAVED_VENUES).then(val => { try { if (val) setSavedVenues(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved venues failed:', e); } });
     AsyncStorage.getItem(SK_SAVED_ROUTES).then(val => { try { if (val) setSavedRoutes(JSON.parse(val)); } catch (e) { if (__DEV__) console.warn('JSON parse saved routes failed:', e); } });
     AsyncStorage.getItem(SK_TIME_FORMAT).then(val => { if (val === 'absolute') setTimeFormat('absolute'); });
     AsyncStorage.getItem(SK_CAMPUS).then(val => { if (val) { const c = CAMPUSES.find(x => x.id === val); if (c) setSelectedCampus(c); } }).catch(() => {});
@@ -1923,6 +1963,15 @@ function LiveScreenInner() {
     });
   };
 
+  const toggleSaveVenue = async (venue: any) => {
+    const isSaved = savedVenues.some(v => v.name === venue.name && v.address === venue.address);
+    const updated = isSaved
+      ? savedVenues.filter(v => !(v.name === venue.name && v.address === venue.address))
+      : [...savedVenues, { name: venue.name, address: venue.address, type: venue.type, lat: venue.lat, lng: venue.lng, deals: venue.deals, fsqId: venue.fsqId, rating: venue.rating, photoUrl: venue.photoUrl, lastVerified: venue.lastVerified }];
+    setSavedVenues(updated);
+    await AsyncStorage.setItem(SK_SAVED_VENUES, JSON.stringify(updated)).catch(() => {});
+  };
+
   const renderSocialModal = () => (
     <Modal visible={socialModal} animationType="fade" transparent onRequestClose={() => setSocialModal(false)}>
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}>
@@ -1972,12 +2021,17 @@ function LiveScreenInner() {
                     <View style={{ padding: 14, gap: 6 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                         <Text style={{ fontSize: 15, fontWeight: '800', color: colours.text, flex: 1 }} numberOfLines={1}>{v.name}</Text>
-                        {v.isActive && (
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#7b5ea7' + '18', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
-                            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#7b5ea7' }} />
-                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#7b5ea7' }}>NOW</Text>
-                          </View>
-                        )}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <TouchableOpacity onPress={() => toggleSaveVenue(v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Save venue', 'Enregistrer le lieu')}>
+                            <Ionicons name={savedVenues.some(sv => sv.name === v.name && sv.address === v.address) ? 'heart' : 'heart-outline'} size={18} color="#EC4899" />
+                          </TouchableOpacity>
+                          {v.isActive && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#7b5ea7' + '18', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
+                              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#7b5ea7' }} />
+                              <Text style={{ fontSize: 10, fontWeight: '700', color: '#7b5ea7' }}>NOW</Text>
+                            </View>
+                          )}
+                        </View>
                       </View>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                         <Ionicons name="location-outline" size={12} color={colours.muted} />
@@ -2865,6 +2919,7 @@ function LiveScreenInner() {
                 </View>
               );
             }
+            if (item.minsAway > 2) return null;
             return (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
                 <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{t('Did this bus come?', 'Ce bus est-il passé?')}</Text>
@@ -3542,6 +3597,92 @@ function LiveScreenInner() {
               </TouchableOpacity>
             </View>
           )}
+
+          {/* Class Schedule Hero Card */}
+          {classSchedule && heroCampus && (() => {
+            const nc = nextClassResult;
+            if (!nc || nc.minsUntilLeave <= 0) return null;
+            return (
+              <TouchableOpacity
+                onPress={() => {
+                  router.push({
+                    pathname: '/(tabs)/planner',
+                    params: { toLabel: heroCampus.name, toLat: String(heroCampus.lat), toLng: String(heroCampus.lng) }
+                  } as any);
+                }}
+                activeOpacity={0.85}
+                style={{
+                  marginHorizontal: 20,
+                  marginBottom: 16,
+                  backgroundColor: colours.surface,
+                  borderRadius: 16,
+                  borderWidth: 2,
+                  borderColor: colours.accent,
+                  padding: 16,
+                  ...cardShadow
+                }}
+              >
+                {/* Header with campus name and edit button */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      {t('Next Class', 'Prochain cours')}
+                    </Text>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: colours.text, marginTop: 4 }}>
+                      {heroCampus.name}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => router.push('/(tabs)/account' as any)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={{ padding: 8 }}
+                  >
+                    <Ionicons name="pencil" size={16} color={colours.accent} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Class name */}
+                <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text, marginBottom: 8 }}>
+                  {nc.entry.name}
+                </Text>
+
+                {/* Room if available */}
+                {nc.entry.room && (
+                  <Text style={{ fontSize: 12, color: colours.muted, marginBottom: 12 }}>
+                    {t('Room', 'Salle')}: {nc.entry.room}
+                  </Text>
+                )}
+
+                {/* Leave in X min — big prominent number */}
+                <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginTop: 8 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 32, fontWeight: '800', color: colours.accent }}>
+                      {nc.minsUntilLeave}
+                    </Text>
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: colours.muted, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      {t('min to leave', 'min pour partir')}
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={{ fontSize: 12, color: colours.text, fontWeight: '600' }}>
+                      {t('Starts at', 'Commence à')}
+                    </Text>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: colours.accent, marginTop: 2 }}>
+                      {schedFmt12h(nc.entry.startTime)}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Tap to plan indicator */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colours.border }}>
+                  <Text style={{ fontSize: 11, color: colours.muted, fontWeight: '600' }}>
+                    {t('Tap to plan route', 'Appuyez pour planifier')}
+                  </Text>
+                  <Ionicons name="arrow-forward" size={14} color={colours.accent} />
+                </View>
+              </TouchableOpacity>
+            );
+          })()}
 
           {/* Universal Saved Board */}
           {!boardLoaded ? (

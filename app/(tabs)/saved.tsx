@@ -16,7 +16,7 @@ import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { haversineKm } from '../../lib/geo';
 import { cardShadow as sharedCardShadow } from '../../lib/styles';
 import { cacheArrivals, getCachedArrivals } from '../../lib/arrivalCache';
-import { SK_SAVED_PLACES, SK_TRIP_HISTORY, SK_LEAVE_NOW_ALERTS, SK_ARRIVAL_CACHE, SK_FOLLOWED_VENUES } from '../../lib/storageKeys';
+import { SK_SAVED_PLACES, SK_TRIP_HISTORY, SK_LEAVE_NOW_ALERTS, SK_ARRIVAL_CACHE, SK_FOLLOWED_VENUES, SK_SAVED_VENUES } from '../../lib/storageKeys';
 import { trackEvent } from '../../lib/analytics';
 import { useIsPremium } from '../../lib/premium';
 import { PREMIUM_ENABLED } from '../../lib/flags';
@@ -89,6 +89,7 @@ function SavedScreenInner() {
 
   const [stops, setStops] = useState<SavedStop[]>([]);
   const [places, setPlaces] = useState<SavedPlace[]>([]);
+  const [savedVenues, setSavedVenues] = useState<any[]>([]);
   const [followedVenues, setFollowedVenues] = useState<string[]>([]);
   const [recentTrip, setRecentTrip] = useState<TripEntry | null>(null);
   const [arrivals, setArrivals] = useState<Record<string, StopArrival[]>>({});
@@ -311,9 +312,13 @@ function SavedScreenInner() {
 
   const loadData = useCallback(async () => {
     try {
-      const [placesRaw, tripRaw] = await Promise.all([
+      if (__DEV__) console.log('[SavedScreen] loadData start, boardItems count:', boardItems.length);
+      if (__DEV__) console.log('[SavedScreen] boardItems types:', boardItems.map(item => ({ type: item.type, ...(('id' in item && 'name' in item) && { id: item.id, name: item.name }) })));
+
+      const [placesRaw, tripRaw, venuesRaw] = await Promise.all([
         AsyncStorage.getItem(SK_SAVED_PLACES),
         AsyncStorage.getItem(SK_TRIP_HISTORY),
+        AsyncStorage.getItem(SK_SAVED_VENUES),
       ]);
 
       const savedStops: SavedStop[] = [];
@@ -322,10 +327,15 @@ function SavedScreenInner() {
           savedStops.push({ id: item.id, name: item.name || `Stop #${item.id}`, agency: item.agency });
         }
       }
+      if (__DEV__) console.log('[SavedScreen] Filtered stops - total:', savedStops.length, 'stops:', savedStops.map(s => ({ id: s.id, name: s.name })));
       setStops(savedStops);
 
       if (placesRaw) {
         try { setPlaces(JSON.parse(placesRaw)); } catch (e) { if (__DEV__) console.warn(e); }
+      }
+
+      if (venuesRaw) {
+        try { setSavedVenues(JSON.parse(venuesRaw)); } catch (e) { if (__DEV__) console.warn(e); }
       }
 
       if (tripRaw) {
@@ -339,11 +349,13 @@ function SavedScreenInner() {
 
       // Detect most used stop — match stop IDs mentioned in trip route stops
       // Falls back to first saved stop if no trip history matches
+      let topStop: SavedStop | null = null;
       if (savedStops.length > 0) {
-        let topStop: SavedStop = savedStops[0];
+        topStop = savedStops[0];
         if (tripRaw) {
           try {
             const trips: any[] = JSON.parse(tripRaw);
+            if (__DEV__) console.log('[SavedScreen] Trip history count:', trips.length);
             const stopCounts: Record<string, number> = {};
             const nameToId = new Map(savedStops.map(s => [s.name.toLowerCase(), s.id]));
             for (const tr of trips) {
@@ -355,13 +367,20 @@ function SavedScreenInner() {
                 }
               }
             }
+            if (__DEV__) console.log('[SavedScreen] Stop counts:', stopCounts);
             const topId = Object.entries(stopCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
             if (topId) topStop = savedStops.find(s => s.id === topId) || savedStops[0];
-          } catch (e) { if (__DEV__) console.warn(e); }
+          } catch (e) { if (__DEV__) console.warn('[SavedScreen] Trip history parse error:', e); }
         }
+        if (__DEV__) console.log('[SavedScreen] Setting mostUsedStop:', { id: topStop.id, name: topStop.name });
         setMostUsedStop(topStop);
       }
 
+      if (__DEV__) console.log('[SavedScreen] loadData complete - summary:', {
+        savedStopsCount: savedStops.length,
+        savedStopsIds: savedStops.map(s => s.id),
+        mostUsedStopId: topStop?.id || 'none',
+      });
       setLoaded(true);
 
       if (savedStops.length > 0) {
@@ -743,8 +762,11 @@ function SavedScreenInner() {
           {/* Saved stops grid */}
           {stops.length > 0 && (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: GAP }}>
-              {stops
-                .filter(s => !mostUsedStop || s.id !== mostUsedStop.id)
+              {(() => {
+                const gridStops = stops.filter(s => !mostUsedStop || s.id !== mostUsedStop.id);
+                if (__DEV__) console.log('[SavedScreen] Rendering grid - total stops:', stops.length, 'mostUsedStop:', mostUsedStop?.id, 'grid stops:', gridStops.length, gridStops.map(s => s.id));
+                return gridStops;
+              })()
                 .map(stop => {
                   const stopArrivals = arrivals[stop.id] || [];
                   return (
@@ -831,6 +853,58 @@ function SavedScreenInner() {
                     </View>
                   );
                 })}
+            </View>
+          )}
+
+          {/* Saved Venues */}
+          {savedVenues.length > 0 && (
+            <View style={{ marginTop: stops.length > 0 ? GAP * 2 : 0 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, marginBottom: 12, letterSpacing: 0.5 }}>
+                {t('SAVED VENUES', 'LIEUX ENREGISTRÉS')}
+              </Text>
+              <View style={{ gap: GAP }}>
+                {savedVenues.map((venue, i) => (
+                  <View
+                    key={i}
+                    style={{
+                      backgroundColor: colours.card,
+                      borderRadius: 14,
+                      padding: 12,
+                      borderWidth: 1,
+                      borderColor: colours.border,
+                      ...cardShadow,
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }} numberOfLines={1}>
+                          {venue.name}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }} numberOfLines={1}>
+                          {Array.isArray(venue.type) ? venue.type.join(', ') : venue.type}
+                        </Text>
+                      </View>
+                      <TouchableOpacity onPress={async () => { setSavedVenues(prev => prev.filter((v, idx) => idx !== i)); await AsyncStorage.setItem(SK_SAVED_VENUES, JSON.stringify(savedVenues.filter((v, idx) => idx !== i))).catch(() => {}); }} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                        <Ionicons name="close-circle" size={18} color={colours.muted} />
+                      </TouchableOpacity>
+                    </View>
+                    {venue.address && (
+                      <Text style={{ fontSize: 11, color: colours.muted, marginBottom: 10 }} numberOfLines={1}>
+                        📍 {venue.address}
+                      </Text>
+                    )}
+                    <TouchableOpacity
+                      onPress={() => { router.push({ pathname: '/(tabs)/planner', params: { toLat: venue.lat, toLng: venue.lng, toLabel: venue.name } }); }}
+                      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colours.accent, paddingVertical: 10, borderRadius: 10 }}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('Get there', 'S\'y rendre')}
+                    >
+                      <Ionicons name="navigate" size={16} color="#fff" />
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#fff' }}>{t('Get there', 'S\'y rendre')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
             </View>
           )}
 

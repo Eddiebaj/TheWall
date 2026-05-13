@@ -23,6 +23,7 @@ export const SK_FAVS = 'routeo_favs';
 export const SK_SAVED_BOARD = 'routeo_saved_board';
 export const SK_SAVED_ROUTES = 'routeo_saved_routes';
 export const SK_SAVED_PLACES = 'routeo_saved_places';
+export const SK_SAVED_VENUES = 'routeo_saved_venues';
 export const SK_SECTION_ORDER = 'routeo_section_order';
 export const SK_QUICK_ACTIONS = 'routeo_quick_actions';
 export const SK_OTTAWA_LIFE = 'routeo_ottawa_life';
