@@ -82,6 +82,7 @@ import MyStopsSection from '../../components/MyBoard/MyStopsSection';
 import YourSpotsSection from '../../components/MyBoard/YourSpotsSection';
 import TonightSection from '../../components/MyBoard/TonightSection';
 import AroundOttawaSection from '../../components/MyBoard/AroundOttawaSection';
+import SocialModal from '../../components/SocialModal';
 import SavedPlaceCard from '../../components/SavedPlaceCard';
 
 const TRIP_UPDATES = 'https://nextrip-public-api.azure-api.net/octranspo/gtfs-rt-tp/beta/v1/TripUpdates?format=json';
@@ -827,10 +828,6 @@ function LiveScreenInner() {
   const [dailyForecast, setDailyForecast] = useState<{ day: string; date: string; high: number; low: number; icon: string; precip: number }[]>([]);
   const [locationName, setLocationName] = useState('Ottawa, Ontario');
   // Ottawa road closures
-  // VeloGo bike share
-  const [bikeShareModal, setBikeShareModal] = useState(false);
-  const [bikeStations, setBikeStations] = useState<{ name: string; bikes: number; docks: number; lat: number; lng: number; distance: number }[]>([]);
-  const [bikeShareLoading, setBikeShareLoading] = useState(false);
   // Commute insights
   const [commuteInsight, setCommuteInsight] = useState<{ fromLabel: string; toLabel: string; avgDuration: number; count: number; affectedAlert?: string } | null>(null);
   const [weatherBannerDismissed, setWeatherBannerDismissed] = useState(false);
@@ -1260,41 +1257,6 @@ function LiveScreenInner() {
     return { lat: 45.4215, lng: -75.6972 };
   };
 
-
-  // ── VeloGo bike share ─────────────────────────────────────────
-  const fetchBikeShare = async () => {
-    setBikeShareLoading(true);
-    try {
-      const coords = await getUserCoords();
-      const [infoResp, statusResp] = await Promise.all([
-        fetchWithTimeout('https://velogo.ca/opendata/station_information.json'),
-        fetchWithTimeout('https://velogo.ca/opendata/station_status.json'),
-      ]);
-      if (!infoResp.ok) throw new Error('HTTP ' + infoResp.status);
-      if (!statusResp.ok) throw new Error('HTTP ' + statusResp.status);
-      const infoData = await infoResp.json();
-      const statusData = await statusResp.json();
-      const stations = infoData.data?.stations || [];
-      const statuses = statusData.data?.stations || [];
-      const statusMap: { [id: string]: any } = {};
-      for (const s of statuses) statusMap[s.station_id] = s;
-      const merged = stations.map((s: any) => {
-        const st = statusMap[s.station_id] || {};
-        const dist = haversineKm(coords.lat, coords.lng, s.lat, s.lon);
-        return {
-          name: s.name || `Station ${s.station_id}`,
-          bikes: st.num_bikes_available ?? 0,
-          docks: st.num_docks_available ?? 0,
-          lat: s.lat,
-          lng: s.lon,
-          distance: dist,
-        };
-      });
-      merged.sort((a: any, b: any) => a.distance - b.distance);
-      setBikeStations(merged.slice(0, 30));
-    } catch { setBikeStations([]); }
-    setBikeShareLoading(false);
-  };
 
 
   // ── Ticketmaster events ───────────────────────────────────────
@@ -1920,7 +1882,6 @@ function LiveScreenInner() {
   const handleServiceTile = (tile: ServiceTile) => {
     if (tile.action === 'alert' && tile.target === 'social') { setSocialModal(true); return; }
     if (tile.action === 'alert' && tile.target === '311') { Linking.openURL('https://ottawa.ca/en/residents/water-and-environment/waste-and-recycling/report-problem').catch(() => {}); return; }
-    if (tile.action === 'alert' && tile.target === 'bikeshare') { fetchBikeShare(); setBikeShareModal(true); return; }
     if (tile.action === 'alert' && tile.target === 'campus') { if (!selectedCampus) setCampusPicker(true); else setCampusModal(true); return; }
     if (tile.action === 'alert') { setAlertsModalVisible(true); return; }
     if (tile.action === 'navigate' && tile.target?.includes('events?source=')) {
@@ -1978,210 +1939,6 @@ function LiveScreenInner() {
     await AsyncStorage.setItem(SK_SAVED_VENUES, JSON.stringify(updated)).catch(() => {});
   };
 
-  const renderSocialModal = () => (
-    <Modal visible={socialModal} animationType="fade" transparent onRequestClose={() => setSocialModal(false)}>
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}>
-        <View style={{ width: '92%', maxWidth: 420, backgroundColor: colours.surface, borderRadius: 20, overflow: 'hidden', maxHeight: '85%' }}>
-          {/* Header */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: colours.border }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Ionicons name="beer" size={18} color="#7b5ea7" />
-              <Text style={{ fontSize: 17, fontWeight: '800', color: colours.text }}>Social</Text>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <TouchableOpacity onPress={() => { setSocialModal(false); router.push('/(tabs)/map'); }} style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="map-outline" size={15} color={colours.muted} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setSocialModal(false)} style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="close" size={16} color={colours.text} />
-              </TouchableOpacity>
-            </View>
-          </View>
-          {/* Tabs */}
-          <View style={{ flexDirection: 'row', paddingHorizontal: 14, paddingTop: 10, paddingBottom: 8, gap: 6 }}>
-            {([{ id: 'all' as const, label: 'All' }, { id: 'bars' as const, label: 'Bars' }, { id: 'restaurants' as const, label: 'Eats' }, { id: 'clubs' as const, label: 'Clubs' }]).map(tab => {
-              const active = socialTab === tab.id;
-              return (
-                <TouchableOpacity key={tab.id} onPress={() => setSocialTab(tab.id)} style={{ flex: 1, height: 34, borderRadius: 17, borderWidth: 1, backgroundColor: active ? '#7b5ea7' : colours.surface, borderColor: active ? '#7b5ea7' : colours.border, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: active ? 'white' : colours.muted }}>{tab.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-          {/* Venue list */}
-          <ScrollView contentContainerStyle={{ padding: 14, paddingTop: 4, gap: 8 }}>
-            {(() => {
-              const venues = getSocialVenues() || [];
-              if (venues.length === 0) return (
-                <View style={{ padding: 32, alignItems: 'center' }}>
-                  <Ionicons name="moon-outline" size={32} color={colours.muted} />
-                  <Text style={{ fontSize: 14, color: colours.muted, marginTop: 10, textAlign: 'center' }}>No deals right now</Text>
-                </View>
-              );
-              return venues.map((v, i) => {
-                if (!v || !v.name) return null;
-                const deals = v.isActive ? (v.activeDeals || []) : (v.upcomingDeals || []);
-                const statusDeal = deals[0];
-                return (
-                  <View key={i} style={{ backgroundColor: colours.bg, borderRadius: 14, borderWidth: 1, borderColor: v.isActive ? '#7b5ea7' + '40' : colours.border, overflow: 'hidden' }}>
-                    <View style={{ padding: 14, gap: 6 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Text style={{ fontSize: 15, fontWeight: '800', color: colours.text, flex: 1 }} numberOfLines={1}>{v.name}</Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <TouchableOpacity onPress={() => toggleSaveVenue(v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Save venue', 'Enregistrer le lieu')}>
-                            <Ionicons name={savedVenues.some(sv => sv.name === v.name && sv.address === v.address) ? 'heart' : 'heart-outline'} size={18} color="#EC4899" />
-                          </TouchableOpacity>
-                          {v.isActive && (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#7b5ea7' + '18', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
-                              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#7b5ea7' }} />
-                              <Text style={{ fontSize: 10, fontWeight: '700', color: '#7b5ea7' }}>NOW</Text>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        <Ionicons name="location-outline" size={12} color={colours.muted} />
-                        <Text style={{ fontSize: 11, color: colours.muted }}>{v.address || 'Ottawa'}</Text>
-                      </View>
-                      {deals.length > 0 && (
-                        <View style={{ marginTop: 2, gap: 4 }}>
-                          {deals.map((d: any, j: number) => (
-                            <View key={j} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
-                              <Ionicons name={v.isActive ? 'pricetag' : 'pricetag-outline'} size={11} color={v.isActive ? '#7b5ea7' : colours.muted} style={{ marginTop: 2 }} />
-                              <Text style={{ fontSize: 12, color: colours.text, flex: 1, lineHeight: 16 }}>{d.description}</Text>
-                            </View>
-                          ))}
-                        </View>
-                      )}
-                      {statusDeal && (
-                        <Text style={{ fontSize: 10, color: colours.muted, marginTop: 2 }}>
-                          {v.isActive
-                            ? `Active now · ends ${(statusDeal.end || '').replace(/^0/, '')}`
-                            : `Starts ${(statusDeal.start || '').replace(/^0/, '')}`}
-                        </Text>
-                      )}
-                      <TouchableOpacity onPress={() => { setSocialFeedbackVenue(v.name); setSocialFeedbackText(''); setSocialFeedbackSent(false); }} style={{ marginTop: 6, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.muted + '14', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
-                        <Ionicons name="help-circle-outline" size={12} color={colours.muted} />
-                        <Text style={{ fontSize: 10, fontWeight: '600', color: colours.muted }}>{t('Is this accurate?', 'Est-ce exact?')}</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                );
-              });
-            })()}
-          </ScrollView>
-
-          {/* Submit new deal */}
-          {!socialFeedbackVenue && (
-            <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
-              {socialDealSent ? (
-                <View style={{ alignItems: 'center', paddingVertical: 10 }}>
-                  <Ionicons name="checkmark-circle" size={24} color="#00A78D" />
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text, marginTop: 4 }}>{t('Deal submitted for review!', 'Offre soumise pour examen!')}</Text>
-                </View>
-              ) : socialDealForm ? (
-                <View style={{ backgroundColor: colours.bg, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colours.border }}>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text, marginBottom: 8 }}>{t('Submit a New Deal', 'Soumettre une offre')}</Text>
-                  <TextInput
-                    style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: colours.text, marginBottom: 8 }}
-                    placeholder={t('Venue name', 'Nom du lieu')}
-                    placeholderTextColor={colours.muted}
-                    value={socialDealVenue}
-                    onChangeText={setSocialDealVenue}
-                  />
-                  <TextInput
-                    style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: colours.text, minHeight: 50, textAlignVertical: 'top', marginBottom: 10 }}
-                    placeholder={t('Deal details (e.g. $5 pints Mon-Fri 3-6pm)', 'Details (ex. $5 pintes lun-ven 15h-18h)')}
-                    placeholderTextColor={colours.muted}
-                    value={socialDealDesc}
-                    onChangeText={setSocialDealDesc}
-                    multiline
-                  />
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <TouchableOpacity onPress={() => { setSocialDealForm(false); setSocialDealVenue(''); setSocialDealDesc(''); }} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted }}>{t('Cancel', 'Annuler')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={async () => {
-                        if (!socialDealVenue.trim() || !socialDealDesc.trim()) return;
-                        setSocialDealSending(true);
-                        try {
-                          await supabase.from('community_deals').insert({ venue_name: socialDealVenue.trim(), deal_description: socialDealDesc.trim(), approved: false });
-                          setSocialDealSent(true);
-                          setSocialDealForm(false);
-                        } catch (e) { if (__DEV__) console.warn('submit deal failed:', e); }
-                        setSocialDealSending(false);
-                      }}
-                      style={{ flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: socialDealVenue.trim() && socialDealDesc.trim() ? '#7b5ea7' : colours.border, alignItems: 'center' }}
-                    >
-                      {socialDealSending
-                        ? <ActivityIndicator color="white" size="small" />
-                        : <Text style={{ fontSize: 13, fontWeight: '700', color: socialDealVenue.trim() && socialDealDesc.trim() ? 'white' : colours.muted }}>{t('Submit', 'Soumettre')}</Text>
-                      }
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ) : (
-                <TouchableOpacity onPress={() => { setSocialDealForm(true); setSocialDealSent(false); }} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#7b5ea7' + '40', borderStyle: 'dashed' }}>
-                  <Ionicons name="add-circle-outline" size={16} color="#7b5ea7" />
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#7b5ea7' }}>{t('Know a deal? Submit it', 'Vous connaissez une offre?')}</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
-
-          {/* Feedback sheet */}
-          {socialFeedbackVenue && (
-            <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colours.surface, borderTopWidth: 1, borderTopColor: colours.border, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 28, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.15, shadowRadius: 12 }}>
-              {socialFeedbackSent ? (
-                <View style={{ alignItems: 'center', paddingVertical: 12 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: colours.text }}>Thanks for the tip! 👍</Text>
-                  <TouchableOpacity onPress={() => setSocialFeedbackVenue(null)} style={{ marginTop: 14, paddingVertical: 10, paddingHorizontal: 24, borderRadius: 12, backgroundColor: '#7b5ea7', alignItems: 'center' }}>
-                    <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>Done</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <>
-                  <Text style={{ fontSize: 15, fontWeight: '800', color: colours.text, marginBottom: 4 }}>{socialFeedbackVenue}</Text>
-                  <Text style={{ fontSize: 12, color: colours.muted, marginBottom: 12 }}>Help keep this info up to date</Text>
-                  <TextInput
-                    style={{ backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: colours.text, minHeight: 60, textAlignVertical: 'top', marginBottom: 14 }}
-                    placeholder="e.g. hours changed, deal ended, new deal..."
-                    placeholderTextColor={colours.muted}
-                    value={socialFeedbackText}
-                    onChangeText={setSocialFeedbackText}
-                    multiline
-                  />
-                  <View style={{ flexDirection: 'row', gap: 10 }}>
-                    <TouchableOpacity onPress={() => setSocialFeedbackVenue(null)} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
-                      <Text style={{ fontSize: 14, fontWeight: '700', color: colours.muted }}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={async () => {
-                        if (!socialFeedbackText.trim()) return;
-                        setSocialFeedbackSending(true);
-                        try {
-                          await supabase.from('social_feedback').insert({ venue_name: socialFeedbackVenue, suggestion: socialFeedbackText.trim() });
-                          setSocialFeedbackSent(true);
-                        } catch (e) { if (__DEV__) console.warn('submit social feedback failed:', e); }
-                        setSocialFeedbackSending(false);
-                      }}
-                      style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: socialFeedbackText.trim() ? '#7b5ea7' : colours.border, alignItems: 'center' }}
-                    >
-                      {socialFeedbackSending
-                        ? <ActivityIndicator color="white" size="small" />
-                        : <Text style={{ fontSize: 14, fontWeight: '700', color: socialFeedbackText.trim() ? 'white' : colours.muted }}>Submit</Text>
-                      }
-                    </TouchableOpacity>
-                  </View>
-                </>
-              )}
-            </View>
-          )}
-        </View>
-      </View>
-    </Modal>
-  );
 
   // ── Events Modal (Ticketmaster / Eventbrite) ─────────────────
   const renderEventsModal = () => {
@@ -2395,58 +2152,6 @@ function LiveScreenInner() {
   };
 
 
-  // ── VeloGo Bike Share Modal ───────────────────────────────────
-  const renderBikeShareModal = () => (
-    <Modal visible={bikeShareModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setBikeShareModal(false)}>
-      <View style={[styles.modalContainer, { backgroundColor: colours.bg }]}>
-        <View style={[styles.modalHeader, { borderBottomColor: colours.border }]}>
-          <View>
-            <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text }}>{t('Bike Share', 'V\u00E9lopartage')}</Text>
-            <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>{t('VeloGo · Nearest stations', 'VeloGo · Stations les plus proches')}</Text>
-          </View>
-          <TouchableOpacity style={[styles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={() => setBikeShareModal(false)} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
-            <Ionicons name="close" size={18} color={colours.text} />
-          </TouchableOpacity>
-        </View>
-        <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-          {bikeShareLoading ? (
-            <View style={styles.modalCenter}><ActivityIndicator color={colours.accent} size="large" /><Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('Finding nearby stations...', 'Recherche de stations...')}</Text></View>
-          ) : bikeStations.length === 0 ? (
-            <View style={styles.modalCenter}>
-              <Ionicons name="bicycle-outline" size={36} color={colours.muted} />
-              <Text style={{ color: colours.muted, marginTop: 12, fontSize: fonts.md }}>{t('No bike stations found.', 'Aucune station trouv\u00E9e.')}</Text>
-            </View>
-          ) : bikeStations.map((s, i) => (
-            <View key={i} style={{ marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, ...cardShadow }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                  <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: '#00A78D' + '15', alignItems: 'center', justifyContent: 'center' }}>
-                    <Ionicons name="bicycle" size={16} color="#00A78D" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: fonts.md, fontWeight: '800', color: colours.text }} numberOfLines={1}>{s.name}</Text>
-                    <Text style={{ fontSize: 11, color: colours.muted, marginTop: 1 }}>{s.distance < 1 ? `${(s.distance * 1000).toFixed(0)}m away` : `${s.distance.toFixed(1)}km away`}</Text>
-                  </View>
-                </View>
-              </View>
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: s.bikes > 0 ? '#00A78D' + '12' : '#cc3b2a' + '12', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
-                  <Ionicons name="bicycle" size={14} color={s.bikes > 0 ? '#00A78D' : '#cc3b2a'} />
-                  <Text style={{ fontSize: 16, fontWeight: '900', color: s.bikes > 0 ? '#00A78D' : '#cc3b2a' }}>{s.bikes}</Text>
-                  <Text style={{ fontSize: 11, color: colours.muted, fontWeight: '600' }}>{t('bikes', 'v\u00E9los')}</Text>
-                </View>
-                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: s.docks > 0 ? '#004890' + '12' : '#cc3b2a' + '12', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
-                  <Ionicons name="lock-closed-outline" size={14} color={s.docks > 0 ? '#004890' : '#cc3b2a'} />
-                  <Text style={{ fontSize: 16, fontWeight: '900', color: s.docks > 0 ? '#004890' : '#cc3b2a' }}>{s.docks}</Text>
-                  <Text style={{ fontSize: 11, color: colours.muted, fontWeight: '600' }}>{t('docks', 'ancrages')}</Text>
-                </View>
-              </View>
-            </View>
-          ))}
-        </ScrollView>
-      </View>
-    </Modal>
-  );
 
 
   const isNight = new Date().getHours() >= 21;
@@ -3415,9 +3120,42 @@ function LiveScreenInner() {
         </Modal>}
 
         {!!boardExpandItem && renderBoardExpandModal()}
-        {socialModal && renderSocialModal()}
+        <SocialModal
+          visible={socialModal}
+          onClose={() => setSocialModal(false)}
+          colours={colours}
+          fonts={fonts}
+          t={t}
+          language={language}
+          router={router}
+          savedVenues={savedVenues}
+          setSavedVenues={setSavedVenues}
+          getSocialVenues={getSocialVenues}
+          socialTab={socialTab}
+          setSocialTab={setSocialTab}
+          socialFeedbackVenue={socialFeedbackVenue}
+          setSocialFeedbackVenue={setSocialFeedbackVenue}
+          socialFeedbackText={socialFeedbackText}
+          setSocialFeedbackText={setSocialFeedbackText}
+          socialFeedbackSent={socialFeedbackSent}
+          setSocialFeedbackSent={setSocialFeedbackSent}
+          socialFeedbackSending={socialFeedbackSending}
+          setSocialFeedbackSending={setSocialFeedbackSending}
+          socialDealForm={socialDealForm}
+          setSocialDealForm={setSocialDealForm}
+          socialDealVenue={socialDealVenue}
+          setSocialDealVenue={setSocialDealVenue}
+          socialDealDesc={socialDealDesc}
+          setSocialDealDesc={setSocialDealDesc}
+          socialDealSending={socialDealSending}
+          setSocialDealSending={setSocialDealSending}
+          socialDealSent={socialDealSent}
+          setSocialDealSent={setSocialDealSent}
+          cardShadow={cardShadow}
+          supabase={supabase}
+          toggleSaveVenue={toggleSaveVenue}
+        />
         {eventsModal && renderEventsModal()}
-        {bikeShareModal && renderBikeShareModal()}
         {(campusPicker || campusModal) && renderCampusModal()}
 
         {/* Stop Reports Sheet */}
