@@ -27,6 +27,7 @@ export default function FriendsScreen() {
   const [searching, setSearching] = useState(false);
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
+  const [downTonight, setDownTonight] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -213,6 +214,42 @@ export default function FriendsScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* I'm down tonight toggle */}
+        <TouchableOpacity
+          onPress={async () => {
+            const newVal = !downTonight;
+            setDownTonight(newVal);
+            if (newVal) {
+              await supabase.from('city_board_down_tonight').upsert({
+                user_id: user.id,
+                expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+              }, { onConflict: 'user_id' });
+            } else {
+              await supabase.from('city_board_down_tonight').delete().eq('user_id', user.id);
+            }
+          }}
+          style={{
+            flexDirection: 'row', alignItems: 'center', gap: 10,
+            paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14,
+            borderWidth: 1.5,
+            borderColor: downTonight ? '#00C07A' : colours.border,
+            backgroundColor: downTonight ? '#00C07A12' : colours.surface,
+            marginBottom: 12,
+          }}
+        >
+          <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: downTonight ? '#00C07A20' : colours.border, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 18 }}>{downTonight ? '🔥' : '🌙'}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: downTonight ? '#00C07A' : colours.text }}>
+              {downTonight ? "You're down tonight" : "I'm down tonight"}
+            </Text>
+            <Text style={{ fontSize: 12, color: colours.muted, marginTop: 1 }}>
+              {downTonight ? 'Your friends can see you\'re available' : 'Let friends know you\'re free'}
+            </Text>
+          </View>
+          <Ionicons name={downTonight ? 'toggle' : 'toggle-outline'} size={28} color={downTonight ? '#00C07A' : colours.muted} />
+        </TouchableOpacity>
         {/* Friend discovery methods */}
         <View style={{ gap: 10 }}>
           {/* Search by username */}
