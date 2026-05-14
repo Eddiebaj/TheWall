@@ -909,24 +909,33 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
             </View>
           )}
 
-          {/* Alert banner */}
-          {activeAlertCount > 0 && (
-            <TouchableOpacity
-              onPress={() => router.push('/(tabs)/alerts' as any)}
-              style={{ backgroundColor: AMBER_BG, paddingHorizontal: 16, paddingVertical: 10, marginBottom: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Ionicons name="warning-outline" size={15} color={AMBER_TEXT} />
-                <Text style={{ fontSize: 13, fontWeight: '600', color: AMBER_TEXT }}>
-                  {t(
-                    `${activeAlertCount} active alert${activeAlertCount > 1 ? 's' : ''} on your network`,
-                    `${activeAlertCount} alerte${activeAlertCount > 1 ? 's' : ''} active${activeAlertCount > 1 ? 's' : ''} sur votre réseau`,
-                  )}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={14} color={AMBER_TEXT} />
-            </TouchableOpacity>
-          )}
+          {/* Alert banner — always visible */}
+          <TouchableOpacity
+            onPress={() => router.push('/(tabs)/alerts' as any)}
+            style={{
+              backgroundColor: activeAlertCount > 0 ? AMBER_BG : '#00C07A12',
+              paddingHorizontal: 16, paddingVertical: 10, marginBottom: 4,
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons
+                name={activeAlertCount > 0 ? 'warning-outline' : 'checkmark-circle-outline'}
+                size={15}
+                color={activeAlertCount > 0 ? AMBER_TEXT : '#00C07A'}
+              />
+              <Text style={{ fontSize: 13, fontWeight: '600', color: activeAlertCount > 0 ? AMBER_TEXT : '#00C07A' }}>
+                {activeAlertCount > 0
+                  ? t(
+                      `${activeAlertCount} active alert${activeAlertCount > 1 ? 's' : ''} on your network`,
+                      `${activeAlertCount} alerte${activeAlertCount > 1 ? 's' : ''} active${activeAlertCount > 1 ? 's' : ''} sur votre réseau`,
+                    )
+                  : t('All systems normal', 'Tous les systèmes normaux')
+                }
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={14} color={activeAlertCount > 0 ? AMBER_TEXT : '#00C07A'} />
+          </TouchableOpacity>
 
           {/* Happening Now */}
           {happeningNow && happeningNow.length > 0 && (
