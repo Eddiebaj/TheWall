@@ -1574,14 +1574,25 @@ export default function MapScreen() {
       .slice(0, 3)
       .map(s => ({ placeId: `stop_${s.id}`, name: toTitleCase(s.name), address: `${t('Stop', 'Arr\u00eat')} #${s.id}`, stopId: s.id }));
     try {
-      const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=autocomplete&input=${encodeURIComponent(query)}&location=45.4215,-75.6972&radius=50000`);
+      const userLat = location?.coords?.latitude ?? region.latitude ?? 45.4215;
+      const userLng = location?.coords?.longitude ?? region.longitude ?? -75.6972;
+      const r = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=autocomplete&input=${encodeURIComponent(query)}&location=${userLat},${userLng}&radius=10000&strictbounds=true&types=establishment`);
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const autocompleteResult = await r.json();
-      const placeMatches = (autocompleteResult.predictions || []).slice(0, 5).map((p: any) => ({
-        placeId: p.place_id,
-        name: p.structured_formatting?.main_text || p.description,
-        address: p.structured_formatting?.secondary_text || '',
-      }));
+      const placeMatches = (autocompleteResult.predictions || [])
+        .filter((p: any) => {
+          const desc = (p.description || '').toLowerCase();
+          // Filter out results that are just cities, countries, or provinces with no street context
+          const hasStreet = p.structured_formatting?.secondary_text?.includes(',') ?? false;
+          const isJustCity = !hasStreet && !p.structured_formatting?.secondary_text;
+          return !isJustCity;
+        })
+        .slice(0, 5)
+        .map((p: any) => ({
+          placeId: p.place_id,
+          name: p.structured_formatting?.main_text || p.description,
+          address: p.structured_formatting?.secondary_text || '',
+        }));
       setPlaceSuggestions([...routeMatches, ...stopMatches, ...placeMatches].slice(0, 7));
     } catch (_) { setPlaceSuggestions([...routeMatches, ...stopMatches].slice(0, 5)); }
   }, [t]);
