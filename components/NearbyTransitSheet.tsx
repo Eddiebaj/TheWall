@@ -911,14 +911,21 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
 
           {/* Alert banner */}
           {activeAlertCount > 0 && (
-            <View style={{ backgroundColor: AMBER_BG, paddingHorizontal: 16, paddingVertical: 8, marginBottom: 4 }}>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: AMBER_TEXT }}>
-                {t(
-                  `${activeAlertCount} active alert${activeAlertCount > 1 ? 's' : ''}`,
-                  `${activeAlertCount} alerte${activeAlertCount > 1 ? 's' : ''} active${activeAlertCount > 1 ? 's' : ''}`,
-                )}
-              </Text>
-            </View>
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/alerts' as any)}
+              style={{ backgroundColor: AMBER_BG, paddingHorizontal: 16, paddingVertical: 10, marginBottom: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="warning-outline" size={15} color={AMBER_TEXT} />
+                <Text style={{ fontSize: 13, fontWeight: '600', color: AMBER_TEXT }}>
+                  {t(
+                    `${activeAlertCount} active alert${activeAlertCount > 1 ? 's' : ''} on your network`,
+                    `${activeAlertCount} alerte${activeAlertCount > 1 ? 's' : ''} active${activeAlertCount > 1 ? 's' : ''} sur votre réseau`,
+                  )}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={14} color={AMBER_TEXT} />
+            </TouchableOpacity>
           )}
 
           {/* Happening Now */}
