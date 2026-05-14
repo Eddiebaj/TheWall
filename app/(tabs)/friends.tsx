@@ -7,11 +7,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useApp } from '../../context/AppContext';
+import AroundOttawaSection from '../../components/MyBoard/AroundOttawaSection';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 
 export default function FriendsScreen() {
-  const { colours } = useApp();
+  const { colours, t, language } = useApp();
   const { user, profile } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -28,6 +29,18 @@ export default function FriendsScreen() {
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [downTonight, setDownTonight] = useState(false);
+  const [friendsDown, setFriendsDown] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!user || !friends.length) return;
+    const friendIds = friends.map((f: any) => f.id);
+    supabase
+      .from('city_board_down_tonight')
+      .select('user_id, profiles(username, display_name, avatar_url)')
+      .in('user_id', friendIds)
+      .gt('expires_at', new Date().toISOString())
+      .then(({ data }) => setFriendsDown(data || []));
+  }, [friends, downTonight]);
 
   useEffect(() => {
     if (!user) return;
@@ -250,6 +263,24 @@ export default function FriendsScreen() {
           </View>
           <Ionicons name={downTonight ? 'toggle' : 'toggle-outline'} size={28} color={downTonight ? '#00C07A' : colours.muted} />
         </TouchableOpacity>
+        {friendsDown.length > 0 && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, paddingHorizontal: 4 }}>
+            <View style={{ flexDirection: 'row' }}>
+              {friendsDown.slice(0, 4).map((f: any, i: number) => (
+                <View key={f.user_id} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.accent, alignItems: 'center', justifyContent: 'center', marginLeft: i > 0 ? -8 : 0, borderWidth: 2, borderColor: colours.bg }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: 'white' }}>
+                    {(f.profiles?.display_name || f.profiles?.username || '?')[0].toUpperCase()}
+                  </Text>
+                </View>
+              ))}
+            </View>
+            <Text style={{ fontSize: 13, color: colours.muted, fontWeight: '500' }}>
+              {friendsDown.length === 1
+                ? `${friendsDown[0].profiles?.display_name || friendsDown[0].profiles?.username} is down tonight`
+                : `${friendsDown.length} friends are down tonight`}
+            </Text>
+          </View>
+        )}
         {/* Friend discovery methods */}
         <View style={{ gap: 10 }}>
           {/* Search by username */}
@@ -454,6 +485,19 @@ export default function FriendsScreen() {
               </View>
             ))
           )}
+        </View>
+
+        {/* The Wall — filtered by friends */}
+        <View style={{ marginTop: 24, marginBottom: 8 }}>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+            THE WALL
+          </Text>
+          <AroundOttawaSection
+            colours={colours}
+            t={t}
+            cardShadow={{}}
+            language={language}
+          />
         </View>
 
         {/* Invite friends */}
