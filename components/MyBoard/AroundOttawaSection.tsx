@@ -125,6 +125,14 @@ function PlaceCard({ place, colours, t, onSaveToggle, sponsoredIds }: { place: a
             </Text>
           </View>
         )}
+        {place.geometry?.location && (
+          <View style={{ position: 'absolute', bottom: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+            <Ionicons name="bus-outline" size={9} color="white" />
+            <Text style={{ fontSize: 9, fontWeight: '700', color: 'white' }}>
+              {Math.round(Math.sqrt(Math.pow((place.geometry.location.lat - 45.4215) * 111, 2) + Math.pow((place.geometry.location.lng - (-75.6972)) * 111 * 0.69, 2)) * 3)} min
+            </Text>
+          </View>
+        )}
         <TouchableOpacity
           onPress={e => { e.stopPropagation(); toggleSave(); }}
           style={{ position: 'absolute', top: 8, left: 8, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' }}
@@ -199,7 +207,7 @@ export default function AroundOttawaSection({ colours, t, cardShadow, language, 
 
   React.useEffect(() => {
     setAoLoading(true);
-    const type = aoCategory === 'all' ? 'restaurant' : aoCategory;
+    const type = 'bar|restaurant|night_club';
     fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=nearby&location=45.4215,-75.6972&radius=1500&type=${type}`)
       .then(r => r.json())
       .then(d => {
@@ -209,7 +217,11 @@ export default function AroundOttawaSection({ colours, t, cardShadow, language, 
           const bSponsored = sponsoredIds.includes(b.place_id) || sponsoredIds.includes(b.name);
           return bSponsored ? 1 : aSponsored ? -1 : 0;
         });
-        setAoPlaces(sorted.slice(0, 10));
+        let filtered = sorted;
+        if (aoCategory === 'tonight') {
+          filtered = sorted.filter((p: any) => p.opening_hours?.open_now === true);
+        }
+        setAoPlaces(filtered.slice(0, 10));
       })
       .catch(() => setAoPlaces([]))
       .finally(() => setAoLoading(false));
@@ -231,12 +243,11 @@ export default function AroundOttawaSection({ colours, t, cardShadow, language, 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 8, marginBottom: 12 }}>
         {categories.map(cat => (
           <TouchableOpacity
-            key={cat.id}
-            onPress={() => setAoCategory(cat.id)}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, backgroundColor: aoCategory === cat.id ? colours.accent : colours.surface, borderColor: aoCategory === cat.id ? colours.accent : colours.border }}
+            key={cat.key}
+            onPress={() => setAoCategory(cat.key)}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, backgroundColor: aoCategory === cat.key ? colours.accent : colours.surface, borderColor: aoCategory === cat.key ? colours.accent : colours.border }}
           >
-            <Ionicons name={cat.icon as any} size={13} color={aoCategory === cat.id ? 'white' : colours.muted} />
-            <Text style={{ fontSize: 13, fontWeight: '700', color: aoCategory === cat.id ? 'white' : colours.text }}>{cat.label}</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: aoCategory === cat.key ? 'white' : colours.text }}>{cat.label}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
