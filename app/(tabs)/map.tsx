@@ -3087,6 +3087,7 @@ export default function MapScreen() {
         hasDisruption={false}
         communityDeals={sheetDeals}
         onStopDetail={(stopId, stopName) => { setStopDetailStopId(stopId); setStopDetailStopName(stopName); setStopDetailVisible(true); }}
+        onShowAlerts={() => router.push('/(tabs)/alerts' as any)}
         extraSections={
           <>
             <NearYouNowSection
