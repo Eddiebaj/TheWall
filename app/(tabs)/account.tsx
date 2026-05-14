@@ -22,6 +22,7 @@ import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { cardShadow as sharedCardShadow } from '../../lib/styles';
 import { hapticLight, hapticMedium, hapticSuccess } from '../../lib/haptics';
 import ClassScheduleModal from '../../components/ClassScheduleModal';
+import FlipPoster from '../../components/FlipPoster';
 import { ClassSchedule } from '../../lib/scheduleData';
 import { SK_CLASS_SCHEDULE } from '../../lib/storageKeys';
 import {
@@ -123,8 +124,10 @@ function MyWallSection() {
   const { colours, fonts } = useApp();
   const { user } = useAuth();
   const [rsvps, setRsvps] = useState<any[]>([]);
+  const [scans, setScans] = useState<any[]>([]);
+  const [memories, setMemories] = useState<any[]>([]);
 
-  useEffect(() => {
+  const loadData = () => {
     if (!user) return;
     supabase
       .from('city_board_rsvps')
@@ -133,7 +136,19 @@ function MyWallSection() {
       .order('created_at', { ascending: false })
       .limit(20)
       .then(({ data }) => setRsvps(data || []));
-  }, [user]);
+    supabase
+      .from('venue_qr_scans')
+      .select('*')
+      .eq('user_id', user.id)
+      .then(({ data }) => setScans(data || []));
+    supabase
+      .from('poster_memories')
+      .select('*')
+      .eq('user_id', user.id)
+      .then(({ data }) => setMemories(data || []));
+  };
+
+  useEffect(() => { loadData(); }, [user]);
 
   if (rsvps.length === 0) return (
     <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
@@ -171,16 +186,21 @@ function MyWallSection() {
         </View>
       </View>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-        {rsvps.map((r, i) => (
-          <View key={r.id} style={{ width: '47%', aspectRatio: 0.75, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', opacity: 0.7 }}>
-            <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: '#f59e0b', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-              <Text style={{ fontSize: 8, fontWeight: '800', color: 'white' }}>PENDING</Text>
-            </View>
-            <Ionicons name="lock-closed-outline" size={24} color={colours.muted} />
-            <Text style={{ fontSize: 11, fontWeight: '700', color: colours.text, marginTop: 8, textAlign: 'center', paddingHorizontal: 8 }} numberOfLines={2}>{r.venue_name}</Text>
-            <Text style={{ fontSize: 10, color: colours.muted, marginTop: 2 }}>Scan QR to unlock</Text>
-          </View>
-        ))}
+        {rsvps.map((r) => {
+          const scan = scans.find(s => s.venue_name === r.venue_name) || null;
+          const memory = memories.find(m => m.venue_name === r.venue_name) || null;
+          return (
+            <FlipPoster
+              key={r.id}
+              rsvp={r}
+              scan={scan}
+              memory={memory}
+              colours={colours}
+              fonts={fonts}
+              onMemoryAdded={loadData}
+            />
+          );
+        })}
       </View>
     </View>
   );
