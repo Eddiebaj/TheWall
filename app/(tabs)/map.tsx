@@ -860,7 +860,7 @@ export default function MapScreen() {
         // Fetch nearby place then load full details
         setPlaceDetailFull(null);
         setPlaceDetailLoading(true);
-        fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=nearby&location=${latitude},${longitude}&radius=80&type=establishment`)
+        fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=nearby&location=${latitude},${longitude}&radius=150&type=establishment`)
           .then(r => r.ok ? r.json() : null)
           .then(async data => {
             const place = data?.results?.[0];
