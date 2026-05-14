@@ -2356,8 +2356,8 @@ export default function MapScreen() {
           )}
         </View>
 
-        {/* Layer toggle chips — always visible below Just Go / Reachable */}
-        {!planMode && (
+        {/* Layer toggle chips — hidden when search is focused */}
+        {!planMode && !searchFocused && (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
