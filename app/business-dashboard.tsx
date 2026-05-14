@@ -11,6 +11,67 @@ import * as ImagePicker from 'expo-image-picker';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+function VenueAnalytics({ venueName, colours }: { venueName: string; colours: any }) {
+  const [stats, setStats] = useState({ rsvps: 0, scans: 0, videos: 0, topHour: '' });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!venueName) return;
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    Promise.all([
+      supabase.from('city_board_rsvps').select('id', { count: 'exact', head: true }).eq('venue_name', venueName).gte('created_at', weekAgo),
+      supabase.from('venue_qr_scans').select('scanned_at').eq('venue_name', venueName).gte('scanned_at', weekAgo),
+      supabase.from('poster_memories').select('id', { count: 'exact', head: true }).eq('venue_name', venueName),
+    ]).then(([rsvpRes, scanRes, memRes]) => {
+      const scans = scanRes.data || [];
+      const hourCounts: Record<number, number> = {};
+      scans.forEach(s => {
+        const h = new Date(s.scanned_at).getHours();
+        hourCounts[h] = (hourCounts[h] || 0) + 1;
+      });
+      const topHourNum = Object.entries(hourCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+      const topHour = topHourNum ? `${topHourNum}:00–${Number(topHourNum) + 1}:00` : '—';
+      setStats({ rsvps: rsvpRes.count || 0, scans: scans.length, videos: memRes.count || 0, topHour });
+      setLoading(false);
+    });
+  }, [venueName]);
+
+  const attendanceRate = stats.rsvps > 0 ? Math.round((stats.scans / stats.rsvps) * 100) : 0;
+
+  return (
+    <View style={{ padding: 16, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
+      <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>This Week</Text>
+      {loading ? <ActivityIndicator color={colours.accent} /> : (
+        <>
+          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+            {[
+              { label: 'RSVPs', value: stats.rsvps, icon: 'flame-outline' },
+              { label: 'Scans', value: stats.scans, icon: 'qr-code-outline' },
+              { label: 'Memories', value: stats.videos, icon: 'videocam-outline' },
+            ].map((s, i) => (
+              <View key={i} style={{ flex: 1, alignItems: 'center', padding: 10, borderRadius: 10, backgroundColor: colours.bg }}>
+                <Ionicons name={s.icon as any} size={16} color={colours.accent} />
+                <Text style={{ fontSize: 22, fontWeight: '800', color: colours.text, marginTop: 4 }}>{s.value}</Text>
+                <Text style={{ fontSize: 10, color: colours.muted }}>{s.label}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: colours.bg, alignItems: 'center' }}>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: attendanceRate > 50 ? '#00C07A' : colours.accent }}>{attendanceRate}%</Text>
+              <Text style={{ fontSize: 10, color: colours.muted }}>showed up</Text>
+            </View>
+            <View style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: colours.bg, alignItems: 'center' }}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: colours.text }}>{stats.topHour}</Text>
+              <Text style={{ fontSize: 10, color: colours.muted }}>peak scan time</Text>
+            </View>
+          </View>
+        </>
+      )}
+    </View>
+  );
+}
+
 export default function BusinessDashboardScreen() {
   const { colours } = useApp();
   const router = useRouter();
@@ -248,20 +309,8 @@ export default function BusinessDashboardScreen() {
           ))}
         </View>
 
-        {/* Stats placeholder */}
-        <View style={{ padding: 16, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
-          <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>This week</Text>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            {[{ label: 'Views', value: '—', icon: 'eye-outline' }, { label: 'Route there', value: '—', icon: 'navigate-outline' }, { label: 'Saves', value: '—', icon: 'heart-outline' }].map((s, i) => (
-              <View key={i} style={{ flex: 1, alignItems: 'center', gap: 4 }}>
-                <Ionicons name={s.icon as any} size={18} color={colours.muted} />
-                <Text style={{ fontSize: 22, fontWeight: '800', color: colours.text }}>{s.value}</Text>
-                <Text style={{ fontSize: 11, color: colours.muted }}>{s.label}</Text>
-              </View>
-            ))}
-          </View>
-          <Text style={{ fontSize: 11, color: colours.muted, textAlign: 'center', marginTop: 10 }}>Stats available once your listing goes live</Text>
-        </View>
+        {/* Live Analytics */}
+        <VenueAnalytics venueName={business?.business_name} colours={colours} />
 
         {/* Post to The Wall */}
         <View style={{ padding: 16, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
