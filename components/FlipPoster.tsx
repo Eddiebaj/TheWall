@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Animated, TouchableOpacity, View, Text, Alert } from 'react-native';
+import { Animated, TouchableOpacity, View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 let Video: any = null;
 let ResizeMode: any = { COVER: 'cover' };
@@ -24,13 +24,7 @@ export default function FlipPoster({ rsvp, scan, memory, colours, fonts, onMemor
   const [isFlipped, setIsFlipped] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  const isUnlocked = !!scan;
-
   const flip = () => {
-    if (!isUnlocked) {
-      Alert.alert('Locked', 'Scan the QR code at this venue to unlock this poster.');
-      return;
-    }
     Animated.spring(flipAnim, {
       toValue: isFlipped ? 0 : 1,
       friction: 8,
@@ -89,32 +83,16 @@ export default function FlipPoster({ rsvp, scan, memory, colours, fonts, onMemor
       <Animated.View style={{
         position: 'absolute', width: '100%', height: '100%',
         borderRadius: 12, backgroundColor: colours.surface,
-        borderWidth: 1, borderColor: isUnlocked ? colours.accent + '60' : colours.border,
+        borderWidth: 1, borderColor: colours.accent + '60',
         overflow: 'hidden', backfaceVisibility: 'hidden',
         transform: [{ perspective: 1000 }, { rotateY: frontRotate }],
         alignItems: 'center', justifyContent: 'center',
-        opacity: isUnlocked ? 1 : 0.6,
       }}>
-        {!isUnlocked && (
-          <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: '#f59e0b', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-            <Text style={{ fontSize: 8, fontWeight: '800', color: 'white' }}>PENDING</Text>
-          </View>
-        )}
-        {isUnlocked && (
-          <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: colours.accent, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-            <Text style={{ fontSize: 8, fontWeight: '800', color: 'white' }}>UNLOCKED</Text>
-          </View>
-        )}
-        <Ionicons name={isUnlocked ? 'ticket' : 'lock-closed-outline'} size={28} color={isUnlocked ? colours.accent : colours.muted} />
+        <Ionicons name="ticket" size={28} color={colours.accent} />
         <Text style={{ fontSize: 11, fontWeight: '700', color: colours.text, marginTop: 8, textAlign: 'center', paddingHorizontal: 8 }} numberOfLines={2}>
           {rsvp.venue_name}
         </Text>
-        {isUnlocked && (
-          <Text style={{ fontSize: 9, color: colours.muted, marginTop: 4 }}>Tap to flip</Text>
-        )}
-        {!isUnlocked && (
-          <Text style={{ fontSize: 9, color: colours.muted, marginTop: 4 }}>Scan QR to unlock</Text>
-        )}
+        <Text style={{ fontSize: 9, color: colours.muted, marginTop: 4 }}>Tap to flip</Text>
       </Animated.View>
 
       {/* Back */}

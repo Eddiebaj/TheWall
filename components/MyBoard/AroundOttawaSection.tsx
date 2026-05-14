@@ -1,8 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useState, useEffect } from 'react';
-import { ActivityIndicator, Image, Linking, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
+import { Image, Linking, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
 function PlaceCard({ place, colours, t, onSaveToggle, sponsoredIds }: { place: any; colours: any; t: (en: string, fr: string) => string; onSaveToggle?: () => void; sponsoredIds: string[] }) {
@@ -162,7 +161,7 @@ function PlaceCard({ place, colours, t, onSaveToggle, sponsoredIds }: { place: a
               expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
             }, { onConflict: 'user_id,venue_name' });
           }}
-          style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.accent + '18', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}
+          style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colours.accent + '18', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 }}
         >
           <Ionicons name="flame-outline" size={11} color={colours.accent} />
           <Text style={{ fontSize: 10, fontWeight: '700', color: colours.accent }}>{rsvpCount > 0 ? `${rsvpCount} going` : t("I'm going", "J'y vais")}</Text>
@@ -190,8 +189,6 @@ interface Props {
 
 export default function AroundOttawaSection({ colours, t, cardShadow, language, onSaveToggle }: Props) {
   const [aoCategory, setAoCategory] = React.useState<string>('all');
-  const [aoPlaces, setAoPlaces] = React.useState<any[]>([]);
-  const [aoLoading, setAoLoading] = React.useState(false);
   const [sponsoredIds, setSponsoredIds] = useState<string[]>([]);
   const [wallPosts, setWallPosts] = useState<any[]>([]);
 
@@ -216,27 +213,7 @@ export default function AroundOttawaSection({ colours, t, cardShadow, language, 
       .then(({ data }) => setWallPosts(data || []));
   }, []);
 
-  React.useEffect(() => {
-    setAoLoading(true);
-    const type = 'bar|restaurant|night_club';
-    fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=nearby&location=45.4215,-75.6972&radius=1500&type=${type}`)
-      .then(r => r.json())
-      .then(d => {
-        console.log('[Places]', (d.results || []).slice(0, 3).map((p: any) => ({ name: p.name, place_id: p.place_id })));
-        const sorted = [...(d.results || [])].sort((a, b) => {
-          const aSponsored = sponsoredIds.includes(a.place_id) || sponsoredIds.includes(a.name);
-          const bSponsored = sponsoredIds.includes(b.place_id) || sponsoredIds.includes(b.name);
-          return bSponsored ? 1 : aSponsored ? -1 : 0;
-        });
-        let filtered = sorted;
-        if (aoCategory === 'tonight') {
-          filtered = sorted.filter((p: any) => p.opening_hours?.open_now === true);
-        }
-        setAoPlaces(filtered.slice(0, 10));
-      })
-      .catch(() => setAoPlaces([]))
-      .finally(() => setAoLoading(false));
-  }, [aoCategory]);
+  // Google Places removed — The Wall shows only seeded posters
 
   const categories = [
     { key: 'all', label: 'All' },
@@ -263,40 +240,33 @@ export default function AroundOttawaSection({ colours, t, cardShadow, language, 
         ))}
       </ScrollView>
 
-      {/* Places */}
-      {aoLoading ? (
-        <ActivityIndicator color={colours.accent} style={{ marginTop: 20 }} />
-      ) : (
-        <View style={{ paddingHorizontal: 20, flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-          {wallPosts.map(post => (
-            <TouchableOpacity
-              key={post.id}
-              style={{ width: '46%', borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.accent + '40', overflow: 'hidden' }}
-              onPress={() => post.ticket_url && Linking.openURL(post.ticket_url).catch(() => {})}
-              activeOpacity={0.85}
-            >
-              {post.poster_url ? (
-                <Image source={{ uri: post.poster_url }} style={{ width: '100%', aspectRatio: 0.75 }} resizeMode="cover" />
-              ) : (
-                <View style={{ width: '100%', aspectRatio: 0.75, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name="ticket-outline" size={32} color={colours.accent} />
-                </View>
-              )}
-              <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: colours.accent, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                <Text style={{ fontSize: 8, fontWeight: '800', color: 'white' }}>ON THE WALL</Text>
+      {/* Wall posts */}
+      <View style={{ paddingHorizontal: 20, flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+        {wallPosts.map(post => (
+          <TouchableOpacity
+            key={post.id}
+            style={{ width: '46%', borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.accent + '40', overflow: 'hidden' }}
+            onPress={() => post.ticket_url && Linking.openURL(post.ticket_url).catch(() => {})}
+            activeOpacity={0.85}
+          >
+            {post.poster_url ? (
+              <Image source={{ uri: post.poster_url }} style={{ width: '100%', aspectRatio: 0.75 }} resizeMode="cover" />
+            ) : (
+              <View style={{ width: '100%', aspectRatio: 0.75, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="ticket-outline" size={32} color={colours.accent} />
               </View>
-              <View style={{ padding: 8 }}>
-                <Text style={{ fontSize: 12, fontWeight: '800', color: colours.text }} numberOfLines={1}>{post.venue_name}</Text>
-                {post.event_title && <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }} numberOfLines={1}>{post.event_title}</Text>}
-                {post.event_date && <Text style={{ fontSize: 10, color: colours.accent, marginTop: 2 }}>{post.event_date}</Text>}
-              </View>
-            </TouchableOpacity>
-          ))}
-          {aoPlaces.map((place, i) => (
-            <PlaceCard key={place.place_id || i} place={place} colours={colours} t={t} onSaveToggle={onSaveToggle} sponsoredIds={sponsoredIds} />
-          ))}
-        </View>
-      )}
+            )}
+            <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: colours.accent, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+              <Text style={{ fontSize: 8, fontWeight: '800', color: 'white' }}>ON THE WALL</Text>
+            </View>
+            <View style={{ padding: 8 }}>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: colours.text }} numberOfLines={1}>{post.venue_name}</Text>
+              {post.event_title && <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }} numberOfLines={1}>{post.event_title}</Text>}
+              {post.event_date && <Text style={{ fontSize: 10, color: colours.accent, marginTop: 2 }}>{post.event_date}</Text>}
+            </View>
+          </TouchableOpacity>
+        ))}
+      </View>
     </View>
   );
 }

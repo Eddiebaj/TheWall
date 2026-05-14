@@ -25,7 +25,7 @@ const TYPE_LABELS: Record<string, string> = {
 
 const CATEGORY_TYPE_MAP: Record<CategoryFilter, string[]> = {
   all: [],
-  food: ['restaurant', 'bar'],
+  food: ['restaurant', 'bar', 'club'],
   fitness: ['fitness'],
   shopping: [],
   services: [],
@@ -112,9 +112,13 @@ export default function NearYouNowSection({
 
   const nearbyVenues = useMemo(() => {
     const anchors = [{ lat: userLat, lng: userLng }, ...savedBoardAnchors];
-    return HAPPY_HOUR_VENUES.filter(v =>
-      anchors.some(a => haversineKm(v.lat, v.lng, a.lat, a.lng) <= 0.5)
-    );
+    return HAPPY_HOUR_VENUES
+      .filter(v => anchors.some(a => haversineKm(v.lat, v.lng, a.lat, a.lng) <= 2.0))
+      .sort((a, b) => {
+        const distA = Math.min(...anchors.map(anc => haversineKm(a.lat, a.lng, anc.lat, anc.lng)));
+        const distB = Math.min(...anchors.map(anc => haversineKm(b.lat, b.lng, anc.lat, anc.lng)));
+        return distA - distB;
+      });
   }, [userLat, userLng, savedBoardAnchors]);
 
   const filteredVenues = useMemo(() => {
@@ -126,7 +130,7 @@ export default function NearYouNowSection({
 
   const chips: { key: CategoryFilter; label_en: string; label_fr: string }[] = [
     { key: 'all',      label_en: 'All',      label_fr: 'Tout'      },
-    { key: 'food',     label_en: 'Food',     label_fr: 'Restau'    },
+    { key: 'food',     label_en: 'Bars',     label_fr: 'Bars'      },
     { key: 'fitness',  label_en: 'Fitness',  label_fr: 'Sport'     },
     { key: 'shopping', label_en: 'Shopping', label_fr: 'Courses'   },
     { key: 'services', label_en: 'Services', label_fr: 'Services'  },
