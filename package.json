@@ -24,6 +24,7 @@
     "@sentry/react-native": "~7.2.0",
     "@supabase/supabase-js": "^2.99.0",
     "expo": "~54.0.33",
+    "expo-av": "~16.0.8",
     "expo-build-properties": "~1.0.10",
     "expo-camera": "~17.0.10",
     "expo-clipboard": "~8.0.8",

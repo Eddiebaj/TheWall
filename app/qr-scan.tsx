@@ -1,4 +1,6 @@
-import { CameraView, useCameraPermissions } from 'expo-camera';
+let CameraView: any = null;
+let useCameraPermissions: any = () => [{ granted: false }, async () => {}];
+try { const cam = require('expo-camera'); CameraView = cam.CameraView; useCameraPermissions = cam.useCameraPermissions; } catch {}
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Alert, Text, TouchableOpacity, View } from 'react-native';

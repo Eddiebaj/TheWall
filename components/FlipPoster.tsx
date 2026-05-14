@@ -1,8 +1,11 @@
 import React, { useRef, useState } from 'react';
 import { Animated, TouchableOpacity, View, Text, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Video, ResizeMode } from 'expo-av';
-import * as ImagePicker from 'expo-image-picker';
+let Video: any = null;
+let ResizeMode: any = { COVER: 'cover' };
+let ImagePicker: any = null;
+try { const av = require('expo-av'); Video = av.Video; ResizeMode = av.ResizeMode; } catch {}
+try { ImagePicker = require('expo-image-picker'); } catch {}
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
