@@ -28,6 +28,8 @@ export default function BusinessDashboardScreen() {
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [qrCode, setQrCode] = useState<any>(null);
+  const [generatingQR, setGeneratingQR] = useState(false);
 
   useEffect(() => { loadData(); }, []);
 
@@ -57,7 +59,40 @@ export default function BusinessDashboardScreen() {
       .order('created_at', { ascending: false });
 
     setDeals(bizDeals || []);
+
+    const { data: existingQR } = await supabase
+      .from('venue_qr_codes')
+      .select('*')
+      .eq('venue_name', biz.business_name)
+      .single();
+    if (existingQR) setQrCode(existingQR);
+
     setLoading(false);
+  };
+
+  const generateQR = async () => {
+    setGeneratingQR(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data, error } = await supabase
+        .from('venue_qr_codes')
+        .upsert({
+          venue_name: business.business_name,
+          venue_lat: business.lat ?? null,
+          venue_lng: business.lng ?? null,
+          created_by: user!.id,
+          is_active: true,
+        }, { onConflict: 'venue_name' })
+        .select()
+        .single();
+      if (error) throw error;
+      setQrCode(data);
+      Alert.alert('QR Code Ready', `Your venue QR code is live. Share the code routeo://venue/${data.id} or print it for your venue.`);
+    } catch (e) {
+      Alert.alert('Error', 'Could not generate QR code.');
+    } finally {
+      setGeneratingQR(false);
+    }
   };
 
   const submitDeal = async () => {
@@ -170,6 +205,40 @@ export default function BusinessDashboardScreen() {
             ))}
           </View>
           <Text style={{ fontSize: 11, color: colours.muted, textAlign: 'center', marginTop: 10 }}>Stats available once your listing goes live</Text>
+        </View>
+
+        {/* QR Code */}
+        <View style={{ padding: 16, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Venue QR Code</Text>
+          {qrCode ? (
+            <View style={{ alignItems: 'center', gap: 10 }}>
+              <View style={{ width: 120, height: 120, backgroundColor: colours.accent + '18', borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colours.accent + '40' }}>
+                <Ionicons name="qr-code" size={64} color={colours.accent} />
+              </View>
+              <Text style={{ fontSize: 12, color: colours.muted, textAlign: 'center' }}>ID: {qrCode.id.slice(0, 8)}...</Text>
+              <TouchableOpacity
+                onPress={() => Alert.alert('QR Code', `routeo://venue/${qrCode.id}\n\nShare this with a QR code generator to print your venue code.`)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colours.accent, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 }}
+              >
+                <Ionicons name="share-outline" size={14} color="white" />
+                <Text style={{ fontSize: 13, fontWeight: '700', color: 'white' }}>Share QR Code</Text>
+              </TouchableOpacity>
+              <Text style={{ fontSize: 11, color: colours.muted, textAlign: 'center' }}>Print and display at your venue so customers can unlock their posters</Text>
+            </View>
+          ) : (
+            <View style={{ alignItems: 'center', gap: 12 }}>
+              <Ionicons name="qr-code-outline" size={48} color={colours.muted} />
+              <Text style={{ fontSize: 13, color: colours.muted, textAlign: 'center' }}>Generate a QR code for your venue. Customers scan it to unlock their poster after attending.</Text>
+              <TouchableOpacity
+                onPress={generateQR}
+                disabled={generatingQR}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colours.accent, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 }}
+              >
+                {generatingQR ? <ActivityIndicator size="small" color="white" /> : <Ionicons name="qr-code-outline" size={16} color="white" />}
+                <Text style={{ fontSize: 13, fontWeight: '700', color: 'white' }}>{generatingQR ? 'Generating...' : 'Generate QR Code'}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         {/* Deals */}
