@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { haversineKm } from '../lib/geo';
 import { HAPPY_HOUR_VENUES, HappyHourVenue } from '../lib/happyHourData';
@@ -55,30 +56,42 @@ function VenueCard({ venue, walkKm, todayDeal, staticPhotoUrl, onPress, colours,
       .catch(() => {});
   }, [venue.lat, venue.lng, venue.name, staticPhotoUrl]);
 
+  const hour = new Date().getHours();
+  const isOpen = hour >= 11 && hour < 23;
+
   return (
     <TouchableOpacity
       activeOpacity={0.7}
       onPress={onPress}
       style={{ borderRadius: 12, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, overflow: 'hidden' }}
     >
-      {photoUrl ? (
-        <Image source={{ uri: photoUrl }} style={{ width: '100%', height: 110 }} resizeMode="cover" />
-      ) : null}
-      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12 }}>
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }} numberOfLines={1}>{venue.name}</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-            {venue.type.map(tp => (
-              <View key={tp} style={{ borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, backgroundColor: colours.accent + '18' }}>
-                <Text style={{ fontSize: 10, fontWeight: '600', color: colours.accent }}>{TYPE_LABELS[tp] ?? tp}</Text>
-              </View>
-            ))}
+      <View style={{ position: 'relative' }}>
+        {photoUrl ? (
+          <Image source={{ uri: photoUrl }} style={{ width: '100%', height: 120 }} resizeMode="cover" />
+        ) : (
+          <View style={{ width: '100%', height: 120, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="storefront-outline" size={28} color={colours.accent} />
           </View>
-          {todayDeal && (
-            <Text style={{ fontSize: fonts.sm, color: colours.accent, marginTop: 5 }} numberOfLines={2}>{todayDeal.description}</Text>
-          )}
-        </View>
-        <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>{formatWalkDist(walkKm)} {t('walk', 'marche')}</Text>
+        )}
+        {!isOpen && (
+          <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: '#e74c3c', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+            <Text style={{ fontSize: 9, fontWeight: '800', color: 'white' }}>{t('Closed', 'Fermé')}</Text>
+          </View>
+        )}
+        <TouchableOpacity
+          style={{ position: 'absolute', top: 8, left: 8, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center' }}
+          onPress={(e) => { e.stopPropagation(); }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="heart-outline" size={14} color="white" />
+        </TouchableOpacity>
+      </View>
+      <View style={{ padding: 10 }}>
+        <Text style={{ fontSize: 12, fontWeight: '800', color: colours.text, marginBottom: 2 }} numberOfLines={1}>{venue.name}</Text>
+        <Text style={{ fontSize: 10, color: colours.muted, marginBottom: 4 }} numberOfLines={1}>{formatWalkDist(walkKm)} {t('walk', 'marche')}</Text>
+        {todayDeal && (
+          <Text style={{ fontSize: 10, color: colours.accent, fontWeight: '600' }} numberOfLines={2}>{todayDeal.description}</Text>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -165,7 +178,7 @@ export default function NearYouNowSection({
       </ScrollView>
 
       {/* Venue cards */}
-      <View style={{ paddingHorizontal: 20, gap: 8 }}>
+      <View style={{ paddingHorizontal: 20, flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {filteredVenues.length === 0 ? (
           <Text style={{ fontSize: fonts.sm, color: colours.muted, paddingVertical: 8 }}>
             {t('No venues nearby in this category', 'Aucun établissement dans cette catégorie')}
@@ -176,8 +189,9 @@ export default function NearYouNowSection({
             const todayDeal = venue.deals.find(d => d.days.includes(todayDow)) ?? null;
             const photoUrl = venue.photoUrl || null;
             return (
-              <VenueCard
-                key={`${venue.lat},${venue.lng}`}
+              <View key={`${venue.lat},${venue.lng}`} style={{ width: '47%' }}>
+            <VenueCard
+              key={`inner_${venue.lat},${venue.lng}`}
                 venue={venue}
                 walkKm={walkKm}
                 todayDeal={todayDeal}
@@ -187,6 +201,7 @@ export default function NearYouNowSection({
                 fonts={fonts}
                 t={t}
               />
+            </View>
             );
           })
         )}
