@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { haversineKm } from '../lib/geo';
 import { HAPPY_HOUR_VENUES, HappyHourVenue } from '../lib/happyHourData';
+import { fetchWithTimeout } from '../lib/fetchWithTimeout';
 
 type CategoryFilter = 'all' | 'food' | 'fitness' | 'shopping' | 'services';
 
@@ -33,6 +34,54 @@ function formatWalkDist(km: number): string {
   const m = Math.round(km * 1000);
   if (m < 1000) return `${m}m`;
   return `${(m / 1000).toFixed(1)}km`;
+}
+
+function VenueCard({ venue, walkKm, todayDeal, staticPhotoUrl, onPress, colours, fonts, t }: {
+  venue: HappyHourVenue; walkKm: number; todayDeal: any; staticPhotoUrl: string | null;
+  onPress: () => void; colours: any; fonts: any; t: any;
+}) {
+  const [photoUrl, setPhotoUrl] = useState<string | null>(staticPhotoUrl);
+  useEffect(() => {
+    if (staticPhotoUrl) return;
+    fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=nearby&location=${venue.lat},${venue.lng}&radius=100&type=bar|restaurant`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const match = (data?.results || []).find((p: any) =>
+          p.name.toLowerCase().includes(venue.name.toLowerCase().split(' ')[0])
+        ) || data?.results?.[0];
+        const ref = match?.photos?.[0]?.photo_reference;
+        if (ref) setPhotoUrl(`https://routeo-backend.vercel.app/api/places?action=photo&photo_reference=${ref}&maxwidth=400`);
+      })
+      .catch(() => {});
+  }, [venue.lat, venue.lng, venue.name, staticPhotoUrl]);
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.7}
+      onPress={onPress}
+      style={{ borderRadius: 12, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface, overflow: 'hidden' }}
+    >
+      {photoUrl ? (
+        <Image source={{ uri: photoUrl }} style={{ width: '100%', height: 110 }} resizeMode="cover" />
+      ) : null}
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12 }}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }} numberOfLines={1}>{venue.name}</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+            {venue.type.map(tp => (
+              <View key={tp} style={{ borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, backgroundColor: colours.accent + '18' }}>
+                <Text style={{ fontSize: 10, fontWeight: '600', color: colours.accent }}>{TYPE_LABELS[tp] ?? tp}</Text>
+              </View>
+            ))}
+          </View>
+          {todayDeal && (
+            <Text style={{ fontSize: fonts.sm, color: colours.accent, marginTop: 5 }} numberOfLines={2}>{todayDeal.description}</Text>
+          )}
+        </View>
+        <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>{formatWalkDist(walkKm)} {t('walk', 'marche')}</Text>
+      </View>
+    </TouchableOpacity>
+  );
 }
 
 export default function NearYouNowSection({
@@ -125,62 +174,19 @@ export default function NearYouNowSection({
           filteredVenues.map(venue => {
             const walkKm = haversineKm(userLat, userLng, venue.lat, venue.lng);
             const todayDeal = venue.deals.find(d => d.days.includes(todayDow)) ?? null;
+            const photoUrl = venue.photoUrl || null;
             return (
-              <TouchableOpacity
+              <VenueCard
                 key={`${venue.lat},${venue.lng}`}
-                activeOpacity={0.7}
+                venue={venue}
+                walkKm={walkKm}
+                todayDeal={todayDeal}
+                staticPhotoUrl={photoUrl}
                 onPress={() => onPressVenue(venue)}
-                style={{
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colours.border,
-                  backgroundColor: colours.surface,
-                  overflow: 'hidden',
-                }}
-              >
-                {venue.photoUrl ? (
-                  <Image
-                    source={{ uri: venue.photoUrl }}
-                    style={{ width: '100%', height: 110, borderTopLeftRadius: 12, borderTopRightRadius: 12 }}
-                    resizeMode="cover"
-                  />
-                ) : null}
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12 }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }} numberOfLines={1}>
-                      {venue.name}
-                    </Text>
-                    {/* Type badges */}
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-                      {venue.type.map(tp => (
-                        <View
-                          key={tp}
-                          style={{
-                            borderRadius: 6,
-                            paddingHorizontal: 7,
-                            paddingVertical: 2,
-                            backgroundColor: colours.accent + '18',
-                          }}
-                        >
-                          <Text style={{ fontSize: 10, fontWeight: '600', color: colours.accent }}>
-                            {TYPE_LABELS[tp] ?? tp}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                    {/* Today's deal */}
-                    {todayDeal && (
-                      <Text style={{ fontSize: fonts.sm, color: colours.accent, marginTop: 5 }} numberOfLines={2}>
-                        {todayDeal.description}
-                      </Text>
-                    )}
-                  </View>
-                  {/* Walk distance */}
-                  <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>
-                    {formatWalkDist(walkKm)} {t('walk', 'marche')}
-                  </Text>
-                </View>
-              </TouchableOpacity>
+                colours={colours}
+                fonts={fonts}
+                t={t}
+              />
             );
           })
         )}
