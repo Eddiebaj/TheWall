@@ -1898,6 +1898,7 @@ export default function MapScreen() {
         style={{ flex: 1 }}
         initialRegion={OTTAWA_REGION}
         userInterfaceStyle={isLight ? 'light' : 'dark'}
+        mapType="mutedStandard"
         showsUserLocation
         showsCompass={false}
         onMapReady={() => setMapReady(true)}
