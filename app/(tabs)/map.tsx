@@ -2383,29 +2383,6 @@ export default function MapScreen() {
           )}
         </View>
 
-        {/* Search this area button */}
-        {showSearchHere && !searchExpanded && !planMode && (
-          <TouchableOpacity
-            onPress={() => {
-              setShowSearchHere(false);
-              hasMovedRef.current = false;
-              fetchNearbyStopsForRegion(region.latitude, region.longitude);
-            }}
-            style={{
-              alignSelf: 'center', marginBottom: 8,
-              flexDirection: 'row', alignItems: 'center', gap: 6,
-              backgroundColor: colours.bg, borderRadius: 20,
-              paddingHorizontal: 14, paddingVertical: 8,
-              borderWidth: 1, borderColor: colours.border,
-              shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.15, shadowRadius: 4, elevation: 4,
-            }}
-          >
-            <Ionicons name="search" size={14} color={colours.accent} />
-            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>Search this area</Text>
-          </TouchableOpacity>
-        )}
-
         {/* Layer toggle chips — hidden when search is focused */}
         {!planMode && !searchExpanded && (
           <ScrollView
@@ -2479,6 +2456,34 @@ export default function MapScreen() {
         {error && !planMode ? <Text style={{ fontSize: 11, color: isLight ? '#DC2626' : '#F87171', marginTop: 6 }}>{error}</Text> : null}
       </View>
 
+
+      {/* Search this area — floats on map */}
+      {showSearchHere && !searchExpanded && !planMode && (
+        <TouchableOpacity
+          onPress={() => {
+            setShowSearchHere(false);
+            hasMovedRef.current = false;
+            fetchNearbyStopsForRegion(region.latitude, region.longitude);
+          }}
+          style={{
+            position: 'absolute',
+            top: 160,
+            alignSelf: 'center',
+            left: '50%',
+            transform: [{ translateX: -75 }],
+            flexDirection: 'row', alignItems: 'center', gap: 6,
+            backgroundColor: colours.bg, borderRadius: 20,
+            paddingHorizontal: 14, paddingVertical: 8,
+            borderWidth: 1, borderColor: colours.border,
+            shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.2, shadowRadius: 6, elevation: 6,
+            zIndex: 999,
+          }}
+        >
+          <Ionicons name="search" size={14} color={colours.accent} />
+          <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>Search this area</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Community contribute modal */}
       <Modal visible={contributeVisible} animationType="slide" transparent onRequestClose={() => setContributeVisible(false)}>
