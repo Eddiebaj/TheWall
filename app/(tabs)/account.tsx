@@ -119,6 +119,55 @@ function SettingsRow({ label, icon, onPress, colours, fonts, right }: {
   );
 }
 
+function MyWallSection() {
+  const { colours, fonts } = useApp();
+  const { user } = useAuth();
+  const [rsvps, setRsvps] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('city_board_rsvps')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(20)
+      .then(({ data }) => setRsvps(data || []));
+  }, [user]);
+
+  if (rsvps.length === 0) return (
+    <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
+      <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>MY WALL</Text>
+      <View style={{ borderRadius: 16, borderWidth: 1, borderColor: colours.border, borderStyle: 'dashed', padding: 32, alignItems: 'center' }}>
+        <Text style={{ fontSize: 24, marginBottom: 8 }}>🎭</Text>
+        <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text, marginBottom: 4 }}>Your wall starts here</Text>
+        <Text style={{ fontSize: 13, color: colours.muted, textAlign: 'center' }}>RSVP to events on The Wall to start collecting posters</Text>
+      </View>
+    </View>
+  );
+
+  return (
+    <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>MY WALL</Text>
+        <Text style={{ fontSize: 12, color: colours.accent, fontWeight: '600' }}>{rsvps.length} nights</Text>
+      </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        {rsvps.map((r, i) => (
+          <View key={r.id} style={{ width: '47%', aspectRatio: 0.75, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', opacity: 0.7 }}>
+            <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: '#f59e0b', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+              <Text style={{ fontSize: 8, fontWeight: '800', color: 'white' }}>PENDING</Text>
+            </View>
+            <Ionicons name="lock-closed-outline" size={24} color={colours.muted} />
+            <Text style={{ fontSize: 11, fontWeight: '700', color: colours.text, marginTop: 8, textAlign: 'center', paddingHorizontal: 8 }} numberOfLines={2}>{r.venue_name}</Text>
+            <Text style={{ fontSize: 10, color: colours.muted, marginTop: 2 }}>Scan QR to unlock</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export default function AccountScreen() {
   const {
     theme, setTheme, resolvedTheme, colours, fonts,
@@ -427,6 +476,9 @@ export default function AccountScreen() {
             </View>
           </View>
         </View>
+
+        {/* MY WALL */}
+        <MyWallSection />
 
         <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
           <Text
