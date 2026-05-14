@@ -2357,7 +2357,7 @@ export default function MapScreen() {
         </View>
 
         {/* Layer toggle chips — hidden when search is focused */}
-        {!planMode && !searchFocused && (
+        {!planMode && !searchExpanded && (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
