@@ -198,7 +198,7 @@ export default function AroundOttawaSection({ colours, t, cardShadow, language, 
   return (
     <View style={{ paddingTop: 20, paddingBottom: 20 }}>
       <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, paddingHorizontal: 20, marginBottom: 12 }}>
-        {t('Around Ottawa', 'Autour d\'Ottawa')}
+        {t('THE WALL', 'THE WALL')}
       </Text>
 
       {/* Category filter */}
