@@ -432,8 +432,8 @@ export default function MapScreen() {
   const [trackingBus, setTrackingBus] = useState<Bus | null>(null);
   const [selectedBusNextStops, setSelectedBusNextStops] = useState<{ stopId: string; stopName: string; lat: number; lon: number; secsToNextStop: number }[]>([]);
 
-  const [tappedLocation, setTappedLocation] = useState<{ lat: number; lng: number; address: string } | null>(null);
-  const tappedLocationRef = useRef<{ lat: number; lng: number; address: string } | null>(null);
+  const [tappedLocation, setTappedLocation] = useState<{ lat: number; lng: number; address: string; placeDetails?: any } | null>(null);
+  const tappedLocationRef = useRef<{ lat: number; lng: number; address: string; placeDetails?: any } | null>(null);
   // Keep ref in sync so stable callbacks can read latest value
   useEffect(() => { tappedLocationRef.current = tappedLocation; }, [tappedLocation]);
   useEffect(() => {
@@ -855,6 +855,16 @@ export default function MapScreen() {
         const address = parts.join(' ') || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
         if (__DEV__) console.log('[MapTap] Geocoded address:', address);
         setTappedLocation(prev => prev ? { ...prev, address } : null);
+        // Fetch nearby Google Place for this location
+        fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=nearby&location=${latitude},${longitude}&radius=50&type=establishment`)
+          .then(r => r.ok ? r.json() : null)
+          .then(data => {
+            const place = data?.results?.[0];
+            if (place) {
+              setTappedLocation(prev => prev ? { ...prev, placeDetails: place } : prev);
+            }
+          })
+          .catch(() => {});
       } else {
         const fallback = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
         if (__DEV__) console.log('[MapTap] No geocode results, using fallback:', fallback);
@@ -2683,14 +2693,37 @@ export default function MapScreen() {
           shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12,
           shadowOffset: { width: 0, height: -3 }, elevation: 10,
         }}>
+          {tappedLocation.placeDetails?.photos?.[0]?.photo_reference && (
+            <Image
+              source={{ uri: `https://routeo-backend.vercel.app/api/places?action=photo&photo_reference=${tappedLocation.placeDetails.photos[0].photo_reference}&maxwidth=400` }}
+              style={{ width: '100%', height: 120, borderRadius: 12, marginBottom: 12 }}
+              resizeMode="cover"
+            />
+          )}
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
             <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colours.tintBg, alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="location" size={20} color={colours.accent} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }} numberOfLines={2}>
-                {tappedLocation.address || t('Loading address...', 'Chargement de l\'adresse...')}
+              <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }} numberOfLines={1}>
+                {tappedLocation.placeDetails?.name || tappedLocation.address || t('Loading...', 'Chargement...')}
               </Text>
+              {tappedLocation.placeDetails && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                  {tappedLocation.placeDetails.rating && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                      <Ionicons name="star" size={11} color="#e8a020" />
+                      <Text style={{ fontSize: 11, color: colours.muted, fontWeight: '600' }}>{tappedLocation.placeDetails.rating}</Text>
+                    </View>
+                  )}
+                  {tappedLocation.placeDetails.opening_hours?.open_now !== undefined && (
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: tappedLocation.placeDetails.opening_hours.open_now ? '#00C07A' : '#e74c3c' }}>
+                      {tappedLocation.placeDetails.opening_hours.open_now ? t('Open', 'Ouvert') : t('Closed', 'Fermé')}
+                    </Text>
+                  )}
+                  <Text style={{ fontSize: 11, color: colours.muted }} numberOfLines={1}>{tappedLocation.placeDetails.vicinity}</Text>
+                </View>
+              )}
             </View>
             <TouchableOpacity activeOpacity={0.7} onPress={dismissTapped} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel={t('Dismiss', 'Fermer')}>
               <Ionicons name="close" size={20} color={colours.muted} />
