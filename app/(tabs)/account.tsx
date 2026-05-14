@@ -137,7 +137,16 @@ function MyWallSection() {
 
   if (rsvps.length === 0) return (
     <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
-      <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>MY WALL</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>MY WALL</Text>
+        <TouchableOpacity
+          onPress={() => router.push('/qr-scan' as any)}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colours.accent + '18', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 }}
+        >
+          <Ionicons name="qr-code-outline" size={13} color={colours.accent} />
+          <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accent }}>Scan QR</Text>
+        </TouchableOpacity>
+      </View>
       <View style={{ borderRadius: 16, borderWidth: 1, borderColor: colours.border, borderStyle: 'dashed', padding: 32, alignItems: 'center' }}>
         <Text style={{ fontSize: 24, marginBottom: 8 }}>🎭</Text>
         <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text, marginBottom: 4 }}>Your wall starts here</Text>
@@ -150,7 +159,16 @@ function MyWallSection() {
     <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>MY WALL</Text>
-        <Text style={{ fontSize: 12, color: colours.accent, fontWeight: '600' }}>{rsvps.length} nights</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Text style={{ fontSize: 12, color: colours.muted, fontWeight: '600' }}>{rsvps.length} nights</Text>
+          <TouchableOpacity
+            onPress={() => router.push('/qr-scan' as any)}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colours.accent + '18', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 }}
+          >
+            <Ionicons name="qr-code-outline" size={13} color={colours.accent} />
+            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accent }}>Scan QR</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {rsvps.map((r, i) => (
