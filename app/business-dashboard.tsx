@@ -7,6 +7,7 @@ import { useApp } from '../context/AppContext';
 import { supabase } from '../lib/supabase';
 import { Linking } from 'react-native';
 import { STRIPE_LINKS } from '../lib/stripeLinks';
+import * as ImagePicker from 'expo-image-picker';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -30,6 +31,13 @@ export default function BusinessDashboardScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [qrCode, setQrCode] = useState<any>(null);
   const [generatingQR, setGeneratingQR] = useState(false);
+  const [posterUrl, setPosterUrl] = useState<string | null>(null);
+  const [uploadingPoster, setUploadingPoster] = useState(false);
+  const [eventTitle, setEventTitle] = useState('');
+  const [eventDate, setEventDate] = useState('');
+  const [eventPrice, setEventPrice] = useState('Free');
+  const [ticketUrl, setTicketUrl] = useState('');
+  const [showAddPoster, setShowAddPoster] = useState(false);
 
   useEffect(() => { loadData(); }, []);
 
@@ -67,6 +75,15 @@ export default function BusinessDashboardScreen() {
       .single();
     if (existingQR) setQrCode(existingQR);
 
+    const { data: latestPost } = await supabase
+      .from('city_board_posts')
+      .select('*')
+      .eq('venue_name', biz.business_name)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    if (latestPost?.poster_url) setPosterUrl(latestPost.poster_url);
+
     setLoading(false);
   };
 
@@ -92,6 +109,45 @@ export default function BusinessDashboardScreen() {
       Alert.alert('Error', 'Could not generate QR code.');
     } finally {
       setGeneratingQR(false);
+    }
+  };
+
+  const uploadPoster = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+    setUploadingPoster(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const asset = result.assets[0];
+      const ext = asset.uri.split('.').pop() || 'jpg';
+      const path = `posters/${business.business_name.replace(/\s+/g, '_')}_${Date.now()}.${ext}`;
+      const response = await fetch(asset.uri);
+      const blob = await response.blob();
+      const { error: uploadError } = await supabase.storage
+        .from('poster-memories')
+        .upload(path, blob, { contentType: `image/${ext}` });
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage.from('poster-memories').getPublicUrl(path);
+      setPosterUrl(publicUrl);
+      await supabase.from('city_board_posts').insert({
+        venue_name: business.business_name,
+        poster_url: publicUrl,
+        event_title: eventTitle || null,
+        event_date: eventDate || null,
+        price: eventPrice,
+        ticket_url: ticketUrl || null,
+        created_by: user!.id,
+        is_active: true,
+      });
+      setShowAddPoster(false);
+      Alert.alert('Poster Live!', 'Your poster is now on The Wall.');
+    } catch (e) {
+      Alert.alert('Error', 'Could not upload poster.');
+    } finally {
+      setUploadingPoster(false);
     }
   };
 
@@ -205,6 +261,34 @@ export default function BusinessDashboardScreen() {
             ))}
           </View>
           <Text style={{ fontSize: 11, color: colours.muted, textAlign: 'center', marginTop: 10 }}>Stats available once your listing goes live</Text>
+        </View>
+
+        {/* Post to The Wall */}
+        <View style={{ padding: 16, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>The Wall</Text>
+            <TouchableOpacity onPress={() => setShowAddPoster(!showAddPoster)} style={{ backgroundColor: colours.accent, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: 'white' }}>+ Post</Text>
+            </TouchableOpacity>
+          </View>
+          {posterUrl && (
+            <Image source={{ uri: posterUrl }} style={{ width: '100%', height: 180, borderRadius: 10, marginBottom: 10 }} resizeMode="cover" />
+          )}
+          {showAddPoster && (
+            <View style={{ gap: 10 }}>
+              <TouchableOpacity onPress={uploadPoster} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, borderRadius: 12, borderWidth: 2, borderColor: colours.accent, borderStyle: 'dashed' }}>
+                {uploadingPoster ? <ActivityIndicator color={colours.accent} /> : <Ionicons name="image-outline" size={20} color={colours.accent} />}
+                <Text style={{ fontSize: 14, fontWeight: '600', color: colours.accent }}>{uploadingPoster ? 'Uploading...' : 'Choose Poster Image'}</Text>
+              </TouchableOpacity>
+              <TextInput value={eventTitle} onChangeText={setEventTitle} placeholder="Event title (optional)" placeholderTextColor={colours.muted} style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 10, padding: 12, color: colours.text, fontSize: 14 }} />
+              <TextInput value={eventDate} onChangeText={setEventDate} placeholder="Date e.g. May 16, 2026" placeholderTextColor={colours.muted} style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 10, padding: 12, color: colours.text, fontSize: 14 }} />
+              <TextInput value={eventPrice} onChangeText={setEventPrice} placeholder="Price e.g. Free / $10" placeholderTextColor={colours.muted} style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 10, padding: 12, color: colours.text, fontSize: 14 }} />
+              <TextInput value={ticketUrl} onChangeText={setTicketUrl} placeholder="Ticket URL (optional)" placeholderTextColor={colours.muted} style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 10, padding: 12, color: colours.text, fontSize: 14 }} />
+            </View>
+          )}
+          {!showAddPoster && !posterUrl && (
+            <Text style={{ fontSize: 12, color: colours.muted, textAlign: 'center' }}>Upload your event poster to appear on The Wall</Text>
+          )}
         </View>
 
         {/* QR Code */}

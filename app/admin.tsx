@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Switch } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Switch, TextInput, Image } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +18,12 @@ export default function AdminScreen() {
   const [sponsored, setSponsored] = useState<any[]>([]);
   const [pendingBusinesses, setPendingBusinesses] = useState<any[]>([]);
   const [pendingDeals, setPendingDeals] = useState<any[]>([]);
+  const [wallPosts, setWallPosts] = useState<any[]>([]);
+  const [seedVenueName, setSeedVenueName] = useState('');
+  const [seedEventTitle, setSeedEventTitle] = useState('');
+  const [seedEventDate, setSeedEventDate] = useState('');
+  const [seedPosterUrl, setSeedPosterUrl] = useState('');
+  const [seedingPoster, setSeedingPoster] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
@@ -44,6 +51,30 @@ export default function AdminScreen() {
     setPendingBusinesses(businessRes.data || []);
     setPendingDeals(dealsRes.data || []);
     setDataLoading(false);
+    const { data: posts } = await supabase.from('city_board_posts').select('*').order('created_at', { ascending: false }).limit(20);
+    setWallPosts(posts || []);
+  };
+
+  const seedPoster = async () => {
+    if (!seedVenueName || !seedPosterUrl) {
+      Alert.alert('Missing fields', 'Venue name and poster URL are required.');
+      return;
+    }
+    setSeedingPoster(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from('city_board_posts').insert({
+      venue_name: seedVenueName,
+      poster_url: seedPosterUrl,
+      event_title: seedEventTitle || null,
+      event_date: seedEventDate || null,
+      created_by: user!.id,
+      is_auto_generated: false,
+      is_active: true,
+    });
+    setSeedVenueName(''); setSeedEventTitle(''); setSeedEventDate(''); setSeedPosterUrl('');
+    await loadData();
+    setSeedingPoster(false);
+    Alert.alert('Posted!', 'Poster is live on The Wall.');
   };
 
   const toggleSponsored = async (id: string, current: boolean) => {
@@ -174,6 +205,36 @@ export default function AdminScreen() {
                 </TouchableOpacity>
               </View>
             ))}
+          </View>
+
+          {/* Seed The Wall */}
+          <View style={{ gap: 12 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>Seed The Wall</Text>
+            <TextInput value={seedVenueName} onChangeText={setSeedVenueName} placeholder="Venue name" placeholderTextColor={colours.muted} style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 10, padding: 12, color: colours.text, backgroundColor: colours.surface }} />
+            <TextInput value={seedEventTitle} onChangeText={setSeedEventTitle} placeholder="Event title (optional)" placeholderTextColor={colours.muted} style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 10, padding: 12, color: colours.text, backgroundColor: colours.surface }} />
+            <TextInput value={seedEventDate} onChangeText={setSeedEventDate} placeholder="Date e.g. May 16, 2026" placeholderTextColor={colours.muted} style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 10, padding: 12, color: colours.text, backgroundColor: colours.surface }} />
+            <TextInput value={seedPosterUrl} onChangeText={setSeedPosterUrl} placeholder="Poster image URL" placeholderTextColor={colours.muted} style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 10, padding: 12, color: colours.text, backgroundColor: colours.surface }} />
+            {seedPosterUrl ? <Image source={{ uri: seedPosterUrl }} style={{ width: '100%', height: 160, borderRadius: 10 }} resizeMode="cover" /> : null}
+            <TouchableOpacity onPress={seedPoster} disabled={seedingPoster} style={{ backgroundColor: colours.accent, borderRadius: 10, paddingVertical: 12, alignItems: 'center' }}>
+              {seedingPoster ? <ActivityIndicator color="white" /> : <Text style={{ fontSize: 14, fontWeight: '700', color: 'white' }}>Post to The Wall</Text>}
+            </TouchableOpacity>
+            {wallPosts.length > 0 && (
+              <View style={{ gap: 8 }}>
+                <Text style={{ fontSize: 12, color: colours.muted }}>{wallPosts.length} posts on The Wall</Text>
+                {wallPosts.slice(0, 5).map(p => (
+                  <View key={p.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 10, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
+                    {p.poster_url && <Image source={{ uri: p.poster_url }} style={{ width: 40, height: 40, borderRadius: 6 }} />}
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }} numberOfLines={1}>{p.venue_name}</Text>
+                      <Text style={{ fontSize: 11, color: colours.muted }} numberOfLines={1}>{p.event_title || 'No title'}</Text>
+                    </View>
+                    <TouchableOpacity onPress={async () => { await supabase.from('city_board_posts').update({ is_active: false }).eq('id', p.id); loadData(); }}>
+                      <Ionicons name="trash-outline" size={16} color={colours.muted} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
 
         </ScrollView>
