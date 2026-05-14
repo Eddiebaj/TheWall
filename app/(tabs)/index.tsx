@@ -2504,6 +2504,11 @@ function LiveScreenInner() {
             t={t}
             cardShadow={cardShadow}
             language={language}
+            onSaveToggle={() => {
+              AsyncStorage.getItem(SK_SAVED_PLACES).then(val => {
+                try { if (val) setSavedPlaces(JSON.parse(val)); } catch {}
+              });
+            }}
           />
 
         </ScrollView>

@@ -239,6 +239,8 @@ export default function ChatScreen() {
   const [showSettings, setShowSettings] = useState(false);
   const [members, setMembers] = useState<any[]>([]);
   const [reactionTarget, setReactionTarget] = useState<any>(null);
+  const [replyTo, setReplyTo] = useState<{id: string, content: string, senderName: string} | null>(null);
+  const [lastReadBy, setLastReadBy] = useState<string[]>([]);
 
   const loadMembers = async () => {
     const { data } = await supabase
@@ -267,7 +269,12 @@ export default function ChatScreen() {
           .eq('id', payload.new.id)
           .single();
         if (fullMsg) {
-          setMessages(prev => [...prev, fullMsg]);
+          setMessages(prev => {
+            const updated = [...prev, fullMsg];
+            loadReadReceipts(updated);
+            return updated;
+          });
+          markMessagesRead([fullMsg.id]);
           setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
         }
       })
@@ -275,6 +282,23 @@ export default function ChatScreen() {
 
     return () => { supabase.removeChannel(channel); };
   }, [id]);
+
+  const markMessagesRead = async (messageIds: string[]) => {
+    if (!user || !messageIds.length) return;
+    const rows = messageIds.map(id => ({ message_id: id, user_id: user.id }));
+    await supabase.from('message_reads').upsert(rows, { onConflict: 'message_id,user_id' });
+  };
+
+  const loadReadReceipts = async (msgs: any[]) => {
+    const myLastMsg = [...msgs].reverse().find(m => m.sender?.id === user?.id);
+    if (!myLastMsg) return;
+    const { data } = await supabase
+      .from('message_reads')
+      .select('profiles(display_name, username)')
+      .eq('message_id', myLastMsg.id)
+      .neq('user_id', user!.id);
+    if (data) setLastReadBy(data.map((r: any) => r.profiles?.display_name || r.profiles?.username).filter(Boolean));
+  };
 
   const loadMessages = async () => {
     const { data } = await supabase
@@ -286,7 +310,11 @@ export default function ChatScreen() {
       .eq('conversation_id', id)
       .order('created_at', { ascending: true })
       .limit(50);
-    if (data) setMessages(data);
+    if (data) {
+      setMessages(data);
+      markMessagesRead(data.map((m: any) => m.id));
+      loadReadReceipts(data);
+    }
     setLoading(false);
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 100);
   };
@@ -352,7 +380,9 @@ export default function ChatScreen() {
       sender_id: user.id,
       content,
       type: 'text',
+      metadata: replyTo ? { reply_to_id: replyTo.id, reply_to_content: replyTo.content, reply_to_sender: replyTo.senderName } : null,
     });
+    setReplyTo(null);
 
     // Notify group members
     supabase.functions.invoke('notify-social', {
@@ -402,11 +432,22 @@ export default function ChatScreen() {
         <View style={{ flex: 1, alignItems: isMe ? 'flex-end' : 'flex-start' }}>
           {!isMe && <Text style={{ fontSize: 11, color: colours.muted, marginBottom: 2 }}>{item.sender?.display_name || item.sender?.username}</Text>}
           <View style={{ maxWidth: '75%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18, backgroundColor: isMe ? colours.accent : colours.surface, borderWidth: isMe ? 0 : 1, borderColor: colours.border }}>
+            {item.metadata?.reply_to_id && (
+              <View style={{ backgroundColor: colours.bg, borderLeftWidth: 3, borderLeftColor: colours.accent, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginBottom: 4 }}>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: colours.accent }}>{item.metadata.reply_to_sender}</Text>
+                <Text style={{ fontSize: 11, color: colours.muted }} numberOfLines={1}>{item.metadata.reply_to_content}</Text>
+              </View>
+            )}
             <Text style={{ fontSize: 15, color: isMe ? 'white' : colours.text, lineHeight: 20 }}>{item.content}</Text>
           </View>
           <Text style={{ fontSize: 10, color: colours.muted, marginTop: 2 }}>
             {isMe ? 'You' : (item.sender?.display_name || item.sender?.username)} · {new Date(item.created_at).toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' })}
           </Text>
+          {isMe && item.id === messages[messages.length - 1]?.id && lastReadBy.length > 0 && (
+            <Text style={{ fontSize: 10, color: colours.muted, marginTop: 2, textAlign: 'right' }}>
+              Seen by {lastReadBy.join(', ')}
+            </Text>
+          )}
           {item.metadata?.reactions && Object.keys(item.metadata.reactions).length > 0 && (
             <View style={{ flexDirection: 'row', gap: 4, marginTop: 4 }}>
               {Object.values(item.metadata.reactions as Record<string, string>).map((emoji, i) => (
@@ -463,6 +504,18 @@ export default function ChatScreen() {
             </View>
           }
         />
+      )}
+
+      {replyTo && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderLeftWidth: 3, borderLeftColor: colours.accent, paddingHorizontal: 12, paddingVertical: 8, marginHorizontal: 16, marginBottom: 4, borderRadius: 8, gap: 8 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent }}>{replyTo.senderName}</Text>
+            <Text style={{ fontSize: 12, color: colours.muted }} numberOfLines={1}>{replyTo.content}</Text>
+          </View>
+          <TouchableOpacity onPress={() => setReplyTo(null)}>
+            <Ionicons name="close" size={16} color={colours.muted} />
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* Input */}
@@ -561,6 +614,19 @@ export default function ChatScreen() {
             </View>
             {/* Actions */}
             <View style={{ gap: 8 }}>
+              <TouchableOpacity
+                onPress={() => {
+                  setReplyTo({
+                    id: reactionTarget.id,
+                    content: reactionTarget.content || '📷 Image',
+                    senderName: reactionTarget.sender?.display_name || reactionTarget.sender?.username || 'Unknown'
+                  });
+                  setReactionTarget(null);
+                }}
+                style={{ padding: 16, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', marginBottom: 8 }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: '600', color: colours.text }}>Reply</Text>
+              </TouchableOpacity>
               {reactionTarget.sender?.id === user?.id && (
                 <TouchableOpacity
                   onPress={() => { deleteMessage(reactionTarget.id); setReactionTarget(null); }}

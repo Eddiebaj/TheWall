@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, FlatList, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, FlatList, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import SavedPlaceCard from '../SavedPlaceCard';
@@ -30,6 +30,7 @@ interface Props {
 
 export default function YourSpotsSection({ savedPlaces, colours, fonts, language, t, cardShadow, onRemove }: Props) {
   const router = useRouter();
+  const [removeTarget, setRemoveTarget] = useState<SavedPlace | null>(null);
 
   return (
     <View style={{ paddingTop: 16 }}>
@@ -72,18 +73,29 @@ export default function YourSpotsSection({ savedPlaces, colours, fonts, language
                 pathname: '/(tabs)/planner',
                 params: { toLabel: place.name, toLat: String(place.lat), toLng: String(place.lng) }
               } as any)}
-              onLongPress={() => Alert.alert(
-                t('Remove?', 'Retirer?'),
-                place.name,
-                [
-                  { text: t('Cancel', 'Annuler'), style: 'cancel' },
-                  { text: t('Remove', 'Retirer'), style: 'destructive', onPress: () => onRemove(place.id) }
-                ]
-              )}
+              onLongPress={() => setRemoveTarget(place)}
               cardShadow={cardShadow}
             />
           )}
         />
+      )}
+      {removeTarget && (
+        <Modal visible={!!removeTarget} transparent animationType="fade" onRequestClose={() => setRemoveTarget(null)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+            <View style={{ backgroundColor: colours.surface, borderRadius: 20, padding: 24, width: '100%', borderWidth: 1, borderColor: colours.border }}>
+              <Text style={{ fontSize: 17, fontWeight: '800', color: colours.text, marginBottom: 6 }}>Remove spot?</Text>
+              <Text style={{ fontSize: 14, color: colours.muted, marginBottom: 24 }}>{removeTarget.name}</Text>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity onPress={() => setRemoveTarget(null)} style={{ flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: colours.muted }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => { onRemove(removeTarget.id); setRemoveTarget(null); }} style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: '#cc3b2a12', borderWidth: 1, borderColor: '#cc3b2a40', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#cc3b2a' }}>Remove</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       )}
     </View>
   );
