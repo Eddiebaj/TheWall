@@ -67,9 +67,9 @@ function VenueCard({ venue, walkKm, todayDeal, staticPhotoUrl, onPress, colours,
     >
       <View style={{ position: 'relative' }}>
         {photoUrl ? (
-          <Image source={{ uri: photoUrl }} style={{ width: '100%', height: 120 }} resizeMode="cover" />
+          <Image source={{ uri: photoUrl }} style={{ width: '100%', height: 140 }} resizeMode="cover" />
         ) : (
-          <View style={{ width: '100%', height: 120, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: '100%', height: 140, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="storefront-outline" size={28} color={colours.accent} />
           </View>
         )}
@@ -141,7 +141,7 @@ export default function NearYouNowSection({
   return (
     <View style={{ marginBottom: 16 }}>
       {/* Section header */}
-      <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, paddingHorizontal: 20, marginBottom: 10 }}>
+      <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text, paddingHorizontal: 20, marginBottom: 12, letterSpacing: 0.5 }}>
         {t('Near You Now', 'Près de vous maintenant')}
       </Text>
 
