@@ -164,6 +164,23 @@ export default function InsightsScreen() {
   // Is memory unlocked (5+ trips)
   const memoryUnlocked = trips.length >= 5;
 
+  const [wallStats, setWallStats] = useState({ nights: 0, unlocked: 0, topVenue: '', firstScan: '' });
+
+  useEffect(() => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return;
+      const [{ data: rsvps }, { data: scans }] = await Promise.all([
+        supabase.from('city_board_rsvps').select('venue_name, created_at').eq('user_id', user.id).order('created_at', { ascending: true }),
+        supabase.from('venue_qr_scans').select('venue_name, scanned_at').eq('user_id', user.id).order('scanned_at', { ascending: true }),
+      ]);
+      const venueCounts: Record<string, number> = {};
+      (rsvps || []).forEach(r => { venueCounts[r.venue_name] = (venueCounts[r.venue_name] || 0) + 1; });
+      const topVenue = Object.entries(venueCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+      const firstScan = scans?.[0]?.scanned_at ? new Date(scans[0].scanned_at).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+      setWallStats({ nights: rsvps?.length || 0, unlocked: scans?.length || 0, topVenue, firstScan });
+    });
+  }, []);
+
   const Card = ({ children }: { children: React.ReactNode }) => (
     <View style={{
       borderWidth: 1, borderColor: colours.border, borderRadius: 16,
@@ -191,6 +208,38 @@ export default function InsightsScreen() {
           </Text>
           <Ionicons name="stats-chart" size={20} color={colours.accent} />
         </View>
+
+        {/* My Wall Stats */}
+        {wallStats.nights > 0 && (
+          <Card>
+            <View style={{ padding: 16 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>My Wall</Text>
+              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
+                <View style={{ flex: 1, alignItems: 'center', padding: 12, borderRadius: 12, backgroundColor: colours.accent + '12' }}>
+                  <Text style={{ fontSize: 28, fontWeight: '800', color: colours.accent }}>{wallStats.nights}</Text>
+                  <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }}>nights</Text>
+                </View>
+                <View style={{ flex: 1, alignItems: 'center', padding: 12, borderRadius: 12, backgroundColor: colours.accent + '12' }}>
+                  <Text style={{ fontSize: 28, fontWeight: '800', color: colours.accent }}>{wallStats.unlocked}</Text>
+                  <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }}>unlocked</Text>
+                </View>
+                <View style={{ flex: 1, alignItems: 'center', padding: 12, borderRadius: 12, backgroundColor: colours.accent + '12' }}>
+                  <Text style={{ fontSize: 28, fontWeight: '800', color: colours.accent }}>{wallStats.nights > 0 ? Math.round((wallStats.unlocked / wallStats.nights) * 100) : 0}%</Text>
+                  <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }}>showed up</Text>
+                </View>
+              </View>
+              {wallStats.topVenue ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 10, backgroundColor: colours.bg }}>
+                  <Ionicons name="flame" size={14} color={colours.accent} />
+                  <Text style={{ fontSize: 13, color: colours.text, fontWeight: '600', flex: 1 }}>Your spot: <Text style={{ color: colours.accent }}>{wallStats.topVenue}</Text></Text>
+                </View>
+              ) : null}
+              {wallStats.firstScan ? (
+                <Text style={{ fontSize: 11, color: colours.muted, marginTop: 8, textAlign: 'center' }}>Your wall started {wallStats.firstScan}</Text>
+              ) : null}
+            </View>
+          </Card>
+        )}
 
         {/* Premium lock overlay */}
         {locked && (
