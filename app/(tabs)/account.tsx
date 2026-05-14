@@ -321,6 +321,44 @@ export default function AccountScreen() {
     }
   };
 
+  const TripHistoryCard = () => {
+    const [tripCount, setTripCount] = useState(0);
+    const [totalKm, setTotalKm] = useState(0);
+    useEffect(() => {
+      AsyncStorage.getItem('routeo_trip_history')
+        .then(val => {
+          if (!val) return;
+          const trips = JSON.parse(val);
+          setTripCount(trips.length);
+          setTotalKm(Math.round(trips.reduce((s: number, t: any) => s + (t.distanceKm ?? 0), 0)));
+        })
+        .catch(() => {});
+    }, []);
+    if (tripCount === 0) return null;
+    return (
+      <TouchableOpacity
+        onPress={() => router.push('/insights' as any)}
+        style={{ marginHorizontal: 20, marginBottom: 16, backgroundColor: colours.surface, borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: colours.border, ...cardShadow }}
+        activeOpacity={0.8}
+      >
+        <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="map-outline" size={20} color={colours.accent} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
+            {tripCount} {t('trips this week', 'trajets cette semaine')}
+          </Text>
+          {totalKm > 0 && (
+            <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>
+              {totalKm} km {t('travelled', 'parcourus')}
+            </Text>
+          )}
+        </View>
+        <Ionicons name="chevron-forward" size={16} color={colours.muted} />
+      </TouchableOpacity>
+    );
+  };
+
   const Card = ({ children, style }: { children: React.ReactNode; style?: any }) => (
     <View style={[{
       borderWidth: 1, borderColor: colours.border, borderRadius: 16,
@@ -406,6 +444,9 @@ export default function AccountScreen() {
             </View>
           </View>
         )}
+
+        {/* ── TRIP HISTORY ── */}
+        <TripHistoryCard />
 
         {/* ── NOTIFICATIONS ── */}
         <SectionHeader label={t('Notifications', 'Notifications')} icon="notifications-outline" colours={colours} fonts={fonts} />
