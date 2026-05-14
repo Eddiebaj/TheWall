@@ -18,7 +18,7 @@ function EventShareCard({ item, user, colours }: { item: any; user: any; colours
   const [rsvp, setRsvp] = useState<string | null>(null);
   const [hangoutId, setHangoutId] = useState<string | null>(null);
   const [rsvpCounts, setRsvpCounts] = useState<{
-    going: {name: string, avatar?: string}[],
+    going: {name: string, avatar?: string, eta?: number}[],
     interested: {name: string, avatar?: string}[],
     declined: {name: string, avatar?: string}[]
   }>({going:[], interested:[], declined:[]});
@@ -27,15 +27,15 @@ function EventShareCard({ item, user, colours }: { item: any; user: any; colours
     console.log('[RSVP] loadRsvps called with hid:', hid);
     const { data, error } = await supabase
       .from('hangout_rsvps')
-      .select('status, profiles(username, display_name, avatar_url)')
+      .select('status, eta_minutes, profiles(username, display_name, avatar_url)')
       .eq('hangout_id', hid);
     console.log('[RSVP] counts data:', JSON.stringify(data), 'error:', error?.message);
     if (!data) return;
-    const counts = { going: [] as {name: string, avatar?: string}[], interested: [] as {name: string, avatar?: string}[], declined: [] as {name: string, avatar?: string}[] };
+    const counts = { going: [] as {name: string, avatar?: string, eta?: number}[], interested: [] as {name: string, avatar?: string}[], declined: [] as {name: string, avatar?: string}[] };
     data.forEach(r => {
       const name = (r.profiles as any)?.display_name || (r.profiles as any)?.username || '?';
       const avatar = (r.profiles as any)?.avatar_url;
-      if (r.status === 'going') counts.going.push({name, avatar});
+      if (r.status === 'going') counts.going.push({name, avatar, eta: r.eta_minutes ?? undefined});
       else if (r.status === 'interested') counts.interested.push({name, avatar});
       else if (r.status === 'declined') counts.declined.push({name, avatar});
     });
@@ -83,6 +83,36 @@ function EventShareCard({ item, user, colours }: { item: any; user: any; colours
       .upsert({ hangout_id: hid, user_id: user.id, status }, { onConflict: 'hangout_id,user_id' });
     console.log('[RSVP] upsert error:', rsvpError?.message);
     loadRsvps(hid);
+
+    // Calculate and store ETA
+    try {
+      const Location = await import('expo-location');
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const { lat, lng } = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+
+      const geocodeResp = await fetch(`https://routeo-backend.vercel.app/api/places?action=geocode&input=${encodeURIComponent(meta.venue || meta.name)}`);
+      const geocodeData = await geocodeResp.json();
+      const venueLat = geocodeData?.lat;
+      const venueLng = geocodeData?.lng;
+
+      if (venueLat && venueLng) {
+        const now = new Date();
+        const timeStr = now.toTimeString().slice(0, 5);
+        const dateStr = now.toISOString().slice(0, 10);
+        const planResp = await fetch(`https://routeo-backend.vercel.app/api/plan?fromLat=${lat}&fromLng=${lng}&fromLabel=My+Location&toLat=${venueLat}&toLng=${venueLng}&toLabel=${encodeURIComponent(meta.venue || meta.name)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=false&mode=transit`);
+        const planData = await planResp.json();
+        const firstItinerary = planData?.plan?.itineraries?.[0];
+        if (firstItinerary) {
+          const etaMinutes = Math.round(firstItinerary.duration / 60);
+          await supabase.from('hangout_rsvps')
+            .update({ eta_minutes: etaMinutes })
+            .eq('hangout_id', hid)
+            .eq('user_id', user.id);
+        }
+      }
+    } catch (e) {
+      // ETA calculation is best-effort, don't block the RSVP
+    }
 
     // Notify group members
     supabase.functions.invoke('notify-social', {
@@ -138,7 +168,7 @@ function EventShareCard({ item, user, colours }: { item: any; user: any; colours
                     ))}
                   </View>
                   <Text style={{ fontSize: 11, fontWeight: '600', color: '#00A78D' }}>
-                    {rsvpCounts.going.map(r => r.name).join(', ')} {rsvpCounts.going.length === 1 ? 'is' : 'are'} in
+                    {rsvpCounts.going.map(r => r.eta ? `${r.name} ${r.eta}min` : r.name).join(' · ')} going
                   </Text>
                 </View>
               )}
@@ -208,6 +238,7 @@ export default function ChatScreen() {
   const [sending, setSending] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [members, setMembers] = useState<any[]>([]);
+  const [reactionTarget, setReactionTarget] = useState<any>(null);
 
   const loadMembers = async () => {
     const { data } = await supabase
@@ -270,15 +301,7 @@ export default function ChatScreen() {
   };
 
   const handleLongPress = (item: any) => {
-    const isMe = item.sender?.id === user?.id;
-    Alert.alert('', '', [
-      {
-        text: isMe ? 'Delete' : 'Report',
-        style: 'destructive',
-        onPress: () => isMe ? deleteMessage(item.id) : reportMessage(item.id),
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    setReactionTarget(item);
   };
 
   const handleImagePick = async () => {
@@ -384,6 +407,15 @@ export default function ChatScreen() {
           <Text style={{ fontSize: 10, color: colours.muted, marginTop: 2 }}>
             {isMe ? 'You' : (item.sender?.display_name || item.sender?.username)} · {new Date(item.created_at).toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' })}
           </Text>
+          {item.metadata?.reactions && Object.keys(item.metadata.reactions).length > 0 && (
+            <View style={{ flexDirection: 'row', gap: 4, marginTop: 4 }}>
+              {Object.values(item.metadata.reactions as Record<string, string>).map((emoji, i) => (
+                <View key={i} style={{ backgroundColor: colours.surface, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: colours.border }}>
+                  <Text style={{ fontSize: 13 }}>{emoji}</Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
         {/* Spacer for own messages to align right */}
         {isMe && <View style={{ width: 28 }} />}
@@ -505,6 +537,50 @@ export default function ChatScreen() {
           </View>
         </View>
       </Modal>
+      {reactionTarget && (
+        <Modal visible={!!reactionTarget} transparent animationType="fade" onRequestClose={() => setReactionTarget(null)}>
+          <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} activeOpacity={1} onPress={() => setReactionTarget(null)} />
+          <View style={{ backgroundColor: colours.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40 }}>
+            {/* Emoji reactions */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginBottom: 20 }}>
+              {['👍', '❤️', '😂', '😮', '😢', '🔥'].map(emoji => (
+                <TouchableOpacity
+                  key={emoji}
+                  onPress={async () => {
+                    await supabase.from('messages').update({
+                      metadata: { ...(reactionTarget.metadata || {}), reactions: { ...(reactionTarget.metadata?.reactions || {}), [user?.id || '']: emoji } }
+                    }).eq('id', reactionTarget.id);
+                    setReactionTarget(null);
+                    loadMessages();
+                  }}
+                  style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Text style={{ fontSize: 24 }}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {/* Actions */}
+            <View style={{ gap: 8 }}>
+              {reactionTarget.sender?.id === user?.id && (
+                <TouchableOpacity
+                  onPress={() => { deleteMessage(reactionTarget.id); setReactionTarget(null); }}
+                  style={{ padding: 16, borderRadius: 12, backgroundColor: '#cc3b2a12', borderWidth: 1, borderColor: '#cc3b2a40', alignItems: 'center' }}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#cc3b2a' }}>Delete message</Text>
+                </TouchableOpacity>
+              )}
+              {reactionTarget.sender?.id !== user?.id && (
+                <TouchableOpacity
+                  onPress={() => { Alert.alert('Reported', 'Message reported.'); setReactionTarget(null); }}
+                  style={{ padding: 16, borderRadius: 12, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: colours.muted }}>Report</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </Modal>
+      )}
     </KeyboardAvoidingView>
   );
 }
