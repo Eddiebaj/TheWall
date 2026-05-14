@@ -14,6 +14,7 @@ let Constants: typeof import('expo-constants').default | null = null;
 try { Constants = require('expo-constants').default; } catch {}
 import { fetchWithTimeout } from './fetchWithTimeout';
 import { SK_DEVICE_ID, SK_PUSH_TOKEN } from './storageKeys';
+import { supabase } from './supabase';
 
 const COMMUNITY_URL = 'https://routeo-backend.vercel.app/api/community';
 
@@ -80,6 +81,14 @@ export async function registerPushToken(language: string): Promise<boolean> {
     );
 
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user && token) {
+      await supabase.from('push_tokens').upsert(
+        { expo_token: token, user_id: user.id, platform: Platform.OS },
+        { onConflict: 'expo_token' }
+      );
+    }
 
     await AsyncStorage.setItem(SK_PUSH_TOKEN, token);
     return true;

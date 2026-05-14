@@ -2593,16 +2593,6 @@ export default function MapScreen() {
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
             <TouchableOpacity
               activeOpacity={0.7}
-              onPress={dropPinAtTapped}
-              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface }}
-              accessibilityRole="button"
-              accessibilityLabel={t('Drop pin', 'Epingler')}
-            >
-              <Ionicons name="pin" size={16} color={colours.text} />
-              <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: colours.text }}>{t('Drop pin', 'Epingler')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              activeOpacity={0.7}
               onPress={routeToTapped}
               style={{ flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 12, backgroundColor: colours.accent }}
               accessibilityRole="button"

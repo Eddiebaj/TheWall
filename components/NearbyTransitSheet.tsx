@@ -535,7 +535,9 @@ const IntersectionRow = React.memo(function IntersectionRow({
     const routeId = primaryArrival.routeId.split('-')[0];
     if (!routeId || fetchedRouteRef.current === routeId) return;
     fetchedRouteRef.current = routeId;
-    fetch(`https://routeo-backend.vercel.app/api/route?id=${encodeURIComponent(routeId)}`, { signal: AbortSignal.timeout(8000) })
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 8000);
+    fetch(`https://routeo-backend.vercel.app/api/route?id=${encodeURIComponent(routeId)}`, { signal: controller.signal })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         const dir = (data?.directions || [])[0];
