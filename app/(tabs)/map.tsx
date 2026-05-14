@@ -286,8 +286,15 @@ const PlaceMarker = React.memo(({ coordinate, icon, color, title, description, o
       description={description}
       onPress={onPress}
     >
-      <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: color, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' }}>
-        <Ionicons name={icon} size={18} color="#fff" />
+      <View style={{
+        width: 34, height: 34, borderRadius: 17,
+        backgroundColor: color,
+        alignItems: 'center', justifyContent: 'center',
+        borderWidth: 2, borderColor: 'rgba(255,255,255,0.9)',
+        shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25, shadowRadius: 4, elevation: 4,
+      }}>
+        <Ionicons name={icon} size={16} color="#fff" />
       </View>
     </Marker>
   );
