@@ -433,6 +433,8 @@ export default function MapScreen() {
   const [selectedBusNextStops, setSelectedBusNextStops] = useState<{ stopId: string; stopName: string; lat: number; lon: number; secsToNextStop: number }[]>([]);
 
   const [tappedLocation, setTappedLocation] = useState<{ lat: number; lng: number; address: string; placeDetails?: any } | null>(null);
+  const [placeDetailFull, setPlaceDetailFull] = useState<any>(null);
+  const [placeDetailLoading, setPlaceDetailLoading] = useState(false);
   const tappedLocationRef = useRef<{ lat: number; lng: number; address: string; placeDetails?: any } | null>(null);
   // Keep ref in sync so stable callbacks can read latest value
   useEffect(() => { tappedLocationRef.current = tappedLocation; }, [tappedLocation]);
@@ -855,16 +857,25 @@ export default function MapScreen() {
         const address = parts.join(' ') || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
         if (__DEV__) console.log('[MapTap] Geocoded address:', address);
         setTappedLocation(prev => prev ? { ...prev, address } : null);
-        // Fetch nearby Google Place for this location
-        fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=nearby&location=${latitude},${longitude}&radius=50&type=establishment`)
+        // Fetch nearby place then load full details
+        setPlaceDetailFull(null);
+        setPlaceDetailLoading(true);
+        fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=nearby&location=${latitude},${longitude}&radius=80&type=establishment`)
           .then(r => r.ok ? r.json() : null)
-          .then(data => {
+          .then(async data => {
             const place = data?.results?.[0];
             if (place) {
               setTappedLocation(prev => prev ? { ...prev, placeDetails: place } : prev);
+              // Load full details
+              const detailRes = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=details&place_id=${place.place_id}`);
+              if (detailRes.ok) {
+                const detail = await detailRes.json();
+                setPlaceDetailFull(detail.result);
+              }
             }
           })
-          .catch(() => {});
+          .catch(() => {})
+          .finally(() => setPlaceDetailLoading(false));
       } else {
         const fallback = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
         if (__DEV__) console.log('[MapTap] No geocode results, using fallback:', fallback);
@@ -2685,63 +2696,137 @@ export default function MapScreen() {
       {/* Tapped location "Route here" card */}
       {tappedLocation && (
         <Animated.View style={{
-          position: 'absolute', bottom: Platform.OS === 'ios' ? 34 : 16, left: 16, right: 16,
+          position: 'absolute', bottom: 0, left: 0, right: 0,
           transform: [{ translateY: tappedTranslate }],
           backgroundColor: colours.surface,
-          borderRadius: 20, borderWidth: 1, borderColor: colours.border,
-          padding: 16,
-          shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12,
-          shadowOffset: { width: 0, height: -3 }, elevation: 10,
+          borderTopLeftRadius: 24, borderTopRightRadius: 24,
+          borderWidth: 1, borderColor: colours.border,
+          paddingBottom: 34,
+          shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 16,
+          shadowOffset: { width: 0, height: -4 }, elevation: 12,
+          maxHeight: '75%',
         }}>
-          {tappedLocation.placeDetails?.photos?.[0]?.photo_reference && (
-            <Image
-              source={{ uri: `https://routeo-backend.vercel.app/api/places?action=photo&photo_reference=${tappedLocation.placeDetails.photos[0].photo_reference}&maxwidth=400` }}
-              style={{ width: '100%', height: 120, borderRadius: 12, marginBottom: 12 }}
-              resizeMode="cover"
-            />
-          )}
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
-            <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colours.tintBg, alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons name="location" size={20} color={colours.accent} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }} numberOfLines={1}>
-                {tappedLocation.placeDetails?.name || tappedLocation.address || t('Loading...', 'Chargement...')}
-              </Text>
-              {tappedLocation.placeDetails && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
-                  {tappedLocation.placeDetails.rating && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                      <Ionicons name="star" size={11} color="#e8a020" />
-                      <Text style={{ fontSize: 11, color: colours.muted, fontWeight: '600' }}>{tappedLocation.placeDetails.rating}</Text>
-                    </View>
-                  )}
-                  {tappedLocation.placeDetails.opening_hours?.open_now !== undefined && (
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: tappedLocation.placeDetails.opening_hours.open_now ? '#00C07A' : '#e74c3c' }}>
-                      {tappedLocation.placeDetails.opening_hours.open_now ? t('Open', 'Ouvert') : t('Closed', 'Fermé')}
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {/* Photo */}
+            {(placeDetailFull?.photos?.[0]?.photo_reference || tappedLocation.placeDetails?.photos?.[0]?.photo_reference) && (
+              <Image
+                source={{ uri: `https://routeo-backend.vercel.app/api/places?action=photo&photo_reference=${(placeDetailFull?.photos?.[0] || tappedLocation.placeDetails?.photos?.[0])?.photo_reference}&maxwidth=600` }}
+                style={{ width: '100%', height: 180, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}
+                resizeMode="cover"
+              />
+            )}
+            <View style={{ padding: 16 }}>
+              {/* Header */}
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
+                <View style={{ flex: 1, marginRight: 12 }}>
+                  <Text style={{ fontSize: 20, fontWeight: '800', color: colours.text, marginBottom: 4 }}>
+                    {placeDetailFull?.name || tappedLocation.placeDetails?.name || tappedLocation.address}
+                  </Text>
+                  {(placeDetailFull?.types?.[0] || tappedLocation.placeDetails?.types?.[0]) && (
+                    <Text style={{ fontSize: 13, color: colours.muted, textTransform: 'capitalize' }}>
+                      {(placeDetailFull?.types?.[0] || tappedLocation.placeDetails?.types?.[0]).replace(/_/g, ' ')}
                     </Text>
                   )}
-                  <Text style={{ fontSize: 11, color: colours.muted }} numberOfLines={1}>{tappedLocation.placeDetails.vicinity}</Text>
+                </View>
+                <TouchableOpacity onPress={dismissTapped} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <Ionicons name="close" size={22} color={colours.muted} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Rating + open/closed */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                {(placeDetailFull?.rating || tappedLocation.placeDetails?.rating) && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#e8a02018', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
+                    <Ionicons name="star" size={13} color="#e8a020" />
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>
+                      {placeDetailFull?.rating || tappedLocation.placeDetails?.rating}
+                    </Text>
+                    {(placeDetailFull?.user_ratings_total) && (
+                      <Text style={{ fontSize: 11, color: colours.muted }}>({placeDetailFull.user_ratings_total})</Text>
+                    )}
+                  </View>
+                )}
+                {(placeDetailFull?.opening_hours || tappedLocation.placeDetails?.opening_hours) && (
+                  <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: ((placeDetailFull?.opening_hours || tappedLocation.placeDetails?.opening_hours)?.open_now ? '#00C07A18' : '#e74c3c18') }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: ((placeDetailFull?.opening_hours || tappedLocation.placeDetails?.opening_hours)?.open_now ? '#00C07A' : '#e74c3c') }}>
+                      {(placeDetailFull?.opening_hours || tappedLocation.placeDetails?.opening_hours)?.open_now ? t('Open now', 'Ouvert') : t('Closed', 'Fermé')}
+                    </Text>
+                  </View>
+                )}
+                {placeDetailLoading && <ActivityIndicator size="small" color={colours.muted} />}
+              </View>
+
+              {/* Address */}
+              {(placeDetailFull?.formatted_address || tappedLocation.placeDetails?.vicinity) && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <Ionicons name="location-outline" size={15} color={colours.muted} />
+                  <Text style={{ fontSize: 13, color: colours.muted, flex: 1 }}>
+                    {placeDetailFull?.formatted_address || tappedLocation.placeDetails?.vicinity}
+                  </Text>
                 </View>
               )}
+
+              {/* Phone */}
+              {placeDetailFull?.formatted_phone_number && (
+                <TouchableOpacity
+                  onPress={() => Linking.openURL(`tel:${placeDetailFull.formatted_phone_number}`)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}
+                >
+                  <Ionicons name="call-outline" size={15} color={colours.accent} />
+                  <Text style={{ fontSize: 13, color: colours.accent }}>{placeDetailFull.formatted_phone_number}</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Website */}
+              {placeDetailFull?.website && (
+                <TouchableOpacity
+                  onPress={() => Linking.openURL(placeDetailFull.website)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}
+                >
+                  <Ionicons name="globe-outline" size={15} color={colours.accent} />
+                  <Text style={{ fontSize: 13, color: colours.accent }} numberOfLines={1}>{placeDetailFull.website.replace(/^https?:\/\/(www\.)?/, '')}</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Hours */}
+              {placeDetailFull?.opening_hours?.weekday_text && (
+                <View style={{ marginBottom: 14, padding: 12, borderRadius: 12, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Hours</Text>
+                  {placeDetailFull.opening_hours.weekday_text.map((line: string, i: number) => (
+                    <Text key={i} style={{ fontSize: 12, color: colours.text, marginBottom: 2 }}>{line}</Text>
+                  ))}
+                </View>
+              )}
+
+              {/* Action buttons */}
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity
+                  onPress={routeToTapped}
+                  style={{ flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 13, borderRadius: 14, backgroundColor: colours.accent }}
+                >
+                  <Ionicons name="navigate" size={16} color="#fff" />
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>{t('Plan here', 'Planifier ici')}</Text>
+                  <Ionicons name="arrow-forward" size={14} color="#fff" />
+                </TouchableOpacity>
+                {placeDetailFull?.website && (
+                  <TouchableOpacity
+                    onPress={() => Linking.openURL(placeDetailFull.website)}
+                    style={{ width: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface }}
+                  >
+                    <Ionicons name="globe-outline" size={20} color={colours.accent} />
+                  </TouchableOpacity>
+                )}
+                {placeDetailFull?.formatted_phone_number && (
+                  <TouchableOpacity
+                    onPress={() => Linking.openURL(`tel:${placeDetailFull.formatted_phone_number}`)}
+                    style={{ width: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface }}
+                  >
+                    <Ionicons name="call-outline" size={20} color={colours.accent} />
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
-            <TouchableOpacity activeOpacity={0.7} onPress={dismissTapped} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel={t('Dismiss', 'Fermer')}>
-              <Ionicons name="close" size={20} color={colours.muted} />
-            </TouchableOpacity>
-          </View>
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={routeToTapped}
-              style={{ flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 12, backgroundColor: colours.accent }}
-              accessibilityRole="button"
-              accessibilityLabel={t('Plan here', 'Planifier')}
-            >
-              <Ionicons name="navigate" size={16} color="#fff" />
-              <Text style={{ fontSize: fonts.sm, fontWeight: '700', color: '#fff' }}>{t('Plan here', 'Planifier')}</Text>
-              <Ionicons name="arrow-forward" size={14} color="#fff" />
-            </TouchableOpacity>
-          </View>
+          </ScrollView>
         </Animated.View>
       )}
 
