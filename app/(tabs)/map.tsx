@@ -49,6 +49,7 @@ import StopDetailSheet from '../../components/StopDetailSheet';
 import NearYouNowSection from '../../components/NearYouNowSection';
 import HappeningInOttawaSection, { EventItem as MapEventItem } from '../../components/HappeningInOttawaSection';
 import FromTheCommunitySection from '../../components/FromTheCommunitySection';
+import AlertsScreen from './alerts';
 
 const VEHICLES_URL    = 'https://routeo-backend.vercel.app/api/vehicles';
 const BACKEND_URL     = 'https://routeo-backend.vercel.app/api/arrivals';
@@ -506,6 +507,7 @@ export default function MapScreen() {
 
   // Stop detail sheet (Feature 2)
   const [stopDetailVisible, setStopDetailVisible] = useState(false);
+  const [alertsModalVisible, setAlertsModalVisible] = useState(false);
   const [stopDetailStopId, setStopDetailStopId] = useState('');
   const [stopDetailStopName, setStopDetailStopName] = useState('');
 
@@ -3087,7 +3089,7 @@ export default function MapScreen() {
         hasDisruption={false}
         communityDeals={sheetDeals}
         onStopDetail={(stopId, stopName) => { setStopDetailStopId(stopId); setStopDetailStopName(stopName); setStopDetailVisible(true); }}
-        onShowAlerts={() => router.push('/(tabs)/alerts' as any)}
+        onShowAlerts={() => setAlertsModalVisible(true)}
         extraSections={
           <>
             <NearYouNowSection
@@ -3357,6 +3359,19 @@ export default function MapScreen() {
         t={t}
         language={language}
       />
+
+      <Modal visible={alertsModalVisible} animationType="slide" transparent onRequestClose={() => setAlertsModalVisible(false)}>
+        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setAlertsModalVisible(false)} />
+        <View style={{ height: '70%', backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: 'hidden' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 }}>
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border }} />
+            <TouchableOpacity onPress={() => setAlertsModalVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="close" size={20} color={colours.muted} />
+            </TouchableOpacity>
+          </View>
+          <AlertsScreen />
+        </View>
+      </Modal>
     </View>
     </ScreenErrorBoundary>
   );
