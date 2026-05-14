@@ -1,11 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ActivityIndicator, Image, Linking, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
+import { supabase } from '../../lib/supabase';
 
-function PlaceCard({ place, colours, t, onSaveToggle }: { place: any; colours: any; t: (en: string, fr: string) => string; onSaveToggle?: () => void }) {
+function PlaceCard({ place, colours, t, onSaveToggle, sponsoredIds }: { place: any; colours: any; t: (en: string, fr: string) => string; onSaveToggle?: () => void; sponsoredIds: string[] }) {
+  const isSponsored = sponsoredIds.includes(place.place_id);
   const [saved, setSaved] = React.useState(false);
+  const [friendSaveCount, setFriendSaveCount] = useState(0);
+  const [friendNames, setFriendNames] = useState<string[]>([]);
 
   React.useEffect(() => {
     AsyncStorage.getItem('routeo_saved_places').then(val => {
@@ -13,6 +17,36 @@ function PlaceCard({ place, colours, t, onSaveToggle }: { place: any; colours: a
       setSaved(places.some((p: any) => p.id === (place.place_id || place.name)));
     });
   }, []);
+
+  useEffect(() => {
+    const loadFriendSaves = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: friendships } = await supabase
+        .from('friendships')
+        .select('requester_id, addressee_id')
+        .eq('status', 'accepted')
+        .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
+
+      if (!friendships?.length) return;
+      const friendIds = friendships.map(f =>
+        f.requester_id === user.id ? f.addressee_id : f.requester_id
+      );
+
+      const { data: saves } = await supabase
+        .from('user_saved_places')
+        .select('user_id, profiles(display_name, username)')
+        .eq('place_id', place.place_id || place.name)
+        .in('user_id', friendIds);
+
+      if (saves?.length) {
+        setFriendSaveCount(saves.length);
+        setFriendNames(saves.map((s: any) => s.profiles?.display_name || s.profiles?.username).filter(Boolean));
+      }
+    };
+    loadFriendSaves();
+  }, [place.place_id]);
 
   const toggleSave = async () => {
     const key = 'routeo_saved_places';
@@ -36,6 +70,19 @@ function PlaceCard({ place, colours, t, onSaveToggle }: { place: any; colours: a
       });
       await AsyncStorage.setItem(key, JSON.stringify(existing));
     }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      if (saved) {
+        await supabase.from('user_saved_places').delete()
+          .eq('user_id', user.id).eq('place_id', place.place_id || place.name);
+      } else {
+        await supabase.from('user_saved_places').upsert({
+          user_id: user.id,
+          place_id: place.place_id || place.name,
+          place_name: place.name,
+        }, { onConflict: 'user_id,place_id' });
+      }
+    }
     setSaved(!saved);
     onSaveToggle?.();
   };
@@ -57,7 +104,12 @@ function PlaceCard({ place, colours, t, onSaveToggle }: { place: any; colours: a
             <Ionicons name="location" size={24} color={colours.accent} />
           </View>
         )}
-        {place.opening_hours?.open_now !== undefined && (
+        {isSponsored && (
+          <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: '#e8a020', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
+            <Text style={{ fontSize: 9, fontWeight: '800', color: 'white', textTransform: 'uppercase', letterSpacing: 0.5 }}>Featured</Text>
+          </View>
+        )}
+        {!isSponsored && place.opening_hours?.open_now !== undefined && (
           <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: place.opening_hours.open_now ? '#00A78D' : '#cc3b2a', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
             <Text style={{ fontSize: 9, fontWeight: '800', color: 'white' }}>
               {place.opening_hours.open_now ? t('Open', 'Ouvert') : t('Closed', 'Fermé')}
@@ -79,6 +131,14 @@ function PlaceCard({ place, colours, t, onSaveToggle }: { place: any; colours: a
             <Text style={{ fontSize: 11, fontWeight: '600', color: colours.muted }}>{place.rating}</Text>
           </View>
         )}
+        {friendSaveCount > 0 && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+            <Ionicons name="people" size={10} color={colours.accent} />
+            <Text style={{ fontSize: 10, fontWeight: '600', color: colours.accent }}>
+              {friendSaveCount === 1 ? `${friendNames[0]} saved this` : `${friendSaveCount} friends saved this`}
+            </Text>
+          </View>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -96,13 +156,33 @@ export default function AroundOttawaSection({ colours, t, cardShadow, language, 
   const [aoCategory, setAoCategory] = React.useState<string>('all');
   const [aoPlaces, setAoPlaces] = React.useState<any[]>([]);
   const [aoLoading, setAoLoading] = React.useState(false);
+  const [sponsoredIds, setSponsoredIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    supabase
+      .from('sponsored_venues')
+      .select('place_id, place_name, expires_at, boost_type')
+      .eq('is_active', true)
+      .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString())
+      .then(({ data }) => {
+        if (data) setSponsoredIds(data.map((v: any) => v.place_id).filter(Boolean));
+      });
+  }, []);
 
   React.useEffect(() => {
     setAoLoading(true);
     const type = aoCategory === 'all' ? 'restaurant' : aoCategory;
     fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=nearby&location=45.4215,-75.6972&radius=1500&type=${type}`)
       .then(r => r.json())
-      .then(d => setAoPlaces((d.results || []).slice(0, 10)))
+      .then(d => {
+        console.log('[Places]', (d.results || []).slice(0, 3).map((p: any) => ({ name: p.name, place_id: p.place_id })));
+        const sorted = [...(d.results || [])].sort((a, b) => {
+          const aSponsored = sponsoredIds.includes(a.place_id) || sponsoredIds.includes(a.name);
+          const bSponsored = sponsoredIds.includes(b.place_id) || sponsoredIds.includes(b.name);
+          return bSponsored ? 1 : aSponsored ? -1 : 0;
+        });
+        setAoPlaces(sorted.slice(0, 10));
+      })
       .catch(() => setAoPlaces([]))
       .finally(() => setAoLoading(false));
   }, [aoCategory]);
@@ -141,7 +221,7 @@ export default function AroundOttawaSection({ colours, t, cardShadow, language, 
       ) : (
         <View style={{ paddingHorizontal: 20, flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
           {aoPlaces.map((place, i) => (
-            <PlaceCard key={place.place_id || i} place={place} colours={colours} t={t} onSaveToggle={onSaveToggle} />
+            <PlaceCard key={place.place_id || i} place={place} colours={colours} t={t} onSaveToggle={onSaveToggle} sponsoredIds={sponsoredIds} />
           ))}
         </View>
       )}

@@ -142,6 +142,11 @@ export default function AccountScreen() {
   const [notifSettings, setNotifSettings] = useState<NotifSettings>(DEFAULT_NOTIF_SETTINGS);
   const [notifPermission, setNotifPermission] = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
   const [commuteAlert, setCommuteAlert] = useState<CommuteAlertSettings>({ enabled: false, hour: 7, minute: 15 });
+  const [lastMinuteDeals, setLastMinuteDeals] = React.useState(false);
+
+  React.useEffect(() => {
+    AsyncStorage.getItem('routeo_lastminute_notifs').then(v => setLastMinuteDeals(v === 'true'));
+  }, []);
   const [commuteTimePickerVisible, setCommuteTimePickerVisible] = useState(false);
   const [ghostStats, setGhostStats] = useState<{ totalThisWeek: number; mostAffectedRoute: string | null; mostAffectedCount: number } | null>(null);
 
@@ -506,6 +511,25 @@ export default function AccountScreen() {
               </View>
             </>
           )}
+        </Card>
+
+        {/* ── LAST-MINUTE DEALS ── */}
+        <Card>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text }}>Last-minute deals</Text>
+              <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>Get notified when a deal near you is about to expire</Text>
+            </View>
+            <Switch
+              value={lastMinuteDeals}
+              onValueChange={async (val) => {
+                setLastMinuteDeals(val);
+                await AsyncStorage.setItem('routeo_lastminute_notifs', val ? 'true' : 'false');
+              }}
+              trackColor={{ false: colours.border, true: colours.accent }}
+              thumbColor="white"
+            />
+          </View>
         </Card>
 
         {/* ── STUDENT MODE ── */}

@@ -851,6 +851,7 @@ function LiveScreenInner() {
   const [classSchedule, setClassSchedule] = useState<ClassSchedule | null>(null);
   const [heroCampus, setHeroCampus] = useState<CampusConfig | null>(null);
   const [nextClassResult, setNextClassResult] = useState<{ entry: any; day: string; minsUntilLeave: number } | null>(null);
+  const [campusEvents, setCampusEvents] = useState<any[]>([]);
 
   const isLight = theme === 'light' || (theme === 'system' && colours.bg === '#f0f4f8');
   const cardShadow = useMemo(() => isLight ? { shadowColor: '#004890', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 } : {}, [isLight]);
@@ -890,6 +891,49 @@ function LiveScreenInner() {
   }, []);
 
   // Load class schedule and campus for hero card — refresh when returning from Account tab, with live countdown
+  const checkLastMinuteDeals = async () => {
+    try {
+      const notifEnabled = await AsyncStorage.getItem('routeo_lastminute_notifs');
+      if (notifEnabled !== 'true') return;
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const userLat = pos.coords.latitude;
+      const userLng = pos.coords.longitude;
+      const now = new Date();
+      const currentDay = now.getDay();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+      for (const venue of HAPPY_HOUR_VENUES) {
+        const distKm = Math.sqrt(
+          Math.pow((venue.lat - userLat) * 111, 2) +
+          Math.pow((venue.lng - userLng) * 111 * Math.cos(userLat * Math.PI / 180), 2)
+        );
+        if (distKm > 0.5) continue;
+
+        for (const deal of venue.deals) {
+          if (!deal.days.includes(currentDay)) continue;
+          const [endH, endM] = deal.end.split(':').map(Number);
+          const endMinutes = endH * 60 + endM;
+          const minsLeft = endMinutes - currentMinutes;
+          if (minsLeft > 0 && minsLeft <= 90) {
+            if (Notifications) {
+              await Notifications.scheduleNotificationAsync({
+                content: {
+                  title: `⚡ ${venue.name}`,
+                  body: `${deal.description} — ends in ${minsLeft}min · ${Math.round(distKm * 1000)}m away`,
+                  data: { type: 'last_minute_deal', venue: venue.name },
+                },
+                trigger: null,
+              });
+            }
+            return;
+          }
+        }
+      }
+    } catch {}
+  };
+
   useFocusEffect(
     useCallback(() => {
       const loadScheduleAndCampus = () => {
@@ -902,8 +946,27 @@ function LiveScreenInner() {
       };
       loadScheduleAndCampus();
 
+      // Load campus events if student mode on
+      (async () => {
+        const isStudentMode = await AsyncStorage.getItem('routeo_is_student');
+        const campusVal = await AsyncStorage.getItem(SK_CAMPUS);
+        if (isStudentMode === 'true' && campusVal) {
+          const campus = campusVal === 'uottawa' ? 'uottawa' : campusVal === 'algonquin' ? 'algonquin' : 'carleton';
+          try {
+            const resp = await fetch(`https://bzvkadttywgszovbowch.supabase.co/functions/v1/campus-events?campus=${campus}`, {
+              headers: { 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` }
+            });
+            const data = await resp.json();
+            setCampusEvents(data.events || []);
+          } catch {}
+        }
+      })();
+
       // Fetch events for Tonight section if not already loaded
       fetchTicketmasterEvents();
+
+      // Check for last-minute deals nearby
+      checkLastMinuteDeals();
 
       // Set up live countdown — recalculate every 30s
       const countdownInterval = setInterval(() => {
@@ -2422,6 +2485,30 @@ function LiveScreenInner() {
             );
             })();
           })()}
+
+          {/* Campus Events */}
+          {campusEvents.length > 0 && (
+            <View style={{ paddingTop: 16 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, paddingHorizontal: 20, marginBottom: 10 }}>
+                Campus Events
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
+                {campusEvents.slice(0, 8).map((ev, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    onPress={() => ev.url && Linking.openURL(ev.url)}
+                    style={{ width: 200, padding: 14, borderRadius: 16, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}
+                  >
+                    <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+                      <Ionicons name="school-outline" size={16} color={colours.accent} />
+                    </View>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }} numberOfLines={2}>{ev.name}</Text>
+                    {ev.date && <Text style={{ fontSize: 11, color: colours.muted, marginTop: 4 }}>{ev.date}</Text>}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
 
           {/* Saved Stops */}
           <MyStopsSection
