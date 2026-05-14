@@ -200,6 +200,30 @@ export default function StopDetailSheet({ visible, stopId, stopName, onClose, co
             <Ionicons name="open-outline" size={14} color={colours.muted} />
           </TouchableOpacity>
 
+          {/* Save Commute */}
+          <TouchableOpacity
+            onPress={() => {
+              const nextArrival = arrivals[0];
+              if (!nextArrival) return;
+              const now = new Date();
+              const time = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+              supabase.from('saved_commutes').insert({
+                route_id: nextArrival.routeId.split('-')[0],
+                stop_id: stopId,
+                departure_time: time,
+                days_active: ['mon','tue','wed','thu','fri'],
+                is_active: true,
+              }).then(() => alert(t('Commute saved! We\'ll alert you if your bus is late.', 'Trajet sauvegardé! Nous vous alerterons si votre bus est en retard.')))
+                .catch(() => {});
+            }}
+            style={{ marginHorizontal: 16, marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: '#00C07A40', backgroundColor: '#00C07A08' }}
+          >
+            <Ionicons name="alarm-outline" size={16} color="#00C07A" />
+            <Text style={{ fontSize: 13, color: '#00C07A', fontWeight: '600' }}>
+              {t('Save as commute stop', 'Sauvegarder comme arrêt de trajet')}
+            </Text>
+          </TouchableOpacity>
+
           {/* Safety button — night only */}
           {isNight && (
             <TouchableOpacity
