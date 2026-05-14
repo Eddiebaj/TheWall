@@ -19,18 +19,11 @@ function getMidpoint(locs: { lat: number, lng: number }[]) {
 }
 
 function LocationShareCard({ item, messages, colours }: { item: any; messages: any[]; colours: any }) {
-  const router = useRouter();
   const meta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
   const isMe = item.sender?.id === item._myId;
   const expiresAt = meta?.expires_at ? new Date(meta.expires_at) : null;
   const isActive = expiresAt ? expiresAt > new Date() : false;
   const minsLeft = expiresAt ? Math.max(0, Math.round((expiresAt.getTime() - Date.now()) / 60000)) : 0;
-
-  const activeLocationShares = messages.filter(m => {
-    if (m.type !== 'location_share' || !m.metadata) return false;
-    const exp = typeof m.metadata === 'string' ? JSON.parse(m.metadata) : m.metadata;
-    return exp?.expires_at && new Date(exp.expires_at) > new Date() && exp?.lat && exp?.lng;
-  });
 
   return (
     <View style={{ paddingHorizontal: 16, paddingVertical: 6, alignItems: isMe ? 'flex-end' : 'flex-start' }}>
@@ -54,7 +47,7 @@ function LocationShareCard({ item, messages, colours }: { item: any; messages: a
   );
 }
 
-function EventShareCard({ item, user, colours }: { item: any; user: any; colours: any }) {
+function EventShareCard({ item, user, profile, colours }: { item: any; user: any; profile: any; colours: any }) {
   const meta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
   const router = useRouter();
   const isMe = item.sender?.id === user?.id;
@@ -67,12 +60,12 @@ function EventShareCard({ item, user, colours }: { item: any; user: any; colours
   }>({going:[], interested:[], declined:[]});
 
   const loadRsvps = async (hid: string) => {
-    console.log('[RSVP] loadRsvps called with hid:', hid);
+    if (__DEV__) console.log('[RSVP] loadRsvps called with hid:', hid);
     const { data, error } = await supabase
       .from('hangout_rsvps')
       .select('status, eta_minutes, profiles(username, display_name, avatar_url)')
       .eq('hangout_id', hid);
-    console.log('[RSVP] counts data:', JSON.stringify(data), 'error:', error?.message);
+    if (__DEV__) console.log('[RSVP] counts data:', JSON.stringify(data), 'error:', error?.message);
     if (!data) return;
     const counts = { going: [] as {name: string, avatar?: string, eta?: number}[], interested: [] as {name: string, avatar?: string}[], declined: [] as {name: string, avatar?: string}[] };
     data.forEach(r => {
@@ -89,7 +82,7 @@ function EventShareCard({ item, user, colours }: { item: any; user: any; colours
   };
 
   useEffect(() => {
-    console.log('[RSVP] mount, meta.name:', meta?.name);
+    if (__DEV__) console.log('[RSVP] mount, meta.name:', meta?.name);
     if (!meta?.name) return;
     supabase
       .from('hangouts')
@@ -98,7 +91,7 @@ function EventShareCard({ item, user, colours }: { item: any; user: any; colours
       .limit(1)
       .single()
       .then(({ data, error }) => {
-        console.log('[RSVP] hangout lookup:', data?.id, 'error:', error?.message);
+        if (__DEV__) console.log('[RSVP] hangout lookup:', data?.id, 'error:', error?.message);
         if (data?.id) {
           setHangoutId(data.id);
           loadRsvps(data.id);
@@ -107,7 +100,7 @@ function EventShareCard({ item, user, colours }: { item: any; user: any; colours
   }, []);
 
   const handleRsvp = async (status: string) => {
-    console.log('[RSVP] handleRsvp called:', status, 'hangoutId:', hangoutId);
+    if (__DEV__) console.log('[RSVP] handleRsvp called:', status, 'hangoutId:', hangoutId);
     setRsvp(status);
 
     let hid = hangoutId;
@@ -124,7 +117,7 @@ function EventShareCard({ item, user, colours }: { item: any; user: any; colours
     const { error: rsvpError } = await supabase
       .from('hangout_rsvps')
       .upsert({ hangout_id: hid, user_id: user.id, status }, { onConflict: 'hangout_id,user_id' });
-    console.log('[RSVP] upsert error:', rsvpError?.message);
+    if (__DEV__) console.log('[RSVP] upsert error:', rsvpError?.message);
     loadRsvps(hid);
 
     // Calculate and store ETA
@@ -332,6 +325,7 @@ export default function ChatScreen() {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [groupName, setGroupName] = useState((name as string) || 'Group Chat');
   const [members, setMembers] = useState<any[]>([]);
   const [reactionTarget, setReactionTarget] = useState<any>(null);
   const [replyTo, setReplyTo] = useState<{id: string, content: string, senderName: string} | null>(null);
@@ -428,40 +422,40 @@ export default function ChatScreen() {
   };
 
   const handleImagePick = async () => {
-    console.log('[Image] picker opened');
+    if (__DEV__) console.log('[Image] picker opened');
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    console.log('[Image] permission status:', status);
+    if (__DEV__) console.log('[Image] permission status:', status);
     if (status !== 'granted') return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'] as any,
       allowsEditing: false,
       quality: 0.8,
     });
-    console.log('[Image] picker result canceled:', result.canceled, 'assets:', result.assets?.length);
+    if (__DEV__) console.log('[Image] picker result canceled:', result.canceled, 'assets:', result.assets?.length);
     if (!result.canceled && result.assets[0]) {
       uploadAndSendImage(result.assets[0].uri);
     }
   };
 
   const uploadAndSendImage = async (uri: string) => {
-    console.log('[Image] uploading uri:', uri);
-    if (!user) { console.log('[Image] no user'); return; }
+    if (__DEV__) console.log('[Image] uploading uri:', uri);
+    if (!user) { if (__DEV__) console.log('[Image] no user'); return; }
     const fileExt = uri.split('.').pop() || 'jpg';
     const filePath = `${user.id}/${Date.now()}.${fileExt}`;
     const formData = new FormData();
     formData.append('file', { uri, name: `image.${fileExt}`, type: `image/${fileExt}` } as any);
     const { error } = await supabase.storage.from('chat-images').upload(filePath, formData, { upsert: false });
-    console.log('[Image] upload error:', error?.message);
+    if (__DEV__) console.log('[Image] upload error:', error?.message);
     if (!error) {
       const { data } = supabase.storage.from('chat-images').getPublicUrl(filePath);
-      console.log('[Image] public url:', data.publicUrl);
+      if (__DEV__) console.log('[Image] public url:', data.publicUrl);
       const { error: msgError } = await supabase.from('messages').insert({
         conversation_id: id,
         sender_id: user.id,
         type: 'image',
         content: data.publicUrl,
       });
-      console.log('[Image] message insert error:', msgError?.message);
+      if (__DEV__) console.log('[Image] message insert error:', msgError?.message);
     }
   };
 
@@ -477,7 +471,7 @@ export default function ChatScreen() {
       const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
 
       const { data: { user: authUser }, error: userErr } = await supabase.auth.getUser();
-      console.log('[Location] user:', authUser?.id, 'error:', userErr?.message);
+      if (__DEV__) console.log('[Location] user:', authUser?.id, 'error:', userErr?.message);
       if (authUser) {
         const { error: upsertErr } = await supabase.from('user_locations').upsert({
           user_id: authUser.id,
@@ -486,7 +480,7 @@ export default function ChatScreen() {
           updated_at: new Date().toISOString(),
           expires_at: expiresAt,
         }, { onConflict: 'user_id' });
-        console.log('[Location] upsert error:', upsertErr?.message);
+        if (__DEV__) console.log('[Location] upsert error:', upsertErr?.message);
       }
 
       await supabase.from('messages').insert({
@@ -534,10 +528,10 @@ export default function ChatScreen() {
   const renderMessage = ({ item }: { item: any }) => {
     const isMe = item.sender?.id === user?.id;
     const isVenue = item.type === 'venue_share' || item.type === 'event_share';
-    console.log('[Chat] message sender:', item.sender?.id, 'me:', user?.id, 'isMe:', isMe);
+    if (__DEV__) console.log('[Chat] message sender:', item.sender?.id, 'me:', user?.id, 'isMe:', isMe);
 
     if (isVenue && item.metadata) {
-      return <EventShareCard item={item} user={user} colours={colours} />;
+      return <EventShareCard item={item} user={user} profile={profile} colours={colours} />;
     }
 
     if (item.type === 'location_share' && item.metadata) {
@@ -613,7 +607,7 @@ export default function ChatScreen() {
         <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#7b5ea7' + '20', alignItems: 'center', justifyContent: 'center' }}>
           <Ionicons name="people" size={18} color="#7b5ea7" />
         </View>
-        <Text style={{ fontSize: 17, fontWeight: '700', color: colours.text, flex: 1 }}>{name || 'Group Chat'}</Text>
+        <Text style={{ fontSize: 17, fontWeight: '700', color: colours.text, flex: 1 }}>{groupName}</Text>
         <TouchableOpacity onPress={() => setShowSettings(true)}>
           <Ionicons name="ellipsis-horizontal" size={22} color={colours.muted} />
         </TouchableOpacity>
@@ -657,7 +651,7 @@ export default function ChatScreen() {
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingHorizontal: 16, paddingVertical: 12, paddingBottom: insets.bottom + 12, borderTopWidth: 1, borderTopColor: colours.border, backgroundColor: colours.bg }}>
         <TouchableOpacity
           onPress={() => {
-            console.log('[Image] button tapped');
+            if (__DEV__) console.log('[Image] button tapped');
             handleImagePick();
           }}
           style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }}
@@ -716,11 +710,27 @@ export default function ChatScreen() {
           ))}
 
           <View style={{ gap: 10, marginTop: 20 }}>
-            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
+            <TouchableOpacity onPress={() => {
+              setShowSettings(false);
+              Alert.alert('Add members', 'Search for friends by username in the Friends tab and invite them to this group.');
+            }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
               <Ionicons name="person-add-outline" size={20} color={colours.accent} />
               <Text style={{ fontSize: 15, fontWeight: '600', color: colours.text }}>Add members</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
+            <TouchableOpacity onPress={() => {
+              Alert.prompt(
+                'Rename group',
+                'Enter a new name',
+                async (newName) => {
+                  if (!newName?.trim()) return;
+                  await supabase.from('conversations').update({ name: newName.trim() }).eq('id', id);
+                  setGroupName(newName.trim());
+                  setShowSettings(false);
+                },
+                'plain-text',
+                groupName
+              );
+            }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
               <Ionicons name="pencil-outline" size={20} color={colours.accent} />
               <Text style={{ fontSize: 15, fontWeight: '600', color: colours.text }}>Rename group</Text>
             </TouchableOpacity>

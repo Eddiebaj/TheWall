@@ -1,3 +1,5 @@
+// ⚠️ TEST MODE — replace with live links before launch
+// To get live links: Stripe Dashboard → switch to Live mode → Payment Links → copy URLs
 export const STRIPE_LINKS = {
   // Business plans
   business_beta: 'https://buy.stripe.com/test_aFafZi6CE1fCamhgrL04800',

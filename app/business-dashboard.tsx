@@ -101,7 +101,7 @@ export default function BusinessDashboardScreen() {
           <Ionicons name="chevron-back" size={24} color={colours.accent} />
         </TouchableOpacity>
         {business?.promo_image_url && (
-          <Image source={{ uri: business.promo_image_url }} style={{ width: 48, height: 48, borderRadius: 12 }} />
+          <Image source={{ uri: business.promo_image_url }} style={{ width: 48, height: 27, borderRadius: 8 }} resizeMode="cover" />
         )}
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 20, fontWeight: '800', color: colours.text }}>{business?.business_name}</Text>
@@ -255,7 +255,7 @@ export default function BusinessDashboardScreen() {
         </View>
 
         <TouchableOpacity
-          onPress={() => Linking.openURL('mailto:support@routeo.app?subject=Business Support — ' + encodeURIComponent(business?.business_name || ''))}
+          onPress={() => Linking.openURL('mailto:support@routeo.app?subject=' + encodeURIComponent('Business Support - ' + (business?.business_name || '')))}
           style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, marginTop: 8 }}
         >
           <Ionicons name="mail-outline" size={20} color={colours.accent} />

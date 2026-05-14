@@ -12,7 +12,7 @@ const Marker = RNMaps?.Marker ?? null;
 const Polyline = RNMaps?.Polyline ?? null;
 
 export default function GroupMapScreen() {
-  const { colours } = useApp();
+  const { colours, resolvedTheme } = useApp();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
@@ -114,7 +114,7 @@ export default function GroupMapScreen() {
         <MapView
           ref={mapRef}
           style={{ flex: 1 }}
-          userInterfaceStyle="dark"
+          userInterfaceStyle={resolvedTheme === 'light' ? 'light' : 'dark'}
           showsUserLocation
         >
           {/* Destination marker */}

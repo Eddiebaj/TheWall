@@ -9,7 +9,7 @@ import { supabase } from '../lib/supabase';
 
 export default function AdminScreen() {
   const { colours } = useApp();
-  const { isAdmin } = useAuth();
+  const { isAdmin, loading } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -20,9 +20,10 @@ export default function AdminScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (loading) return;
     if (!isAdmin) { router.back(); return; }
     loadData();
-  }, []);
+  }, [isAdmin, loading]);
 
   const loadData = async () => {
     setLoading(true);
