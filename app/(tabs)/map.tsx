@@ -287,14 +287,14 @@ const PlaceMarker = React.memo(({ coordinate, icon, color, title, description, o
       onPress={onPress}
     >
       <View style={{
-        width: 34, height: 34, borderRadius: 17,
+        width: 28, height: 28, borderRadius: 14,
         backgroundColor: color,
         alignItems: 'center', justifyContent: 'center',
         borderWidth: 2, borderColor: 'rgba(255,255,255,0.9)',
         shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.25, shadowRadius: 4, elevation: 4,
       }}>
-        <Ionicons name={icon} size={16} color="#fff" />
+        <Ionicons name={icon} size={13} color="#fff" />
       </View>
     </Marker>
   );
@@ -418,6 +418,7 @@ export default function MapScreen() {
   const busIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [error, setError] = useState('');
   const [mapReady, setMapReady] = useState(false);
+  const [serviceAlertCount, setServiceAlertCount] = useState(0);
   const [visibleBusCount, setVisibleBusCount] = useState(0);
   const [savedPins, setSavedPins] = useState<SavedPin[]>([]);
   const [savedRouteIds, setSavedRouteIds] = useState<Set<string>>(new Set());
@@ -432,6 +433,17 @@ export default function MapScreen() {
   const tappedLocationRef = useRef<{ lat: number; lng: number; address: string } | null>(null);
   // Keep ref in sync so stable callbacks can read latest value
   useEffect(() => { tappedLocationRef.current = tappedLocation; }, [tappedLocation]);
+  useEffect(() => {
+    fetch('https://routeo-backend.vercel.app/api/alerts?agency=OC')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.alerts) {
+          const active = data.alerts.filter((a: any) => a.category === 'cancellation' || a.category === 'detour' || a.category === 'delay' || a.category === 'lrt');
+          setServiceAlertCount(active.length);
+        }
+      })
+      .catch(() => {});
+  }, []);
   const tappedAnim = useRef(new Animated.Value(0)).current;
   const router = useRouter();
 
@@ -3071,7 +3083,7 @@ export default function MapScreen() {
         onExpandStop={handleExpandStop}
         expandedArrivals={expandedArrivals}
         expandedArrivalsLoading={expandedArrivalsLoading}
-        activeAlertCount={0}
+        activeAlertCount={serviceAlertCount}
         hasDisruption={false}
         communityDeals={sheetDeals}
         onStopDetail={(stopId, stopName) => { setStopDetailStopId(stopId); setStopDetailStopName(stopName); setStopDetailVisible(true); }}
