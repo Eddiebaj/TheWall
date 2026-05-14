@@ -10,6 +10,15 @@ function PlaceCard({ place, colours, t, onSaveToggle, sponsoredIds }: { place: a
   const [saved, setSaved] = React.useState(false);
   const [friendSaveCount, setFriendSaveCount] = useState(0);
   const [friendNames, setFriendNames] = useState<string[]>([]);
+  const [rsvpCount, setRsvpCount] = useState(0);
+  useEffect(() => {
+    supabase
+      .from('city_board_rsvps')
+      .select('id', { count: 'exact' })
+      .eq('venue_name', place.name)
+      .gt('expires_at', new Date().toISOString())
+      .then(({ count }) => setRsvpCount(count ?? 0));
+  }, [place.name]);
 
   React.useEffect(() => {
     AsyncStorage.getItem('routeo_saved_places').then(val => {
@@ -131,6 +140,25 @@ function PlaceCard({ place, colours, t, onSaveToggle, sponsoredIds }: { place: a
             <Text style={{ fontSize: 11, fontWeight: '600', color: colours.muted }}>{place.rating}</Text>
           </View>
         )}
+        <TouchableOpacity
+          onPress={async e => {
+            e.stopPropagation();
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+            await supabase.from('city_board_rsvps').upsert({
+              user_id: user.id,
+              venue_name: place.name,
+              venue_lat: place.geometry?.location?.lat ?? null,
+              venue_lng: place.geometry?.location?.lng ?? null,
+              event_type: 'going',
+              expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+            }, { onConflict: 'user_id,venue_name' });
+          }}
+          style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.accent + '18', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}
+        >
+          <Ionicons name="flame-outline" size={11} color={colours.accent} />
+          <Text style={{ fontSize: 10, fontWeight: '700', color: colours.accent }}>{rsvpCount > 0 ? `${rsvpCount} going` : t("I'm going", "J'y vais")}</Text>
+        </TouchableOpacity>
         {friendSaveCount > 0 && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
             <Ionicons name="people" size={10} color={colours.accent} />
@@ -188,11 +216,9 @@ export default function AroundOttawaSection({ colours, t, cardShadow, language, 
   }, [aoCategory]);
 
   const categories = [
-    { id: 'all', label: t('All', 'Tout'), icon: 'grid-outline' },
-    { id: 'restaurant', label: t('Eats', 'Restos'), icon: 'restaurant-outline' },
-    { id: 'cafe', label: t('Coffee', 'Café'), icon: 'cafe-outline' },
-    { id: 'bar', label: t('Bars', 'Bars'), icon: 'beer-outline' },
-    { id: 'gym', label: t('Fitness', 'Sport'), icon: 'barbell-outline' },
+    { key: 'all', label: 'All' },
+    { key: 'tonight', label: 'Tonight' },
+    { key: 'this_week', label: 'This Week' },
   ];
 
   return (

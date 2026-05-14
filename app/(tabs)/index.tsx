@@ -1008,7 +1008,7 @@ function LiveScreenInner() {
       try {
         let board: SavedBoardItem[] = boardVal ? JSON.parse(boardVal) : [];
         // Migrate: remove stale service_alert items (replaced by persistent disruption banner)
-        board = board.filter((i: any) => i.type !== 'service_alert' && i.type !== 'garbage' && i.type !== 'gas_prices' && i.type !== 'news' && i.type !== 'class_schedule');
+        board = board.filter((i: any) => i.type !== 'service_alert' && i.type !== 'news' && i.type !== 'class_schedule');
         const existingFavs: Fav[] = favsVal ? JSON.parse(favsVal) : [];
         let changed = false;
         for (const fav of existingFavs) {
@@ -2008,7 +2008,7 @@ function LiveScreenInner() {
                 <TouchableOpacity onPress={() => reportBusPassed(item.routeId)} style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#FF3B30' + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Report as missed', 'Signaler comme manqué')}>
                   <Ionicons name="close" size={12} color="#FF3B30" />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => { Haptics?.impactAsync(Haptics.ImpactFeedbackStyle.Light); }} style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#34C759' + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Confirm it came', 'Confirmer son passage')}>
+                <TouchableOpacity onPress={() => { Haptics?.impactAsync(Haptics.ImpactFeedbackStyle.Light); supabase.from('transit_reliability_events').insert({ event_type: 'ghost_bus', stop_id: stopId, route_id: item.routeId, reported_at: new Date().toISOString() }); }} style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#34C759' + '18', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Confirm it came', 'Confirmer son passage')}>
                   <Ionicons name="checkmark" size={12} color="#34C759" />
                 </TouchableOpacity>
               </View>
@@ -2576,6 +2576,13 @@ function LiveScreenInner() {
                       status: action,
                     });
                   }
+                  // Also write to city_board_rsvps for The Wall
+                  await supabase.from('city_board_rsvps').upsert({
+                    user_id: user.id,
+                    venue_name: event.venue || event.name,
+                    event_type: action,
+                    expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                  }, { onConflict: 'user_id,venue_name' });
                 }
               }
               router.push({

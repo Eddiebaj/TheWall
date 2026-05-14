@@ -17,7 +17,7 @@ export default function AdminScreen() {
   const [sponsored, setSponsored] = useState<any[]>([]);
   const [pendingBusinesses, setPendingBusinesses] = useState<any[]>([]);
   const [pendingDeals, setPendingDeals] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
     if (loading) return;
@@ -26,7 +26,7 @@ export default function AdminScreen() {
   }, [isAdmin, loading]);
 
   const loadData = async () => {
-    setLoading(true);
+    setDataLoading(true);
     const [usersRes, hangoutsRes, messagesRes, sponsoredRes, businessRes, dealsRes] = await Promise.all([
       supabase.from('profiles').select('id', { count: 'exact', head: true }),
       supabase.from('hangouts').select('id', { count: 'exact', head: true }),
@@ -43,7 +43,7 @@ export default function AdminScreen() {
     setSponsored(sponsoredRes.data || []);
     setPendingBusinesses(businessRes.data || []);
     setPendingDeals(dealsRes.data || []);
-    setLoading(false);
+    setDataLoading(false);
   };
 
   const toggleSponsored = async (id: string, current: boolean) => {
@@ -75,7 +75,7 @@ export default function AdminScreen() {
         </View>
       </View>
 
-      {loading ? <ActivityIndicator color={colours.accent} style={{ marginTop: 40 }} /> : (
+      {dataLoading ? <ActivityIndicator color={colours.accent} style={{ marginTop: 40 }} /> : (
         <ScrollView contentContainerStyle={{ padding: 20, gap: 20 }}>
 
           {/* Stats */}

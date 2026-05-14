@@ -92,6 +92,7 @@ interface NearbyTransitSheetProps {
 
   // Stop detail callback — opens full stop detail sheet
   onStopDetail?: (stopId: string, stopName: string) => void;
+  onShowAlerts?: () => void;
 
   // Route alert map — routeId → alert summary for "Detour" badges
   routeAlertMap?: Record<string, string>;
@@ -504,6 +505,7 @@ const IntersectionRow = React.memo(function IntersectionRow({
   onToggleExpand,
   safetySignalStopIds,
   onStopDetail,
+  onShowAlerts,
   routeAlertMap,
 }: {
   group: IntersectionGroup;
@@ -513,6 +515,7 @@ const IntersectionRow = React.memo(function IntersectionRow({
   onToggleExpand: (id: string) => void;
   safetySignalStopIds?: Set<string>;
   onStopDetail?: (stopId: string, stopName: string) => void;
+  onShowAlerts?: () => void;
   routeAlertMap?: Record<string, string>;
 }) {
   // Default to the first stop that has arrivals, or 0
@@ -760,6 +763,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
       safetySignalStopIds,
       venueAlerts,
       onStopDetail,
+      onShowAlerts,
       routeAlertMap,
     },
     ref,
@@ -911,7 +915,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
 
           {/* Alert banner — always visible */}
           <TouchableOpacity
-            onPress={() => router.push('/(tabs)/alerts' as any)}
+            onPress={() => onShowAlerts ? onShowAlerts() : router.push('/(tabs)/alerts' as any)}
             style={{
               backgroundColor: activeAlertCount > 0 ? AMBER_BG : '#00C07A12',
               paddingHorizontal: 16, paddingVertical: 10, marginBottom: 4,

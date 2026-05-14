@@ -4,7 +4,17 @@ import { ImageBackground, Text, TouchableOpacity, View } from 'react-native';
 
 export default function SavedPlaceCard({ place, colours, fonts, language, t, onPress, onLongPress, cardShadow }: any) {
   const photoUrl = place.photoRef ? `https://routeo-backend.vercel.app/api/places?action=photo&photo_reference=${place.photoRef}&maxwidth=400` : null;
-  const label = language === 'fr' ? place.categoryLabel_fr : place.categoryLabel_en;
+  const rawLabel = language === 'fr' ? place.categoryLabel_fr : place.categoryLabel_en;
+  const labelMap: Record<string, string> = {
+    'LODGING': 'Hotel', 'Lodging': 'Hotel', 'lodging': 'Hotel',
+    'BAR': 'Bar', 'bar': 'Bar',
+    'RESTAURANT': 'Restaurant', 'restaurant': 'Restaurant',
+    'CAFE': 'Café', 'cafe': 'Café',
+    'SHOPPING': 'Shopping', 'shopping': 'Shopping',
+    'STORE': 'Store', 'store': 'Store',
+    'GYM': 'Gym', 'gym': 'Gym',
+  };
+  const label = labelMap[rawLabel] ?? rawLabel;
   return (
     <TouchableOpacity style={[{ width: 160, height: 160, borderRadius: 16, overflow: 'hidden', backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }, cardShadow]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
       <ImageBackground source={photoUrl ? { uri: photoUrl } : undefined} style={{ width: '100%', height: 100, backgroundColor: place.categoryColor + '18', alignItems: photoUrl ? undefined : 'center', justifyContent: photoUrl ? undefined : 'center' }} resizeMode="cover">

@@ -20,9 +20,7 @@ export const SERVICES_TABS: ServicesTab[] = [
   {
     id: 'city', label_en: 'City', label_fr: 'Ville', icon: 'business',
     tiles: [
-      { id: 'bikeshare',   label_en: 'Bike Share',   label_fr: 'V\u00E9los',         icon: 'bicycle',          accent: '#00A78D', action: 'alert',    target: 'bikeshare' },
-      { id: '311',         label_en: '311',           label_fr: '311',            icon: 'megaphone',        accent: '#cc3b2a', action: 'alert',    target: '311' },
-      { id: 'campus',      label_en: 'Campus',       label_fr: 'Campus',        icon: 'school',           accent: '#004890', action: 'alert',    target: 'campus' },
+{ id: 'campus',      label_en: 'Campus',       label_fr: 'Campus',        icon: 'school',           accent: '#004890', action: 'alert',    target: 'campus' },
     ],
   },
 ];
