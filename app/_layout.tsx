@@ -216,6 +216,11 @@ function RootNav() {
       <Stack.Screen name="route/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="insights" options={{ headerShown: false }} />
       <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="chat/map" options={{ headerShown: false }} />
+      <Stack.Screen name="premium" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="admin" options={{ headerShown: false }} />
+      <Stack.Screen name="business-signup" options={{ headerShown: false }} />
+      <Stack.Screen name="business-dashboard" options={{ headerShown: false }} />
     </Stack>
   );
 }

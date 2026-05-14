@@ -11,6 +11,49 @@ import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 
+function getMidpoint(locs: { lat: number, lng: number }[]) {
+  if (locs.length === 0) return { lat: 45.4215, lng: -75.6972 };
+  const lat = locs.reduce((s, l) => s + l.lat, 0) / locs.length;
+  const lng = locs.reduce((s, l) => s + l.lng, 0) / locs.length;
+  return { lat, lng };
+}
+
+function LocationShareCard({ item, messages, colours }: { item: any; messages: any[]; colours: any }) {
+  const router = useRouter();
+  const meta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
+  const isMe = item.sender?.id === item._myId;
+  const expiresAt = meta?.expires_at ? new Date(meta.expires_at) : null;
+  const isActive = expiresAt ? expiresAt > new Date() : false;
+  const minsLeft = expiresAt ? Math.max(0, Math.round((expiresAt.getTime() - Date.now()) / 60000)) : 0;
+
+  const activeLocationShares = messages.filter(m => {
+    if (m.type !== 'location_share' || !m.metadata) return false;
+    const exp = typeof m.metadata === 'string' ? JSON.parse(m.metadata) : m.metadata;
+    return exp?.expires_at && new Date(exp.expires_at) > new Date() && exp?.lat && exp?.lng;
+  });
+
+  return (
+    <View style={{ paddingHorizontal: 16, paddingVertical: 6, alignItems: isMe ? 'flex-end' : 'flex-start' }}>
+      {!isMe && <Text style={{ fontSize: 11, color: colours.muted, marginBottom: 4 }}>{item.sender?.display_name || item.sender?.username}</Text>}
+      <View style={{ width: 220, borderRadius: 16, backgroundColor: colours.surface, borderWidth: 1, borderColor: isActive ? '#00A78D40' : colours.border, overflow: 'hidden' }}>
+        <View style={{ padding: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: isActive ? '#00A78D' : colours.muted }} />
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>
+              {isActive ? 'Sharing live location' : 'Location expired'}
+            </Text>
+          </View>
+          {isActive && (
+            <Text style={{ fontSize: 11, color: colours.muted, marginBottom: 10 }}>
+              Active for {minsLeft}min
+            </Text>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+}
+
 function EventShareCard({ item, user, colours }: { item: any; user: any; colours: any }) {
   const meta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
   const router = useRouter();
@@ -218,6 +261,58 @@ function EventShareCard({ item, user, colours }: { item: any; user: any; colours
             <Text style={{ fontSize: 13, fontWeight: '700', color: 'white' }}>Route there</Text>
           </TouchableOpacity>
         )}
+        {rsvpCounts.going.length >= 2 && meta.venue && rsvpCounts.going.some(r => r.name === profile?.display_name || r.name === profile?.username) && (
+          <TouchableOpacity
+            onPress={async () => {
+              const hid = hangoutId;
+              if (!hid) return;
+              const { data: rsvps } = await supabase
+                .from('hangout_rsvps')
+                .select('user_id, eta_minutes, profiles(display_name, username)')
+                .eq('hangout_id', hid)
+                .eq('status', 'going');
+
+              const userIds = rsvps?.map((r: any) => r.user_id) || [];
+              const { data: locations } = await supabase
+                .from('user_locations')
+                .select('user_id, lat, lng, profiles(display_name, username)')
+                .in('user_id', userIds);
+
+              if (!locations?.length) {
+                Alert.alert('No locations', 'Friends need to share their location first.');
+                return;
+              }
+
+              const geocodeResp = await fetch(`https://routeo-backend.vercel.app/api/places?action=geocode&input=${encodeURIComponent(meta.venue)}`);
+              const geocodeData = await geocodeResp.json();
+
+              if (!geocodeData?.lat) {
+                Alert.alert('Could not find venue location.');
+                return;
+              }
+
+              router.push({
+                pathname: '/chat/map',
+                params: {
+                  locations: JSON.stringify(locations.map((l: any) => ({
+                    name: l.profiles?.display_name || l.profiles?.username || 'Friend',
+                    lat: l.lat,
+                    lng: l.lng,
+                  }))),
+                  destination: JSON.stringify({
+                    lat: geocodeData.lat,
+                    lng: geocodeData.lng,
+                    name: meta.venue,
+                  }),
+                },
+              } as any);
+            }}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8, paddingVertical: 10, borderRadius: 10, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.accent }}
+          >
+            <Ionicons name="people" size={14} color={colours.accent} />
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>Route together</Text>
+          </TouchableOpacity>
+        )}
         </View>
       </View>
     </View>
@@ -370,6 +465,42 @@ export default function ChatScreen() {
     }
   };
 
+  const sendLocation = async () => {
+    if (!user) return;
+    try {
+      const Location = await import('expo-location');
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') { Alert.alert('Permission denied', 'Location access is needed to share your location.'); return; }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+
+      const { data: { user: authUser }, error: userErr } = await supabase.auth.getUser();
+      console.log('[Location] user:', authUser?.id, 'error:', userErr?.message);
+      if (authUser) {
+        const { error: upsertErr } = await supabase.from('user_locations').upsert({
+          user_id: authUser.id,
+          lat,
+          lng,
+          updated_at: new Date().toISOString(),
+          expires_at: expiresAt,
+        }, { onConflict: 'user_id' });
+        console.log('[Location] upsert error:', upsertErr?.message);
+      }
+
+      await supabase.from('messages').insert({
+        conversation_id: id,
+        sender_id: user.id,
+        type: 'location_share',
+        content: 'Shared live location',
+        metadata: { lat, lng, expires_at: expiresAt },
+      });
+    } catch (e: any) {
+      Alert.alert('Error', 'Could not get location.');
+    }
+  };
+
   const sendMessage = async () => {
     if (!text.trim() || !user) return;
     setSending(true);
@@ -407,6 +538,10 @@ export default function ChatScreen() {
 
     if (isVenue && item.metadata) {
       return <EventShareCard item={item} user={user} colours={colours} />;
+    }
+
+    if (item.type === 'location_share' && item.metadata) {
+      return <LocationShareCard item={{ ...item, _myId: user?.id }} messages={messages} colours={colours} />;
     }
 
     if (item.type === 'image') {
@@ -528,6 +663,12 @@ export default function ChatScreen() {
           style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }}
         >
           <Ionicons name="image-outline" size={20} color={colours.muted} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={sendLocation}
+          style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center', justifyContent: 'center' }}
+        >
+          <Ionicons name="location-outline" size={20} color={colours.muted} />
         </TouchableOpacity>
         <TextInput
           style={{ flex: 1, backgroundColor: colours.surface, borderRadius: 22, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: colours.text, maxHeight: 100 }}

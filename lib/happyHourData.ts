@@ -10,6 +10,7 @@ export type HappyHourVenue = {
   rating?: number;
   photoUrl?: string;
   lastVerified?: string;
+  local_secret?: boolean;
 };
 
 export const HAPPY_HOUR_VENUES: HappyHourVenue[] = [
@@ -97,7 +98,7 @@ export const HAPPY_HOUR_VENUES: HappyHourVenue[] = [
     { days: [0], start: '14:00', end: '17:00', description: 'Sun: $5 caesars, double HH 2-5pm', description_fr: 'Dim : caesars 5$, double 5 \u00e0 7 14h-17h' },
     { days: [0], start: '23:00', end: '23:59', description: 'Sun: double HH 11pm-2am', description_fr: 'Dim : double 5 \u00e0 7 23h-2h' },
   ]},
-  { name: 'Barley Mow Merivale', address: '1541 Merivale Rd', type: ['restaurant', 'bar'], lat: 45.3555, lng: -75.7352, deals: [
+  { name: 'Barley Mow Merivale', address: '1541 Merivale Rd', type: ['restaurant', 'bar'], lat: 45.3555, lng: -75.7352, local_secret: true, deals: [
     { days: [1,2,3,4,5], start: '14:00', end: '17:00', description: 'Mon-Fri 2-5pm HH', description_fr: 'Lun-ven 5 \u00e0 7 14h-17h' },
     { days: [3], start: '20:00', end: '23:59', description: 'Wed 8pm: 30c wings', description_fr: 'Mer 20h : ailes \u00e0 30\u00a2' },
     { days: [4], start: '20:00', end: '23:59', description: 'Thu 8pm: Thirsty Thursdays', description_fr: 'Jeu 20h : les jeudis assoiff\u00e9s' },
@@ -223,7 +224,7 @@ export const HAPPY_HOUR_VENUES: HappyHourVenue[] = [
   { name: 'Apothecary Lounge', address: '54 York St', type: ['restaurant', 'bar'], lat: 45.4280, lng: -75.6940, deals: [
     { days: [0,1,2,3,4], start: '22:00', end: '23:59', description: 'Sun-Thu 10pm-midnight: half price martinis, wine, First Light draft', description_fr: 'Dim-jeu 22h-minuit : martinis, vin, First Light moiti\u00e9 prix' },
   ], fsqId: '60e1f5740e501b1ba8b0ce39'},
-  { name: 'ALORA Ottawa', address: '34 Clarence St', type: ['restaurant', 'bar'], lat: 45.4290, lng: -75.6937, deals: [
+  { name: 'ALORA Ottawa', address: '34 Clarence St', type: ['restaurant', 'bar'], lat: 45.4290, lng: -75.6937, local_secret: true, deals: [
     { days: [0,1,2,3,4,5,6], start: '17:00', end: '19:00', description: 'Daily 5-7pm happy hour', description_fr: '5 \u00e0 7 tous les jours 17h-19h' },
     { days: [3], start: '11:00', end: '23:59', description: 'Wed: half-price wine bottles', description_fr: 'Mer : bouteilles de vin moiti\u00e9 prix' },
   ], fsqId: '653c4394a627d9780286fe61'},

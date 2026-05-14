@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Linking, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
@@ -63,6 +63,73 @@ const EventCard = ({ ev, colours, t, onWhoIsIn }: { ev: any, colours: any, t: an
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
+  );
+};
+
+const DealCard = ({ v, colours }: { v: any, colours: any }) => {
+  const [vote, setVote] = useState<'up' | 'down' | null>(null);
+  const [counts, setCounts] = useState({ up: 0, down: 0 });
+
+  useEffect(() => {
+    const loadVotes = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data } = await supabase
+        .from('venue_votes')
+        .select('vote, user_id')
+        .eq('venue_name', v.name);
+      if (data) {
+        setCounts({ up: data.filter(d => d.vote === 'up').length, down: data.filter(d => d.vote === 'down').length });
+        if (user) setVote(data.find(d => d.user_id === user.id)?.vote || null);
+      }
+    };
+    loadVotes();
+  }, [v.name]);
+
+  const handleVote = async (newVote: 'up' | 'down') => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    if (vote === newVote) {
+      await supabase.from('venue_votes').delete().eq('user_id', user.id).eq('venue_name', v.name);
+      setVote(null);
+      setCounts(c => ({ ...c, [newVote]: c[newVote] - 1 }));
+    } else {
+      await supabase.from('venue_votes').upsert({ user_id: user.id, venue_name: v.name, vote: newVote }, { onConflict: 'user_id,venue_name' });
+      const old = vote;
+      setVote(newVote);
+      setCounts(c => ({ ...c, [newVote]: c[newVote] + 1, ...(old ? { [old]: c[old] - 1 } : {}) }));
+    }
+  };
+
+  return (
+    <View style={{ width: 180, padding: 14, borderRadius: 16, backgroundColor: colours.surface, borderWidth: 1, borderColor: v.local_secret ? '#00A78D' + '40' : v.isActive ? '#7b5ea7' + '40' : colours.border }}>
+      {v.local_secret && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+          <Ionicons name="shield-checkmark" size={12} color="#00A78D" />
+          <Text style={{ fontSize: 10, fontWeight: '800', color: '#00A78D', textTransform: 'uppercase', letterSpacing: 0.5 }}>Local Secret</Text>
+        </View>
+      )}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+        {v.isActive && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#7b5ea7' }} />}
+        <Text style={{ fontSize: 12, fontWeight: '800', color: colours.text }} numberOfLines={1}>{v.name}</Text>
+      </View>
+      <Text style={{ fontSize: 11, color: colours.muted }} numberOfLines={2}>{v.activeDeals?.[0]?.description || v.upcomingDeals?.[0]?.description}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: colours.border }}>
+        <TouchableOpacity onPress={() => handleVote('up')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Ionicons name={vote === 'up' ? 'thumbs-up' : 'thumbs-up-outline'} size={14} color={vote === 'up' ? '#00A78D' : colours.muted} />
+          <Text style={{ fontSize: 11, color: vote === 'up' ? '#00A78D' : colours.muted, fontWeight: '600' }}>{counts.up || ''}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => handleVote('down')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Ionicons name={vote === 'down' ? 'thumbs-down' : 'thumbs-down-outline'} size={14} color={vote === 'down' ? '#cc3b2a' : colours.muted} />
+          <Text style={{ fontSize: 11, color: vote === 'down' ? '#cc3b2a' : colours.muted, fontWeight: '600' }}>{counts.down || ''}</Text>
+        </TouchableOpacity>
+        {counts.up >= 3 && counts.up / (counts.up + counts.down) > 0.7 && (
+          <View style={{ marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Ionicons name="shield-checkmark" size={11} color="#00A78D" />
+            <Text style={{ fontSize: 9, fontWeight: '800', color: '#00A78D', textTransform: 'uppercase', letterSpacing: 0.5 }}>Local Favourite</Text>
+          </View>
+        )}
+      </View>
+    </View>
   );
 };
 
@@ -221,13 +288,7 @@ export default function TonightSection({ events, eventsLoading, colours, t, getS
           </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
             {todayDeals.slice(0, 6).map((v, i) => (
-              <View key={i} style={{ width: 180, padding: 14, borderRadius: 16, backgroundColor: colours.surface, borderWidth: 1, borderColor: v.isActive ? '#7b5ea7' + '40' : colours.border }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                  {v.isActive && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#7b5ea7' }} />}
-                  <Text style={{ fontSize: 12, fontWeight: '800', color: colours.text }} numberOfLines={1}>{v.name}</Text>
-                </View>
-                <Text style={{ fontSize: 11, color: colours.muted }} numberOfLines={2}>{v.activeDeals?.[0]?.description || v.upcomingDeals?.[0]?.description}</Text>
-              </View>
+              <DealCard key={i} v={v} colours={colours} />
             ))}
           </ScrollView>
         </View>

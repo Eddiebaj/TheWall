@@ -1,0 +1,272 @@
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, TextInput, Switch, Image } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useApp } from '../context/AppContext';
+import { supabase } from '../lib/supabase';
+import { Linking } from 'react-native';
+import { STRIPE_LINKS } from '../lib/stripeLinks';
+
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+export default function BusinessDashboardScreen() {
+  const { colours } = useApp();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+
+  const [business, setBusiness] = useState<any>(null);
+  const [deals, setDeals] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddDeal, setShowAddDeal] = useState(false);
+
+  // New deal form
+  const [dealTitle, setDealTitle] = useState('');
+  const [dealDesc, setDealDesc] = useState('');
+  const [dealType, setDealType] = useState<'ongoing' | 'single_event' | 'happy_hour'>('happy_hour');
+  const [selectedDays, setSelectedDays] = useState<number[]>([]);
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => { loadData(); }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { router.back(); return; }
+
+    const { data: biz } = await supabase
+      .from('business_profiles')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!biz) {
+      Alert.alert('No business profile', 'Please register your business first.');
+      router.back();
+      return;
+    }
+
+    setBusiness(biz);
+
+    const { data: bizDeals } = await supabase
+      .from('business_deals')
+      .select('*')
+      .eq('business_id', biz.id)
+      .order('created_at', { ascending: false });
+
+    setDeals(bizDeals || []);
+    setLoading(false);
+  };
+
+  const submitDeal = async () => {
+    if (!dealTitle.trim()) { Alert.alert('Required', 'Please enter a deal title.'); return; }
+    if (!dealDesc.trim()) { Alert.alert('Required', 'Please enter a description.'); return; }
+    if (dealType === 'happy_hour' && selectedDays.length === 0) { Alert.alert('Required', 'Please select days.'); return; }
+
+    setSubmitting(true);
+    const { error } = await supabase.from('business_deals').insert({
+      business_id: business.id,
+      title: dealTitle.trim(),
+      description: dealDesc.trim(),
+      deal_type: dealType,
+      days_of_week: selectedDays.length > 0 ? selectedDays : null,
+      start_time: startTime || null,
+      end_time: endTime || null,
+      is_active: false,
+      is_approved: false,
+    });
+
+    setSubmitting(false);
+
+    if (error) { Alert.alert('Error', error.message); return; }
+
+    Alert.alert('Submitted!', 'Your deal has been submitted for review. We\'ll approve it within 24 hours.');
+    setDealTitle(''); setDealDesc(''); setSelectedDays([]); setStartTime(''); setEndTime('');
+    setShowAddDeal(false);
+    loadData();
+  };
+
+  const toggleDay = (d: number) => {
+    setSelectedDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
+  };
+
+  if (loading) return <View style={{ flex: 1, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={colours.accent} /></View>;
+
+  return (
+    <View style={{ flex: 1, backgroundColor: colours.bg }}>
+      <View style={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Ionicons name="chevron-back" size={24} color={colours.accent} />
+        </TouchableOpacity>
+        {business?.promo_image_url && (
+          <Image source={{ uri: business.promo_image_url }} style={{ width: 48, height: 48, borderRadius: 12 }} />
+        )}
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 20, fontWeight: '800', color: colours.text }}>{business?.business_name}</Text>
+          {(business?.open_time || business?.close_time) && (
+            <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>
+              {business.open_time} — {business.close_time}
+            </Text>
+          )}
+        </View>
+        {business?.is_verified ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: '#00A78D20' }}>
+            <Ionicons name="checkmark-circle" size={12} color="#00A78D" />
+            <Text style={{ fontSize: 10, fontWeight: '800', color: '#00A78D' }}>VERIFIED</Text>
+          </View>
+        ) : (
+          <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: '#e8a02020' }}>
+            <Text style={{ fontSize: 10, fontWeight: '800', color: '#e8a020' }}>PENDING</Text>
+          </View>
+        )}
+      </View>
+
+      <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }}>
+
+        {/* Verification pending banner */}
+        {!business?.is_verified && (
+          <View style={{ padding: 16, borderRadius: 14, backgroundColor: '#e8a020' + '12', borderWidth: 1, borderColor: '#e8a020' + '30' }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: '#e8a020', marginBottom: 4 }}>Verification pending</Text>
+            <Text style={{ fontSize: 13, color: colours.muted, lineHeight: 18 }}>We're reviewing your business. This usually takes less than 24 hours. You can submit deals now and they'll go live once verified.</Text>
+          </View>
+        )}
+
+        {/* Subscription card */}
+        <View style={{ padding: 16, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Subscription</Text>
+          {[
+            { label: 'Beta plan', price: '$49/mo', desc: 'Perfect for getting started', link: STRIPE_LINKS.business_beta, highlight: true },
+            { label: 'Launch plan', price: '$99/mo', desc: 'At 1,000+ daily users', link: STRIPE_LINKS.business_launch, highlight: false },
+            { label: 'Scale plan', price: '$149/mo', desc: 'At 5,000+ daily users', link: STRIPE_LINKS.business_scale, highlight: false },
+            { label: 'Single event boost', price: '$39 flat', desc: 'Feature one event or promotion', link: STRIPE_LINKS.business_single_event, highlight: false },
+          ].map((plan, i) => (
+            <TouchableOpacity
+              key={i}
+              onPress={() => Linking.openURL(plan.link)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, backgroundColor: plan.highlight ? colours.accent + '15' : colours.bg, borderWidth: 1, borderColor: plan.highlight ? colours.accent + '40' : colours.border, marginBottom: 8 }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{plan.label}</Text>
+                <Text style={{ fontSize: 12, color: colours.muted }}>{plan.desc}</Text>
+              </View>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: plan.highlight ? colours.accent : colours.text }}>{plan.price}</Text>
+              <Ionicons name="chevron-forward" size={16} color={colours.muted} />
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Stats placeholder */}
+        <View style={{ padding: 16, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>This week</Text>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            {[{ label: 'Views', value: '—', icon: 'eye-outline' }, { label: 'Route there', value: '—', icon: 'navigate-outline' }, { label: 'Saves', value: '—', icon: 'heart-outline' }].map((s, i) => (
+              <View key={i} style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+                <Ionicons name={s.icon as any} size={18} color={colours.muted} />
+                <Text style={{ fontSize: 22, fontWeight: '800', color: colours.text }}>{s.value}</Text>
+                <Text style={{ fontSize: 11, color: colours.muted }}>{s.label}</Text>
+              </View>
+            ))}
+          </View>
+          <Text style={{ fontSize: 11, color: colours.muted, textAlign: 'center', marginTop: 10 }}>Stats available once your listing goes live</Text>
+        </View>
+
+        {/* Deals */}
+        <View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, flex: 1 }}>Your Deals ({deals.length})</Text>
+            <TouchableOpacity onPress={() => setShowAddDeal(!showAddDeal)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, backgroundColor: colours.accent }}>
+              <Ionicons name="add" size={16} color="white" />
+              <Text style={{ fontSize: 13, fontWeight: '700', color: 'white' }}>Add deal</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Add deal form */}
+          {showAddDeal && (
+            <View style={{ padding: 16, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, marginBottom: 12, gap: 12 }}>
+              <Text style={{ fontSize: 15, fontWeight: '800', color: colours.text }}>New deal</Text>
+
+              <TextInput style={{ backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colours.text }}
+                value={dealTitle} onChangeText={setDealTitle} placeholder="Title e.g. Happy Hour 3-6pm" placeholderTextColor={colours.muted} />
+
+              <TextInput style={{ backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colours.text, height: 80, textAlignVertical: 'top' }}
+                value={dealDesc} onChangeText={setDealDesc} placeholder="Description e.g. Half price wings and $5 pints" placeholderTextColor={colours.muted} multiline />
+
+              {/* Deal type */}
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {(['happy_hour', 'ongoing', 'single_event'] as const).map(t => (
+                  <TouchableOpacity key={t} onPress={() => setDealType(t)}
+                    style={{ flex: 1, paddingVertical: 8, borderRadius: 10, borderWidth: 1, backgroundColor: dealType === t ? colours.accent : colours.bg, borderColor: dealType === t ? colours.accent : colours.border, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: dealType === t ? 'white' : colours.muted }}>
+                      {t === 'happy_hour' ? 'Happy Hour' : t === 'ongoing' ? 'Ongoing' : 'Single Event'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Days */}
+              {dealType !== 'single_event' && (
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  {DAYS.map((d, i) => (
+                    <TouchableOpacity key={i} onPress={() => toggleDay(i)}
+                      style={{ flex: 1, paddingVertical: 6, borderRadius: 8, borderWidth: 1, backgroundColor: selectedDays.includes(i) ? colours.accent : colours.bg, borderColor: selectedDays.includes(i) ? colours.accent : colours.border, alignItems: 'center' }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: selectedDays.includes(i) ? 'white' : colours.muted }}>{d}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              {/* Times */}
+              {dealType === 'happy_hour' && (
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <TextInput style={{ flex: 1, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colours.text }}
+                    value={startTime} onChangeText={setStartTime} placeholder="Start 15:00" placeholderTextColor={colours.muted} />
+                  <TextInput style={{ flex: 1, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colours.text }}
+                    value={endTime} onChangeText={setEndTime} placeholder="End 18:00" placeholderTextColor={colours.muted} />
+                </View>
+              )}
+
+              <TouchableOpacity onPress={submitDeal} disabled={submitting}
+                style={{ backgroundColor: colours.accent, borderRadius: 10, paddingVertical: 12, alignItems: 'center' }}>
+                {submitting ? <ActivityIndicator color="white" /> : <Text style={{ fontSize: 14, fontWeight: '700', color: 'white' }}>Submit for approval</Text>}
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {deals.length === 0 ? (
+            <View style={{ padding: 24, borderRadius: 14, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
+              <Text style={{ color: colours.muted }}>No deals yet — add your first one</Text>
+            </View>
+          ) : deals.map(d => (
+            <View key={d.id} style={{ padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: d.is_approved ? '#00A78D40' : colours.border, marginBottom: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <Text style={{ flex: 1, fontSize: 14, fontWeight: '700', color: colours.text }}>{d.title}</Text>
+                <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: d.is_approved ? '#00A78D20' : '#e8a02020' }}>
+                  <Text style={{ fontSize: 9, fontWeight: '800', color: d.is_approved ? '#00A78D' : '#e8a020' }}>
+                    {d.is_approved ? 'LIVE' : 'PENDING'}
+                  </Text>
+                </View>
+              </View>
+              <Text style={{ fontSize: 12, color: colours.muted }}>{d.description}</Text>
+            </View>
+          ))}
+        </View>
+
+        <TouchableOpacity
+          onPress={() => Linking.openURL('mailto:support@routeo.app?subject=Business Support — ' + encodeURIComponent(business?.business_name || ''))}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, marginTop: 8 }}
+        >
+          <Ionicons name="mail-outline" size={20} color={colours.accent} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>Contact support</Text>
+            <Text style={{ fontSize: 12, color: colours.muted }}>Questions about your listing or billing</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={colours.muted} />
+        </TouchableOpacity>
+
+      </ScrollView>
+    </View>
+  );
+}

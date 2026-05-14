@@ -164,6 +164,12 @@ export default function AccountScreen() {
   const [workSaveStatus, setWorkSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [isStudent, setIsStudent] = useState(false);
 
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editUsername, setEditUsername] = useState('');
+  const [editCampus, setEditCampus] = useState('');
+  const [saving, setSaving] = useState(false);
+
   useEffect(() => {
     AsyncStorage.getItem('routeo_is_student').then(val => setIsStudent(val === 'true')).catch(() => {});
   }, []);
@@ -353,11 +359,21 @@ export default function AccountScreen() {
                 <Text style={{ fontSize: 17, fontWeight: '800', color: colours.text }}>
                   {profile?.display_name || profile?.username || 'Your Name'}
                 </Text>
-                <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: isAdmin ? '#e8a020' + '25' : colours.accent + '18', borderWidth: 1, borderColor: isAdmin ? '#e8a020' + '60' : colours.accent + '40' }}>
-                  <Text style={{ fontSize: 10, fontWeight: '800', color: isAdmin ? '#e8a020' : colours.accent, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    {isAdmin ? 'Admin' : isPremium ? 'Premium' : 'Free'}
-                  </Text>
-                </View>
+                <TouchableOpacity onPress={() => {
+                  setEditName(profile?.display_name || '');
+                  setEditUsername(profile?.username || '');
+                  setEditCampus(profile?.campus || '');
+                  setShowEditProfile(true);
+                }}>
+                  <Ionicons name="pencil-outline" size={16} color={colours.muted} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => { if (!isAdmin && !isPremium) router.push('/premium' as any); }}>
+                  <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: isAdmin ? '#e8a020' + '25' : colours.accent + '18', borderWidth: 1, borderColor: isAdmin ? '#e8a020' + '60' : colours.accent + '40' }}>
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: isAdmin ? '#e8a020' : colours.accent, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      {isAdmin ? 'Admin' : isPremium ? 'Premium' : 'Free'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
               </View>
               <Text style={{ fontSize: 13, color: colours.muted }}>@{profile?.username || 'username'}</Text>
               {profile?.campus && (
@@ -774,6 +790,32 @@ export default function AccountScreen() {
           />
         </Card>
 
+        <TouchableOpacity
+          onPress={async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+            const { data: biz } = await supabase.from('business_profiles').select('id').eq('user_id', user.id).single();
+            if (biz) {
+              router.push('/business-dashboard' as any);
+            } else {
+              router.push('/business-signup' as any);
+            }
+          }}
+          style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: colours.border }}
+        >
+          <Ionicons name="storefront-outline" size={18} color={colours.accent} style={{ marginRight: 12 }} />
+          <Text style={{ flex: 1, fontSize: 15, fontWeight: '600', color: colours.text }}>Register your business</Text>
+          <Ionicons name="chevron-forward" size={16} color={colours.muted} />
+        </TouchableOpacity>
+
+        {isAdmin && (
+          <TouchableOpacity onPress={() => router.push('/admin' as any)} style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+            <Ionicons name="shield-checkmark-outline" size={18} color="#e8a020" style={{ marginRight: 12 }} />
+            <Text style={{ flex: 1, fontSize: 15, fontWeight: '600', color: colours.text }}>Admin Panel</Text>
+            <Ionicons name="chevron-forward" size={16} color={colours.muted} />
+          </TouchableOpacity>
+        )}
+
         {/* ── SUPPORT ── */}
         <SectionHeader label={t('Support', 'Soutien')} icon="help-circle-outline" colours={colours} fonts={fonts} />
         <Card>
@@ -820,6 +862,29 @@ export default function AccountScreen() {
             {t('Live data from OC Transpo and STO', 'Donnees en direct d\'OC Transpo et STO')}
           </Text>
         </View>
+
+        {!isPremium && !isAdmin && (
+          <TouchableOpacity
+            onPress={() => router.push('/premium' as any)}
+            style={{ marginHorizontal: 20, marginBottom: 16, padding: 20, borderRadius: 16, backgroundColor: '#e8a020' + '12', borderWidth: 1, borderColor: '#e8a020' + '40' }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <Ionicons name="star" size={20} color="#e8a020" />
+              <Text style={{ fontSize: 16, fontWeight: '800', color: colours.text }}>Upgrade to Premium</Text>
+            </View>
+            <View style={{ gap: 6, marginBottom: 16 }}>
+              {['Offline maps', 'AI trip assistant', 'Commute insights', 'Custom themes', 'Early access deals'].map((f, i) => (
+                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="checkmark-circle" size={14} color="#e8a020" />
+                  <Text style={{ fontSize: 13, color: colours.muted }}>{f}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={{ backgroundColor: '#e8a020', borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Get Premium — $2.99/mo</Text>
+            </View>
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           onPress={signOut}
@@ -942,6 +1007,56 @@ export default function AccountScreen() {
                 </View>
               </View>
             )}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={showEditProfile} transparent animationType="slide" onRequestClose={() => setShowEditProfile(false)}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} activeOpacity={1} onPress={() => setShowEditProfile(false)} />
+        <KeyboardAvoidingView behavior="padding">
+          <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
+            <Text style={{ fontSize: 20, fontWeight: '800', color: colours.text, marginBottom: 24 }}>Edit Profile</Text>
+
+            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Display Name</Text>
+            <TextInput
+              style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colours.text, marginBottom: 16 }}
+              value={editName}
+              onChangeText={setEditName}
+              placeholder="Your name"
+              placeholderTextColor={colours.muted}
+            />
+
+            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Username</Text>
+            <TextInput
+              style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colours.text, marginBottom: 16 }}
+              value={editUsername}
+              onChangeText={t => setEditUsername(t.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+              placeholder="username"
+              placeholderTextColor={colours.muted}
+              autoCapitalize="none"
+            />
+
+            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Campus</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
+              {[{id:'carleton',label:'Carleton'},{id:'uottawa',label:'uOttawa'},{id:'algonquin',label:'Algonquin'},{id:'other',label:'Other'}].map(c => (
+                <TouchableOpacity key={c.id} onPress={() => setEditCampus(editCampus === c.id ? '' : c.id)}
+                  style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, backgroundColor: editCampus === c.id ? colours.accent : colours.surface, borderColor: editCampus === c.id ? colours.accent : colours.border }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: editCampus === c.id ? 'white' : colours.text }}>{c.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TouchableOpacity
+              onPress={async () => {
+                setSaving(true);
+                await updateProfile({ display_name: editName.trim(), username: editUsername.trim(), campus: editCampus || null });
+                setSaving(false);
+                setShowEditProfile(false);
+              }}
+              style={{ backgroundColor: colours.accent, borderRadius: 14, paddingVertical: 16, alignItems: 'center' }}
+            >
+              {saving ? <ActivityIndicator color="white" /> : <Text style={{ fontSize: 16, fontWeight: '700', color: 'white' }}>Save</Text>}
+            </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
       </Modal>
