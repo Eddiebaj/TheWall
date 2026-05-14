@@ -1959,6 +1959,24 @@ export default function MapScreen() {
         onMapReady={() => setMapReady(true)}
         onPress={handleMapTap}
         onPanDrag={() => { if (tappedLocation) dismissTapped(); }}
+        onPoiClick={(e) => {
+          const { coordinate, placeId, name } = e.nativeEvent;
+          setPlaceDetailFull(null);
+          setPlaceDetailLoading(true);
+          setTappedLocation({ lat: coordinate.latitude, lng: coordinate.longitude, address: name });
+          Animated.spring(tappedAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
+          // Load full place details directly by place_id
+          fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=details&place_id=${placeId}`)
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+              if (data?.result) {
+                setPlaceDetailFull(data.result);
+                setTappedLocation(prev => prev ? { ...prev, placeDetails: data.result } : prev);
+              }
+            })
+            .catch(() => {})
+            .finally(() => setPlaceDetailLoading(false));
+        }}
         onRegionChangeComplete={(region) => {
           setRegion(region);
           setDebouncedDelta(region.latitudeDelta);
