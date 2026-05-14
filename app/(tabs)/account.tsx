@@ -163,6 +163,7 @@ export default function AccountScreen() {
   const [homeSaveStatus, setHomeSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [workSaveStatus, setWorkSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [isStudent, setIsStudent] = useState(false);
+  const [accessibleRoutingEnabled, setAccessibleRoutingEnabled] = useState(false);
 
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editName, setEditName] = useState('');
@@ -172,6 +173,10 @@ export default function AccountScreen() {
 
   useEffect(() => {
     AsyncStorage.getItem('routeo_is_student').then(val => setIsStudent(val === 'true')).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    AsyncStorage.getItem('routeo_accessibility_routing').then(v => { if (v === 'true') setAccessibleRoutingEnabled(true); }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -710,6 +715,26 @@ export default function AccountScreen() {
               thumbColor="white"
               ios_backgroundColor={colours.border}
               accessibilityLabel={t('Reduce motion', 'R\u00e9duire les animations')}
+            />
+          </View>
+          <Divider colours={colours} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 }}>
+            <Ionicons name="accessibility" size={18} color={accessibleRoutingEnabled ? colours.accent : colours.muted} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: fonts.md, color: colours.text }}>{t('Wheelchair-accessible routes', 'Trajets accessibles en fauteuil')}</Text>
+              <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>{t('Prioritize step-free transit options', 'Prioriser les options sans escaliers')}</Text>
+            </View>
+            <Switch
+              value={accessibleRoutingEnabled}
+              onValueChange={v => {
+                hapticLight();
+                setAccessibleRoutingEnabled(v);
+                AsyncStorage.setItem('routeo_accessibility_routing', v ? 'true' : 'false').catch(() => {});
+              }}
+              trackColor={{ false: colours.border, true: colours.accent }}
+              thumbColor="white"
+              ios_backgroundColor={colours.border}
+              accessibilityLabel={t('Wheelchair-accessible routes', 'Trajets accessibles en fauteuil')}
             />
           </View>
         </Card>
