@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { haversineKm } from '../lib/geo';
 import { HAPPY_HOUR_VENUES, HappyHourVenue } from '../lib/happyHourData';
@@ -135,10 +135,17 @@ export default function NearYouNowSection({
                   borderWidth: 1,
                   borderColor: colours.border,
                   backgroundColor: colours.surface,
-                  padding: 12,
+                  overflow: 'hidden',
                 }}
               >
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+                {venue.photoUrl ? (
+                  <Image
+                    source={{ uri: venue.photoUrl }}
+                    style={{ width: '100%', height: 110, borderTopLeftRadius: 12, borderTopRightRadius: 12 }}
+                    resizeMode="cover"
+                  />
+                ) : null}
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12 }}>
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }} numberOfLines={1}>
                       {venue.name}
