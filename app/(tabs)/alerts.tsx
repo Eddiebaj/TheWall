@@ -301,14 +301,6 @@ function AlertsScreenInner() {
               </Text>
             </View>
           </View>
-          <TouchableOpacity
-            onPress={() => Linking.openURL('https://occasionaltransport.ca')}
-            style={[styles.lrtCommunityBtn, { backgroundColor: colours.bg, borderColor: colours.border }]}
-            accessibilityRole="link"
-            accessibilityLabel={t('View LRT status on OccasionalTransport', 'Voir le statut du TLR sur OccasionalTransport')}
-          >
-            <Text style={{ fontSize: 9, fontWeight: '800', color: '#00A78D', textAlign: 'center' }}>{t('LRT', 'TLR')}{'\n'}{t('STATUS', 'STATUT')}</Text>
-          </TouchableOpacity>
         </View>
 
         {/* LRT Station Status — always show section */}
@@ -418,23 +410,7 @@ function AlertsScreenInner() {
         <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
           {loading ? (
             <View>{[0,1,2].map(i => <AlertCardSkeleton key={i} colours={colours} />)}</View>
-          ) : filtered.length === 0 ? (
-            <View style={[styles.centerState, {
-              backgroundColor: colours.surface, borderRadius: 16,
-              borderWidth: 1, borderColor: colours.border, paddingVertical: 40,
-            }, cardShadow]}>
-              <Ionicons name="checkmark-circle" size={48} color="#34c759" />
-              <Text style={{ fontSize: fonts.lg, fontWeight: '800', color: colours.text, marginTop: 12 }}>
-                {t('All Clear', 'Tout est normal')}
-              </Text>
-              <Text style={{ fontSize: fonts.sm, color: colours.muted, textAlign: 'center', marginTop: 6, lineHeight: 20 }}>
-                {activeFilter
-                  ? t(`No ${activeFilter === 'elevators' ? 'elevator' : activeFilter} alerts right now.`, `Aucune alerte ${activeFilter === 'elevators' ? 'ascenseur' : activeFilter} en ce moment.`)
-                  : t('No active service alerts on OC Transpo.', 'Aucune alerte de service active sur OC Transpo.')
-                }
-              </Text>
-            </View>
-          ) : (
+          ) : filtered.length === 0 ? null : (
             filtered.map(renderAlertCard)
           )}
         </View>
@@ -447,7 +423,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-    paddingHorizontal: 20, paddingTop: 60, paddingBottom: 16,
+    paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16,
   },
   refreshBtn: {
     width: 36, height: 36, borderRadius: 18,
