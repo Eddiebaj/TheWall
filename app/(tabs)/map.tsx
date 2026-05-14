@@ -420,6 +420,8 @@ export default function MapScreen() {
   const [error, setError] = useState('');
   const [mapReady, setMapReady] = useState(false);
   const [serviceAlertCount, setServiceAlertCount] = useState(0);
+  const [showSearchHere, setShowSearchHere] = useState(false);
+  const hasMovedRef = useRef(false);
   const [visibleBusCount, setVisibleBusCount] = useState(0);
   const [savedPins, setSavedPins] = useState<SavedPin[]>([]);
   const [savedRouteIds, setSavedRouteIds] = useState<Set<string>>(new Set());
@@ -1942,6 +1944,10 @@ export default function MapScreen() {
           if (region.latitudeDelta < 0.05) {
             fetchNearbyStopsForRegion(region.latitude, region.longitude);
           }
+          if (hasMovedRef.current) {
+            setShowSearchHere(true);
+          }
+          hasMovedRef.current = true;
         }}
       >
         {/* Heat zone circles — visible when Deals layer is active and zoomed to neighbourhood level */}
@@ -2376,6 +2382,29 @@ export default function MapScreen() {
             </>
           )}
         </View>
+
+        {/* Search this area button */}
+        {showSearchHere && !searchExpanded && !planMode && (
+          <TouchableOpacity
+            onPress={() => {
+              setShowSearchHere(false);
+              hasMovedRef.current = false;
+              fetchNearbyStopsForRegion(region.latitude, region.longitude);
+            }}
+            style={{
+              alignSelf: 'center', marginBottom: 8,
+              flexDirection: 'row', alignItems: 'center', gap: 6,
+              backgroundColor: colours.bg, borderRadius: 20,
+              paddingHorizontal: 14, paddingVertical: 8,
+              borderWidth: 1, borderColor: colours.border,
+              shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.15, shadowRadius: 4, elevation: 4,
+            }}
+          >
+            <Ionicons name="search" size={14} color={colours.accent} />
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>Search this area</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Layer toggle chips — hidden when search is focused */}
         {!planMode && !searchExpanded && (
