@@ -861,7 +861,7 @@ export default function MapScreen() {
       setUserCoords({ lat: uLat, lng: uLng });
       if (__DEV__) console.log('[NearbyStops] GPS coords:', { uLat, uLng });
 
-      const delta = 0.015; // ~1.5km bounding box
+      const delta = 0.025; // ~2.5km bounding box
       const { data: stops } = await supabase
         .from('stops')
         .select('stop_id,stop_name,stop_lat,stop_lon')
@@ -869,7 +869,7 @@ export default function MapScreen() {
         .lte('stop_lat', uLat + delta)
         .gte('stop_lon', uLng - delta)
         .lte('stop_lon', uLng + delta)
-        .limit(100);
+        .limit(300);
 
       if (__DEV__) console.log('[NearbyStops] Supabase query found', stops?.length ?? 0, 'stops:', stops?.slice(0, 3).map(s => ({ id: s.stop_id, name: s.stop_name })));
 
@@ -933,6 +933,45 @@ export default function MapScreen() {
         return { ...stop, arrivalsLoading: false };
       }));
       if (__DEV__) console.log('[NearbyStops] Final state:', updatedStops.map(s => ({ id: s.stopId, arrivalsCount: s.arrivals.length, cached: s.cached })));
+
+      // Background reliability tracking — fire and forget
+      const logReliabilityEvents = (stops: any[], arrivals: Record<string, any[]>) => {
+        try {
+          supabase.auth.getUser().then(({ data: { user } }) => {
+            if (!user) return;
+            const events: any[] = [];
+            const now = new Date();
+
+            stops.forEach(stop => {
+              const stopArrivals = arrivals[stop.id] || [];
+              if (stopArrivals.length === 0 && stop.arrivalsCount === 0) {
+                events.push({
+                  event_type: 'ghost_bus',
+                  stop_id: stop.id,
+                  neighbourhood: null,
+                  reported_at: now.toISOString(),
+                });
+              }
+              stopArrivals.forEach((arrival: any) => {
+                if (arrival.delta !== undefined) {
+                  events.push({
+                    event_type: arrival.delta > 2 ? 'late_arrival' : arrival.delta < -1 ? 'early_arrival' : 'on_time',
+                    route_id: arrival.route,
+                    stop_id: stop.id,
+                    delta_minutes: arrival.delta,
+                    reported_at: now.toISOString(),
+                  });
+                }
+              });
+            });
+
+            if (events.length > 0) {
+              supabase.from('transit_reliability_events').insert(events);
+            }
+          });
+        } catch {}
+      };
+      logReliabilityEvents(updatedStops, {});
       setNearbyStops(updatedStops);
     } catch (e) {
       if (__DEV__) console.warn('[NearbyStops] Fetch failed:', e);
@@ -978,7 +1017,7 @@ export default function MapScreen() {
   useEffect(() => { fetchNearbyStops(); }, [fetchNearbyStops]);
 
   const fetchNearbyStopsForRegion = useCallback(async (centerLat: number, centerLng: number) => {
-    const delta = 0.015;
+    const delta = 0.025;
     const { data: stops } = await supabase
       .from('stops')
       .select('stop_id,stop_name,stop_lat,stop_lon')
