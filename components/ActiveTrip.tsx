@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fetchWithTimeout } from '../lib/fetchWithTimeout';
 import { toTitleCase, decodePolyline } from '../lib/utils';
 import { getPlatformForRoute, hasPlatformData } from '../lib/platformData';
+import { supabase } from '../lib/supabase';
 
 // Types
 type WalkStep = { distance: number; relativeDirection: string; streetName: string; instruction?: string | null; lat?: number; lon?: number };
@@ -118,6 +119,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
   const [busDisappearedAt, setBusDisappearedAt] = useState<number | null>(null);
   const busDisappearedAtRef = useRef<number | null>(null);
   const [switchedRoute, setSwitchedRoute] = useState<string | null>(null);
+  const [sharingWithFriends, setSharingWithFriends] = useState(false);
   const [pollFailCount, setPollFailCount] = useState(0);
   const advancingRef = useRef(false);
   const [busPosition, setBusPosition] = useState<{ lat: number; lng: number; routeId: string; agency: string } | null>(null);
@@ -665,6 +667,42 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Share with friends toggle */}
+        <TouchableOpacity
+          onPress={async () => {
+            const newVal = !sharingWithFriends;
+            setSharingWithFriends(newVal);
+            const lastLeg = itinerary.legs[itinerary.legs.length - 1];
+            const to = lastLeg?.to?.name || 'Destination';
+            const toLat = lastLeg?.to?.lat ?? 0;
+            const toLng = lastLeg?.to?.lon ?? 0;
+            if (newVal) {
+              await supabase.from('user_trips').insert({
+                destination: to,
+                destination_lat: toLat,
+                destination_lng: toLng,
+                is_sharing: true,
+                expires_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+              });
+            } else {
+              await supabase.from('user_trips').delete().eq('is_sharing', true);
+            }
+          }}
+          style={{
+            marginHorizontal: 20, marginTop: 10, flexDirection: 'row', alignItems: 'center',
+            gap: 10, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12,
+            borderWidth: 1,
+            borderColor: sharingWithFriends ? '#00C07A40' : colours.border,
+            backgroundColor: sharingWithFriends ? '#00C07A12' : colours.surface,
+          }}
+        >
+          <Ionicons name={sharingWithFriends ? 'people' : 'people-outline'} size={16} color={sharingWithFriends ? '#00C07A' : colours.muted} />
+          <Text style={{ fontSize: 13, fontWeight: '600', color: sharingWithFriends ? '#00C07A' : colours.muted, flex: 1 }}>
+            {sharingWithFriends ? t('Sharing with friends', 'Partage avec amis') : t('Share with friends?', 'Partager avec amis?')}
+          </Text>
+          <Ionicons name={sharingWithFriends ? 'toggle' : 'toggle-outline'} size={22} color={sharingWithFriends ? '#00C07A' : colours.muted} />
+        </TouchableOpacity>
 
         {/* Progress bar */}
         <View style={{ marginHorizontal: 20, height: 4, borderRadius: 2, backgroundColor: colours.border, marginBottom: 0 }}>
