@@ -2506,7 +2506,7 @@ export default function MapScreen() {
           }}
           style={{
             position: 'absolute',
-            top: 200,
+            top: 175,
             alignSelf: 'center',
             left: '50%',
             transform: [{ translateX: -75 }],
