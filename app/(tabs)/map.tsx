@@ -179,14 +179,32 @@ function clusterVenues(venues: HappyHourVenue[], radiusMeters: number): ClusterR
 const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) => void }) => {
   const [tracked, setTracked] = React.useState(true);
   const prevKey = React.useRef(`${bus.lat},${bus.lng},${bus.bearing}`);
+  const animCoord = React.useRef(
+    RNMaps ? new (RNMaps as any).AnimatedRegion({
+      latitude: bus.lat,
+      longitude: bus.lng,
+      latitudeDelta: 0,
+      longitudeDelta: 0,
+    }) : null
+  ).current;
 
   React.useEffect(() => {
     const key = `${bus.lat},${bus.lng},${bus.bearing}`;
     if (key !== prevKey.current) {
       prevKey.current = key;
       setTracked(true);
+      if (animCoord) {
+        animCoord.timing({
+          latitude: bus.lat,
+          longitude: bus.lng,
+          latitudeDelta: 0,
+          longitudeDelta: 0,
+          duration: 2500,
+          useNativeDriver: false,
+        }).start();
+      }
     }
-    const id = setTimeout(() => setTracked(false), 400);
+    const id = setTimeout(() => setTracked(false), 2600);
     return () => clearTimeout(id);
   }, [bus.lat, bus.lng, bus.bearing]);
 
@@ -204,7 +222,7 @@ const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) =>
 
   return (
     <Marker
-      coordinate={{ latitude: bus.lat, longitude: bus.lng }}
+      coordinate={animCoord ?? { latitude: bus.lat, longitude: bus.lng }}
       tracksViewChanges={tracked}
       anchor={{ x: 0.5, y: 0.45 }}
       onPress={() => onPress(bus)}
