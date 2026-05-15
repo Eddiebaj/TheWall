@@ -76,6 +76,7 @@ type Bus = {
   toStopLng?: number | null;
   secsToNextStop?: number | null;
   occupancy?: 'low' | 'moderate' | 'high' | null;
+  fetchedAt?: number;
 };
 
 
@@ -1289,12 +1290,13 @@ export default function MapScreen() {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const vehiclesResult = await r.json();
       const incoming: Bus[] = vehiclesResult.vehicles || [];
+      const fetchedAt = Date.now();
       setBuses(prev => {
         const prevMap = new Map(prev.map(b => [b.id, b]));
         return incoming.map(b => {
           const old = prevMap.get(b.id);
-          if (old && old.lat === b.lat && old.lng === b.lng && old.routeId === b.routeId && old.progress === b.progress) return old;
-          return b;
+          if (old && old.lat === b.lat && old.lng === b.lng && old.routeId === b.routeId && old.progress === b.progress) return { ...old, fetchedAt };
+          return { ...b, fetchedAt };
         });
       });
       setError('');
@@ -1309,6 +1311,20 @@ export default function MapScreen() {
     fetchBuses();
     if (busIntervalRef.current) clearInterval(busIntervalRef.current);
     busIntervalRef.current = setInterval(fetchBuses, 30000);
+    // Dead reckoning for STO buses — extrapolate position between GPS updates
+    const deadReckonInterval = setInterval(() => {
+      setBuses(prev => prev.map(b => {
+        if (b.agency !== 'STO' || !b.bearing || !b.fetchedAt) return b;
+        const ageSeconds = (Date.now() - b.fetchedAt) / 1000;
+        if (ageSeconds > 35) return b; // stop after next refresh
+        const speedMs = 11; // ~40 km/h in m/s
+        const distMeters = speedMs * ageSeconds;
+        const bearingRad = (b.bearing * Math.PI) / 180;
+        const dLat = (distMeters * Math.cos(bearingRad)) / 111320;
+        const dLng = (distMeters * Math.sin(bearingRad)) / (111320 * Math.cos(b.lat * Math.PI / 180));
+        return { ...b, lat: b.lat + dLat, lng: b.lng + dLng };
+      }));
+    }, 1000);
 
     const sub = AppState.addEventListener('change', (nextState) => {
       const active = nextState === 'active';
@@ -1324,6 +1340,7 @@ export default function MapScreen() {
 
     return () => {
       if (busIntervalRef.current) clearInterval(busIntervalRef.current);
+      clearInterval(deadReckonInterval);
       sub.remove();
     };
   }, []);
