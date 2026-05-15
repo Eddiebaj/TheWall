@@ -158,7 +158,7 @@ export default function NearYouNowSection({
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 8, paddingHorizontal: 20, marginBottom: 12 }}
+        contentContainerStyle={{ gap: 8, paddingHorizontal: 20, paddingBottom: 12 }}
       >
         {chips.map(chip => {
           const active = activeFilter === chip.key;
