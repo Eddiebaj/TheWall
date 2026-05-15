@@ -1292,7 +1292,7 @@ function LiveScreenInner() {
         const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${id}`);
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
-        const stoIsStatic = data.source === 'gtfs-static';
+        const stoIsStatic = data.source === 'stale' || data.source === 'sto-gtfs-rt-empty';
         const stoParsed = (data.arrivals || []).map((a: any) => ({ id: `${a.stopId || id}-${a.scheduledTime || Math.random()}`, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway, delay: 0, secsAway: a.minsAway * 60, isScheduled: stoIsStatic }));
         setArrivals(stoParsed);
         AsyncStorage.setItem(`routeo_arrivals_${id}`, JSON.stringify({ arrivals: stoParsed, timestamp: Date.now() }));
@@ -1309,7 +1309,7 @@ function LiveScreenInner() {
         const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${lrtId}`);
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
-        const lrtParsed = (data.arrivals || []).map((a: any) => ({ id: `${a.stopId}-${a.scheduledTime}`, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway, delay: 0, secsAway: a.minsAway * 60, isScheduled: true }));
+        const lrtParsed = (data.arrivals || []).map((a: any) => ({ id: `${a.stopId}-${a.scheduledTime}`, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway, delay: 0, secsAway: a.minsAway * 60, isScheduled: data.source === 'stale' }));
         setArrivals(lrtParsed);
         AsyncStorage.setItem(`routeo_arrivals_${id}`, JSON.stringify({ arrivals: lrtParsed, timestamp: Date.now() }));
         setCachedAt(null);
@@ -1318,12 +1318,14 @@ function LiveScreenInner() {
         setLoading(false);
         return;
       }
-      const resp = await fetchWithTimeout(TRIP_UPDATES, { headers: { 'Ocp-Apim-Subscription-Key': OC_TRANSPO_API_KEY } });
+      // Route all OC stops through backend — keeps API key server-side
+      const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${internalId}`);
       if (!resp.ok) throw new Error(`API error ${resp.status}`);
       const data = await resp.json();
-      const gtfsParsed = parseGTFS(data, internalId);
-      setArrivals(gtfsParsed);
-      AsyncStorage.setItem(`routeo_arrivals_${id}`, JSON.stringify({ arrivals: gtfsParsed, timestamp: Date.now() }));
+      const isStale = data.source === 'stale';
+      const ocParsed = (data.arrivals || []).map((a: any) => ({ id: `${a.stopId || internalId}-${a.scheduledTime || Math.random()}`, routeId: a.routeId, headsign: a.headsign, minsAway: a.minsAway, delay: 0, secsAway: a.minsAway * 60, isScheduled: isStale }));
+      setArrivals(ocParsed);
+      AsyncStorage.setItem(`routeo_arrivals_${id}`, JSON.stringify({ arrivals: ocParsed, timestamp: Date.now() }));
       setCachedAt(null);
       const now = new Date();
       setLastUpdated(fmtTime(now));
@@ -1333,7 +1335,7 @@ function LiveScreenInner() {
         const cached = await AsyncStorage.getItem(`routeo_arrivals_${id}`);
         if (cached) {
           const { arrivals: cachedArrivals, timestamp } = JSON.parse(cached);
-          if (Date.now() - timestamp < 30 * 60 * 1000) {
+          if (Date.now() - timestamp < 5 * 60 * 1000) {
             setArrivals(cachedArrivals);
             setCachedAt(timestamp);
             setLoading(false);
@@ -1534,41 +1536,9 @@ function LiveScreenInner() {
     }
   }, [arrivals, stopId]);
 
-  // ── Route reliability tracking (silent data collection) ────────
-  const recordedTripsRef = useRef<Set<string>>(new Set());
-
-  const recordReliability = async (arrs: Arrival[], sid: string) => {
-    if (arrs.length === 0) return;
-    try {
-      const toRecord = arrs.filter(a => {
-        const key = `${a.routeId}-${sid}-${a.id}`;
-        if (recordedTripsRef.current.has(key)) return false;
-        if (a.minsAway > 5) return false;
-        recordedTripsRef.current.add(key);
-        return true;
-      });
-      if (toRecord.length === 0) return;
-      const rows = toRecord.map(a => ({
-        route_id: a.routeId,
-        stop_id: sid,
-        scheduled_time: new Date(Date.now() + (a.minsAway - (a.delay || 0)) * 60000).toISOString(),
-        actual_time: new Date(Date.now() + a.minsAway * 60000).toISOString(),
-        delta_minutes: a.delay || 0,
-        recorded_at: new Date().toISOString(),
-      }));
-      await supabase.from('route_reliability').insert(rows).then(() => {}, () => {});
-    } catch { /* silent */ }
-  };
-
-  useEffect(() => {
-    if (arrivals.length > 0) {
-      recordReliability(arrivals, stopId);
-    }
-  }, [arrivals]);
-
-  useEffect(() => {
-    recordedTripsRef.current.clear();
-  }, [stopId]);
+  // Route reliability tracking removed — client-side delta_minutes was always 0
+  // since delay is never populated from the backend response. Reliability data
+  // should be recorded server-side where actual vs scheduled times are known.
 
   // ── Arrival push notifications for saved stops ─────────────────
   const notifiedArrivalsRef = useRef<Set<string>>(new Set());
