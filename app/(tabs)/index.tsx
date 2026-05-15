@@ -615,7 +615,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
               <Text style={{ fontSize: 11, fontWeight: '800', color: a.minsAway <= 2 ? colours.red : badgeColor }}>
                 {timeFormat === 'absolute'
                   ? fmtAbsTime(a.minsAway)
-                  : (a.minsAway === 0 ? t('Now', 'Maint.') : `${a.minsAway}m`)}
+                  : (a.secsAway < 0 ? t('Late', 'Retard') : a.minsAway === 0 ? t('Now', 'Maint.') : `${a.minsAway}m`)}
               </Text>
               <Text style={{ fontSize: 10, color: colours.muted, flex: 1 }} numberOfLines={1}>{a.headsign || ''}</Text>
             </TouchableOpacity>

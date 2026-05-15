@@ -270,8 +270,7 @@ function SavedScreenInner() {
       const responses = await Promise.all(
         chunks.map(chunk => {
           const ids = chunk.map(s => s.id).join(',');
-          const premiumParam = (PREMIUM_ENABLED && isPremium) || !PREMIUM_ENABLED ? 'true' : 'false';
-          return fetchWithTimeout(`${BACKEND_URL}?stops=${ids}&premium=${premiumParam}`, { timeout: 12000 }).then(r => r.ok ? r.json() : null);
+          return fetchWithTimeout(`${BACKEND_URL}?stops=${ids}`, { timeout: 12000 }).then(r => r.ok ? r.json() : null);
         })
       );
       for (const data of responses) {
