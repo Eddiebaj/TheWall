@@ -932,31 +932,33 @@ export default function AccountScreen() {
           />
         </Card>
 
-        <TouchableOpacity
-          onPress={async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-            const { data: biz } = await supabase.from('business_profiles').select('id').eq('user_id', user.id).single();
-            if (biz) {
-              router.push('/business-dashboard' as any);
-            } else {
-              router.push('/business-signup' as any);
-            }
-          }}
-          style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: colours.border }}
-        >
-          <Ionicons name="storefront-outline" size={18} color={colours.accent} style={{ marginRight: 12 }} />
-          <Text style={{ flex: 1, fontSize: 15, fontWeight: '600', color: colours.text }}>Register your business</Text>
-          <Ionicons name="chevron-forward" size={16} color={colours.muted} />
-        </TouchableOpacity>
-
-        {isAdmin && (
-          <TouchableOpacity onPress={() => router.push('/admin' as any)} style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: colours.border }}>
-            <Ionicons name="shield-checkmark-outline" size={18} color="#e8a020" style={{ marginRight: 12 }} />
-            <Text style={{ flex: 1, fontSize: 15, fontWeight: '600', color: colours.text }}>Admin Panel</Text>
-            <Ionicons name="chevron-forward" size={16} color={colours.muted} />
-          </TouchableOpacity>
-        )}
+        <SectionHeader label={t('Business', 'Entreprise')} icon="storefront-outline" colours={colours} fonts={fonts} />
+        <Card>
+          <SettingsRow
+            label={t('Register your business', 'Enregistrer votre entreprise')}
+            icon="storefront-outline"
+            onPress={async () => {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (!user) return;
+              const { data: biz } = await supabase.from('business_profiles').select('id').eq('user_id', user.id).single();
+              if (biz) { router.push('/business-dashboard' as any); } else { router.push('/business-signup' as any); }
+            }}
+            colours={colours}
+            fonts={fonts}
+          />
+          {isAdmin && (
+            <>
+              <Divider colours={colours} />
+              <SettingsRow
+                label="Admin Panel"
+                icon="shield-checkmark-outline"
+                onPress={() => router.push('/admin' as any)}
+                colours={colours}
+                fonts={fonts}
+              />
+            </>
+          )}
+        </Card>
 
         {/* ── SUPPORT ── */}
         <SectionHeader label={t('Support', 'Soutien')} icon="help-circle-outline" colours={colours} fonts={fonts} />
