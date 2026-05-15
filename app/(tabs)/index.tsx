@@ -23,7 +23,7 @@ let Haptics: typeof import('expo-haptics') | null = null;
 try { Haptics = require('expo-haptics'); } catch {}
 let Notifications: typeof import('expo-notifications') | null = null;
 try { Notifications = require('expo-notifications'); } catch {}
-// DraggableFlatList disabled for beta — using plain FlatList to fix touch blocking
+// DraggableFlatList disabled for beta - using plain FlatList to fix touch blocking
 // import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
 const ScaleDecorator = ({ children }: { children: React.ReactNode }) => <>{children}</>;
 
@@ -65,14 +65,14 @@ import {
     SK_TODAY_EVENTS,
     SK_DISMISSED_ALERT_IDS,
 } from '../../lib/storageKeys';
-// neighbourhoodData import removed — discover section moved to dedicated tab
-// NewsArticle import removed — news lives in dedicated News tab
+// neighbourhoodData import removed - discover section moved to dedicated tab
+// NewsArticle import removed - news lives in dedicated News tab
 import { haversineKm } from '../../lib/geo';
 import { getDelayContext } from '../../lib/delayContext';
 import { SK_CROWDING_CACHE, SK_FREQUENT_ARRIVALS_CACHE, SK_FREQUENT_CARD_DISMISSED, SK_LAST_CROWDING_REPORT, SK_TRIP_HISTORY, SK_TRIP_SHARING, SK_CLASS_SCHEDULE } from '../../lib/storageKeys';
-// NewsSection removed from home — news lives in Account tab modal
-// NeighbourhoodSection removed — inlined for scroll reliability
-// NeighbourhoodSheet removed — discover section moved to dedicated tab
+// NewsSection removed from home - news lives in Account tab modal
+// NeighbourhoodSection removed - inlined for scroll reliability
+// NeighbourhoodSheet removed - discover section moved to dedicated tab
 import ServicesGrid, { ServiceTile } from '../../components/ServicesGrid';
 import TonightCard from '../../components/TonightCard';
 import WeatherModal from '../../components/WeatherModal';
@@ -252,7 +252,7 @@ const DEFAULT_OTTAWA_LIFE_IDS = ['restaurant', 'cafe', 'shopping', 'events'];
 // 'map' removed from default section order
 const DEFAULT_SECTION_ORDER = ['otrain', 'saved', 'services', 'alerts'];
 
-// DISCOVER_CARDS removed — replaced by NEIGHBOURHOODS from lib/neighbourhoodData.ts
+// DISCOVER_CARDS removed - replaced by NEIGHBOURHOODS from lib/neighbourhoodData.ts
 
 const CATEGORY_COLOUR: { [key: string]: string } = {
   lrt: '#00A78D', detour: '#e8a020', cancellation: '#cc3b2a',
@@ -490,7 +490,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
     );
   }
 
-  // ── Campus card — only visible on weekdays during Sep–Apr ──
+  // ── Campus card - only visible on weekdays during Sep–Apr ──
   if (item.type === 'campus') {
     const campusMonth = new Date().getMonth(); // 0-indexed
     const campusDow = new Date().getDay();
@@ -540,7 +540,7 @@ function SavedBoardCard({ item, colours, fonts, t, onPress, drag, isActive, card
   const matchingAlertRoutes = activeAlerts.flatMap((a: any) => (a.routes || []).filter((r: string) => stopRouteIds.includes(r)));
   const alertRouteSet = [...new Set(matchingAlertRoutes)];
 
-  // Last bus warning node — computed once before render
+  // Last bus warning node - computed once before render
   let lastBusNode: React.ReactNode = null;
   if (isBoardLateNight && lastBusRouteInfo?.lastBus) {
     const nowMins2 = new Date().getHours() * 60 + new Date().getMinutes();
@@ -801,7 +801,7 @@ function LiveScreenInner() {
       });
   }, [boardExpandItem]);
   const [savedRoutes, setSavedRoutes] = useState<{ id: string; fromLabel: string; toLabel: string; fromLat: number; fromLng: number; toLat: number; toLng: number }[]>([]);
-  // newsArticles, selectedNeighbourhood, neighbourhoodSheetVisible removed — discover section moved to dedicated tab
+  // newsArticles, selectedNeighbourhood, neighbourhoodSheetVisible removed - discover section moved to dedicated tab
   const [alerts, setAlerts] = useState<ServiceAlert[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [alertsModalVisible, setAlertsModalVisible] = useState(false);
@@ -890,7 +890,7 @@ function LiveScreenInner() {
     return () => clearInterval(interval);
   }, []);
 
-  // Load class schedule and campus for hero card — refresh when returning from Account tab, with live countdown
+  // Load class schedule and campus for hero card - refresh when returning from Account tab, with live countdown
   const checkLastMinuteDeals = async () => {
     try {
       const notifEnabled = await AsyncStorage.getItem('routeo_lastminute_notifs');
@@ -921,7 +921,7 @@ function LiveScreenInner() {
               await Notifications.scheduleNotificationAsync({
                 content: {
                   title: `⚡ ${venue.name}`,
-                  body: `${deal.description} — ends in ${minsLeft}min · ${Math.round(distKm * 1000)}m away`,
+                  body: `${deal.description} - ends in ${minsLeft}min · ${Math.round(distKm * 1000)}m away`,
                   data: { type: 'last_minute_deal', venue: venue.name },
                 },
                 trigger: null,
@@ -968,7 +968,7 @@ function LiveScreenInner() {
       // Check for last-minute deals nearby
       checkLastMinuteDeals();
 
-      // Set up live countdown — recalculate every 30s
+      // Set up live countdown - recalculate every 30s
       const countdownInterval = setInterval(() => {
         AsyncStorage.getItem(SK_CLASS_SCHEDULE).then(val => {
           try {
@@ -1133,7 +1133,7 @@ function LiveScreenInner() {
         }
       } catch (e) { if (__DEV__) console.warn('get weather location failed:', e); }
       setLocationName(locLabel);
-      // ── Open-Meteo (primary source — EC XML feed moved to dynamic hourly paths) ──
+      // ── Open-Meteo (primary source - EC XML feed moved to dynamic hourly paths) ──
       const wmoIcon = (c: number): string => { if (c === 0) return 'sunny'; if (c <= 2) return 'partly-sunny'; if (c <= 3) return 'cloudy'; if (c <= 49) return 'cloudy'; if (c <= 67) return 'rainy'; if (c <= 77) return 'snow'; if (c <= 82) return 'rainy'; if (c <= 86) return 'snow'; return 'thunderstorm'; };
       const wmoCondition = (c: number): string => { if (c === 0) return t('Clear', 'Ciel d\u00E9gag\u00E9'); if (c <= 2) return t('Partly cloudy', 'Partiellement nuageux'); if (c <= 3) return t('Cloudy', 'Nuageux'); if (c <= 48) return t('Fog', 'Brouillard'); if (c <= 55) return t('Drizzle', 'Bruine'); if (c <= 57) return t('Freezing drizzle', 'Bruine vergla\u00E7ante'); if (c <= 65) return t('Rain', 'Pluie'); if (c <= 67) return t('Freezing rain', 'Pluie vergla\u00E7ante'); if (c <= 75) return t('Snow', 'Neige'); if (c <= 77) return t('Snow grains', 'Grains de neige'); if (c <= 82) return t('Rain showers', 'Averses de pluie'); if (c <= 86) return t('Snow showers', 'Averses de neige'); if (c >= 95) return t('Thunderstorm', 'Orage'); return t('Cloudy', 'Nuageux'); };
       const resp = await fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,weathercode&hourly=temperature_2m,weathercode,precipitation_probability&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max&timezone=auto&forecast_days=5`);
@@ -1287,7 +1287,7 @@ function LiveScreenInner() {
       setError('');
       const isNumericOnly = /^\d+$/.test(id);
       const internalId = isNumericOnly ? resolveStopId(id) : id;
-      // STO stops — route through backend which handles STO GTFS-RT
+      // STO stops - route through backend which handles STO GTFS-RT
       if (isStoStop(id)) {
         const resp = await fetchWithTimeout(`${BACKEND_URL}?stop=${id}`);
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -1389,7 +1389,7 @@ function LiveScreenInner() {
     } catch (e) { if (__DEV__) console.warn('nearby alternative failed:', e); }
   };
 
-  // Stop amenities — sourced from OpenStreetMap via one-time import script
+  // Stop amenities - sourced from OpenStreetMap via one-time import script
   // (scripts/import-osm-shelters.js in backend repo). Columns: has_shelter, has_bench, has_bin.
   const fetchStopAmenities = async (sid: string) => {
     setStopAmenities(null);
@@ -1608,8 +1608,8 @@ function LiveScreenInner() {
               ? `🚌 ${arr.routeId} arrive dans ${arr.minsAway} min`
               : `🚌 ${arr.routeId} arriving in ${arr.minsAway} min`;
             const body = language === 'fr'
-              ? `${arr.headsign} — ${stop.name}`
-              : `${arr.headsign} — ${stop.name}`;
+              ? `${arr.headsign} - ${stop.name}`
+              : `${arr.headsign} - ${stop.name}`;
 
             await Notifications.scheduleNotificationAsync({
               content: { title, body, data: { type: 'arrival_alert', stopId: stop.id }, sound: true },
@@ -1713,7 +1713,7 @@ function LiveScreenInner() {
       AsyncStorage.setItem(SK_GHOST_REPORTS, JSON.stringify(updated));
       return updated;
     });
-    Alert.alert(t('Thanks!', 'Merci!'), t('Reported — helps other riders.', 'Signalé — aide les autres usagers.'));
+    Alert.alert(t('Thanks!', 'Merci!'), t('Reported - helps other riders.', 'Signalé - aide les autres usagers.'));
   };
 
   const submitStopReport = async () => {
@@ -1984,7 +1984,7 @@ function LiveScreenInner() {
           {!ghostBus && reportCount === 1 && (
             <TouchableOpacity onPress={() => reportBusPassed(item.routeId)} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, backgroundColor: colours.orange + '12' }} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
               <Text style={{ fontSize: 10, color: colours.orange, fontWeight: '600' }}>{t('1 rider says passed', '1 usager dit passé')}</Text>
-              <Text style={{ fontSize: 10, color: colours.orange, fontWeight: '600' }}> — </Text>
+              <Text style={{ fontSize: 10, color: colours.orange, fontWeight: '600' }}> - </Text>
               <Text style={{ fontSize: 10, color: colours.orange, fontWeight: '800' }}>{t('agree?', 'd\'accord?')}</Text>
             </TouchableOpacity>
           )}
@@ -2094,7 +2094,7 @@ function LiveScreenInner() {
             </View>
           </View>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }}>
-            {loading ? (<View style={{ marginTop: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>) : error ? (<View style={styles.modalCenter}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.md, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text></View>) : arrivals.length === 0 ? (<View style={styles.modalCenter}><Ionicons name="time-outline" size={48} color={colours.muted} /><Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 12 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<View style={{ marginTop: 8 }}>{cachedAt && (<View style={{ backgroundColor: '#ff9500' + '15', borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8 }}><Text style={{ fontSize: fonts.sm, color: '#ff9500', fontWeight: '600' }}>{t(`Offline — last updated ${Math.round((Date.now() - cachedAt) / 60000)} min ago`, `Hors ligne — dernière mise à jour il y a ${Math.round((Date.now() - cachedAt) / 60000)} min`)}</Text></View>)}{arrivals.map(renderArrival)}</View>)}
+            {loading ? (<View style={{ marginTop: 8 }}>{[0,1,2].map(i => <ArrivalRowSkeleton key={i} colours={colours} />)}</View>) : error ? (<View style={styles.modalCenter}><Ionicons name="wifi-outline" size={36} color={colours.muted} /><Text style={{ color: colours.muted, fontSize: fonts.md, textAlign: 'center', marginTop: 8 }}>{t('Could not load arrivals', 'Impossible de charger les arrivées')}</Text></View>) : arrivals.length === 0 ? (<View style={styles.modalCenter}><Ionicons name="time-outline" size={48} color={colours.muted} /><Text style={{ color: colours.text, fontSize: fonts.lg, fontWeight: '700', marginTop: 12 }}>{t('No upcoming arrivals', 'Aucune arrivée prévue')}</Text></View>) : (<View style={{ marginTop: 8 }}>{cachedAt && (<View style={{ backgroundColor: '#ff9500' + '15', borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8 }}><Text style={{ fontSize: fonts.sm, color: '#ff9500', fontWeight: '600' }}>{t(`Offline - last updated ${Math.round((Date.now() - cachedAt) / 60000)} min ago`, `Hors ligne - dernière mise à jour il y a ${Math.round((Date.now() - cachedAt) / 60000)} min`)}</Text></View>)}{arrivals.map(renderArrival)}</View>)}
             {/* Report an issue button */}
             <TouchableOpacity
               onPress={() => { setReportCategory(null); setReportDescription(''); if (!expandedStopId && stopId) setExpandedStopId(stopId); setShowReportModal(true); }}
@@ -2111,7 +2111,7 @@ function LiveScreenInner() {
             {!helpBannerDismissed && arrivals.length > 0 && (
               <View style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginTop: 12, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colours.muted + '12' }}>
                 <Ionicons name="people-outline" size={14} color={colours.muted} style={{ marginRight: 8 }} />
-                <Text style={{ flex: 1, fontSize: 10, color: colours.muted, fontWeight: '600' }}>{t('Help Ottawa riders — tap to report crowding or missed buses', 'Aidez les usagers — signalez l\'achalandage ou les bus manqués')}</Text>
+                <Text style={{ flex: 1, fontSize: 10, color: colours.muted, fontWeight: '600' }}>{t('Help Ottawa riders - tap to report crowding or missed buses', 'Aidez les usagers - signalez l\'achalandage ou les bus manqués')}</Text>
                 <TouchableOpacity onPress={() => setHelpBannerDismissed(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginLeft: 8 }}>
                   <Ionicons name="close" size={14} color={colours.muted} />
                 </TouchableOpacity>
@@ -2142,7 +2142,7 @@ function LiveScreenInner() {
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colours.border }}>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text }}>
-                    {t('Route', 'Route')} {scheduleRoute?.routeId} — {t('Full Schedule', 'Horaire complet')}
+                    {t('Route', 'Route')} {scheduleRoute?.routeId} - {t('Full Schedule', 'Horaire complet')}
                   </Text>
                   <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
                     {new Date().toLocaleDateString('en-CA', { weekday: 'long', month: 'long', day: 'numeric' })}
@@ -2389,7 +2389,7 @@ function LiveScreenInner() {
             </Text>
             <TouchableOpacity onPress={() => setWeatherModalVisible(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface }}>
               {weather && <Ionicons name={weather.icon as any} size={13} color="#e8a020" />}
-              <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>{weather ? `${weather.temp}°` : '—'}</Text>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: colours.text }}>{weather ? `${weather.temp}°` : '-'}</Text>
             </TouchableOpacity>
           </View>
 
@@ -2454,7 +2454,7 @@ function LiveScreenInner() {
                   </Text>
                 )}
 
-                {/* Leave in X min — big prominent number */}
+                {/* Leave in X min - big prominent number */}
                 <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginTop: 8 }}>
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 32, fontWeight: '800', color: colours.accent }}>

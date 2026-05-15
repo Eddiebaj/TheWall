@@ -30,11 +30,11 @@ export default function OnboardingScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [finishing, setFinishing] = useState(false);
 
-  // Slide 2 — Location
+  // Slide 2 - Location
   const [locationGranted, setLocationGranted] = useState(false);
   const [locationRequesting, setLocationRequesting] = useState(false);
 
-  // Slide 3 — Stop search
+  // Slide 3 - Stop search
   const [stopQuery, setStopQuery] = useState('');
   const [stopResults, setStopResults] = useState<StopResult[]>([]);
   const [addedStops, setAddedStops] = useState<StopResult[]>([]);
@@ -131,7 +131,7 @@ export default function OnboardingScreen() {
         keyboardShouldPersistTaps="handled"
         style={{ flex: 1 }}
       >
-        {/* Slide 1: Welcome — sell the core value */}
+        {/* Slide 1: Welcome - sell the core value */}
         <View style={{ width, flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 36 }}>
           <Text style={{ fontSize: 52, fontWeight: '700', color: '#fff', marginBottom: 8 }}>
             Route<Text style={{ color: TEAL }}>O</Text>

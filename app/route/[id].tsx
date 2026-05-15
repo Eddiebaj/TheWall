@@ -183,7 +183,7 @@ export default function RouteScreen() {
                 <View style={{ flex: 1, alignItems: 'center' }}>
                   <Text style={{ fontSize: 11, fontWeight: '600', color: colours.muted }}>{t('Frequency', 'Frequence')}</Text>
                   <Text style={{ fontSize: fonts.lg, fontWeight: '700', color: colours.text, marginTop: 2 }}>
-                    {dir.avgFrequencyMin ? `${dir.avgFrequencyMin}m` : '—'}
+                    {dir.avgFrequencyMin ? `${dir.avgFrequencyMin}m` : '-'}
                   </Text>
                 </View>
               </View>

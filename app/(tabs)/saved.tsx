@@ -118,7 +118,7 @@ function SavedScreenInner() {
     }).catch(() => {});
   }, []);
 
-  // Instant cache hydration — show last-known arrivals before network fetch
+  // Instant cache hydration - show last-known arrivals before network fetch
   const cacheHydrated = useRef(false);
   useEffect(() => {
     if (cacheHydrated.current) return;
@@ -347,7 +347,7 @@ function SavedScreenInner() {
         } catch (e) { if (__DEV__) console.warn(e); }
       }
 
-      // Detect most used stop — match stop IDs mentioned in trip route stops
+      // Detect most used stop - match stop IDs mentioned in trip route stops
       // Falls back to first saved stop if no trip history matches
       let topStop: SavedStop | null = null;
       if (savedStops.length > 0) {
@@ -467,7 +467,7 @@ function SavedScreenInner() {
         </Text>
       </View>
 
-      {/* Stale data warning — shown when cached arrivals are >3 min old */}
+      {/* Stale data warning - shown when cached arrivals are >3 min old */}
       {loaded && Object.keys(cachedStops).length > 0 && (() => {
         const oldestMs = Math.min(...Object.values(cachedStops));
         const staleMin = Math.round((Date.now() - oldestMs) / 60000);
@@ -475,7 +475,7 @@ function SavedScreenInner() {
           <View style={{ marginHorizontal: PAD, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.warnBg || '#ff9f0a18', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
             <Ionicons name="time-outline" size={15} color={colours.orange || '#ff9f0a'} />
             <Text style={{ flex: 1, fontSize: 12, color: colours.orange || '#ff9f0a', fontWeight: '600' }}>
-              {t(`Arrivals last updated ${staleMin}m ago — pull to refresh`, `Arrivees mises a jour il y a ${staleMin}m — tirez pour actualiser`)}
+              {t(`Arrivals last updated ${staleMin}m ago - pull to refresh`, `Arrivees mises a jour il y a ${staleMin}m - tirez pour actualiser`)}
             </Text>
           </View>
         ) : null;
@@ -908,7 +908,7 @@ function SavedScreenInner() {
             </View>
           )}
 
-          {/* Following — venues the user has hearted */}
+          {/* Following - venues the user has hearted */}
           {followedVenues.length > 0 && (
             <View style={{ marginTop: GAP }}>
               <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, marginBottom: 10, letterSpacing: 0.5 }}>
@@ -983,7 +983,7 @@ function SavedScreenInner() {
                     ) : (
                       <View style={{ position: 'absolute', width: '100%', height: '100%', backgroundColor: colours.card }} />
                     )}
-                    {/* Dark gradient overlay — stacked bands for gradient effect */}
+                    {/* Dark gradient overlay - stacked bands for gradient effect */}
                     <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
                       <View style={{ height: 20, backgroundColor: 'rgba(0,0,0,0.1)' }} />
                       <View style={{ height: 20, backgroundColor: 'rgba(0,0,0,0.3)' }} />
@@ -1030,7 +1030,7 @@ function SavedScreenInner() {
               {t(`Notify me to catch Route ${scheduleModal?.routeId}`, `M'alerter pour la route ${scheduleModal?.routeId}`)}
             </Text>
 
-            {/* Time picker — hour + minute */}
+            {/* Time picker - hour + minute */}
             <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 8 }}>
               {t('Bus departure time', 'Heure de d\u00e9part du bus')}
             </Text>

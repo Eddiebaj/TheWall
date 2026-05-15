@@ -303,7 +303,7 @@ function AlertsScreenInner() {
           </View>
         </View>
 
-        {/* LRT Station Status — always show section */}
+        {/* LRT Station Status - always show section */}
         <View style={[styles.lrtSection, {
           backgroundColor: colours.surface, borderColor: colours.border,
           marginHorizontal: 20, marginBottom: 16,

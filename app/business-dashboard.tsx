@@ -30,7 +30,7 @@ function VenueAnalytics({ venueName, colours }: { venueName: string; colours: an
         hourCounts[h] = (hourCounts[h] || 0) + 1;
       });
       const topHourNum = Object.entries(hourCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
-      const topHour = topHourNum ? `${topHourNum}:00–${Number(topHourNum) + 1}:00` : '—';
+      const topHour = topHourNum ? `${topHourNum}:00–${Number(topHourNum) + 1}:00` : '-';
       setStats({ rsvps: rsvpRes.count || 0, scans: scans.length, videos: memRes.count || 0, topHour });
       setLoading(false);
     });
@@ -259,7 +259,7 @@ export default function BusinessDashboardScreen() {
           <Text style={{ fontSize: 20, fontWeight: '800', color: colours.text }}>{business?.business_name}</Text>
           {(business?.open_time || business?.close_time) && (
             <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>
-              {business.open_time} — {business.close_time}
+              {business.open_time} - {business.close_time}
             </Text>
           )}
         </View>
@@ -439,7 +439,7 @@ export default function BusinessDashboardScreen() {
 
           {deals.length === 0 ? (
             <View style={{ padding: 24, borderRadius: 14, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
-              <Text style={{ color: colours.muted }}>No deals yet — add your first one</Text>
+              <Text style={{ color: colours.muted }}>No deals yet - add your first one</Text>
             </View>
           ) : deals.map(d => (
             <View key={d.id} style={{ padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: d.is_approved ? '#00A78D40' : colours.border, marginBottom: 8 }}>

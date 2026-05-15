@@ -611,7 +611,7 @@ function PlannerScreenInner() {
         };
         continueWithTo(to);
       } else {
-        // No coords — geocode the label then continue
+        // No coords - geocode the label then continue
         setToText(toLabel);
         (async () => {
           try {
@@ -726,7 +726,7 @@ function PlannerScreenInner() {
     setFromResults([]); setToResults([]);
   };
 
-  // ── Plan core — accepts explicit places (used by auto-plan on deep-link) ──
+  // ── Plan core - accepts explicit places (used by auto-plan on deep-link) ──
   const planWithPlaces = async (resolvedFrom: PlaceResult, resolvedTo: PlaceResult) => {
     if (!resolvedFrom?.lat || !resolvedTo?.lat) return;
     setLoading(true); setError(''); setSearched(true); setItineraries([]); setShowRouteMap(false); setSelectedRouteIdx(0); setAccessibilityWarning(false);
@@ -794,7 +794,7 @@ function PlannerScreenInner() {
 
             // Deduplicate: by start time (within 2 min) AND by route sequence
             // Two itineraries using the same sequence of routes (e.g., both "WALK→Line 1→WALK")
-            // at different departure times are near-duplicates — keep only earliest departure
+            // at different departure times are near-duplicates - keep only earliest departure
             const getRouteKey = (itin: any) => (itin.legs || [])
               .map((l: any) => l.mode === 'WALK' ? 'WALK' : (l.routeShortName || l.mode))
               .join('→');
@@ -834,12 +834,12 @@ function PlannerScreenInner() {
             if (useArriveBy && transitItins.length > 0) {
               const targetMs = d.getTime();
               // Best = earliest arrival among those arriving before target (most buffer)
-              // Already sorted by departure — first one that arrives before target is best
+              // Already sorted by departure - first one that arrives before target is best
               let bestIdx = 0;
               for (let i = 0; i < transitItins.length; i++) {
                 if ((transitItins[i].endTime ?? Infinity) <= targetMs) { bestIdx = i; break; }
               }
-              // Tag for rendering — move the best option to index 0
+              // Tag for rendering - move the best option to index 0
               if (bestIdx > 0) {
                 const [best] = transitItins.splice(bestIdx, 1);
                 transitItins.unshift(best);
@@ -889,7 +889,7 @@ function PlannerScreenInner() {
     setLoading(false);
   };
 
-  // ── Plan — called by button, resolves text inputs first ───────
+  // ── Plan - called by button, resolves text inputs first ───────
   const plan = async () => {
     Haptics?.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Keyboard.dismiss();
@@ -1301,7 +1301,7 @@ function PlannerScreenInner() {
 
     // Fetch route detail (stops), shape, departures, and live bus in parallel
     const [detailRes, shapeRes, vehiclesRes] = await Promise.allSettled([
-      // Route detail — full stop list
+      // Route detail - full stop list
       fetchWithTimeout(`https://routeo-backend.vercel.app/api/route?id=${encodeURIComponent(routeNum)}${agencyParam}`, { timeout: 8000 }),
       // Route shape
       fetchWithTimeout(`https://routeo-backend.vercel.app/api/route?id=${encodeURIComponent(routeNum)}&action=shape${agencyParam}`, { timeout: 8000 }),
@@ -1309,7 +1309,7 @@ function PlannerScreenInner() {
       fetchWithTimeout(`https://routeo-backend.vercel.app/api/vehicles?t=${Date.now()}`, { timeout: 8000 }),
     ]);
 
-    // Process route detail — find matching direction by headsign, build stop list with times
+    // Process route detail - find matching direction by headsign, build stop list with times
     if (detailRes.status === 'fulfilled' && detailRes.value.ok) {
       try {
         const data = await detailRes.value.json();
@@ -1324,7 +1324,7 @@ function PlannerScreenInner() {
             .in('stop_id', dir.stops);
           const nameMap = new Map((stopRows || []).map((s: any) => [s.stop_id, s.stop_name]));
 
-          // Build ordered stop list — fetch scheduled times for these stops on this route
+          // Build ordered stop list - fetch scheduled times for these stops on this route
           const now = new Date();
           const nowMins = now.getHours() * 60 + now.getMinutes();
           const stops = dir.stops.map((sid: string) => ({
@@ -1456,7 +1456,7 @@ function PlannerScreenInner() {
         }, cardShadow]}
         activeOpacity={0.85}
       >
-        {/* Badge — mode-specific */}
+        {/* Badge - mode-specific */}
         {travelMode !== 'transit' && isFirst && (
           <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: (LEG_COLOURS[travelMode === 'driving' ? 'CAR' : travelMode === 'bicycling' ? 'BICYCLE' : 'WALK'] || colours.accent) + '20', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: (LEG_COLOURS[travelMode === 'driving' ? 'CAR' : travelMode === 'bicycling' ? 'BICYCLE' : 'WALK'] || colours.accent) + '40' }}>
             <Text style={{ color: LEG_COLOURS[travelMode === 'driving' ? 'CAR' : travelMode === 'bicycling' ? 'BICYCLE' : 'WALK'] || colours.accent, fontSize: 9, fontWeight: '800' }}>
@@ -1507,14 +1507,14 @@ function PlannerScreenInner() {
           </Text>
         </View>
 
-        {/* Leg pills — hide for single-leg non-transit */}
+        {/* Leg pills - hide for single-leg non-transit */}
         {(travelMode === 'transit' || (itin.legs || []).length > 1) && (
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
             {(itin.legs || []).map((leg, i) => renderLegPill(leg, i))}
           </View>
         )}
 
-        {/* Cross-border warning — transit only */}
+        {/* Cross-border warning - transit only */}
         {travelMode === 'transit' && hasCrossBorderTrip(itin) && (
           <View style={{ backgroundColor: '#ff9500' + '15', borderLeftWidth: 3, borderLeftColor: '#ff9500', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, marginBottom: 10 }}>
             <Text style={{ fontSize: 12, color: '#ff9500', fontWeight: '600' }}>{t('Cross-Border Trip', 'Trajet interregional')}</Text>
@@ -1534,12 +1534,12 @@ function PlannerScreenInner() {
                 <Ionicons name="warning" size={12} color="#cc3b2a" />
                 <Text style={{ fontSize: 12, fontWeight: '700', color: '#cc3b2a' }}>{t('Service alert on this route', 'Alerte de service sur ce trajet')}</Text>
               </View>
-              <Text style={{ fontSize: 11, color: colours.muted }} numberOfLines={2}>{t(`Route ${affectedRoutes.join(', ')}`, `Ligne ${affectedRoutes.join(', ')}`)} — {matchingAlert?.title || ''}</Text>
+              <Text style={{ fontSize: 11, color: colours.muted }} numberOfLines={2}>{t(`Route ${affectedRoutes.join(', ')}`, `Ligne ${affectedRoutes.join(', ')}`)} - {matchingAlert?.title || ''}</Text>
             </View>
           );
         })()}
 
-        {/* Transfer warnings with reliability data — transit only */}
+        {/* Transfer warnings with reliability data - transit only */}
         {travelMode === 'transit' && (itin.legs || []).map((leg, i, arr) => {
           if (i === 0) return null;
           const prevLeg = arr[i - 1];
@@ -1552,19 +1552,19 @@ function PlannerScreenInner() {
           const transferStop = prevLeg.to?.name || '';
           const warnings: { text: string; textFr: string; color: string }[] = [];
 
-          // Very tight transfer (<3 min) — always warn
+          // Very tight transfer (<3 min) - always warn
           if (connectionMin < 3) {
             warnings.push({
-              text: `Very tight transfer — consider the next departure`,
-              textFr: `Correspondance tres serree — envisagez le prochain depart`,
+              text: `Very tight transfer - consider the next departure`,
+              textFr: `Correspondance tres serree - envisagez le prochain depart`,
               color: '#cc3b2a',
             });
           }
           // Tight + unreliable (<5 min AND <80% on time)
           else if (connectionMin < 5 && reliability && reliability.onTimePercent < 80) {
             warnings.push({
-              text: `Tight transfer at ${transferStop} — Route ${incomingRoute} was late ${100 - reliability.onTimePercent}% of the time this week`,
-              textFr: `Correspondance serree a ${transferStop} — Route ${incomingRoute} etait en retard ${100 - reliability.onTimePercent}% du temps cette semaine`,
+              text: `Tight transfer at ${transferStop} - Route ${incomingRoute} was late ${100 - reliability.onTimePercent}% of the time this week`,
+              textFr: `Correspondance serree a ${transferStop} - Route ${incomingRoute} etait en retard ${100 - reliability.onTimePercent}% du temps cette semaine`,
               color: '#F59E0B',
             });
           }
@@ -1587,16 +1587,16 @@ function PlannerScreenInner() {
           // Long wait (>15 min)
           if (connectionMin > 15) {
             warnings.push({
-              text: `Long wait — ${connectionMin} min at ${transferStop}`,
-              textFr: `Longue attente — ${connectionMin} min a ${transferStop}`,
+              text: `Long wait - ${connectionMin} min at ${transferStop}`,
+              textFr: `Longue attente - ${connectionMin} min a ${transferStop}`,
               color: '#ff9500',
             });
           }
           // Tight transfer (3-5 min, no reliability data or good reliability)
           if (connectionMin <= 3 && warnings.length === 0) {
             warnings.push({
-              text: `Tight transfer — ${connectionMin} min`,
-              textFr: `Correspondance serree — ${connectionMin} min`,
+              text: `Tight transfer - ${connectionMin} min`,
+              textFr: `Correspondance serree - ${connectionMin} min`,
               color: '#ff9500',
             });
           }
@@ -1708,9 +1708,9 @@ function PlannerScreenInner() {
       if (leg.mode === 'WALK') continue;
 
       const boardingMs = leg.startTime;
-      // Fire 2 min before boarding — enough time to walk to the stop
+      // Fire 2 min before boarding - enough time to walk to the stop
       const fireAt = boardingMs - 2 * 60 * 1000;
-      if (fireAt <= now) continue; // leg is imminent or past — skip
+      if (fireAt <= now) continue; // leg is imminent or past - skip
 
       const routeName = leg.routeShortName
         ? (leg.mode === 'WALK' ? '' : t(`Route ${leg.routeShortName}`, `Ligne ${leg.routeShortName}`))
@@ -1741,7 +1741,7 @@ function PlannerScreenInner() {
       try {
         const id2 = await Notifications.scheduleNotificationAsync({
           content: {
-            title: t(`🟢 Board now — ${routeName}`, `🟢 Montez maintenant — ${routeName}`),
+            title: t(`🟢 Board now - ${routeName}`, `🟢 Montez maintenant - ${routeName}`),
             body: t(`${fromStop}${headsign} · ${fmtTime(boardingMs)}`, `${fromStop}${headsign} · ${fmtTime(boardingMs)}`),
             data: { type: 'transit_board' },
             sound: true,
@@ -1865,7 +1865,7 @@ function PlannerScreenInner() {
               >
                 <Ionicons name="share-social-outline" size={16} color={colours.accent} />
               </TouchableOpacity>
-              {/* Notification indicator — shows when trip notifications are armed */}
+              {/* Notification indicator - shows when trip notifications are armed */}
               {tracking && transitNotifIds.current.length > 0 && (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, backgroundColor: '#34c759' + '18', borderWidth: 1, borderColor: '#34c759' + '50' }}>
                   <Ionicons name="notifications" size={12} color="#34c759" />
@@ -2088,7 +2088,7 @@ function PlannerScreenInner() {
     );
   };
 
-  // (time picker is now inline — no modal needed)
+  // (time picker is now inline - no modal needed)
 
   // ── Main render ───────────────────────────────────────────────
   return (
@@ -2393,7 +2393,7 @@ function PlannerScreenInner() {
           </View>
         </View>
 
-        {/* Autocomplete results — only show for the active field */}
+        {/* Autocomplete results - only show for the active field */}
         {autoLoading && fromResults.length === 0 && activeInput === 'from' && (
           <View style={[{ marginHorizontal: 20, backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginBottom: 12, overflow: 'hidden' }, cardShadow]}>
             <ActivityIndicator size="small" color={colours.accent} style={{ padding: 12 }} />
@@ -2508,7 +2508,7 @@ function PlannerScreenInner() {
               {t('Accessible routes only', 'Trajets accessibles uniquement')}
             </Text>
           )}
-          {/* Walk preferences — shown under Walk mode */}
+          {/* Walk preferences - shown under Walk mode */}
           {travelMode === 'walking' && (
             <View style={{ gap: 6, marginTop: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -2646,7 +2646,7 @@ function PlannerScreenInner() {
           </TouchableOpacity>
         </View>
 
-        {/* AI Trip Assistant — Premium */}
+        {/* AI Trip Assistant - Premium */}
         {!params.toLabel && (
         <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
           <TouchableOpacity

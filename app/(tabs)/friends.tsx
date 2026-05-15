@@ -185,7 +185,7 @@ export default function FriendsScreen() {
   const handleInviteLink = async () => {
     const link = `https://routeo.app/invite/${profile?.username}`;
     Clipboard.setString(link);
-    Alert.alert('Link copied!', `Share routeo.app/invite/${profile?.username} with your friends — when they sign up, you'll be connected automatically.`);
+    Alert.alert('Link copied!', `Share routeo.app/invite/${profile?.username} with your friends - when they sign up, you'll be connected automatically.`);
   };
 
   const createGroup = () => setShowNewGroup(true);
@@ -487,7 +487,7 @@ export default function FriendsScreen() {
           )}
         </View>
 
-        {/* The Wall — filtered by friends */}
+        {/* The Wall - filtered by friends */}
         <View style={{ marginTop: 24, marginBottom: 8 }}>
           <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
             THE WALL

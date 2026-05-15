@@ -32,7 +32,7 @@ function logCrash(error: unknown) {
   }
 }
 
-// Root-level error boundary — catches JS crashes before they kill the app
+// Root-level error boundary - catches JS crashes before they kill the app
 class RootErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { error: Error | null }
@@ -127,7 +127,7 @@ function RootNav() {
   const animationResolveRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    if (__DEV__) console.log('[RootNav] useEffect start — creating storagePromise and animationPromise');
+    if (__DEV__) console.log('[RootNav] useEffect start - creating storagePromise and animationPromise');
 
     // Promise-based coordination: wait for both AsyncStorage check and animation
     const storagePromise = AsyncStorage.getItem(SK_ONBOARDED)
@@ -137,7 +137,7 @@ function RootNav() {
         return dest;
       })
       .catch(e => {
-        if (__DEV__) console.log('[RootNav] storagePromise caught error:', e, '— defaulting to onboarding');
+        if (__DEV__) console.log('[RootNav] storagePromise caught error:', e, '- defaulting to onboarding');
         return 'onboarding' as const;
       });
 
@@ -148,7 +148,7 @@ function RootNav() {
 
     if (__DEV__) console.log('[RootNav] Waiting on Promise.all([storagePromise, animationPromise])...');
     Promise.all([storagePromise, animationPromise]).then(([dest]) => {
-      if (__DEV__) console.log('[RootNav] Promise.all resolved! dest=', dest, '— calling setShowSplash(false)');
+      if (__DEV__) console.log('[RootNav] Promise.all resolved! dest=', dest, '- calling setShowSplash(false)');
       setShowSplash(false);
       setDestination(dest);
       // Increment session counter for onboarding prompts
@@ -166,15 +166,15 @@ function RootNav() {
     if (__DEV__) console.log('[RootNav] handleSplashFinish called, animationResolveRef.current=', animationResolveRef.current != null ? 'SET' : 'NULL');
     if (animationResolveRef.current) {
       animationResolveRef.current();
-      if (__DEV__) console.log('[RootNav] animationResolveRef.current() called — animationPromise should now resolve');
+      if (__DEV__) console.log('[RootNav] animationResolveRef.current() called - animationPromise should now resolve');
     } else {
-      if (__DEV__) console.warn('[RootNav] animationResolveRef.current is NULL — animationPromise will never resolve! Forcing splash off.');
+      if (__DEV__) console.warn('[RootNav] animationResolveRef.current is NULL - animationPromise will never resolve! Forcing splash off.');
       setShowSplash(false);
     }
   };
 
   useEffect(() => {
-    if (__DEV__) console.log('[RootNav] showSplash/destination changed — showSplash=', showSplash, 'destination=', destination, 'authLoading=', authLoading);
+    if (__DEV__) console.log('[RootNav] showSplash/destination changed - showSplash=', showSplash, 'destination=', destination, 'authLoading=', authLoading);
     if (!showSplash && destination === 'onboarding') {
       if (__DEV__) console.log('[RootNav] Routing to /onboarding');
       setTimeout(() => {
@@ -182,7 +182,7 @@ function RootNav() {
       }, 0);
     } else if (!showSplash && destination === 'tabs' && !authLoading) {
       if (!session) {
-        if (__DEV__) console.log('[RootNav] No session — routing to /auth');
+        if (__DEV__) console.log('[RootNav] No session - routing to /auth');
         setTimeout(() => {
           router.replace('/auth');
         }, 0);
@@ -190,7 +190,7 @@ function RootNav() {
         (async () => {
           const setupDone = await AsyncStorage.getItem('routeo_profile_setup_done');
           if (!setupDone) {
-            if (__DEV__) console.log('[RootNav] Profile setup not done — routing to /profile-setup');
+            if (__DEV__) console.log('[RootNav] Profile setup not done - routing to /profile-setup');
             router.replace('/profile-setup');
           } else {
             if (__DEV__) console.log('[RootNav] Routing to /(tabs)/map');

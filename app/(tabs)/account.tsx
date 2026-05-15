@@ -542,7 +542,7 @@ export default function AccountScreen() {
             >
               <Ionicons name="alert-circle" size={18} color={colours.orange} />
               <Text style={{ flex: 1, fontSize: fonts.sm, fontWeight: '600', color: colours.orange }}>
-                {t('Notifications off — tap to enable', 'Notifications desactivees — appuyez pour activer')}
+                {t('Notifications off - tap to enable', 'Notifications desactivees - appuyez pour activer')}
               </Text>
               <Ionicons name="open-outline" size={14} color={colours.orange} />
             </TouchableOpacity>
@@ -1023,7 +1023,7 @@ export default function AccountScreen() {
               ))}
             </View>
             <View style={{ backgroundColor: '#e8a020', borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}>
-              <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Get Premium — $2.99/mo</Text>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Get Premium - $2.99/mo</Text>
             </View>
           </TouchableOpacity>
         )}

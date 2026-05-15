@@ -224,7 +224,7 @@ const BusMarker = React.memo(({ bus, onPress }: { bus: Bus; onPress: (b: Bus) =>
             <View style={{ width: 22, height: 32, backgroundColor: bodyColor, borderRadius: 5, borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' }} />
           )}
         </View>
-        {/* Route label badge — overlaid on bus body */}
+        {/* Route label badge - overlaid on bus body */}
         <View style={{ position: 'absolute', top: 10, left: 0, right: 0, alignItems: 'center' }}>
           <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800', lineHeight: 12, textShadowColor: 'rgba(0,0,0,0.4)', textShadowRadius: 2, textShadowOffset: { width: 0, height: 1 } }} allowFontScaling={false}>{label}</Text>
         </View>
@@ -264,7 +264,7 @@ const NextStopMarker = React.memo(({ lat, lng, secsToNextStop }: {
   );
 });
 
-// Styled category marker — colored rounded square with white Ionicon inside
+// Styled category marker - colored rounded square with white Ionicon inside
 const PlaceMarker = React.memo(({ coordinate, icon, color, title, description, onPress }: {
   coordinate: { latitude: number; longitude: number };
   icon: keyof typeof Ionicons.glyphMap;
@@ -346,7 +346,7 @@ const venueHasActiveOrUpcomingToday = (venue: VenuePin): boolean => {
   return active.length > 0 || upcoming.length > 0;
 };
 
-// Nearby tip — checks happy hour venues within 400m of destination, ending within 2h of ETA
+// Nearby tip - checks happy hour venues within 400m of destination, ending within 2h of ETA
 function computeNearbyTip(destLat: number, destLng: number, etaMs: number, language: string): string | null {
   if (!destLat || !destLng || !etaMs) return null;
   const eta = new Date(etaMs);
@@ -363,7 +363,7 @@ function computeNearbyTip(destLat: number, destLng: number, etaMs: number, langu
       if (endMins < etaMins || endMins > windowEnd) continue;
       const walkMins = Math.max(1, Math.round(distM / 80));
       const desc = language === 'fr' ? deal.description_fr : deal.description;
-      return `${desc} at ${venue.name} — ends ${deal.end} · ${walkMins} min walk`;
+      return `${desc} at ${venue.name} - ends ${deal.end} · ${walkMins} min walk`;
     }
   }
   return null;
@@ -979,7 +979,7 @@ export default function MapScreen() {
       }));
       if (__DEV__) console.log('[NearbyStops] Final state:', updatedStops.map(s => ({ id: s.stopId, arrivalsCount: s.arrivals.length, cached: s.cached })));
 
-      // Background reliability tracking — fire and forget
+      // Background reliability tracking - fire and forget
       const logReliabilityEvents = (stops: any[], arrivals: Record<string, any[]>) => {
         try {
           supabase.auth.getUser().then(({ data: { user } }) => {
@@ -1646,7 +1646,7 @@ export default function MapScreen() {
     hapticLight();
     Keyboard.dismiss();
     setPlaceSuggestions([]);
-    // Route number suggestion — open RouteSheet
+    // Route number suggestion - open RouteSheet
     if (suggestion.routeId) {
       setRouteSheetId(suggestion.routeId);
       setRouteSheetVisible(true);
@@ -1668,7 +1668,7 @@ export default function MapScreen() {
     }
     try {
       if (suggestion.stopId) {
-        // Transit stop — geocode by stop name
+        // Transit stop - geocode by stop name
         const geoR = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/places?action=geocode&address=${encodeURIComponent(suggestion.name + ', Ottawa, ON')}`);
         let lat = 45.4215, lng = -75.6972; // fallback to Ottawa centre
         if (geoR.ok) {
@@ -1991,7 +1991,7 @@ export default function MapScreen() {
           hasMovedRef.current = true;
         }}
       >
-        {/* Heat zone circles — visible when Deals layer is active and zoomed to neighbourhood level */}
+        {/* Heat zone circles - visible when Deals layer is active and zoomed to neighbourhood level */}
         {mapReady && Circle && !zoomTooFar && activeLayers.deals && heatZones.map(zone => (
           <Circle
             key={zone.id}
@@ -2006,12 +2006,12 @@ export default function MapScreen() {
 
         {/* ALL markers deferred until native map is ready to prevent AIRMap crash */}
         {mapReady && <>
-          {/* Bus markers — rendered incrementally */}
+          {/* Bus markers - rendered incrementally */}
           {visibleBuses.map((bus: Bus) => (
             <BusMarker key={bus.id} bus={bus} onPress={openSheet} />
           ))}
 
-          {/* Passive countdown markers — shown without tapping, buses ≤10 min away */}
+          {/* Passive countdown markers - shown without tapping, buses ≤10 min away */}
           {passiveCountdownStops.map((bus: Bus) => bus.toStopLat != null && bus.toStopLng != null ? (
             <NextStopMarker
               key={`passive-${bus.toStop}`}
@@ -2044,7 +2044,7 @@ export default function MapScreen() {
                 icon={pinIcon}
                 color={pinColor}
                 title={pin.name}
-                description={pin.routeLabel ? `${kindLabel} — ${pin.routeLabel}` : kindLabel}
+                description={pin.routeLabel ? `${kindLabel} - ${pin.routeLabel}` : kindLabel}
                 onPress={() => {
                   setSelectedSavedPin(pin);
                   nearbySheetRef.current?.snapToIndex(0);
@@ -2089,7 +2089,7 @@ export default function MapScreen() {
           ))}
         </>}
 
-        {/* Nearby stop pins — visible when zoomed in */}
+        {/* Nearby stop pins - visible when zoomed in */}
         {showStopPins && Marker && stopPinCoords.map(stop => (
           <Marker
             key={`stop-pin-${stop.id}`}
@@ -2311,7 +2311,7 @@ export default function MapScreen() {
             </>
           ) : (
             <>
-              {/* Plan mode — From / To inline */}
+              {/* Plan mode - From / To inline */}
               <View style={{ backgroundColor: colours.surface, borderRadius: 20, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
                 {/* From row */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colours.border }}>
@@ -2424,7 +2424,7 @@ export default function MapScreen() {
           )}
         </View>
 
-        {/* Layer toggle chips — hidden when search is focused */}
+        {/* Layer toggle chips - hidden when search is focused */}
         {!planMode && !searchExpanded && (
           <ScrollView
             horizontal
@@ -2465,7 +2465,7 @@ export default function MapScreen() {
           </ScrollView>
         )}
 
-        {/* Category pills — slide in when search is focused */}
+        {/* Category pills - slide in when search is focused */}
         <Animated.View style={{ maxHeight: filterExpandAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 70] }), opacity: filterExpandAnim, overflow: 'hidden' }}>
         {!planMode && <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} contentContainerStyle={{ gap: 6, paddingRight: 8 }}>
           {([
@@ -2498,7 +2498,7 @@ export default function MapScreen() {
       </View>
 
 
-      {/* Search this area — floats on map */}
+      {/* Search this area - floats on map */}
       {showSearchHere && !searchExpanded && !planMode && (
         <TouchableOpacity
           onPress={() => {
@@ -2686,14 +2686,14 @@ export default function MapScreen() {
                         } else {
                           const data = await r.json();
                           if (data.status === 'rejected') {
-                            setContribError(t('This deal was not approved — please check the content and try again', 'Cette offre n\'a pas ete approuvee — verifiez le contenu et reessayez'));
+                            setContribError(t('This deal was not approved - please check the content and try again', 'Cette offre n\'a pas ete approuvee - verifiez le contenu et reessayez'));
                           } else {
                             setContribSent(true);
                           }
                         }
                       } catch (e) {
                         if (__DEV__) console.warn('contribute submit failed:', e);
-                        setContribError(t('Deal submission failed — check your connection', 'Echec de la soumission — verifiez votre connexion'));
+                        setContribError(t('Deal submission failed - check your connection', 'Echec de la soumission - verifiez votre connexion'));
                       }
                       setContribSending(false);
                     }}
@@ -3243,7 +3243,7 @@ export default function MapScreen() {
       )}
 
 
-      {/* Nearby transit bottom sheet — stops + arrivals only */}
+      {/* Nearby transit bottom sheet - stops + arrivals only */}
       <NearbyTransitSheet
         ref={nearbySheetRef}
         colours={colours}
@@ -3331,7 +3331,7 @@ export default function MapScreen() {
               </View>
             )}
 
-            {/* Venue alert — event ending near destination */}
+            {/* Venue alert - event ending near destination */}
             {planNearbyVenue && (
               <View style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: '#F9731615', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: '#F9731640' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -3438,7 +3438,7 @@ export default function MapScreen() {
                         <View key={wi} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6, backgroundColor: '#F59E0B18', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
                           <Ionicons name="warning-outline" size={12} color="#D97706" />
                           <Text style={{ fontSize: 11, fontWeight: '600', color: '#D97706' }}>
-                            {t(`Tight transfer — ${w.bufferMins} min buffer on Route ${w.incomingRoute}`, `Correspondance serree — ${w.bufferMins} min sur la route ${w.incomingRoute}`)}
+                            {t(`Tight transfer - ${w.bufferMins} min buffer on Route ${w.incomingRoute}`, `Correspondance serree - ${w.bufferMins} min sur la route ${w.incomingRoute}`)}
                           </Text>
                         </View>
                       ))}
@@ -3508,7 +3508,7 @@ export default function MapScreen() {
         t={t}
       />
 
-      {/* Feature 1 — Route detail sheet */}
+      {/* Feature 1 - Route detail sheet */}
       <RouteSheet
         visible={routeSheetVisible}
         routeId={routeSheetId}
@@ -3520,7 +3520,7 @@ export default function MapScreen() {
         routeAlertMap={routeAlertMap}
       />
 
-      {/* Feature 2 — Stop detail sheet */}
+      {/* Feature 2 - Stop detail sheet */}
       <StopDetailSheet
         visible={stopDetailVisible}
         stopId={stopDetailStopId}

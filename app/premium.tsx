@@ -37,7 +37,7 @@ export default function PremiumScreen() {
             RouteO Premium
           </Text>
           <Text style={{ fontSize: 15, color: colours.muted, textAlign: 'center', lineHeight: 22 }}>
-            The full Ottawa experience — offline maps, AI assistant, commute insights and more.
+            The full Ottawa experience - offline maps, AI assistant, commute insights and more.
           </Text>
         </View>
 
@@ -62,7 +62,7 @@ export default function PremiumScreen() {
       <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colours.bg, borderTopWidth: 1, borderTopColor: colours.border, padding: 20, paddingBottom: insets.bottom + 16, gap: 10 }}>
         <TouchableOpacity onPress={() => Linking.openURL(STRIPE_LINKS.premium_annual)} style={{ backgroundColor: '#e8a020', borderRadius: 14, paddingVertical: 16, alignItems: 'center' }}>
           <Text style={{ fontSize: 16, fontWeight: '800', color: 'white' }}>$19.99 / year</Text>
-          <Text style={{ fontSize: 12, color: 'white', opacity: 0.8, marginTop: 2 }}>Best value — save 44%</Text>
+          <Text style={{ fontSize: 12, color: 'white', opacity: 0.8, marginTop: 2 }}>Best value - save 44%</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => Linking.openURL(STRIPE_LINKS.premium_monthly)} style={{ backgroundColor: colours.surface, borderRadius: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: colours.border }}>
           <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text }}>$2.99 / month</Text>

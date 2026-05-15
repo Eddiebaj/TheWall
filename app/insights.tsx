@@ -120,7 +120,7 @@ export default function InsightsScreen() {
   trips.forEach(tr => { if (tr.routeId) routeCounts[tr.routeId] = (routeCounts[tr.routeId] ?? 0) + 1; });
   const topRouteEntry = Object.entries(routeCounts).sort((a, b) => b[1] - a[1])[0];
 
-  // Time patterns — most common hour of day (with at least 3 trips) and most common day range
+  // Time patterns - most common hour of day (with at least 3 trips) and most common day range
   const hourCounts: Record<number, number> = {};
   const dayCounts: Record<number, number> = {};
   trips.forEach(tr => {
@@ -141,7 +141,7 @@ export default function InsightsScreen() {
     ? `${dayNames[topDays[0]]}\u2013${dayNames[topDays[topDays.length - 1]]}`
     : topDays.length === 1 ? dayNames[topDays[0]] : null;
 
-  // Hidden gem — a neighbourhood near a frequent destination that the user has never visited
+  // Hidden gem - a neighbourhood near a frequent destination that the user has never visited
   const visitedNeighbourhoods = new Set(Object.keys(neighbourhoodCounts));
   const frequentDestCoords = trips.length > 0
     ? { lat: trips[0].toLat, lng: trips[0].toLng }
@@ -402,7 +402,7 @@ export default function InsightsScreen() {
             </View>
 
             {!memoryUnlocked ? (
-              /* Empty state — fewer than 5 trips */
+              /* Empty state - fewer than 5 trips */
               <Card>
                 <View style={{ padding: 20, alignItems: 'center', gap: 10 }}>
                   <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>

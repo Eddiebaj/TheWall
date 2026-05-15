@@ -213,7 +213,7 @@ function DiscoverScreenInner() {
         body: JSON.stringify({ email }),
       });
       setListBizDone(true);
-      // Open Stripe payment link — business completes checkout, webhook activates account
+      // Open Stripe payment link - business completes checkout, webhook activates account
       if (STRIPE_PAYMENT_LINK) {
         Linking.openURL(STRIPE_PAYMENT_LINK).catch(() => {});
       } else if (__DEV__) {
@@ -492,7 +492,7 @@ function DiscoverScreenInner() {
             </View>
           ) : dealsError ? (
             <Text style={{ fontSize: fonts.sm, color: colours.muted, paddingVertical: 12 }}>
-              {t('Could not load deals — check your connection', 'Impossible de charger les offres — verifiez votre connexion')}
+              {t('Could not load deals - check your connection', 'Impossible de charger les offres - verifiez votre connexion')}
             </Text>
           ) : communityDeals.length === 0 ? (
             <Text style={{ fontSize: fonts.sm, color: colours.muted, paddingVertical: 12 }}>
@@ -587,7 +587,7 @@ function DiscoverScreenInner() {
           >
             <Ionicons name="storefront-outline" size={16} color={colours.muted} />
             <Text style={{ flex: 1, fontSize: 12, color: colours.muted }}>
-              {t('List your business — reach Ottawa riders', 'Inscrivez votre commerce — rejoignez les usagers')}
+              {t('List your business - reach Ottawa riders', 'Inscrivez votre commerce - rejoignez les usagers')}
             </Text>
             <Ionicons name="chevron-forward" size={14} color={colours.muted} />
           </TouchableOpacity>
@@ -638,7 +638,7 @@ function DiscoverScreenInner() {
             </View>
           ) : eventsError ? (
             <Text style={{ fontSize: fonts.sm, color: colours.muted, paddingVertical: 12 }}>
-              {t('Could not load events — check your connection', 'Impossible de charger les evenements — verifiez votre connexion')}
+              {t('Could not load events - check your connection', 'Impossible de charger les evenements - verifiez votre connexion')}
             </Text>
           ) : weekendEvents.length === 0 ? (
             <View style={{ alignItems: 'center', paddingVertical: 12 }}>
@@ -813,8 +813,8 @@ function DiscoverScreenInner() {
                   </Text>
                   <Text style={{ fontSize: fonts.sm, color: colours.muted, marginBottom: 20 }}>
                     {t(
-                      'Reach Ottawa transit riders with a featured deal. $9.99/month — cancel anytime.',
-                      'Rejoignez les usagers du transport en commun d\'Ottawa avec une offre vedette. 9,99\u00a0$/mois — annulez en tout temps.',
+                      'Reach Ottawa transit riders with a featured deal. $9.99/month - cancel anytime.',
+                      'Rejoignez les usagers du transport en commun d\'Ottawa avec une offre vedette. 9,99\u00a0$/mois - annulez en tout temps.',
                     )}
                   </Text>
 
