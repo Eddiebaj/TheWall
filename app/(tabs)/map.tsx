@@ -2270,26 +2270,7 @@ export default function MapScreen() {
                 ) : null}
               </View>
               {lastUpdated ? <Text style={{ fontSize: 9, color: colours.muted, textAlign: 'right', marginTop: 3 }}>{t('Updated', 'Mis \u00e0 jour')} {lastUpdated}</Text> : null}
-              {/* Suggestion chips */}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }} contentContainerStyle={{ gap: 6 }}>
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={handleJustGo}
-                  disabled={justGoLoading}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#00C07A' }}>
-                  {justGoLoading
-                    ? <ActivityIndicator size="small" color="#fff" />
-                    : <Ionicons name="flash" size={13} color="#fff" />}
-                  <Text style={{ fontSize: 12, color: '#fff', fontWeight: '700' }}>{t('Just Go', 'Partir maintenant')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={() => router.push({ pathname: '/(tabs)/planner', params: { triggerIsochrone: '1' } } as any)}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.surface }}>
-                  <Ionicons name="radio-button-on-outline" size={13} color='#00C07A' />
-                  <Text style={{ fontSize: 12, color: colours.text, fontWeight: '600' }}>{t('Reachable', 'Accessible')}</Text>
-                </TouchableOpacity>
-              </ScrollView>
+              {null}
               {placeSuggestions.length > 0 && (
                 <View style={{ backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginTop: 4, overflow: 'hidden' }}>
                   {placeSuggestions.map((s, i) => (
