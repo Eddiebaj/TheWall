@@ -141,9 +141,18 @@ export default function NearYouNowSection({
   return (
     <View style={{ marginBottom: 16 }}>
       {/* Section header */}
-      <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text, paddingHorizontal: 20, marginBottom: 12, letterSpacing: 0.5 }}>
-        {t('Near You Now', 'Près de vous maintenant')}
-      </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 12 }}>
+        <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text, letterSpacing: 0.5 }}>
+          {t('Near You Now', 'Près de vous maintenant')}
+        </Text>
+        <TouchableOpacity
+          onPress={() => setInternalFilter('all')}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, backgroundColor: colours.accent + '18' }}
+        >
+          <Ionicons name="locate-outline" size={13} color={colours.accent} />
+          <Text style={{ fontSize: 11, fontWeight: '700', color: colours.accent }}>Nearest</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Category chips */}
       <ScrollView

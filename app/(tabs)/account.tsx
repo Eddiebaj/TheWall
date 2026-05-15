@@ -155,10 +155,10 @@ function MyWallSection() {
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>MY WALL</Text>
       </View>
-      <View style={{ borderRadius: 16, borderWidth: 1, borderColor: colours.border, borderStyle: 'dashed', padding: 32, alignItems: 'center' }}>
-        <Text style={{ fontSize: 24, marginBottom: 8 }}>🎭</Text>
-        <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text, marginBottom: 4 }}>Your wall starts here</Text>
-        <Text style={{ fontSize: 13, color: colours.muted, textAlign: 'center' }}>RSVP to events on The Wall to start collecting posters</Text>
+      <View style={{ borderRadius: 16, borderWidth: 1, borderColor: colours.border, borderStyle: 'dashed', padding: 20, alignItems: 'center' }}>
+        <Text style={{ fontSize: 20, marginBottom: 6 }}>🎭</Text>
+        <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text, marginBottom: 2 }}>Your wall starts here</Text>
+        <Text style={{ fontSize: 12, color: colours.muted, textAlign: 'center' }}>RSVP to events on The Wall to start collecting</Text>
       </View>
     </View>
   );

@@ -14,7 +14,7 @@ const MapView = RNMaps?.default ?? null;
 const Marker = (RNMaps as any)?.Marker ?? null;
 const Polyline = (RNMaps as any)?.Polyline ?? null;
 const Circle = (RNMaps as any)?.Circle ?? null;
-const PROVIDER_GOOGLE = (RNMaps as any)?.PROVIDER_GOOGLE ?? null;
+const PROVIDER_GOOGLE = __DEV__ ? undefined : 'google' as any;
 type Region = import('react-native-maps').Region;
 let RNSvg: any = null;
 try { RNSvg = require('react-native-svg'); } catch {}
@@ -1955,7 +1955,7 @@ export default function MapScreen() {
         initialRegion={OTTAWA_REGION}
         userInterfaceStyle={isLight ? 'light' : 'dark'}
         provider={PROVIDER_GOOGLE}
-        mapType="standard"
+        mapType={__DEV__ ? 'mutedStandard' : 'standard'}
         showsUserLocation
         showsCompass={false}
         onMapReady={() => setMapReady(true)}
