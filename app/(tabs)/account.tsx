@@ -350,11 +350,8 @@ export default function AccountScreen() {
   };
 
   const notifToggles = [
-    { key: 'tripAlerts', label: t('Trip alerts', 'Alertes de trajet'), icon: 'bus' },
-    { key: 'serviceDisruptions', label: t('Service disruptions', 'Perturbations de service'), icon: 'warning' },
     { key: 'cityReminders', label: t('City reminders', 'Rappels ville'), icon: 'home' },
     { key: 'events', label: t('Events', '\u00c9v\u00e9nements'), icon: 'calendar' },
-    { key: 'commuteDeals', label: t('On my way home deals', 'Offres sur mon chemin'), icon: 'navigate' },
   ];
 
   const handleAvatarPress = async () => {
@@ -568,88 +565,6 @@ export default function AccountScreen() {
           ))}
         </Card>
 
-        {/* ── MORNING COMMUTE ── */}
-        <Card>
-          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 }}>
-            <Ionicons name="sunny-outline" size={18} color={commuteAlert.enabled ? colours.accent : colours.muted} />
-            <Text style={{ fontSize: fonts.md, color: commuteAlert.enabled ? colours.text : colours.muted, flex: 1 }}>
-              {t('Morning commute alert', 'Alerte trajet du matin')}
-            </Text>
-            <Switch
-              value={commuteAlert.enabled}
-              onValueChange={async (v) => {
-                if (v) {
-                  const granted = await requestPermissionIfNeeded();
-                  if (!granted) return;
-                }
-                hapticLight();
-                const updated = { ...commuteAlert, enabled: v };
-                setCommuteAlert(updated);
-                saveCommuteAlertSettings(updated, language);
-              }}
-              trackColor={{ false: colours.border, true: colours.accent }}
-              thumbColor="white"
-              ios_backgroundColor={colours.border}
-              accessibilityLabel={t('Morning commute alert', 'Alerte trajet du matin')}
-            />
-          </View>
-          {commuteAlert.enabled && (
-            <>
-              <Divider colours={colours} />
-              <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
-                <Text style={{ fontSize: fonts.sm, color: colours.muted, marginBottom: 8 }}>
-                  {t('Daily notification time', 'Heure de notification quotidienne')}
-                </Text>
-                {Platform.OS === 'ios' ? (
-                  <DateTimePicker
-                    value={(() => { const d = new Date(); d.setHours(commuteAlert.hour, commuteAlert.minute, 0, 0); return d; })()}
-                    mode="time"
-                    display="compact"
-                    minuteInterval={5}
-                    onChange={(_, date) => {
-                      if (!date) return;
-                      const updated = { ...commuteAlert, hour: date.getHours(), minute: date.getMinutes() };
-                      setCommuteAlert(updated);
-                      saveCommuteAlertSettings(updated, language);
-                    }}
-                    style={{ alignSelf: 'flex-start' }}
-                  />
-                ) : (
-                  <>
-                    <TouchableOpacity
-                      activeOpacity={0.7}
-                      onPress={() => setCommuteTimePickerVisible(true)}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' }}>
-                      <Ionicons name="time-outline" size={16} color={colours.accent} />
-                      <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.text }}>
-                        {`${commuteAlert.hour.toString().padStart(2, '0')}:${commuteAlert.minute.toString().padStart(2, '0')}`}
-                      </Text>
-                    </TouchableOpacity>
-                    {commuteTimePickerVisible && (
-                      <DateTimePicker
-                        value={(() => { const d = new Date(); d.setHours(commuteAlert.hour, commuteAlert.minute, 0, 0); return d; })()}
-                        mode="time"
-                        display="spinner"
-                        minuteInterval={5}
-                        onChange={(_, date) => {
-                          setCommuteTimePickerVisible(false);
-                          if (!date) return;
-                          const updated = { ...commuteAlert, hour: date.getHours(), minute: date.getMinutes() };
-                          setCommuteAlert(updated);
-                          saveCommuteAlertSettings(updated, language);
-                        }}
-                      />
-                    )}
-                  </>
-                )}
-                <Text style={{ fontSize: fonts.sm - 1, color: colours.muted, marginTop: 6 }}>
-                  {t('Get a daily reminder to check live arrivals for your frequent routes before heading out.',
-                     'Recevez un rappel quotidien pour consulter les arrivees en direct de vos trajets frequents.')}
-                </Text>
-              </View>
-            </>
-          )}
-        </Card>
 
         {/* ── LAST-MINUTE DEALS ── */}
         <Card>
@@ -904,34 +819,6 @@ export default function AccountScreen() {
           </TouchableOpacity>
         </Card>
 
-        {/* ── TOOLS ── */}
-        <SectionHeader label={t('Tools', 'Outils')} icon="build-outline" colours={colours} fonts={fonts} />
-        <Card>
-          <SettingsRow
-            label={t('Class Schedule', 'Horaire de cours')}
-            icon="school"
-            onPress={() => setClassModalVisible(true)}
-            colours={colours}
-            fonts={fonts}
-          />
-          <Divider colours={colours} />
-          <SettingsRow
-            label={t('Commute Insights', 'Statistiques de trajet')}
-            icon="analytics"
-            onPress={() => router.push('/insights' as any)}
-            colours={colours}
-            fonts={fonts}
-          />
-          <Divider colours={colours} />
-          <SettingsRow
-            label={t('Service Alerts', 'Alertes de service')}
-            icon="megaphone"
-            onPress={() => router.push('/(tabs)/alerts' as any)}
-            colours={colours}
-            fonts={fonts}
-          />
-        </Card>
-
         <SectionHeader label={t('Business', 'Entreprise')} icon="storefront-outline" colours={colours} fonts={fonts} />
         <Card>
           <SettingsRow
@@ -1000,10 +887,7 @@ export default function AccountScreen() {
         {/* Footer */}
         <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40, alignItems: 'center' }}>
           <Text style={{ fontSize: fonts.sm, color: colours.muted }}>
-            RouteO v{require('../../app.json').expo.version}
-          </Text>
-          <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
-            {t('Live data from OC Transpo and STO', 'Donnees en direct d\'OC Transpo et STO')}
+            TheWall v1.0.0
           </Text>
         </View>
 
@@ -1017,7 +901,7 @@ export default function AccountScreen() {
               <Text style={{ fontSize: 16, fontWeight: '800', color: colours.text }}>Upgrade to Premium</Text>
             </View>
             <View style={{ gap: 6, marginBottom: 16 }}>
-              {['Offline maps', 'AI trip assistant', 'Commute insights', 'Custom themes', 'Early access deals'].map((f, i) => (
+              {['Venue boosts', 'Early event access', "See who's going", 'Group chat per event'].map((f, i) => (
                 <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Ionicons name="checkmark-circle" size={14} color="#e8a020" />
                   <Text style={{ fontSize: 13, color: colours.muted }}>{f}</Text>
