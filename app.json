@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "RouteO",
-    "slug": "RouteO",
+    "name": "TheWall",
+    "slug": "thewall",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "buildNumber": "2",
-      "bundleIdentifier": "com.eddie.routeo",
+      "bundleIdentifier": "com.eddiebaj.thewall",
       "appleTeamId": "9556L24Y4A",
       "entitlements": {
         "com.apple.security.application-groups": [
