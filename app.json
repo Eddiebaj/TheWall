@@ -23,7 +23,9 @@
         },
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "RouteO lets you attach a photo when submitting a community deal.",
-        "NSCameraUsageDescription": "RouteO lets you take a photo when submitting a community deal."
+        "NSCameraUsageDescription": "RouteO lets you take a photo when submitting a community deal.",
+        "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to use speech recognition.",
+        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to use the microphone."
       }
     },
     "android": {
@@ -31,7 +33,9 @@
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.RECORD_AUDIO"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -105,8 +109,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "b9dfd92e-5a92-49d3-a1aa-20220009ebd5"
+        "projectId": "6f6fee47-92db-42a8-80b4-370ebcce34b9"
       }
-    }
+    },
+    "owner": "eddiebaj"
   }
 }

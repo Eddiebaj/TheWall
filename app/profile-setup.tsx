@@ -9,9 +9,9 @@ import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
 
 const CAMPUSES = [
-  { id: 'carleton', label: 'Carleton University' },
-  { id: 'uottawa', label: 'University of Ottawa' },
-  { id: 'algonquin', label: 'Algonquin College' },
+  { id: 'uoft', label: 'University of Toronto' },
+  { id: 'tmu', label: 'Ryerson (TMU)' },
+  { id: 'yorku', label: 'York University' },
   { id: 'other', label: 'Other / Not a student' },
 ];
 
@@ -62,7 +62,7 @@ export default function ProfileSetupScreen() {
           Set up your profile
         </Text>
         <Text style={{ fontSize: 15, color: colours.muted, marginBottom: 40, lineHeight: 22 }}>
-          This is how your friends will find you on RouteO.
+          This is how your friends will find you on The Wall.
         </Text>
 
         {/* Username */}
