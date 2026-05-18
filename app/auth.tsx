@@ -132,14 +132,14 @@ export default function AuthScreen() {
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
         {/* Logo */}
         <Text style={{ fontSize: 40, fontWeight: '800', color: colours.text, letterSpacing: -1, marginBottom: 8 }}>
-          Route<Text style={{ color: colours.accent }}>O</Text>
+          The <Text style={{ color: colours.accent }}>Wall</Text>
         </Text>
         <Text style={{ fontSize: 14, color: colours.muted, letterSpacing: 2, marginBottom: 48 }}>
-          OTTAWA & GATINEAU TRANSIT
+          Toronto's social event wall
         </Text>
 
         <Text style={{ fontSize: 22, fontWeight: '800', color: colours.text, marginBottom: 8, textAlign: 'center' }}>
-          Join your friends on RouteO
+          Join your friends on The Wall
         </Text>
         <Text style={{ fontSize: 15, color: colours.muted, textAlign: 'center', marginBottom: 32, lineHeight: 22 }}>
           Enter your email and we'll send you a magic link to sign in.
