@@ -142,7 +142,7 @@ export default function AuthScreen() {
           Join your friends on The Wall
         </Text>
         <Text style={{ fontSize: 15, color: colours.muted, textAlign: 'center', marginBottom: 32, lineHeight: 22 }}>
-          Enter your email and we'll send you a magic link to sign in.
+          Enter your email and we'll send you a 6-digit code to sign in.
         </Text>
 
         <TextInput
@@ -185,7 +185,7 @@ export default function AuthScreen() {
             <ActivityIndicator color="white" />
           ) : (
             <Text style={{ fontSize: 16, fontWeight: '700', color: 'white' }}>
-              Send Magic Link
+              Send Code
             </Text>
           )}
         </TouchableOpacity>
