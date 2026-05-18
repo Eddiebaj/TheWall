@@ -1,14 +1,12 @@
 import { Tabs } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MapPin, BookmarkSimple, User } from 'phosphor-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../context/AppContext';
 
 function TabLayout() {
-  const { colours, language } = useApp();
+  const { colours } = useApp();
   const insets = useSafeAreaInsets();
-  const fr = language === 'fr';
 
   return (
     <Tabs
@@ -33,20 +31,11 @@ function TabLayout() {
       }}
     >
       <Tabs.Screen
-        name="map"
-        options={{
-          tabBarLabel: fr ? 'Carte' : 'Live Map',
-          tabBarIcon: ({ focused, color }) => (
-            <MapPin size={22} color={color} weight={focused ? 'fill' : 'regular'} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="index"
         options={{
-          tabBarLabel: fr ? 'Mon tableau' : 'My Board',
+          tabBarLabel: 'Wall',
           tabBarIcon: ({ focused, color }) => (
-            <BookmarkSimple size={22} color={color} weight={focused ? 'fill' : 'regular'} />
+            <Ionicons name={focused ? 'layers' : 'layers-outline'} size={22} color={color} />
           ),
         }}
       />
@@ -60,14 +49,16 @@ function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="account"
+        name="profile"
         options={{
-          tabBarLabel: fr ? 'Compte' : 'Account',
+          tabBarLabel: 'Profile',
           tabBarIcon: ({ focused, color }) => (
-            <User size={22} color={color} weight={focused ? 'fill' : 'regular'} />
+            <Ionicons name={focused ? 'person' : 'person-outline'} size={22} color={color} />
           ),
         }}
       />
+      <Tabs.Screen name="account" options={{ href: null }} />
+      <Tabs.Screen name="map" options={{ href: null }} />
       <Tabs.Screen name="planner" options={{ href: null }} />
       <Tabs.Screen name="saved" options={{ href: null }} />
       <Tabs.Screen name="discover" options={{ href: null }} />
