@@ -177,7 +177,7 @@ export default function FriendsScreen() {
 
   const handleShareInvite = async () => {
     await Share.share({
-      message: `Hey! I'm using RouteO to coordinate nights out in Ottawa. Add me @${profile?.username} and we can plan where to go together 🚌\n\nDownload: https://routeo.app/invite/${profile?.username}`,
+      message: `Hey! I'm using The Wall to coordinate nights out. Add me @${profile?.username} and we can plan where to go together 🎉\n\nDownload: https://routeo.app/invite/${profile?.username}`,
       url: `https://routeo.app/invite/${profile?.username}`,
     });
   };
@@ -506,7 +506,7 @@ export default function FriendsScreen() {
             Invite your friends
           </Text>
           <Text style={{ fontSize: 13, color: colours.muted, marginBottom: 16, lineHeight: 18 }}>
-            RouteO is better with friends. Share your invite link and coordinate nights out together.
+            The Wall is better with friends. Share your invite link and coordinate nights out together.
           </Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <TouchableOpacity
