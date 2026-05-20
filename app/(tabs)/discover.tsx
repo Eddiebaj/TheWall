@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Dimensions,
   FlatList,
   Image,
@@ -11,41 +12,85 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { supabase } from '../../lib/supabase';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_MARGIN = 8;
 const CARD_WIDTH = (SCREEN_WIDTH - CARD_MARGIN * 3) / 2;
 const CARD_HEIGHT = CARD_WIDTH * 1.35;
 
-const POSTER_URL = 'https://theprescott.com/wp-content/uploads/2026/04/PSC_Karaoke_2026_IG-SQUARE.jpg';
-
-const TORONTO_VENUES = [
-  { id: '1', venue: 'Bar Hop', neighbourhood: 'King West', event: 'Friday Night Craft Beer', date: 'Fri May 23', time: '5PM - 2AM', cover: 'No cover' },
-  { id: '2', venue: 'The Drake Hotel', neighbourhood: 'Queen West', event: 'Saturday Live Music', date: 'Sat May 24', time: '9PM - 2AM', cover: '$10' },
-  { id: '3', venue: 'Horseshoe Tavern', neighbourhood: 'Queen West', event: 'Indie Night', date: 'Fri May 23', time: '10PM - 3AM', cover: '$15' },
-  { id: '4', venue: "Lee's Palace", neighbourhood: 'Bloor', event: 'Live Concert', date: 'Sat May 24', time: '8PM - 1AM', cover: '$20' },
-  { id: '5', venue: 'The Garrison', neighbourhood: 'Dundas West', event: 'DJ Night', date: 'Fri May 23', time: '10PM - 3AM', cover: '$10' },
-  { id: '6', venue: 'Wrongbar', neighbourhood: 'Queen West', event: 'Electronic Night', date: 'Sat May 24', time: '11PM - 4AM', cover: '$15' },
-  { id: '7', venue: 'Adelaide Hall', neighbourhood: 'King West', event: 'Hip Hop Night', date: 'Fri May 23', time: '10PM - 3AM', cover: '$20' },
-  { id: '8', venue: 'The Great Hall', neighbourhood: 'Queen West', event: 'Karaoke Night', date: 'Thu May 22', time: '8PM - 1AM', cover: 'No cover' },
-  { id: '9', venue: 'Coda', neighbourhood: 'College', event: 'Techno Night', date: 'Sat May 24', time: '11PM - 6AM', cover: '$25' },
-  { id: '10', venue: '99 Sudbury', neighbourhood: 'West Queen West', event: 'Art + Music Night', date: 'Fri May 23', time: '9PM - 2AM', cover: '$10' },
-  { id: '11', venue: 'Rec Room', neighbourhood: 'Entertainment District', event: 'Games Night', date: 'Sat May 24', time: '5PM - 1AM', cover: 'No cover' },
-  { id: '12', venue: 'Baro', neighbourhood: 'King West', event: 'Latin Night', date: 'Fri May 23', time: '10PM - 3AM', cover: '$20' },
-];
-
-const TONIGHT_DATES = ['Fri May 23', 'Thu May 22'];
-
 const SORT_OPTIONS = ['Tonight', 'This Week', 'Near Me'] as const;
 type SortOption = typeof SORT_OPTIONS[number];
 
+interface DiscoverEvent {
+  id: string;
+  poster_url: string | null;
+  title: string;
+  venue_name: string;
+  neighbourhood: string | null;
+  cover_charge: string | null;
+  event_date: string | null;
+  start_time: string | null;
+}
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return '';
+  return new Date(dateStr).toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function isTonight(dateStr: string | null): boolean {
+  if (!dateStr) return false;
+  const today = new Date();
+  const d = new Date(dateStr);
+  return d.getFullYear() === today.getFullYear() &&
+    d.getMonth() === today.getMonth() &&
+    d.getDate() === today.getDate();
+}
+
+function isThisWeek(dateStr: string | null): boolean {
+  if (!dateStr) return false;
+  const today = new Date();
+  const d = new Date(dateStr);
+  const diffMs = d.getTime() - today.setHours(0, 0, 0, 0);
+  return diffMs >= 0 && diffMs <= 7 * 24 * 60 * 60 * 1000;
+}
+
 export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [sort, setSort] = useState<SortOption>('Tonight');
+  const [events, setEvents] = useState<DiscoverEvent[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = sort === 'Tonight'
-    ? TORONTO_VENUES.filter((v) => TONIGHT_DATES.includes(v.date))
-    : TORONTO_VENUES;
+  useEffect(() => {
+    loadEvents();
+  }, []);
+
+  const loadEvents = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('events')
+      .select('id, title, poster_url, event_date, start_time, cover_charge, venues(name, neighbourhood)')
+      .order('event_date', { ascending: true })
+      .limit(50);
+
+    if (!error && data) {
+      setEvents(data.map((e: any) => ({
+        id: e.id,
+        poster_url: e.poster_url || null,
+        title: e.title,
+        venue_name: e.venues?.name || '',
+        neighbourhood: e.venues?.neighbourhood || null,
+        cover_charge: e.cover_charge || null,
+        event_date: e.event_date || null,
+        start_time: e.start_time || null,
+      })));
+    }
+    setLoading(false);
+  };
+
+  const filtered = events;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -70,36 +115,62 @@ export default function DiscoverScreen() {
         </View>
       </View>
 
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        contentContainerStyle={styles.grid}
-        columnWrapperStyle={styles.row}
-        renderItem={({ item }) => (
-          <TouchableOpacity style={styles.card} activeOpacity={0.85}>
-            <Image source={{ uri: POSTER_URL }} style={styles.cardImage} resizeMode="cover" />
-            <LinearGradient
-              colors={['transparent', 'rgba(0,0,0,0.85)']}
-              style={styles.cardGradient}
+      {loading ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator color="#FF3B5C" />
+        </View>
+      ) : filtered.length === 0 ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 15, fontWeight: '600' }}>
+            No events {sort === 'Tonight' ? 'tonight' : 'this week'}
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => item.id}
+          numColumns={2}
+          contentContainerStyle={styles.grid}
+          columnWrapperStyle={styles.row}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.card}
+              activeOpacity={0.85}
+              onPress={() => router.push(`/event/${item.id}` as any)}
             >
-              <View style={styles.cardTopRow}>
-                <View style={styles.pill}>
-                  <Text style={styles.pillText}>{item.neighbourhood}</Text>
+              {item.poster_url ? (
+                <Image source={{ uri: item.poster_url }} style={styles.cardImage} resizeMode="cover" />
+              ) : (
+                <View style={[styles.cardImage, { backgroundColor: '#2a2a2a' }]} />
+              )}
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.85)']}
+                style={styles.cardGradient}
+              >
+                <View style={styles.cardTopRow}>
+                  {item.neighbourhood && (
+                    <View style={styles.pill}>
+                      <Text style={styles.pillText}>{item.neighbourhood}</Text>
+                    </View>
+                  )}
+                  {item.cover_charge && (
+                    <View style={styles.pill}>
+                      <Text style={styles.pillText}>{item.cover_charge}</Text>
+                    </View>
+                  )}
                 </View>
-                <View style={styles.pill}>
-                  <Text style={styles.pillText}>{item.cover}</Text>
+                <View style={styles.cardBottom}>
+                  <Text style={styles.cardVenue} numberOfLines={1}>{item.venue_name}</Text>
+                  <Text style={styles.cardEvent} numberOfLines={1}>{item.title}</Text>
+                  <Text style={styles.cardDatetime}>
+                    {[formatDate(item.event_date), item.start_time].filter(Boolean).join(' · ')}
+                  </Text>
                 </View>
-              </View>
-              <View style={styles.cardBottom}>
-                <Text style={styles.cardVenue} numberOfLines={1}>{item.venue}</Text>
-                <Text style={styles.cardEvent} numberOfLines={1}>{item.event}</Text>
-                <Text style={styles.cardDatetime}>{item.date} · {item.time}</Text>
-              </View>
-            </LinearGradient>
-          </TouchableOpacity>
-        )}
-      />
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+        />
+      )}
     </View>
   );
 }
