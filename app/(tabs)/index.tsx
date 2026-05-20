@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import {
   Dimensions,
   FlatList,
@@ -109,13 +110,21 @@ function TabToggle({
 export default function FeedScreen() {
   const [activeTab, setActiveTab] = useState<'foryou' | 'following'>('foryou');
   const [posts, setPosts] = useState<Post[]>([]);
+  const [followingPosts, setFollowingPosts] = useState<Post[]>([]);
+  const [hasFriends, setHasFriends] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [followingActiveIndex, setFollowingActiveIndex] = useState(0);
   const [showUpload, setShowUpload] = useState(false);
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
 
   useEffect(() => {
     loadPosts();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'following') loadFollowingPosts();
+  }, [activeTab, user]);
 
   const loadPosts = async () => {
     const { data, error } = await supabase
@@ -127,11 +136,42 @@ export default function FeedScreen() {
     if (!error && data) setPosts(data as Post[]);
   };
 
+  const loadFollowingPosts = async () => {
+    if (!user) { setHasFriends(false); setFollowingPosts([]); return; }
+
+    const { data: friendships } = await supabase
+      .from('friendships')
+      .select('requester_id, addressee_id')
+      .eq('status', 'accepted')
+      .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
+
+    if (!friendships || friendships.length === 0) {
+      setHasFriends(false);
+      setFollowingPosts([]);
+      return;
+    }
+
+    setHasFriends(true);
+    const friendIds = friendships.map(f =>
+      f.requester_id === user.id ? f.addressee_id : f.requester_id
+    );
+
+    const { data, error } = await supabase
+      .from('posts')
+      .select('id, video_url, caption, duration, created_at, user_id, event_id, profiles(username), events(title)')
+      .in('user_id', friendIds)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (!error && data) setFollowingPosts(data as Post[]);
+  };
+
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 });
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
-    if (viewableItems.length > 0) {
-      setActiveIndex(viewableItems[0].index ?? 0);
-    }
+    if (viewableItems.length > 0) setActiveIndex(viewableItems[0].index ?? 0);
+  });
+  const onFollowingViewableItemsChanged = useRef(({ viewableItems }: any) => {
+    if (viewableItems.length > 0) setFollowingActiveIndex(viewableItems[0].index ?? 0);
   });
 
   const handleUploadSuccess = useCallback(() => {
@@ -139,39 +179,50 @@ export default function FeedScreen() {
     loadPosts();
   }, []);
 
+  const renderFeed = (data: Post[], activeIdx: number, onViewable: React.MutableRefObject<any>, emptyIcon: string, emptyText: string, emptyHint: string) => {
+    if (data.length === 0) {
+      return (
+        <View style={styles.emptyState}>
+          <Ionicons name={emptyIcon as any} size={48} color="rgba(255,255,255,0.3)" />
+          <Text style={styles.emptyText}>{emptyText}</Text>
+          <Text style={styles.emptyHint}>{emptyHint}</Text>
+        </View>
+      );
+    }
+    return (
+      <FlatList
+        data={data}
+        keyExtractor={item => item.id}
+        renderItem={({ item, index }) => (
+          <VideoCard item={item} isActive={index === activeIdx} />
+        )}
+        pagingEnabled
+        showsVerticalScrollIndicator={false}
+        snapToInterval={SCREEN_HEIGHT}
+        snapToAlignment="start"
+        decelerationRate="fast"
+        viewabilityConfig={viewabilityConfig.current}
+        onViewableItemsChanged={onViewable.current}
+      />
+    );
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
-      {activeTab === 'foryou' ? (
-        posts.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="videocam-outline" size={48} color="rgba(255,255,255,0.3)" />
-            <Text style={styles.emptyText}>No moments yet</Text>
-            <Text style={styles.emptyHint}>Be the first to share a moment</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={posts}
-            keyExtractor={item => item.id}
-            renderItem={({ item, index }) => (
-              <VideoCard item={item} isActive={index === activeIndex} />
-            )}
-            pagingEnabled
-            showsVerticalScrollIndicator={false}
-            snapToInterval={SCREEN_HEIGHT}
-            snapToAlignment="start"
-            decelerationRate="fast"
-            viewabilityConfig={viewabilityConfig.current}
-            onViewableItemsChanged={onViewableItemsChanged.current}
-          />
-        )
-      ) : (
-        <View style={styles.followingPlaceholder}>
-          <Text style={styles.followingIcon}>👥</Text>
-          <Text style={styles.followingText}>Follow friends to see their activity</Text>
-        </View>
-      )}
+      {activeTab === 'foryou'
+        ? renderFeed(posts, activeIndex, onViewableItemsChanged, 'videocam-outline', 'No moments yet', 'Be the first to share a moment')
+        : !hasFriends
+          ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="people-outline" size={48} color="rgba(255,255,255,0.3)" />
+              <Text style={styles.emptyText}>Add friends to see their Moments</Text>
+              <Text style={styles.emptyHint}>Find friends in the Friends tab</Text>
+            </View>
+          )
+          : renderFeed(followingPosts, followingActiveIndex, onFollowingViewableItemsChanged, 'videocam-outline', "Your friends haven't posted any Moments yet", 'Check back soon')
+      }
 
       <TabToggle active={activeTab} onSelect={setActiveTab} insetTop={insets.top} />
 
@@ -249,18 +300,6 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: '#fff',
     borderRadius: 2,
-  },
-  followingPlaceholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  followingIcon: { fontSize: 40 },
-  followingText: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 15,
-    fontWeight: '600',
   },
   emptyState: {
     flex: 1,
