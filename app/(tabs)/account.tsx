@@ -268,6 +268,24 @@ export default function AccountScreen() {
   const [accessibleRoutingEnabled, setAccessibleRoutingEnabled] = useState(false);
 
   const [wallCount, setWallCount] = useState(0);
+  const [profileStats, setProfileStats] = useState<{ eventsAttended: number; totalPosts: number; memberSince: string | null } | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchStats = async () => {
+      const [rsvpResult, postsResult, profileResult] = await Promise.all([
+        supabase.from('event_rsvps').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('status', 'going'),
+        supabase.from('posts').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+        supabase.from('profiles').select('created_at').eq('id', user.id).single(),
+      ]);
+      setProfileStats({
+        eventsAttended: rsvpResult.count ?? 0,
+        totalPosts: postsResult.count ?? 0,
+        memberSince: profileResult.data?.created_at ?? null,
+      });
+    };
+    fetchStats();
+  }, [user]);
 
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editName, setEditName] = useState('');
@@ -600,6 +618,28 @@ export default function AccountScreen() {
 
         {/* MY WALL */}
         <MyWallSection onCountChange={setWallCount} />
+
+        {/* PROFILE STATS */}
+        {profileStats && (
+          <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Profile Stats</Text>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              {[
+                { value: profileStats.eventsAttended, label: 'Events Attended' },
+                { value: profileStats.totalPosts, label: 'Posts' },
+                { value: profileStats.memberSince ? new Date(profileStats.memberSince).toLocaleDateString('en-CA', { month: 'short', year: 'numeric' }) : '—', label: 'Member Since' },
+              ].map((stat) => (
+                <View
+                  key={stat.label}
+                  style={{ flex: 1, backgroundColor: colours.card, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 10, alignItems: 'center', borderWidth: 1, borderColor: colours.border }}
+                >
+                  <Text style={{ fontSize: 20, fontWeight: '700', color: colours.text, marginBottom: 4 }}>{stat.value}</Text>
+                  <Text style={{ fontSize: 11, color: colours.muted, textAlign: 'center' }}>{stat.label}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
         <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
           <Text

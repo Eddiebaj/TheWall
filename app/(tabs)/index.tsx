@@ -147,7 +147,7 @@ export default function FeedScreen() {
         posts.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="videocam-outline" size={48} color="rgba(255,255,255,0.3)" />
-            <Text style={styles.emptyText}>No posts yet</Text>
+            <Text style={styles.emptyText}>No moments yet</Text>
             <Text style={styles.emptyHint}>Be the first to share a moment</Text>
           </View>
         ) : (

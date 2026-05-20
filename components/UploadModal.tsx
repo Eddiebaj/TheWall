@@ -271,7 +271,7 @@ export default function UploadModal({ visible, onClose, onSuccess }: Props) {
           <TouchableOpacity onPress={onClose} disabled={uploading}>
             <Ionicons name="close" size={24} color="#fff" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>New Post</Text>
+          <Text style={styles.headerTitle}>New Moment</Text>
           <View style={{ width: 24 }} />
         </View>
 
