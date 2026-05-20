@@ -1,14 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Alert, Share, Clipboard, Modal, Image
+  ActivityIndicator, Alert, Share, Modal, Image, RefreshControl
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+
+const DOWN_TONIGHT_KEY = 'down_tonight_date';
 
 export default function FriendsScreen() {
   const { colours, t, language } = useApp();
@@ -22,13 +27,35 @@ export default function FriendsScreen() {
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [conversations, setConversations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
+  const [groupFriendSearch, setGroupFriendSearch] = useState('');
+  const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
+  const [creatingGroup, setCreatingGroup] = useState(false);
   const [downTonight, setDownTonight] = useState(false);
   const [friendsDown, setFriendsDown] = useState<any[]>([]);
+  const [friendsActivity, setFriendsActivity] = useState<any[]>([]);
+
+  // Restore downTonight state; auto-reset if stored date isn't today
+  useEffect(() => {
+    if (!user) return;
+    const today = new Date().toISOString().slice(0, 10);
+    AsyncStorage.getItem(DOWN_TONIGHT_KEY).then(async (stored) => {
+      if (stored === today) {
+        setDownTonight(true);
+      } else if (stored && stored !== today) {
+        // New day — clear stale state
+        setDownTonight(false);
+        await AsyncStorage.removeItem(DOWN_TONIGHT_KEY);
+        await supabase.from('profiles').update({ is_down_tonight: false }).eq('id', user.id);
+        await supabase.from('city_board_down_tonight').delete().eq('user_id', user.id);
+      }
+    });
+  }, [user]);
 
   useEffect(() => {
     if (!user || !friends.length) return;
@@ -39,6 +66,7 @@ export default function FriendsScreen() {
       .in('user_id', friendIds)
       .gt('expires_at', new Date().toISOString())
       .then(({ data }) => setFriendsDown(data || []));
+    loadFriendsActivity(friendIds);
   }, [friends, downTonight]);
 
   useEffect(() => {
@@ -84,11 +112,31 @@ export default function FriendsScreen() {
     if (data) setFriendsPlans(data.filter((d: any) => d.hangouts && d.profiles));
   };
 
+  const loadFriendsActivity = async (friendIds: string[]) => {
+    if (!friendIds.length) return;
+    const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    const { data } = await supabase
+      .from('event_rsvps')
+      .select('event_id, created_at, profiles(id, username, display_name, avatar_url), events(id, title, date, venues(name))')
+      .in('user_id', friendIds)
+      .eq('status', 'going')
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(5);
+    if (data) setFriendsActivity(data.filter((d: any) => d.profiles && d.events));
+  };
+
   const loadFriendsData = async () => {
     setLoading(true);
-    const [friendsData] = await Promise.all([loadFriends(), loadPendingRequests(), loadConversations()]);
+    await Promise.all([loadFriends(), loadPendingRequests(), loadConversations()]);
     await loadFriendsPlans();
     setLoading(false);
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([loadFriends(), loadConversations()]);
+    setRefreshing(false);
   };
 
   const loadFriends = async () => {
@@ -175,33 +223,82 @@ export default function FriendsScreen() {
   };
 
   const handleShareInvite = async () => {
+    const inviteUrl = `https://thewall.app/invite/${user!.id}`;
     await Share.share({
-      message: `Hey! I'm using The Wall to coordinate nights out. Add me @${profile?.username} and we can plan where to go together 🎉\n\nDownload: https://thewall.app/invite/${profile?.username}`,
-      url: `https://thewall.app/invite/${profile?.username}`,
+      message: `Join me on The Wall — discover Toronto's best nights out 🎉 ${inviteUrl}`,
+      url: inviteUrl,
     });
   };
 
   const handleInviteLink = async () => {
-    const link = `https://thewall.app/invite/${profile?.username}`;
-    Clipboard.setString(link);
-    Alert.alert('Link copied!', `Share thewall.app/invite/${profile?.username} with your friends - when they sign up, you'll be connected automatically.`);
+    const inviteUrl = `https://thewall.app/invite/${user!.id}`;
+    await Clipboard.setStringAsync(inviteUrl);
+    Alert.alert('Link copied!', 'Share the link with your friends — when they sign up, you\'ll be connected automatically.');
   };
 
-  const createGroup = () => setShowNewGroup(true);
+  const createGroup = () => {
+    setNewGroupName('');
+    setGroupFriendSearch('');
+    setSelectedFriendIds([]);
+    setShowNewGroup(true);
+  };
+
+  const toggleFriendSelection = (id: string) => {
+    setSelectedFriendIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
 
   const submitNewGroup = async () => {
-    if (!newGroupName.trim()) return;
-    const { data: conv } = await supabase
+    if (!newGroupName.trim()) {
+      Alert.alert('Name required', 'Please enter a group name.');
+      return;
+    }
+    setCreatingGroup(true);
+    const { data: conv, error } = await supabase
       .from('conversations')
       .insert({ name: newGroupName.trim(), created_by: user!.id })
       .select()
       .single();
-    if (conv) {
-      await supabase.from('conversation_members').insert({ conversation_id: conv.id, user_id: user!.id });
-      setNewGroupName('');
-      setShowNewGroup(false);
-      loadConversations();
+
+    if (error || !conv) {
+      setCreatingGroup(false);
+      Alert.alert('Error', error?.message ?? 'Could not create group.');
+      return;
     }
+
+    // Insert creator + all selected friends
+    const memberRows = [user!.id, ...selectedFriendIds].map(uid => ({
+      conversation_id: conv.id,
+      user_id: uid,
+    }));
+    const { error: membersError } = await supabase
+      .from('conversation_members')
+      .insert(memberRows);
+
+    if (membersError) {
+      setCreatingGroup(false);
+      Alert.alert('Error', membersError.message);
+      return;
+    }
+
+    // Optimistic update — add to list immediately
+    setConversations(prev => [conv, ...prev]);
+    setNewGroupName('');
+    setGroupFriendSearch('');
+    setSelectedFriendIds([]);
+    setCreatingGroup(false);
+    setShowNewGroup(false);
+  };
+
+  const formatActivityDate = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return '';
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const today = new Date();
+    const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+    if (year === today.getFullYear() && month === today.getMonth() + 1 && day === today.getDate()) return 'tonight';
+    if (year === tomorrow.getFullYear() && month === tomorrow.getMonth() + 1 && day === tomorrow.getDate()) return 'tomorrow';
+    return new Date(year, month - 1, day).toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' });
   };
 
   if (!user) {
@@ -245,12 +342,23 @@ export default function FriendsScreen() {
             const newVal = !downTonight;
             setDownTonight(newVal);
             if (newVal) {
-              await supabase.from('city_board_down_tonight').upsert({
-                user_id: user.id,
-                expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
-              }, { onConflict: 'user_id' });
+              await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              const today = new Date().toISOString().slice(0, 10);
+              await AsyncStorage.setItem(DOWN_TONIGHT_KEY, today);
+              await Promise.all([
+                supabase.from('city_board_down_tonight').upsert({
+                  user_id: user.id,
+                  expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+                }, { onConflict: 'user_id' }),
+                supabase.from('profiles').update({ is_down_tonight: true }).eq('id', user.id),
+              ]);
             } else {
-              await supabase.from('city_board_down_tonight').delete().eq('user_id', user.id);
+              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              await AsyncStorage.removeItem(DOWN_TONIGHT_KEY);
+              await Promise.all([
+                supabase.from('city_board_down_tonight').delete().eq('user_id', user.id),
+                supabase.from('profiles').update({ is_down_tonight: false }).eq('id', user.id),
+              ]);
             }
           }}
           style={{
@@ -263,7 +371,7 @@ export default function FriendsScreen() {
           }}
         >
           <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: downTonight ? '#00C07A20' : colours.border, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontSize: 18 }}>{downTonight ? '🔥' : '🌙'}</Text>
+            <Ionicons name={downTonight ? 'moon' : 'moon-outline'} size={20} color={downTonight ? '#00C07A' : colours.muted} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 15, fontWeight: '700', color: downTonight ? '#00C07A' : colours.text }}>
@@ -293,6 +401,43 @@ export default function FriendsScreen() {
             </Text>
           </View>
         )}
+        {/* Friends Activity */}
+        {friendsActivity.length > 0 && (
+          <View style={{ marginBottom: 12 }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+              Friends Activity
+            </Text>
+            {friendsActivity.map((item: any, i: number) => {
+              const p = item.profiles as any;
+              const ev = item.events as any;
+              const venue = ev?.venues?.name;
+              const dateLabel = formatActivityDate(ev?.date);
+              const name = p?.display_name || p?.username || 'Someone';
+              const sentence = `${name} is going to ${ev?.title}${venue ? ` at ${venue}` : ''}${dateLabel ? ` ${dateLabel}` : ''}`;
+              return (
+                <TouchableOpacity
+                  key={`${item.event_id}-${i}`}
+                  onPress={() => router.push(`/event/${ev?.id}` as any)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 }}
+                  activeOpacity={0.7}
+                >
+                  {p?.avatar_url ? (
+                    <Image source={{ uri: p.avatar_url }} style={{ width: 34, height: 34, borderRadius: 17 }} />
+                  ) : (
+                    <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: colours.accent }}>{name[0].toUpperCase()}</Text>
+                    </View>
+                  )}
+                  <Text style={{ flex: 1, fontSize: 13, color: colours.text, lineHeight: 18 }} numberOfLines={2}>
+                    {sentence}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={14} color={colours.muted} />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
         {/* Friend discovery methods */}
         <View style={{ gap: 10 }}>
           {/* Search by username */}
@@ -351,7 +496,11 @@ export default function FriendsScreen() {
         )}
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 20 }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 20, gap: 20 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FF3B5C" />}
+      >
 
         {/* Your Plans */}
         {myHangouts.length > 0 && (
@@ -526,10 +675,12 @@ export default function FriendsScreen() {
 
       </ScrollView>
 
-      <Modal visible={showNewGroup} transparent animationType="fade" onRequestClose={() => setShowNewGroup(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-          <View style={{ backgroundColor: colours.surface, borderRadius: 20, padding: 24, width: '100%' }}>
+      <Modal visible={showNewGroup} transparent animationType="slide" onRequestClose={() => setShowNewGroup(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: colours.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: insets.bottom + 24, maxHeight: '80%' }}>
             <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text, marginBottom: 16 }}>New Group</Text>
+
+            {/* Group name */}
             <TextInput
               style={{ backgroundColor: colours.bg, borderRadius: 12, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colours.text, marginBottom: 16 }}
               placeholder="Group name..."
@@ -538,12 +689,77 @@ export default function FriendsScreen() {
               onChangeText={setNewGroupName}
               autoFocus
             />
-            <View style={{ flexDirection: 'row', gap: 10 }}>
+
+            {/* Friend search */}
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
+              Add Friends {selectedFriendIds.length > 0 ? `(${selectedFriendIds.length} selected)` : ''}
+            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.bg, borderRadius: 10, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 10, paddingVertical: 8, gap: 6, marginBottom: 10 }}>
+              <Ionicons name="search-outline" size={14} color={colours.muted} />
+              <TextInput
+                style={{ flex: 1, fontSize: 14, color: colours.text }}
+                placeholder="Filter friends..."
+                placeholderTextColor={colours.muted}
+                value={groupFriendSearch}
+                onChangeText={setGroupFriendSearch}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+
+            {/* Friends list */}
+            <ScrollView style={{ maxHeight: 240 }} showsVerticalScrollIndicator={false}>
+              {friends.length === 0 ? (
+                <Text style={{ fontSize: 13, color: colours.muted, textAlign: 'center', paddingVertical: 16 }}>
+                  No friends yet — add friends first
+                </Text>
+              ) : (
+                friends
+                  .filter(f =>
+                    !groupFriendSearch ||
+                    (f.username || '').toLowerCase().includes(groupFriendSearch.toLowerCase()) ||
+                    (f.display_name || '').toLowerCase().includes(groupFriendSearch.toLowerCase())
+                  )
+                  .map(friend => {
+                    const selected = selectedFriendIds.includes(friend.id);
+                    return (
+                      <TouchableOpacity
+                        key={friend.id}
+                        onPress={() => toggleFriendSelection(friend.id)}
+                        style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4, gap: 12 }}
+                      >
+                        <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center' }}>
+                          <Text style={{ fontSize: 15, fontWeight: '700', color: colours.accent }}>
+                            {(friend.display_name || friend.username || '?')[0].toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{friend.display_name || friend.username}</Text>
+                          <Text style={{ fontSize: 12, color: colours.muted }}>@{friend.username}</Text>
+                        </View>
+                        <View style={{
+                          width: 22, height: 22, borderRadius: 11,
+                          backgroundColor: selected ? colours.accent : 'transparent',
+                          borderWidth: 2, borderColor: selected ? colours.accent : colours.border,
+                          alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          {selected && <Ionicons name="checkmark" size={13} color="white" />}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })
+              )}
+            </ScrollView>
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
               <TouchableOpacity onPress={() => setShowNewGroup(false)} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
                 <Text style={{ fontSize: 15, fontWeight: '600', color: colours.muted }}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={submitNewGroup} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: colours.accent, alignItems: 'center' }}>
-                <Text style={{ fontSize: 15, fontWeight: '700', color: 'white' }}>Create</Text>
+              <TouchableOpacity onPress={submitNewGroup} disabled={creatingGroup} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: colours.accent, alignItems: 'center' }}>
+                {creatingGroup
+                  ? <ActivityIndicator color="white" size="small" />
+                  : <Text style={{ fontSize: 15, fontWeight: '700', color: 'white' }}>Create</Text>
+                }
               </TouchableOpacity>
             </View>
           </View>
