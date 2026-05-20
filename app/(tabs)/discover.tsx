@@ -204,6 +204,24 @@ export default function DiscoverScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [mapMode, setMapMode] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<DiscoverEvent | null>(null);
+  const slideAnim = useRef(new Animated.Value(300)).current;
+
+  useEffect(() => {
+    if (selectedEvent) {
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+    } else {
+      Animated.timing(slideAnim, {
+        toValue: 300,
+        duration: 220,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [selectedEvent]);
 
   useEffect(() => {
     loadEvents(sort);
@@ -339,34 +357,55 @@ export default function DiscoverScreen() {
             }}
             source={{ html: buildLeafletHtml(events.filter(e => e.venue_lat != null && e.venue_lng != null)) }}
           />
-          {selectedEvent && (
-            <View style={[styles.mapCard, { paddingBottom: insets.bottom + 16 }]}>
-              <Image
-                source={{ uri: selectedEvent.poster_url || 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&q=80' }}
-                style={styles.mapCardImage}
-                resizeMode="cover"
-              />
-              <View style={styles.mapCardBody}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.mapCardVenue} numberOfLines={1}>{selectedEvent.venue_name}</Text>
-                  <Text style={styles.mapCardTitle} numberOfLines={1}>{selectedEvent.title}</Text>
-                  <Text style={styles.mapCardDate}>
-                    {[formatDate(selectedEvent.event_date), selectedEvent.start_time].filter(Boolean).join(' · ')}
-                  </Text>
-                  <TouchableOpacity style={styles.mapCardRsvp} activeOpacity={0.85}>
-                    <Text style={styles.mapCardRsvpText}>I'm Going</Text>
-                  </TouchableOpacity>
-                </View>
+          <Animated.View
+            style={[
+              styles.mapCard,
+              { paddingBottom: insets.bottom + 16, transform: [{ translateY: slideAnim }] },
+            ]}
+            pointerEvents={selectedEvent ? 'box-none' : 'none'}
+          >
+            {selectedEvent && (
+              <>
+                {/* Drag handle */}
+                <View style={styles.mapCardHandle} />
+
+                {/* Close button */}
                 <TouchableOpacity
-                  onPress={() => router.push(`/event/${selectedEvent.id}` as any)}
+                  style={styles.mapCardClose}
+                  onPress={() => setSelectedEvent(null)}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  style={{ paddingLeft: 8, justifyContent: 'center' }}
                 >
-                  <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.6)" />
+                  <Ionicons name="close" size={18} color="rgba(255,255,255,0.7)" />
                 </TouchableOpacity>
-              </View>
-            </View>
-          )}
+
+                {/* Content row */}
+                <TouchableOpacity
+                  style={styles.mapCardBody}
+                  activeOpacity={0.9}
+                  onPress={() => router.push(`/event/${selectedEvent.id}` as any)}
+                >
+                  <Image
+                    source={{ uri: selectedEvent.poster_url || 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&q=80' }}
+                    style={styles.mapCardImage}
+                    resizeMode="cover"
+                  />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={styles.mapCardVenue} numberOfLines={1}>{selectedEvent.venue_name}</Text>
+                    <Text style={styles.mapCardTitle} numberOfLines={1}>{selectedEvent.title}</Text>
+                    <Text style={styles.mapCardDate}>
+                      {[formatDate(selectedEvent.event_date), selectedEvent.start_time].filter(Boolean).join(' · ')}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" style={{ marginLeft: 8 }} />
+                </TouchableOpacity>
+
+                {/* I'm Going button */}
+                <TouchableOpacity style={styles.mapCardRsvp} activeOpacity={0.85}>
+                  <Text style={styles.mapCardRsvpText}>I'm Going</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </Animated.View>
         </View>
       ) : events.length === 0 ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -641,49 +680,69 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#141720',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    overflow: 'hidden',
+    backgroundColor: '#1A1A2E',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 16,
+    paddingTop: 12,
   },
-  mapCardImage: {
-    width: '100%',
-    height: 140,
+  mapCardHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  mapCardClose: {
+    position: 'absolute',
+    top: 14,
+    right: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   mapCardBody: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 4,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  mapCardImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
   },
   mapCardVenue: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '800',
-    marginBottom: 2,
+    marginBottom: 3,
   },
   mapCardTitle: {
-    color: 'rgba(255,255,255,0.75)',
+    color: 'rgba(255,255,255,0.7)',
     fontSize: 13,
     fontWeight: '500',
-    marginBottom: 4,
+    marginBottom: 5,
   },
   mapCardDate: {
-    color: 'rgba(255,255,255,0.45)',
+    color: 'rgba(255,255,255,0.4)',
     fontSize: 11,
-    marginBottom: 12,
   },
   mapCardRsvp: {
     backgroundColor: '#FF3B5C',
-    borderRadius: 20,
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    alignSelf: 'flex-start',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginBottom: 4,
   },
   mapCardRsvpText: {
     color: '#fff',
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '700',
   },
 });
