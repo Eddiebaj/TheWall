@@ -597,7 +597,7 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
               })}
             </View>
 
-            {/* Start time — wheel picker */}
+            {/* Start time  -  wheel picker */}
             <TimePicker
               value={startTime}
               onChange={setStartTime}
@@ -605,7 +605,7 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
               label={t('Start time', 'Heure de debut')}
             />
 
-            {/* End time — wheel picker */}
+            {/* End time  -  wheel picker */}
             <TimePicker
               value={endTime}
               onChange={setEndTime}

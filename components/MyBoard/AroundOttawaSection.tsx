@@ -20,7 +20,7 @@ function PlaceCard({ place, colours, t, onSaveToggle, sponsoredIds }: { place: a
   }, [place.name]);
 
   React.useEffect(() => {
-    AsyncStorage.getItem('routeo_saved_places').then(val => {
+    AsyncStorage.getItem('thewall_saved_places').then(val => {
       const places = JSON.parse(val || '[]');
       setSaved(places.some((p: any) => p.id === (place.place_id || place.name)));
     });
@@ -57,7 +57,7 @@ function PlaceCard({ place, colours, t, onSaveToggle, sponsoredIds }: { place: a
   }, [place.place_id]);
 
   const toggleSave = async () => {
-    const key = 'routeo_saved_places';
+    const key = 'thewall_saved_places';
     const existing = JSON.parse(await AsyncStorage.getItem(key) || '[]');
     if (saved) {
       const updated = existing.filter((p: any) => p.id !== (place.place_id || place.name));
@@ -213,7 +213,7 @@ export default function AroundOttawaSection({ colours, t, cardShadow, language, 
       .then(({ data }) => setWallPosts(data || []));
   }, []);
 
-  // Google Places removed — The Wall shows only seeded posters
+  // Google Places removed  -  The Wall shows only seeded posters
 
   const categories = [
     { key: 'all', label: 'All' },

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
+  Alert,
   Dimensions,
   FlatList,
   Image,
@@ -12,55 +13,39 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../context/AuthContext';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const POSTER_URL = 'https://theprescott.com/wp-content/uploads/2026/04/PSC_Karaoke_2026_IG-SQUARE.jpg';
-
 interface EventCard {
   id: string;
-  poster: string;
+  poster: string | null;
   venueName: string;
   username: string;
   eventTitle: string;
+  goingCount: number;
+  isGoing: boolean;
 }
 
-const CARDS: EventCard[] = [
-  {
-    id: '1',
-    poster: POSTER_URL,
-    venueName: 'The Prescott',
-    username: '@theprescott',
-    eventTitle: 'Karaoke Night — Every Friday',
-  },
-  {
-    id: '2',
-    poster: POSTER_URL,
-    venueName: 'The Prescott',
-    username: '@theprescott',
-    eventTitle: 'Saturday Night Live Music',
-  },
-];
-
-function Card({ item }: { item: EventCard }) {
+function Card({ item, onToggleRsvp }: { item: EventCard; onToggleRsvp: (id: string) => void }) {
   const insets = useSafeAreaInsets();
 
   return (
     <View style={[styles.card, { height: SCREEN_HEIGHT }]}>
-      {/* Black background with video placeholder */}
       <View style={styles.videoPlaceholder}>
         <Ionicons name="play-circle-outline" size={64} color="rgba(255,255,255,0.3)" />
       </View>
 
-      {/* Top-right poster thumbnail */}
-      <TouchableOpacity
-        style={[styles.posterThumb, { top: insets.top + 60 }]}
-        activeOpacity={0.8}
-      >
-        <Image source={{ uri: item.poster }} style={styles.posterThumbImage} resizeMode="cover" />
-      </TouchableOpacity>
+      {item.poster && (
+        <TouchableOpacity
+          style={[styles.posterThumb, { top: insets.top + 60 }]}
+          activeOpacity={0.8}
+        >
+          <Image source={{ uri: item.poster }} style={styles.posterThumbImage} resizeMode="cover" />
+        </TouchableOpacity>
+      )}
 
-      {/* Bottom overlay */}
       <LinearGradient
         colors={['transparent', 'rgba(0,0,0,0.85)']}
         style={[styles.gradient, { paddingBottom: insets.bottom + 90 }]}
@@ -69,9 +54,18 @@ function Card({ item }: { item: EventCard }) {
         <Text style={styles.venueName}>{item.venueName}</Text>
         <Text style={styles.eventTitle}>{item.eventTitle}</Text>
 
-        <TouchableOpacity style={styles.rsvpBtn} activeOpacity={0.85}>
-          <Text style={styles.rsvpText}>I'm Going</Text>
-        </TouchableOpacity>
+        <View style={styles.rsvpRow}>
+          <TouchableOpacity
+            style={[styles.rsvpBtn, item.isGoing && styles.rsvpBtnActive]}
+            activeOpacity={0.85}
+            onPress={() => onToggleRsvp(item.id)}
+          >
+            <Text style={styles.rsvpText}>{item.isGoing ? "I'm Going ✓" : "I'm Going"}</Text>
+          </TouchableOpacity>
+          {item.goingCount > 0 && (
+            <Text style={styles.goingCount}>{item.goingCount} going</Text>
+          )}
+        </View>
       </LinearGradient>
     </View>
   );
@@ -94,7 +88,104 @@ function TabToggle({ active, onSelect, insetTop }: { active: 'foryou' | 'followi
 
 export default function FeedScreen() {
   const [activeTab, setActiveTab] = useState<'foryou' | 'following'>('foryou');
+  const [cards, setCards] = useState<EventCard[]>([]);
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    loadEvents();
+  }, [user]);
+
+  const loadEvents = async () => {
+    const { data: events, error } = await supabase
+      .from('events')
+      .select('id, title, poster_url, venues(name, username)')
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (error || !events) return;
+
+    // Fetch going counts for all events
+    const eventIds = events.map((e: any) => e.id);
+    const { data: rsvpCounts } = await supabase
+      .from('event_rsvps')
+      .select('event_id')
+      .in('event_id', eventIds)
+      .eq('status', 'going');
+
+    // Fetch current user's RSVPs
+    let userRsvpIds: string[] = [];
+    if (user) {
+      const { data: userRsvps } = await supabase
+        .from('event_rsvps')
+        .select('event_id')
+        .in('event_id', eventIds)
+        .eq('user_id', user.id)
+        .eq('status', 'going');
+      userRsvpIds = (userRsvps || []).map((r: any) => r.event_id);
+    }
+
+    const countMap: Record<string, number> = {};
+    for (const r of rsvpCounts || []) {
+      countMap[r.event_id] = (countMap[r.event_id] || 0) + 1;
+    }
+
+    setCards(events.map((e: any) => ({
+      id: e.id,
+      poster: e.poster_url || null,
+      venueName: e.venues?.name || '',
+      username: e.venues?.username ? `@${e.venues.username}` : '',
+      eventTitle: e.title,
+      goingCount: countMap[e.id] || 0,
+      isGoing: userRsvpIds.includes(e.id),
+    })));
+  };
+
+  const handleToggleRsvp = useCallback(async (eventId: string) => {
+    if (!user) {
+      Alert.alert('Sign in required', 'Sign in to RSVP to events.');
+      return;
+    }
+
+    const card = cards.find(c => c.id === eventId);
+    if (!card) return;
+
+    if (card.isGoing) {
+      // Optimistic update
+      setCards(prev => prev.map(c => c.id === eventId
+        ? { ...c, isGoing: false, goingCount: Math.max(0, c.goingCount - 1) }
+        : c
+      ));
+      const { error } = await supabase
+        .from('event_rsvps')
+        .delete()
+        .eq('event_id', eventId)
+        .eq('user_id', user.id);
+      if (error) {
+        // Revert on failure
+        setCards(prev => prev.map(c => c.id === eventId
+          ? { ...c, isGoing: true, goingCount: c.goingCount + 1 }
+          : c
+        ));
+      }
+    } else {
+      // Optimistic update
+      setCards(prev => prev.map(c => c.id === eventId
+        ? { ...c, isGoing: true, goingCount: c.goingCount + 1 }
+        : c
+      ));
+      const { error } = await supabase
+        .from('event_rsvps')
+        .insert({ event_id: eventId, user_id: user.id, status: 'going' });
+      if (error) {
+        // Revert on failure
+        setCards(prev => prev.map(c => c.id === eventId
+          ? { ...c, isGoing: false, goingCount: Math.max(0, c.goingCount - 1) }
+          : c
+        ));
+      }
+    }
+  }, [user, cards]);
 
   return (
     <View style={styles.container}>
@@ -102,9 +193,9 @@ export default function FeedScreen() {
 
       {activeTab === 'foryou' ? (
         <FlatList
-          data={CARDS}
+          data={cards}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <Card item={item} />}
+          renderItem={({ item }) => <Card item={item} onToggleRsvp={handleToggleRsvp} />}
           pagingEnabled
           showsVerticalScrollIndicator={false}
           snapToInterval={SCREEN_HEIGHT}
@@ -186,6 +277,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     marginBottom: 18,
   },
+  rsvpRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
   rsvpBtn: {
     backgroundColor: '#FF3B5C',
     paddingVertical: 14,
@@ -193,10 +289,18 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignSelf: 'flex-start',
   },
+  rsvpBtnActive: {
+    backgroundColor: '#c0392b',
+  },
   rsvpText: {
     color: '#fff',
     fontSize: 15,
     fontWeight: '700',
+  },
+  goingCount: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 13,
+    fontWeight: '600',
   },
   tabBar: {
     position: 'absolute',

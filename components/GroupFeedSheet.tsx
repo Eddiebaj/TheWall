@@ -194,7 +194,7 @@ export default function GroupFeedSheet({ group, visible, onClose, joinedGroups, 
             </View>
           )}
 
-          {/* Community deals — approved deals from Supabase */}
+          {/* Community deals  -  approved deals from Supabase */}
           {communityDeals.length > 0 && (
             <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
               <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 10 }}>

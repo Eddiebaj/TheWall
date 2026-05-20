@@ -84,17 +84,17 @@ interface NearbyTransitSheetProps {
   // Deal submission
   onSubmitDeal?: () => void;
 
-  // Safety signals — stops with recent "feel unsafe" reports (night hours only)
+  // Safety signals  -  stops with recent "feel unsafe" reports (night hours only)
   safetySignalStopIds?: Set<string>;
 
-  // Venue alerts — active events near a planned destination
+  // Venue alerts  -  active events near a planned destination
   venueAlerts?: { venueName: string; routeIds: string[]; minutesUntilEnd: number }[];
 
-  // Stop detail callback — opens full stop detail sheet
+  // Stop detail callback  -  opens full stop detail sheet
   onStopDetail?: (stopId: string, stopName: string) => void;
   onShowAlerts?: () => void;
 
-  // Route alert map — routeId → alert summary for "Detour" badges
+  // Route alert map  -  routeId → alert summary for "Detour" badges
   routeAlertMap?: Record<string, string>;
 
   // Extra content rendered below nearby transit (e.g. Services, Tonight)
@@ -108,7 +108,7 @@ const TEAL = '#00C07A';
 const AMBER_BG = 'rgba(245,158,11,0.12)';
 const AMBER_TEXT = '#D97706';
 const DEFAULT_ROWS = 3;
-const GROUP_DIST_THRESHOLD = 60; // meters — stops within this distance can be merged
+const GROUP_DIST_THRESHOLD = 60; // meters  -  stops within this distance can be merged
 
 
 function timeStyle(minsAway: number): { bg: string; fg: string; label: string } {
@@ -210,7 +210,7 @@ function SkeletonCard({ colours }: { colours: any }) {
   );
 }
 
-// Inline arrival pills for a stop — colored route badge + 3-state time pill + inline ghost warning
+// Inline arrival pills for a stop  -  colored route badge + 3-state time pill + inline ghost warning
 
 function ArrivalPills({ stop, colours, t, routeAlertMap }: { stop: NearbyStop; colours: any; t: (en: string, fr: string) => string; routeAlertMap?: Record<string, string> }) {
   const [thanks, setThanks] = useState<Record<string, boolean>>({});
@@ -317,13 +317,13 @@ function ArrivalPills({ stop, colours, t, routeAlertMap }: { stop: NearbyStop; c
 
           return (
             <View key={`${a.routeId}-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, opacity: isReported && !isGhost ? 0.4 : 1 }}>
-              {/* Route badge — color-coded */}
+              {/* Route badge  -  color-coded */}
               <View style={{ minWidth: 36, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 7, backgroundColor: isGhost ? '#EF444420' : badge.bg, alignItems: 'center' }}>
                 <Text style={{ fontSize: 12, fontWeight: '800', color: isGhost ? '#EF4444' : badge.fg, letterSpacing: -0.3 }}>
                   {a.routeId.split('-')[0]}
                 </Text>
               </View>
-              {/* Time pill — Now / <10min / ≥10min */}
+              {/* Time pill  -  Now / <10min / ≥10min */}
               <View style={{ paddingHorizontal: 7, paddingVertical: 4, borderRadius: 7, backgroundColor: time.bg }}>
                 <Text style={{ fontSize: 13, fontWeight: '700', color: time.fg }}>
                   {isGhost ? t('?', '?') : time.label}
@@ -363,7 +363,7 @@ function ArrivalPills({ stop, colours, t, routeAlertMap }: { stop: NearbyStop; c
           );
         })}
       </View>
-      {/* Inline ghost bus warning — red text + icon, no separate card */}
+      {/* Inline ghost bus warning  -  red text + icon, no separate card */}
       {stop.ghostRoutes && stop.ghostRoutes.length > 0 && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <Ionicons name="skull-outline" size={11} color="#EF4444" />
@@ -375,7 +375,7 @@ function ArrivalPills({ stop, colours, t, routeAlertMap }: { stop: NearbyStop; c
           </Text>
         </View>
       )}
-      {/* Proactive ghost bus prompts — possiblyLate arrivals or ghostReports >= 2 */}
+      {/* Proactive ghost bus prompts  -  possiblyLate arrivals or ghostReports >= 2 */}
       {stop.arrivals.slice(0, 2).map((a) => {
         const reportData = stop.ghostReports?.[a.routeId];
         const hasEnoughReports = (reportData?.total ?? 0) >= 2;
@@ -392,12 +392,12 @@ function ArrivalPills({ stop, colours, t, routeAlertMap }: { stop: NearbyStop; c
               <Text style={{ fontSize: 11, fontWeight: '600', color: AMBER_TEXT, flex: 1 }}>
                 {a.possiblyLate
                   ? t(
-                      `Route ${a.routeId} was due ${a.minutesLate} min ago — did it come?`,
-                      `Ligne ${a.routeId} était attendue il y a ${a.minutesLate} min — est-elle passée?`,
+                      `Route ${a.routeId} was due ${a.minutesLate} min ago  -  did it come?`,
+                      `Ligne ${a.routeId} était attendue il y a ${a.minutesLate} min  -  est-elle passée?`,
                     )
                   : t(
-                      `Route ${a.routeId} — ${reportCount} rider${reportCount !== 1 ? 's' : ''} say it didn't come. Did it?`,
-                      `Ligne ${a.routeId} — ${reportCount} usager${reportCount !== 1 ? 's' : ''} disent qu'elle n'est pas venue. Elle est passée?`,
+                      `Route ${a.routeId}  -  ${reportCount} rider${reportCount !== 1 ? 's' : ''} say it didn't come. Did it?`,
+                      `Ligne ${a.routeId}  -  ${reportCount} usager${reportCount !== 1 ? 's' : ''} disent qu'elle n'est pas venue. Elle est passée?`,
                     )}
               </Text>
             </View>
@@ -495,7 +495,7 @@ function LeaveNowButton({
   );
 }
 
-// Intersection row — core new component
+// Intersection row  -  core new component
 
 const IntersectionRow = React.memo(function IntersectionRow({
   group,
@@ -524,7 +524,7 @@ const IntersectionRow = React.memo(function IntersectionRow({
   const [safetyThanks, setSafetyThanks] = useState(false);
   const isExpanded = expandedGroupId === group.id;
 
-  // Last bus warning — fetched lazily when it's late night (8pm–2am)
+  // Last bus warning  -  fetched lazily when it's late night (8pm–2am)
   const lbHour = new Date().getHours();
   const isLateNight = lbHour >= 20 || lbHour < 2;
   const [lastBusInfo, setLastBusInfo] = useState<{ routeId: string; lastBus: string | null; firstBus: string | null } | null>(null);
@@ -573,7 +573,7 @@ const IntersectionRow = React.memo(function IntersectionRow({
   const activeStop = group.stops[Math.min(activeIdx, group.stops.length - 1)];
   const multiDir = group.stops.length > 1;
 
-  // Last bus warning node — computed once before render
+  // Last bus warning node  -  computed once before render
   let lastBusNode: React.ReactNode = null;
   if (isLateNight && lastBusInfo?.lastBus) {
     const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
@@ -587,8 +587,8 @@ const IntersectionRow = React.memo(function IntersectionRow({
           <Ionicons name="time-outline" size={12} color={AMBER_TEXT} />
           <Text style={{ fontSize: 11, fontWeight: '600', color: AMBER_TEXT, flex: 1 }}>
             {t(
-              `Last Route ${lastBusInfo.routeId} in ${minsUntil} min — after this, no more buses tonight`,
-              `Dernier passage du ${lastBusInfo.routeId} dans ${minsUntil} min — après, plus de bus ce soir`
+              `Last Route ${lastBusInfo.routeId} in ${minsUntil} min  -  after this, no more buses tonight`,
+              `Dernier passage du ${lastBusInfo.routeId} dans ${minsUntil} min  -  après, plus de bus ce soir`
             )}
           </Text>
         </View>
@@ -599,7 +599,7 @@ const IntersectionRow = React.memo(function IntersectionRow({
           <Ionicons name="moon-outline" size={12} color={colours.muted} />
           <Text style={{ fontSize: 11, fontWeight: '600', color: colours.muted, flex: 1 }}>
             {lastBusInfo.firstBus
-              ? t(`No more buses tonight — next service at ${lastBusInfo.firstBus}`, `Plus de bus ce soir — prochain service à ${lastBusInfo.firstBus}`)
+              ? t(`No more buses tonight  -  next service at ${lastBusInfo.firstBus}`, `Plus de bus ce soir  -  prochain service à ${lastBusInfo.firstBus}`)
               : t('No more buses tonight', 'Plus de bus ce soir')}
           </Text>
         </View>
@@ -656,10 +656,10 @@ const IntersectionRow = React.memo(function IntersectionRow({
           </View>
         )}
 
-        {/* Arrivals for active direction — ghost warnings render inline inside ArrivalPills */}
+        {/* Arrivals for active direction  -  ghost warnings render inline inside ArrivalPills */}
         <ArrivalPills stop={activeStop} colours={colours} t={t} routeAlertMap={routeAlertMap} />
 
-        {/* Stale cache indicator — shown when live fetch failed */}
+        {/* Stale cache indicator  -  shown when live fetch failed */}
         {activeStop.stale && activeStop.staleAgeSeconds != null && (
           <Text style={{ fontSize: 10, color: colours.muted, marginTop: 3, fontStyle: 'italic' }}>
             {t(
@@ -669,7 +669,7 @@ const IntersectionRow = React.memo(function IntersectionRow({
           </Text>
         )}
 
-        {/* Last bus warning — 8pm to 2am only */}
+        {/* Last bus warning  -  8pm to 2am only */}
         {lastBusNode}
 
         {/* Expanded: leave-now alert + stop details link */}
@@ -690,7 +690,7 @@ const IntersectionRow = React.memo(function IntersectionRow({
           </>
         )}
 
-        {/* Safety signal — shown at night when reports exist */}
+        {/* Safety signal  -  shown at night when reports exist */}
         {hasSafetySignal && (
           <View style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: AMBER_BG, borderRadius: 7, paddingHorizontal: 8, paddingVertical: 4, alignSelf: 'flex-start' }}>
             <Ionicons name="warning-outline" size={12} color={AMBER_TEXT} />
@@ -700,7 +700,7 @@ const IntersectionRow = React.memo(function IntersectionRow({
           </View>
         )}
 
-        {/* Feel unsafe here? — night hours only */}
+        {/* Feel unsafe here?  -  night hours only */}
         {(new Date().getHours() >= 20 || new Date().getHours() < 6) && (
           <TouchableOpacity
             onPress={handleSafetyReport}
@@ -828,7 +828,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
         .slice(0, 15);
     }, [activeLayers, layerPins]);
 
-    // Build intersection groups from raw stops — only show groups with live arrivals (or still loading)
+    // Build intersection groups from raw stops  -  only show groups with live arrivals (or still loading)
     const intersectionGroups = useMemo(() => groupNearbyStops(nearbyStops).filter(g => g.hasArrivals), [nearbyStops]);
     const visibleGroups = showAll ? intersectionGroups : intersectionGroups.slice(0, DEFAULT_ROWS);
 
@@ -901,7 +901,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
           contentContainerStyle={{ paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
         >
-          {/* Header — hidden when at minimum snap point */}
+          {/* Header  -  hidden when at minimum snap point */}
           <HeaderContent />
 
           {/* Disruption pill */}
@@ -913,7 +913,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
             </View>
           )}
 
-          {/* Alert banner — always visible */}
+          {/* Alert banner  -  always visible */}
           <TouchableOpacity
             onPress={() => onShowAlerts ? onShowAlerts() : router.push('/(tabs)/alerts' as any)}
             style={{
@@ -972,7 +972,7 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
             </View>
           )}
 
-          {/* Venue alert banner — shown when active event nearby a planned destination */}
+          {/* Venue alert banner  -  shown when active event nearby a planned destination */}
           {venueAlerts && venueAlerts.length > 0 && (
             <View style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: '#F97316' + '15', borderWidth: 1, borderColor: '#F97316' + '50', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
@@ -1007,8 +1007,8 @@ const NearbyTransitSheet = forwardRef<BottomSheet, NearbyTransitSheetProps>(
               <Ionicons name="flag-outline" size={13} color="#94a3b8" />
               <Text style={{ fontSize: 11, color: '#e2e8f0', flex: 1, fontWeight: '500' }}>
                 {t(
-                  'Tap the flag icon to report when a bus doesn\'t come — helps other riders know',
-                  'Tapez l\'icône drapeau pour signaler quand un bus ne passe pas — aide les autres usagers',
+                  'Tap the flag icon to report when a bus doesn\'t come  -  helps other riders know',
+                  'Tapez l\'icône drapeau pour signaler quand un bus ne passe pas  -  aide les autres usagers',
                 )}
               </Text>
               <TouchableOpacity onPress={() => setShowGhostTooltip(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>

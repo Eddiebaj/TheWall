@@ -1,5 +1,5 @@
 /**
- * Delay context engine — surfaces the most likely reason a bus is late
+ * Delay context engine  -  surfaces the most likely reason a bus is late
  * using data already available in the app (alerts, weather, events).
  */
 
@@ -95,8 +95,8 @@ export function getDelayContext(
       reason: 'unknown',
       label: 'Longer delays than usual',
       labelFr: 'Retards plus longs que d\'habitude',
-      detail: `This bus is ${delayMinutes} minutes behind schedule. No specific cause identified — could be traffic, operator shortage, or mechanical issue.`,
-      detailFr: `Ce bus a ${delayMinutes} minutes de retard. Aucune cause spécifique identifiée — possiblement la circulation, un manque d'opérateurs ou un problème mécanique.`,
+      detail: `This bus is ${delayMinutes} minutes behind schedule. No specific cause identified  -  could be traffic, operator shortage, or mechanical issue.`,
+      detailFr: `Ce bus a ${delayMinutes} minutes de retard. Aucune cause spécifique identifiée  -  possiblement la circulation, un manque d'opérateurs ou un problème mécanique.`,
       icon: 'time-outline',
       colour: '#888',
     };

@@ -6,7 +6,7 @@ import { PREMIUM_ENABLED } from './flags';
 let Purchases: typeof import('react-native-purchases').default | null = null;
 try { Purchases = require('react-native-purchases').default; } catch {}
 
-// Set via Expo env vars — fill in the dashboard keys before going live
+// Set via Expo env vars  -  fill in the dashboard keys before going live
 const RC_KEY_IOS     = (process.env.EXPO_PUBLIC_RC_KEY_IOS     ?? '').trim();
 const RC_KEY_ANDROID = (process.env.EXPO_PUBLIC_RC_KEY_ANDROID ?? '').trim();
 
@@ -21,7 +21,7 @@ export function initPurchases() {
   if (!Purchases || !PREMIUM_ENABLED) return;
   const key = Platform.OS === 'ios' ? RC_KEY_IOS : RC_KEY_ANDROID;
   if (!key) {
-    if (__DEV__) console.warn('[premium] RevenueCat API key missing — skipping configure');
+    if (__DEV__) console.warn('[premium] RevenueCat API key missing  -  skipping configure');
     return;
   }
   try {

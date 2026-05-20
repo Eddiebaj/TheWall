@@ -72,7 +72,7 @@ export function buildTonightSummary(
   const twoHoursLater = hour + 2 >= 24 ? '23:59' : `${String(hour + 2).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
   const todayStr = now.toLocaleDateString('en-CA');
 
-  // Sports — Sens (from live game state)
+  // Sports  -  Sens (from live game state)
   const sports: SportEntry[] = [];
   if (sensGame && sensGame.state !== 'none') {
     if (sensGame.state === 'live') {
@@ -82,7 +82,7 @@ export function buildTonightSummary(
     }
   }
 
-  // Today's events — bias toward focus neighbourhood if set
+  // Today's events  -  bias toward focus neighbourhood if set
   const todayEvents = events.filter(e => e.date === todayStr);
   const focusRadius = focus?.radiusKm ?? 1.5;
   let displayEvents = todayEvents;
@@ -94,7 +94,7 @@ export function buildTonightSummary(
   }
   const eventHighlights = displayEvents.slice(0, 3).map(e => e.name);
 
-  // Active/upcoming deals — bias toward focus neighbourhood if set
+  // Active/upcoming deals  -  bias toward focus neighbourhood if set
   const isActiveDeal = (v: HappyHourVenue) =>
     v.deals.some(d => d.days.includes(day) && (
       (timeStr >= d.start && timeStr <= d.end) ||

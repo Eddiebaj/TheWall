@@ -11,7 +11,7 @@ import { PREMIUM_ENABLED } from './flags';
 let Notifications: typeof import('expo-notifications') | null = null;
 try { Notifications = require('expo-notifications'); } catch {}
 
-const NOTIF_ID = 'routeo_morning_commute';
+const NOTIF_ID = 'thewall_morning_commute';
 
 export type CommuteAlertSettings = {
   enabled: boolean;

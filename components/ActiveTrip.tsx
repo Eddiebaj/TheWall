@@ -185,7 +185,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
     return () => clearInterval(id);
   }, [visible]);
 
-  // Nearby tip — show on mount if present, auto-dismiss after 8s
+  // Nearby tip  -  show on mount if present, auto-dismiss after 8s
   useEffect(() => {
     if (!visible || !nearbyTip) { setTipVisible(false); return; }
     setTipVisible(true);
@@ -249,14 +249,14 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
     }
   }, [userCoords, activeLeg, currentLeg, getOffAlert, tripEnded]);
 
-  // Walk step tracking — arriving banner + per-step proximity advance
+  // Walk step tracking  -  arriving banner + per-step proximity advance
   useEffect(() => {
     if (!userCoords || !currentLeg || currentLeg.mode !== 'WALK') {
       setArrivingAtStop(false);
       return;
     }
 
-    // "Arriving at stop" prompt — 80m from walk destination
+    // "Arriving at stop" prompt  -  80m from walk destination
     if (currentLeg.to.lat != null && currentLeg.to.lon != null) {
       const destDist = distMetres(userCoords.lat, userCoords.lon, currentLeg.to.lat, currentLeg.to.lon);
       setArrivingAtStop(destDist < 80 && !isLastLeg);
@@ -282,7 +282,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
     if (!currentLeg || currentLeg.mode === 'WALK' || currentLeg.mode === 'CAR' || currentLeg.mode === 'BICYCLE') return;
     const routeId = switchedRoute || currentLeg.routeShortName;
     if (!routeId) return;
-    // Use stopCode (numeric stop ID from OTP) — fall back to stopId (OTP internal), then name
+    // Use stopCode (numeric stop ID from OTP)  -  fall back to stopId (OTP internal), then name
     const stopParam = currentLeg.from.stopCode || (currentLeg.from.stopId ? currentLeg.from.stopId.replace(/^2:/, '') : null) || currentLeg.from.name;
 
     try {
@@ -294,7 +294,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
       const arrivals = data.arrivals || [];
       setPollFailCount(0);
 
-      // Find our tracked route's arrival — try exact match first, then fuzzy
+      // Find our tracked route's arrival  -  try exact match first, then fuzzy
       const normalizeRoute = (s: string) => String(s || '').replace(/-.*/,'');
       const normalizeStop = (s: string) => String(s || '').replace(/ Station$/i, '').toLowerCase().trim();
       let match = arrivals.find((a: any) =>
@@ -309,11 +309,11 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
         });
       }
       if (match) {
-        // Bus found — clear disappearance state
+        // Bus found  -  clear disappearance state
         setBusDisappeared(false);
         setBusDisappearedAt(null);
         busDisappearedAtRef.current = null;
-        // Backend returns minsAway (integer minutes) — convert to ms timestamp
+        // Backend returns minsAway (integer minutes)  -  convert to ms timestamp
         const minsAway = typeof match.minsAway === 'number' ? match.minsAway : null;
         const arrMs = minsAway !== null ? Date.now() + minsAway * 60000 : null;
         if (arrMs) {
@@ -327,8 +327,8 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
             const bufferMin = Math.round(buffer / 60000);
             if (bufferMin > -5 && bufferMin < 3) {
               setTransferWarning(t(
-                `Transfer at risk — ${Math.abs(bufferMin)} min buffer`,
-                `Correspondance a risque — ${Math.abs(bufferMin)} min de marge`
+                `Transfer at risk  -  ${Math.abs(bufferMin)} min buffer`,
+                `Correspondance a risque  -  ${Math.abs(bufferMin)} min de marge`
               ));
             } else {
               setTransferWarning(null);
@@ -336,7 +336,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
           }
         }
       } else {
-        // Bus not found — 3 min grace period before warning
+        // Bus not found  -  3 min grace period before warning
         const now = Date.now();
         if (!busDisappearedAtRef.current) {
           busDisappearedAtRef.current = now;
@@ -709,7 +709,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
           <View style={{ height: 4, borderRadius: 2, backgroundColor: '#00C07A', width: `${Math.round(progressFraction * 100)}%` as `${number}%` }} />
         </View>
 
-        {/* Map section — 55% screen height */}
+        {/* Map section  -  55% screen height */}
         <View style={{ height: screenHeight * 0.55, overflow: 'hidden' }}>
           {MapView ? (
             <MapView
@@ -768,10 +768,10 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
           )}
         </View>
 
-        {/* Bottom section — leg card + actions + end trip */}
+        {/* Bottom section  -  leg card + actions + end trip */}
         <View style={{ flex: 1 }}>
 
-        {/* Current leg card — overlaps bottom of map, full width */}
+        {/* Current leg card  -  overlaps bottom of map, full width */}
         <View style={{
           marginTop: -20, marginHorizontal: 0, zIndex: 10,
           borderTopLeftRadius: 20, borderTopRightRadius: 20,
@@ -812,7 +812,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
               )}
             </View>
 
-            {/* Intermediate stops — compact expandable */}
+            {/* Intermediate stops  -  compact expandable */}
             {isTransit && currentLeg.intermediateStops.length > 0 && (
               <TouchableOpacity onPress={() => setStopsExpanded(!stopsExpanded)}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -852,7 +852,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
               </TouchableOpacity>
             )}
 
-            {/* Alt routes — compact */}
+            {/* Alt routes  -  compact */}
             {altRoutes.length > 0 && (
               <View style={{ marginTop: 8 }}>
                 <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
@@ -1009,7 +1009,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
             </View>
           )}
 
-          {/* Next step — compact card */}
+          {/* Next step  -  compact card */}
           <View style={{ borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, padding: 12, marginBottom: 8 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               {nextLeg ? (
@@ -1031,7 +1031,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
                 <Text style={{ fontSize: 11, fontWeight: '600', color: colours.muted }}>{fmtTimeFromMs(nextLeg.startTime)}</Text>
               )}
             </View>
-            {/* Platform indicator — only when boarding at a major station */}
+            {/* Platform indicator  -  only when boarding at a major station */}
             {nextLeg && (nextLeg.mode === 'BUS' || nextLeg.mode === 'TRAM' || nextLeg.mode === 'RAIL') && nextLeg.routeShortName && hasPlatformData(nextLeg.from.name) && (() => {
               const platform = getPlatformForRoute(nextLeg.from.name, nextLeg.routeShortName);
               if (!platform) return null;
@@ -1049,7 +1049,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
             })()}
           </View>
 
-          {/* Leg pills — hide when single leg */}
+          {/* Leg pills  -  hide when single leg */}
           {legs.length > 1 && (
             <View style={{ flexDirection: 'row', gap: 4, marginBottom: 8 }}>
               {legs.map((leg, i) => {
@@ -1077,7 +1077,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
           )}
         </ScrollView>
 
-        {/* Nearby tip banner — auto-dismisses after 8s */}
+        {/* Nearby tip banner  -  auto-dismisses after 8s */}
         {tipVisible && nearbyTip && (
           <View style={{ marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colours.tintBg ?? colours.surface, borderRadius: 10, borderWidth: 1, borderColor: colours.border, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Text style={{ fontSize: 13, color: colours.text, flex: 1 }}>{nearbyTip}</Text>
@@ -1087,7 +1087,7 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
           </View>
         )}
 
-        {/* End trip button — full width, pinned to bottom */}
+        {/* End trip button  -  full width, pinned to bottom */}
         <View style={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 12, paddingTop: 4 }}>
           <TouchableOpacity
             onPress={handleEnd}

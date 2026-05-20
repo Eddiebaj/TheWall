@@ -1,5 +1,5 @@
 /**
- * Sentry crash reporting helpers — lazy-loaded and null-guarded
+ * Sentry crash reporting helpers  -  lazy-loaded and null-guarded
  * for Expo Go compatibility (same pattern as pushNotifications.ts).
  */
 
@@ -14,7 +14,7 @@ let initialized = false;
 export function initSentry(): void {
   if (!Sentry || initialized) return;
   if (SENTRY_DSN.includes('YOUR_SENTRY_DSN')) {
-    if (__DEV__) console.warn('[Sentry] Placeholder DSN detected — skipping init');
+    if (__DEV__) console.warn('[Sentry] Placeholder DSN detected  -  skipping init');
     return;
   }
   try {
@@ -33,6 +33,6 @@ export function captureException(error: unknown): void {
   try {
     Sentry.captureException(error);
   } catch {
-    // Swallow — Sentry itself should never crash the app
+    // Swallow  -  Sentry itself should never crash the app
   }
 }

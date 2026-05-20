@@ -200,13 +200,13 @@ export async function scheduleCommuteNotification(deals: CommuteDeal[], lang: 'e
 
   const top = deals[0];
   const body = lang === 'fr'
-    ? `${top.venueName} — ${top.dealDescription}, à ${top.distanceMeters}m de ${top.nearStopName}`
-    : `${top.venueName} — ${top.dealDescription}, ${top.distanceMeters}m from ${top.nearStopName}`;
+    ? `${top.venueName}  -  ${top.dealDescription}, à ${top.distanceMeters}m de ${top.nearStopName}`
+    : `${top.venueName}  -  ${top.dealDescription}, ${top.distanceMeters}m from ${top.nearStopName}`;
 
   try {
     const id = await Notifications.scheduleNotificationAsync({
       content: {
-        title: lang === 'fr' ? `Sur votre chemin — ${deals.length} offre${deals.length > 1 ? 's' : ''} sur votre route` : `On your way home — ${deals.length} deal${deals.length > 1 ? 's' : ''} along your route`,
+        title: lang === 'fr' ? `Sur votre chemin  -  ${deals.length} offre${deals.length > 1 ? 's' : ''} sur votre route` : `On your way home  -  ${deals.length} deal${deals.length > 1 ? 's' : ''} along your route`,
         body,
         data: { type: 'commute_deals' },
         sound: 'default',

@@ -15,7 +15,7 @@ type Props = {
   onClose?: () => void;
   /** Called after a successful purchase */
   onSuccess?: () => void;
-  /** Alias for onClose — use either */
+  /** Alias for onClose  -  use either */
   onDismiss?: () => void;
   /** Optional override to highlight a specific feature in the sheet header */
   featureHint?: string;

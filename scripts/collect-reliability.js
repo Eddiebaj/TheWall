@@ -192,7 +192,7 @@ async function upsertRecords(records, agency) {
 }
 
 // ---------------------------------------------------------------------------
-// OC Transpo — JSON GTFS-RT feed
+// OC Transpo  -  JSON GTFS-RT feed
 // ---------------------------------------------------------------------------
 
 async function collectOC(now, todayStr, offsetHours) {
@@ -266,17 +266,17 @@ async function collectOC(now, todayStr, offsetHours) {
   const scheduleMap = await lookupSchedules(uniquePreds, 'OC');
   const records = buildRecords(uniquePreds, scheduleMap, todayStr, offsetHours, 'OC');
   await upsertRecords(records, 'OC');
-  console.log('[OC] Done — ' + records.length + ' records');
+  console.log('[OC] Done  -  ' + records.length + ' records');
 }
 
 // ---------------------------------------------------------------------------
-// STO — Protobuf GTFS-RT feed
+// STO  -  Protobuf GTFS-RT feed
 // ---------------------------------------------------------------------------
 
 async function collectSTO(now, todayStr, offsetHours) {
   const stoUrl = buildStoUrl();
   if (!stoUrl) {
-    console.log('[STO] Skipped — STO_API_KEY or STO_PRIVATE_KEY not set');
+    console.log('[STO] Skipped  -  STO_API_KEY or STO_PRIVATE_KEY not set');
     return;
   }
   console.log('[STO] Fetching GTFS-RT feed...');
@@ -356,7 +356,7 @@ async function collectSTO(now, todayStr, offsetHours) {
   const scheduleMap = await lookupSchedules(uniquePreds, 'STO');
   const records = buildRecords(uniquePreds, scheduleMap, todayStr, offsetHours, 'STO');
   await upsertRecords(records, 'STO');
-  console.log('[STO] Done — ' + records.length + ' records');
+  console.log('[STO] Done  -  ' + records.length + ' records');
 }
 
 // ---------------------------------------------------------------------------

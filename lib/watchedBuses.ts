@@ -81,13 +81,13 @@ async function poll(): Promise<void> {
         await Notifications.scheduleNotificationAsync({
           content: {
             title: `Route ${bus.routeId} arriving soon`,
-            body: `${match.minsAway <= 0 ? 'Arriving now' : `~${match.minsAway} min`} at ${bus.stopName} — time to leave`,
+            body: `${match.minsAway <= 0 ? 'Arriving now' : `~${match.minsAway} min`} at ${bus.stopName}  -  time to leave`,
             sound: true,
           },
           trigger: null,
         });
       }
-    } catch { /* best-effort — never block */ }
+    } catch { /* best-effort  -  never block */ }
   }
 }
 

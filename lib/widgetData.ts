@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SK_SAVED_BOARD } from './storageKeys';
 
-const SK_WIDGET_DATA = 'routeo_widget_data';
+const SK_WIDGET_DATA = 'thewall_widget_data';
 
 export interface WidgetArrival {
   routeId: string;

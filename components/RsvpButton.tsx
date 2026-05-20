@@ -1,5 +1,5 @@
 /**
- * RsvpButton — "I'm Going" toggle for event cards.
+ * RsvpButton  -  "I'm Going" toggle for event cards.
  *
  * Free users: see the button, can toggle RSVP, see total count.
  * Premium users: additionally tap "See who's going" to open an attendee list.
@@ -248,7 +248,7 @@ export default function RsvpButton({ eventId, eventSource, onGoing }: Props) {
       <PaywallSheet
         visible={paywallVisible}
         onClose={() => setPaywallVisible(false)}
-        featureHint={t("See who's going to events — Premium only", "Voir qui participe aux evenements — Premium uniquement")}
+        featureHint={t("See who's going to events  -  Premium only", "Voir qui participe aux evenements  -  Premium uniquement")}
       />
     </View>
   );

@@ -89,7 +89,7 @@ export function nextClass(schedule: ClassSchedule): { entry: ClassEntry; day: Cl
       if (leaveAt > nowMins) {
         return { entry: c, day: today, minsUntilLeave: leaveAt - nowMins };
       }
-      // Class hasn't ended yet — show it even if leave time passed
+      // Class hasn't ended yet  -  show it even if leave time passed
       if (parseTime(c.endTime) > nowMins) {
         return { entry: c, day: today, minsUntilLeave: 0 };
       }
@@ -130,7 +130,7 @@ export function nextClassDate(schedule: ClassSchedule): Date | null {
   const targetJs = nc.day === 'Sun' ? 0 : ALL_DAYS.indexOf(nc.day) + 1;
 
   if (targetJs === jsToday && (startMins >= nowMins || nc.minsUntilLeave !== undefined)) {
-    // Today — class hasn't started yet, or is currently in session
+    // Today  -  class hasn't started yet, or is currently in session
     const endMins = parseTime(nc.entry.endTime);
     if (startMins >= nowMins || endMins > nowMins) {
       const d = new Date(now);
@@ -139,7 +139,7 @@ export function nextClassDate(schedule: ClassSchedule): Date | null {
     }
   }
 
-  // Future day — calculate offset
+  // Future day  -  calculate offset
   let offset = targetJs - jsToday;
   if (offset <= 0) offset += 7;
   const d = new Date(now);

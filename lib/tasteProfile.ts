@@ -48,7 +48,7 @@ export async function saveProfile(profile: TasteProfile): Promise<void> {
   } catch {}
 }
 
-/** Load profile, add points, and persist — fire-and-forget with mutex queue.
+/** Load profile, add points, and persist  -  fire-and-forget with mutex queue.
  *  Concurrent calls batch rather than clobber each other. */
 type WriteOp = { field: keyof TasteProfile; key: string; pts: number };
 let _writing = false;

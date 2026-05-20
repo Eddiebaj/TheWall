@@ -6,7 +6,7 @@
  *     get a simple start/stop API without worrying about the native module.
  *  2. Call the RouteO backend /api/places?action=parse-transit to parse a
  *     natural-language transit query into structured { from, to } strings.
- *     The backend holds the Anthropic key — nothing is exposed in the bundle.
+ *     The backend holds the Anthropic key  -  nothing is exposed in the bundle.
  */
 
 const PARSE_TRANSIT_URL = 'https://routeo-backend.vercel.app/api/places?action=parse-transit';

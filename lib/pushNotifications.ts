@@ -1,5 +1,5 @@
 /**
- * Push notification helpers — registers Expo push tokens, syncs with backend,
+ * Push notification helpers  -  registers Expo push tokens, syncs with backend,
  * and manages device identity for server-side notifications.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -57,7 +57,7 @@ export async function getExpoPushToken(): Promise<string | null> {
 
 /**
  * Register the push token with the backend.
- * Called on app launch — only sends if token changed since last sync.
+ * Called on app launch  -  only sends if token changed since last sync.
  */
 export async function registerPushToken(language: string): Promise<boolean> {
   try {

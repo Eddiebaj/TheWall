@@ -131,9 +131,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [palette, setPaletteState] = useState<PaletteId>('default');
 
   useEffect(() => {
-    if (__DEV__) console.log('[AppProvider] useEffect start — reading preferences from AsyncStorage');
+    if (__DEV__) console.log('[AppProvider] useEffect start  -  reading preferences from AsyncStorage');
     const timer = setTimeout(() => {
-      if (__DEV__) console.warn('[AppProvider] AsyncStorage load timed out — keeping defaults');
+      if (__DEV__) console.warn('[AppProvider] AsyncStorage load timed out  -  keeping defaults');
     }, 3000);
     AsyncStorage.multiGet([
       SK_THEME, SK_LARGE_TEXT, SK_CONTRAST,
@@ -154,7 +154,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (__DEV__) console.log('[AppProvider] Preferences applied successfully');
       } catch (e) {
         clearTimeout(timer);
-        if (__DEV__) console.warn('[AppProvider] Corrupted storage — keeping defaults:', e);
+        if (__DEV__) console.warn('[AppProvider] Corrupted storage  -  keeping defaults:', e);
       }
     }).catch(e => {
       clearTimeout(timer);

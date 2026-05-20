@@ -8,20 +8,12 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
 
-const CAMPUSES = [
-  { id: 'uoft', label: 'University of Toronto' },
-  { id: 'tmu', label: 'Ryerson (TMU)' },
-  { id: 'yorku', label: 'York University' },
-  { id: 'other', label: 'Other / Not a student' },
-];
-
 export default function ProfileSetupScreen() {
   const { profile, updateProfile } = useAuth();
   const { colours } = useApp();
   const router = useRouter();
   const [username, setUsername] = useState(profile?.username || '');
   const [displayName, setDisplayName] = useState(profile?.display_name || '');
-  const [campus, setCampus] = useState(profile?.campus || '');
   const [loading, setLoading] = useState(false);
 
   const handleSave = async () => {
@@ -37,7 +29,6 @@ export default function ProfileSetupScreen() {
     const { error } = await updateProfile({
       username: username.trim().toLowerCase(),
       display_name: displayName.trim() || username.trim(),
-      campus: campus || null,
     });
     setLoading(false);
     if (error) {
@@ -47,7 +38,7 @@ export default function ProfileSetupScreen() {
         Alert.alert('Error', error.message);
       }
     } else {
-      await AsyncStorage.setItem('routeo_profile_setup_done', 'true');
+      await AsyncStorage.setItem('thewall_profile_setup_done', 'true');
       router.replace('/(tabs)/' as any);
     }
   };
@@ -90,22 +81,6 @@ export default function ProfileSetupScreen() {
           value={displayName}
           onChangeText={setDisplayName}
         />
-
-        {/* Campus */}
-        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
-          Campus (optional)
-        </Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 40 }}>
-          {CAMPUSES.map(c => (
-            <TouchableOpacity
-              key={c.id}
-              onPress={() => setCampus(campus === c.id ? '' : c.id)}
-              style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, backgroundColor: campus === c.id ? colours.accent : colours.surface, borderColor: campus === c.id ? colours.accent : colours.border }}
-            >
-              <Text style={{ fontSize: 13, fontWeight: '600', color: campus === c.id ? 'white' : colours.text }}>{c.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
 
         <TouchableOpacity
           onPress={handleSave}

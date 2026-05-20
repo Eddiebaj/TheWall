@@ -152,7 +152,7 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, on
         {/* Header */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: summary.sports.length > 0 ? 12 : 4 }}>
           <View style={{ flex: 1 }}>
-            {/* Eyebrow — only when showing a specific neighbourhood */}
+            {/* Eyebrow  -  only when showing a specific neighbourhood */}
             {eyebrow && (
               <Text style={{ fontSize: 10, fontWeight: '800', letterSpacing: 1.4, color: '#00C07A', marginBottom: 3 }}>
                 {eyebrow}
@@ -170,7 +170,7 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, on
           </TouchableOpacity>
         </View>
 
-        {/* Sports — hero treatment with team color accent */}
+        {/* Sports  -  hero treatment with team color accent */}
         {summary.sports.map((sport: any, i: number) => {
           const teamColor = SPORT_COLOURS[sport.icon] || colours.accent;
           return (
@@ -182,7 +182,7 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, on
           );
         })}
 
-        {/* RouteO Pick — gold/amber badge with ✦ star */}
+        {/* RouteO Pick  -  gold/amber badge with ✦ star */}
         {routeoPick && (
           <View style={{
             flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -200,7 +200,7 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, on
           </View>
         )}
 
-        {/* Events + Deals — combined single line */}
+        {/* Events + Deals  -  combined single line */}
         {parts.length > 0 && (
           <TouchableOpacity
             onPress={summary.events.count > 0 ? onPressEvents : onPressDeals}

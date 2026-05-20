@@ -116,7 +116,7 @@ export default function OnboardingScreen() {
             Share the moment
           </Text>
           <Text style={{ fontSize: 16, color: '#8899aa', textAlign: 'center', lineHeight: 24, maxWidth: 300 }}>
-            Post a short video from the night — tied to the venue, saved forever
+            Post a short video from the night  -  tied to the venue, saved forever
           </Text>
         </View>
 

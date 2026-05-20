@@ -15,7 +15,7 @@ serve(async (req) => {
     let body = '';
 
     if (type === 'rsvp') {
-      // Someone RSVPed to a hangout — notify conversation members
+      // Someone RSVPed to a hangout  -  notify conversation members
       const { hangout_id, user_id, status, event_name } = payload;
 
       // Get user's display name
@@ -56,7 +56,7 @@ serve(async (req) => {
     }
 
     if (type === 'message') {
-      // New message in group — notify other members
+      // New message in group  -  notify other members
       const { conversation_id, sender_id, content, event_name } = payload;
 
       const { data: sender } = await supabase

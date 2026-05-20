@@ -188,13 +188,13 @@ function RootNav() {
         }, 0);
       } else {
         (async () => {
-          const setupDone = await AsyncStorage.getItem('routeo_profile_setup_done');
+          const setupDone = await AsyncStorage.getItem('thewall_profile_setup_done');
           if (!setupDone) {
             if (__DEV__) console.log('[RootNav] Profile setup not done - routing to /profile-setup');
             router.replace('/profile-setup');
           } else {
-            if (__DEV__) console.log('[RootNav] Routing to /(tabs)/map');
-            router.replace('/(tabs)/map');
+            if (__DEV__) console.log('[RootNav] Routing to /(tabs)/index');
+            router.replace('/(tabs)/index');
           }
         })();
       }
@@ -211,12 +211,8 @@ function RootNav() {
       <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
       <Stack.Screen name="auth" options={{ headerShown: false }} />
       <Stack.Screen name="profile-setup" options={{ headerShown: false }} />
-      <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="stop/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="route/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="insights" options={{ headerShown: false }} />
       <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="chat/map" options={{ headerShown: false }} />
       <Stack.Screen name="premium" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="admin" options={{ headerShown: false }} />
       <Stack.Screen name="business-signup" options={{ headerShown: false }} />

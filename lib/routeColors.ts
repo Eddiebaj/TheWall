@@ -27,11 +27,11 @@ export function routeBadgeStyle(routeId: string): { bg: string; fg: string } {
   // Night routes
   if (id.startsWith('N')) return { bg: '#6D28D9', fg: '#fff' };
 
-  // Deterministic hash fallback — same route always gets same color
+  // Deterministic hash fallback  -  same route always gets same color
   let h = 5381;
   for (let i = 0; i < id.length; i++) h = (((h << 5) + h) ^ id.charCodeAt(i)) | 0;
   return { bg: BADGE_PALETTE[Math.abs(h) % BADGE_PALETTE.length], fg: '#fff' };
 }
 
-/** Convenience — returns just the background hex for map marker use. */
+/** Convenience  -  returns just the background hex for map marker use. */
 export const getRouteColour = (routeId: string): string => routeBadgeStyle(routeId).bg;

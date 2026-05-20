@@ -57,7 +57,7 @@ export default function HappeningInOttawaSection({ events, onPressEvent }: Props
             : null;
           const isStartingSoon = evTimeMins !== null && evTimeMins > nowMins && evTimeMins - nowMins <= 45;
 
-          // "Leave in X min" badge — only for today's events with a known venue and resolvable coords
+          // "Leave in X min" badge  -  only for today's events with a known venue and resolvable coords
           const venueCoords = resolveVenueCoords(ev.venue);
           const leaveInMins = (isTonight && evTimeMins !== null && venueCoords !== null)
             ? calcLeaveInMins(evTimeMins, nowMins)

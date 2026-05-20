@@ -14,7 +14,7 @@ type AnalyticsCounts = Partial<Record<AnalyticsEvent, number>>;
 
 /**
  * Fire-and-forget event tracker. Increments a counter in AsyncStorage.
- * Intentionally does not return a promise to callers — errors are silently swallowed.
+ * Intentionally does not return a promise to callers  -  errors are silently swallowed.
  */
 export function trackEvent(event: AnalyticsEvent): void {
   (async () => {
@@ -24,7 +24,7 @@ export function trackEvent(event: AnalyticsEvent): void {
       counts[event] = (counts[event] || 0) + 1;
       await AsyncStorage.setItem(SK_ANALYTICS, JSON.stringify(counts));
     } catch {
-      // silent — analytics should never crash the app
+      // silent  -  analytics should never crash the app
     }
   })();
 }

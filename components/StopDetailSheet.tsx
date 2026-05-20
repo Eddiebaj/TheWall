@@ -224,7 +224,7 @@ export default function StopDetailSheet({ visible, stopId, stopName, onClose, co
             </Text>
           </TouchableOpacity>
 
-          {/* Safety button — night only */}
+          {/* Safety button  -  night only */}
           {isNight && (
             <TouchableOpacity
               onPress={reportSafety}

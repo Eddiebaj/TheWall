@@ -280,7 +280,7 @@ export default function TonightSection({ events, eventsLoading, colours, t, getS
         </ScrollView>
       )}
 
-      {/* Deals — time-gated after 3pm */}
+      {/* Deals  -  time-gated after 3pm */}
       {isAfter3pm && selectedDateIdx === 0 && todayDeals.length > 0 && (
         <View style={{ marginTop: 16 }}>
           <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, paddingHorizontal: 20, marginBottom: 10 }}>
@@ -306,7 +306,7 @@ export default function TonightSection({ events, eventsLoading, colours, t, getS
             </TouchableOpacity>
             <TouchableOpacity onPress={() => { onWhoIsIn(rsvpEvent, 'interested'); setRsvpEvent(null); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 16, backgroundColor: colours.border + '40', borderWidth: 1, borderColor: colours.border, marginBottom: 10 }}>
               <Text style={{ fontSize: 22 }}>👀</Text>
-              <View><Text style={{ fontSize: 15, fontWeight: '700', color: colours.text }}>Interested</Text><Text style={{ fontSize: 12, color: colours.muted }}>Maybe — you'll see who else is going</Text></View>
+              <View><Text style={{ fontSize: 15, fontWeight: '700', color: colours.text }}>Interested</Text><Text style={{ fontSize: 12, color: colours.muted }}>Maybe  -  you'll see who else is going</Text></View>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => { setShareEvent(rsvpEvent); setRsvpEvent(null); loadGroups(); setShowGroupPicker(true); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 16, backgroundColor: colours.border + '40', borderWidth: 1, borderColor: colours.border }}>
               <Text style={{ fontSize: 22 }}>💬</Text>

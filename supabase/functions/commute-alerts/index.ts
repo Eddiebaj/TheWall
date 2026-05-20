@@ -53,7 +53,7 @@ Deno.serve(async () => {
         body: JSON.stringify({
           to: commute.push_token,
           title: `Your ${commute.route_id} is running late`,
-          body: `OC Transpo is reporting a ${delay} min delay — consider leaving a bit later`,
+          body: `OC Transpo is reporting a ${delay} min delay  -  consider leaving a bit later`,
           sound: 'default'
         })
       })

@@ -30,7 +30,7 @@ export async function detectFrequentRoutes(): Promise<FrequentRoute[]> {
     const histRaw = await AsyncStorage.getItem(SK_TRIP_HISTORY);
     if (histRaw) {
       const trips: any[] = JSON.parse(histRaw).slice(-15);
-      // Count route frequency — trips may have a routes array or single route
+      // Count route frequency  -  trips may have a routes array or single route
       const routeCounts = new Map<string, { count: number; stopId: string; stopName: string }>();
 
       // Score board stops by how often they appear in trip history labels

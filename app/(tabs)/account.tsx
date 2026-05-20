@@ -36,7 +36,6 @@ import PaywallSheet from '../../components/PaywallSheet';
 type NotifSettings = {
   tripAlerts: boolean;
   serviceDisruptions: boolean;
-  cityReminders: boolean;
   events: boolean;
   leaveNow: boolean;
   arrivalAlerts: boolean;
@@ -58,7 +57,6 @@ type NotifSettings = {
 const DEFAULT_NOTIF_SETTINGS: NotifSettings = {
   tripAlerts: true,
   serviceDisruptions: true,
-  cityReminders: true,
   events: true,
   leaveNow: true,
   arrivalAlerts: true,
@@ -80,7 +78,6 @@ const DEFAULT_NOTIF_SETTINGS: NotifSettings = {
 const MASTER_KEY_MAP: Record<string, (keyof NotifSettings)[]> = {
   tripAlerts: ['leaveNow', 'arrivalAlerts', 'transferAtRisk', 'tripDisruption', 'lastBus'],
   serviceDisruptions: ['lrtDisruption', 'routeCancellation', 'significantDelay', 'serviceResumed', 'busRunningEarly'],
-  cityReminders: [],
   events: ['festivalEvents', 'liveEventsNearby', 'commuteDeals'],
 };
 
@@ -213,7 +210,7 @@ export default function AccountScreen() {
   const [lastMinuteDeals, setLastMinuteDeals] = React.useState(false);
 
   React.useEffect(() => {
-    AsyncStorage.getItem('routeo_lastminute_notifs').then(v => setLastMinuteDeals(v === 'true'));
+    AsyncStorage.getItem('thewall_lastminute_notifs').then(v => setLastMinuteDeals(v === 'true'));
   }, []);
   const [commuteTimePickerVisible, setCommuteTimePickerVisible] = useState(false);
   const [ghostStats, setGhostStats] = useState<{ totalThisWeek: number; mostAffectedRoute: string | null; mostAffectedCount: number } | null>(null);
@@ -235,12 +232,10 @@ export default function AccountScreen() {
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editName, setEditName] = useState('');
   const [editUsername, setEditUsername] = useState('');
-  const [editCampus, setEditCampus] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-  useEffect(() => {
-    AsyncStorage.getItem('routeo_accessibility_routing').then(v => { if (v === 'true') setAccessibleRoutingEnabled(true); }).catch(() => {});
+    AsyncStorage.getItem('thewall_accessibility_routing').then(v => { if (v === 'true') setAccessibleRoutingEnabled(true); }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -338,7 +333,6 @@ export default function AccountScreen() {
   };
 
   const notifToggles = [
-    { key: 'cityReminders', label: t('City reminders', 'Rappels ville'), icon: 'home' },
     { key: 'events', label: t('Events', '\u00c9v\u00e9nements'), icon: 'calendar' },
   ];
 
@@ -388,7 +382,7 @@ export default function AccountScreen() {
     const [tripCount, setTripCount] = useState(0);
     const [totalKm, setTotalKm] = useState(0);
     useEffect(() => {
-      AsyncStorage.getItem('routeo_trip_history')
+      AsyncStorage.getItem('thewall_trip_history')
         .then(val => {
           if (!val) return;
           const trips = JSON.parse(val);
@@ -463,7 +457,6 @@ export default function AccountScreen() {
                 <TouchableOpacity onPress={() => {
                   setEditName(profile?.display_name || '');
                   setEditUsername(profile?.username || '');
-                  setEditCampus(profile?.campus || '');
                   setShowEditProfile(true);
                 }}>
                   <Ionicons name="pencil-outline" size={16} color={colours.muted} />
@@ -477,11 +470,6 @@ export default function AccountScreen() {
                 </TouchableOpacity>
               </View>
               <Text style={{ fontSize: 13, color: colours.muted }}>@{profile?.username || 'username'}</Text>
-              {profile?.campus && (
-                <Text style={{ fontSize: 12, color: colours.accent, marginTop: 2 }}>
-                  {profile.campus === 'uoft' ? 'University of Toronto' : profile.campus === 'tmu' ? 'Toronto Metropolitan University' : profile.campus === 'yorku' ? 'York University' : profile.campus === 'other' ? 'Other / Not a student' : profile.campus}
-                </Text>
-              )}
             </View>
           </View>
         </View>
@@ -838,20 +826,10 @@ export default function AccountScreen() {
               autoCapitalize="none"
             />
 
-            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Campus</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
-              {[{id:'uoft',label:'UofT'},{id:'tmu',label:'TMU'},{id:'yorku',label:'York'},{id:'other',label:'Other'}].map(c => (
-                <TouchableOpacity key={c.id} onPress={() => setEditCampus(editCampus === c.id ? '' : c.id)}
-                  style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, backgroundColor: editCampus === c.id ? colours.accent : colours.surface, borderColor: editCampus === c.id ? colours.accent : colours.border }}>
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: editCampus === c.id ? 'white' : colours.text }}>{c.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
             <TouchableOpacity
               onPress={async () => {
                 setSaving(true);
-                await updateProfile({ display_name: editName.trim(), username: editUsername.trim(), campus: editCampus || null });
+                await updateProfile({ display_name: editName.trim(), username: editUsername.trim() });
                 setSaving(false);
                 setShowEditProfile(false);
               }}

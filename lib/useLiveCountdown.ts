@@ -35,7 +35,7 @@ export function computeCountdown(
     return { text, textFr: text, isArriving: false, isUrgent: true };
   }
 
-  // > 2 min — show minutes only, update every minute
+  // > 2 min  -  show minutes only, update every minute
   return { text: `${mins}m`, textFr: `${mins}m`, isArriving: false, isUrgent: false };
 }
 
