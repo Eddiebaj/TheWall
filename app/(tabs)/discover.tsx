@@ -4,6 +4,7 @@ import {
   Dimensions,
   FlatList,
   Image,
+  Modal,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -273,6 +274,7 @@ export default function DiscoverScreen() {
   const [mapMode, setMapMode] = useState(false);
   const [gridSort, setGridSort] = useState<'date' | 'popular'>('date');
   const [selectedEvent, setSelectedEvent] = useState<DiscoverEvent | null>(null);
+  const [showFilterSheet, setShowFilterSheet] = useState(false);
   const slideAnim = useRef(new Animated.Value(300)).current;
 
   useEffect(() => {
@@ -423,80 +425,124 @@ export default function DiscoverScreen() {
               </Text>
             </TouchableOpacity>
           ))}
+          <TouchableOpacity
+            onPress={() => setShowFilterSheet(true)}
+            style={[styles.sortBtn, styles.filterBtn, (neighbourhoods.size > 0 || entryFilters.size > 0) && styles.filterBtnActive]}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name="options-outline"
+              size={15}
+              color={(neighbourhoods.size > 0 || entryFilters.size > 0) ? '#FF3B5C' : 'rgba(255,255,255,0.6)'}
+            />
+            {(neighbourhoods.size > 0 || entryFilters.size > 0) && (
+              <View style={styles.filterBadge} />
+            )}
+          </TouchableOpacity>
         </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{ marginTop: 10 }}
-          contentContainerStyle={{ gap: 6, paddingRight: 4 }}
-        >
-          {NEIGHBOURHOODS.map((n) => {
-            const isAll = n === 'All';
-            const isActive = isAll ? neighbourhoods.size === 0 : neighbourhoods.has(n);
-            return (
-              <TouchableOpacity
-                key={n}
-                onPress={() => {
-                  if (isAll) {
-                    setNeighbourhoods(new Set());
-                  } else {
-                    setNeighbourhoods(prev => {
-                      const next = new Set(prev);
-                      next.has(n) ? next.delete(n) : next.add(n);
-                      return next;
-                    });
-                  }
-                }}
-                style={[styles.nbBtn, isActive && styles.nbBtnActive]}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.nbBtnText, isActive && styles.nbBtnTextActive]}>{n}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{ marginTop: 8 }}
-          contentContainerStyle={{ gap: 6, paddingRight: 4 }}
-        >
-          {ENTRY_FILTERS.map((f) => {
-            const isAll = f === 'All';
-            const isBottle = f === 'Bottle Service';
-            const isActive = isAll ? entryFilters.size === 0 : entryFilters.has(f);
-            return (
-              <TouchableOpacity
-                key={f}
-                onPress={() => {
-                  if (isAll) {
-                    setEntryFilters(new Set());
-                  } else {
-                    setEntryFilters(prev => {
-                      const next = new Set(prev);
-                      next.has(f) ? next.delete(f) : next.add(f);
-                      return next;
-                    });
-                  }
-                }}
-                style={[
-                  styles.nbBtn,
-                  isActive && (isBottle ? styles.entryBtnBottleActive : styles.nbBtnActive),
-                ]}
-                activeOpacity={0.8}
-              >
-                <Text style={[
-                  styles.nbBtnText,
-                  isActive && (isBottle ? styles.entryBtnBottleText : styles.nbBtnTextActive),
-                  !isActive && isBottle && styles.entryBtnBottleInactive,
-                ]}>
-                  {f}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
       </View>
+
+      <Modal
+        visible={showFilterSheet}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowFilterSheet(false)}
+      >
+        <TouchableOpacity
+          style={styles.filterOverlay}
+          activeOpacity={1}
+          onPress={() => setShowFilterSheet(false)}
+        />
+        <View style={[styles.filterSheet, { paddingBottom: insets.bottom + 24 }]}>
+          <View style={styles.filterSheetHandle} />
+
+          <View style={styles.filterSheetHeader}>
+            <Text style={styles.filterSheetTitle}>Filters</Text>
+            {(neighbourhoods.size > 0 || entryFilters.size > 0) && (
+              <TouchableOpacity
+                onPress={() => { setNeighbourhoods(new Set()); setEntryFilters(new Set()); }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.filterClearText}>Clear all</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <Text style={styles.filterSectionLabel}>NEIGHBOURHOOD</Text>
+          <View style={styles.filterPillWrap}>
+            {NEIGHBOURHOODS.map((n) => {
+              const isAll = n === 'All';
+              const isActive = isAll ? neighbourhoods.size === 0 : neighbourhoods.has(n);
+              return (
+                <TouchableOpacity
+                  key={n}
+                  onPress={() => {
+                    if (isAll) {
+                      setNeighbourhoods(new Set());
+                    } else {
+                      setNeighbourhoods(prev => {
+                        const next = new Set(prev);
+                        next.has(n) ? next.delete(n) : next.add(n);
+                        return next;
+                      });
+                    }
+                  }}
+                  style={[styles.nbBtn, isActive && styles.nbBtnActive]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.nbBtnText, isActive && styles.nbBtnTextActive]}>{n}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <Text style={[styles.filterSectionLabel, { marginTop: 20 }]}>TYPE</Text>
+          <View style={styles.filterPillWrap}>
+            {ENTRY_FILTERS.map((f) => {
+              const isAll = f === 'All';
+              const isBottle = f === 'Bottle Service';
+              const isActive = isAll ? entryFilters.size === 0 : entryFilters.has(f);
+              return (
+                <TouchableOpacity
+                  key={f}
+                  onPress={() => {
+                    if (isAll) {
+                      setEntryFilters(new Set());
+                    } else {
+                      setEntryFilters(prev => {
+                        const next = new Set(prev);
+                        next.has(f) ? next.delete(f) : next.add(f);
+                        return next;
+                      });
+                    }
+                  }}
+                  style={[
+                    styles.nbBtn,
+                    isActive && (isBottle ? styles.entryBtnBottleActive : styles.nbBtnActive),
+                  ]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[
+                    styles.nbBtnText,
+                    isActive && (isBottle ? styles.entryBtnBottleText : styles.nbBtnTextActive),
+                    !isActive && isBottle && styles.entryBtnBottleInactive,
+                  ]}>
+                    {f}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <TouchableOpacity
+            onPress={() => setShowFilterSheet(false)}
+            style={styles.filterDoneBtn}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.filterDoneBtnText}>Done</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
 
       {loading ? (
         <SkeletonGrid />
@@ -782,6 +828,87 @@ const styles = StyleSheet.create({
   },
   nbBtnTextActive: {
     color: '#FF3B5C',
+  },
+  filterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  filterBtnActive: {
+    borderColor: 'rgba(255,59,92,0.4)',
+    backgroundColor: 'rgba(255,59,92,0.08)',
+  },
+  filterBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#FF3B5C',
+    borderWidth: 1.5,
+    borderColor: '#0a0a0a',
+  },
+  filterOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  filterSheet: {
+    backgroundColor: '#161A22',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 14,
+  },
+  filterSheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  filterSheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  filterSheetTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  filterClearText: {
+    color: '#FF3B5C',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  filterSectionLabel: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 10,
+  },
+  filterPillWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  filterDoneBtn: {
+    marginTop: 28,
+    backgroundColor: '#FF3B5C',
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  filterDoneBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
   },
   entryBtnBottleInactive: {
     color: '#D4A017',

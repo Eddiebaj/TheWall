@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, TextInput,
+  View, Text, ScrollView, Switch, TouchableOpacity, TextInput,
   ActivityIndicator, Alert, Share, Modal, Image, RefreshControl
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -222,6 +222,29 @@ export default function FriendsScreen() {
     loadFriendsData();
   };
 
+  const handleDownToggle = async (newVal: boolean) => {
+    setDownTonight(newVal);
+    if (newVal) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const today = new Date().toISOString().slice(0, 10);
+      await AsyncStorage.setItem(DOWN_TONIGHT_KEY, today);
+      await Promise.all([
+        supabase.from('city_board_down_tonight').upsert({
+          user_id: user!.id,
+          expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+        }, { onConflict: 'user_id' }),
+        supabase.from('profiles').update({ is_down_tonight: true }).eq('id', user!.id),
+      ]);
+    } else {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await AsyncStorage.removeItem(DOWN_TONIGHT_KEY);
+      await Promise.all([
+        supabase.from('city_board_down_tonight').delete().eq('user_id', user!.id),
+        supabase.from('profiles').update({ is_down_tonight: false }).eq('id', user!.id),
+      ]);
+    }
+  };
+
   const handleShareInvite = async () => {
     const inviteUrl = `https://thewall.app/invite/${user!.id}`;
     await Share.share({
@@ -312,9 +335,9 @@ export default function FriendsScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colours.bg }}>
+    <View style={{ flex: 1, backgroundColor: '#0C0E12' }}>
       {/* Header */}
-      <View style={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colours.border }}>
+      <View style={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colours.border, backgroundColor: '#0C0E12' }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <Text style={{ fontSize: 24, fontWeight: '800', color: colours.text }}>Friends</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -337,36 +360,13 @@ export default function FriendsScreen() {
         </View>
 
         {/* I'm down tonight toggle */}
-        <TouchableOpacity
-          onPress={async () => {
-            const newVal = !downTonight;
-            setDownTonight(newVal);
-            if (newVal) {
-              await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              const today = new Date().toISOString().slice(0, 10);
-              await AsyncStorage.setItem(DOWN_TONIGHT_KEY, today);
-              await Promise.all([
-                supabase.from('city_board_down_tonight').upsert({
-                  user_id: user.id,
-                  expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
-                }, { onConflict: 'user_id' }),
-                supabase.from('profiles').update({ is_down_tonight: true }).eq('id', user.id),
-              ]);
-            } else {
-              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              await AsyncStorage.removeItem(DOWN_TONIGHT_KEY);
-              await Promise.all([
-                supabase.from('city_board_down_tonight').delete().eq('user_id', user.id),
-                supabase.from('profiles').update({ is_down_tonight: false }).eq('id', user.id),
-              ]);
-            }
-          }}
+        <View
           style={{
             flexDirection: 'row', alignItems: 'center', gap: 10,
             paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14,
             borderWidth: 1.5,
-            borderColor: downTonight ? '#00C07A' : colours.border,
-            backgroundColor: downTonight ? '#00C07A12' : colours.surface,
+            borderColor: downTonight ? '#00C07A' : 'rgba(255,255,255,0.08)',
+            backgroundColor: downTonight ? '#00C07A12' : '#1E2230',
             marginBottom: 12,
           }}
         >
@@ -381,8 +381,13 @@ export default function FriendsScreen() {
               {downTonight ? 'Your friends can see you\'re available' : 'Let friends know you\'re free'}
             </Text>
           </View>
-          <Ionicons name={downTonight ? 'toggle' : 'toggle-outline'} size={28} color={downTonight ? '#00C07A' : colours.muted} />
-        </TouchableOpacity>
+          <Switch
+            value={downTonight}
+            onValueChange={handleDownToggle}
+            trackColor={{ false: '#333', true: '#00C07A' }}
+            thumbColor="#fff"
+          />
+        </View>
         {friendsDown.length > 0 && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, paddingHorizontal: 4 }}>
             <View style={{ flexDirection: 'row' }}>
@@ -441,7 +446,7 @@ export default function FriendsScreen() {
         {/* Friend discovery methods */}
         <View style={{ gap: 10 }}>
           {/* Search by username */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 12, paddingVertical: 10, gap: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E2230', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 12, paddingVertical: 10, gap: 8 }}>
             <Ionicons name="search-outline" size={16} color={colours.muted} />
             <TextInput
               style={{ flex: 1, fontSize: 15, color: colours.text }}
@@ -459,18 +464,18 @@ export default function FriendsScreen() {
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <TouchableOpacity
               onPress={handleInviteLink}
-              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, backgroundColor: '#1E2230', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }}
             >
-              <Ionicons name="link-outline" size={16} color={colours.accent} />
-              <Text style={{ fontSize: 13, fontWeight: '600', color: colours.accent }}>Copy Link</Text>
+              <Ionicons name="link-outline" size={16} color="#fff" />
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#fff' }}>Copy Link</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={handleShareInvite}
-              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, backgroundColor: '#1E2230', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }}
             >
-              <Ionicons name="share-outline" size={16} color={colours.accent} />
-              <Text style={{ fontSize: 13, fontWeight: '600', color: colours.accent }}>Invite</Text>
+              <Ionicons name="share-outline" size={16} color="#fff" />
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#fff' }}>Invite</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -497,7 +502,7 @@ export default function FriendsScreen() {
       </View>
 
       <ScrollView
-        style={{ flex: 1 }}
+        style={{ flex: 1, backgroundColor: '#0C0E12' }}
         contentContainerStyle={{ padding: 20, gap: 20 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FF3B5C" />}
       >
@@ -626,8 +631,8 @@ export default function FriendsScreen() {
           {loading ? (
             <ActivityIndicator color={colours.accent} />
           ) : friends.length === 0 ? (
-            <View style={{ padding: 32, alignItems: 'center', borderRadius: 16, borderWidth: 1, borderColor: colours.border, borderStyle: 'dashed' }}>
-              <Text style={{ fontSize: 22, marginBottom: 8 }}>👋</Text>
+            <View style={{ padding: 32, alignItems: 'center', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderStyle: 'dashed', backgroundColor: 'transparent' }}>
+              <Ionicons name="people-outline" size={48} color={colours.muted} style={{ marginBottom: 8 }} />
               <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text, marginBottom: 4 }}>No friends yet</Text>
               <Text style={{ fontSize: 13, color: colours.muted, textAlign: 'center' }}>Search for friends by username above</Text>
             </View>
@@ -648,24 +653,24 @@ export default function FriendsScreen() {
         </View>
 
         {/* Invite friends */}
-        <View style={{ marginTop: 8, padding: 20, borderRadius: 16, backgroundColor: colours.accent + '12', borderWidth: 1, borderColor: colours.accent + '30' }}>
-          <Text style={{ fontSize: 16, fontWeight: '800', color: colours.text, marginBottom: 4 }}>
+        <View style={{ marginTop: 8, padding: 20, borderRadius: 16, backgroundColor: '#1A2E1A', borderWidth: 1, borderColor: 'rgba(0,192,122,0.2)' }}>
+          <Text style={{ fontSize: 16, fontWeight: '800', color: '#fff', marginBottom: 4 }}>
             Invite your friends
           </Text>
-          <Text style={{ fontSize: 13, color: colours.muted, marginBottom: 16, lineHeight: 18 }}>
+          <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 16, lineHeight: 18 }}>
             The Wall is better with friends. Share your invite link and coordinate nights out together.
           </Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <TouchableOpacity
               onPress={handleInviteLink}
-              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: 'rgba(0,192,122,0.12)', borderWidth: 1, borderColor: 'rgba(0,192,122,0.3)' }}
             >
-              <Ionicons name="link-outline" size={16} color={colours.accent} />
-              <Text style={{ fontSize: 14, fontWeight: '700', color: colours.accent }}>Copy link</Text>
+              <Ionicons name="link-outline" size={16} color="#00C07A" />
+              <Text style={{ fontSize: 14, fontWeight: '700', color: '#00C07A' }}>Copy link</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleShareInvite}
-              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: colours.accent }}
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: '#00C07A' }}
             >
               <Ionicons name="share-outline" size={16} color="white" />
               <Text style={{ fontSize: 14, fontWeight: '700', color: 'white' }}>Share</Text>
@@ -677,7 +682,7 @@ export default function FriendsScreen() {
 
       <Modal visible={showNewGroup} transparent animationType="slide" onRequestClose={() => setShowNewGroup(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: colours.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: insets.bottom + 24, maxHeight: '80%' }}>
+          <View style={{ backgroundColor: '#161A22', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: insets.bottom + 24, maxHeight: '80%' }}>
             <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text, marginBottom: 16 }}>New Group</Text>
 
             {/* Group name */}
