@@ -650,22 +650,6 @@ export default function AccountScreen() {
           </Text>
         </View>
 
-        {/* Ghost Bus Stats */}
-        {ghostStats && ghostStats.totalThisWeek > 0 && (
-          <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
-            <View style={{ backgroundColor: colours.warnBg, borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <Ionicons name="eye-off" size={18} color={colours.orange} />
-              <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.orange, flex: 1 }}>
-                {ghostStats.totalThisWeek} {t('ghost buses this week', 'bus fantomes cette semaine')}
-                {ghostStats.mostAffectedRoute ? ` · ${t('Route', 'Route')} ${ghostStats.mostAffectedRoute}` : ''}
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* ── TRIP HISTORY ── */}
-        <TripHistoryCard />
-
         {/* ── NOTIFICATIONS ── */}
         <SectionHeader label={t('Notifications', 'Notifications')} icon="notifications-outline" colours={colours} fonts={fonts} />
         <Card>
@@ -745,33 +729,17 @@ export default function AccountScreen() {
 
         </Card>
 
-        <SectionHeader label={t('Business', 'Entreprise')} icon="storefront-outline" colours={colours} fonts={fonts} />
-        <Card>
-          <SettingsRow
-            label={t('Register your business', 'Enregistrer votre entreprise')}
-            icon="storefront-outline"
-            onPress={async () => {
-              const { data: { user } } = await supabase.auth.getUser();
-              if (!user) return;
-              const { data: biz } = await supabase.from('business_profiles').select('id').eq('user_id', user.id).single();
-              if (biz) { router.push('/business-dashboard' as any); } else { router.push('/business-signup' as any); }
-            }}
-            colours={colours}
-            fonts={fonts}
-          />
-          {isAdmin && (
-            <>
-              <Divider colours={colours} />
-              <SettingsRow
-                label="Admin Panel"
-                icon="shield-checkmark-outline"
-                onPress={() => router.push('/admin' as any)}
-                colours={colours}
-                fonts={fonts}
-              />
-            </>
-          )}
-        </Card>
+        {isAdmin && (
+          <Card>
+            <SettingsRow
+              label="Admin Panel"
+              icon="shield-checkmark-outline"
+              onPress={() => router.push('/admin' as any)}
+              colours={colours}
+              fonts={fonts}
+            />
+          </Card>
+        )}
 
         {/* ── SUPPORT ── */}
         <SectionHeader label={t('Support', 'Soutien')} icon="help-circle-outline" colours={colours} fonts={fonts} />
@@ -803,7 +771,7 @@ export default function AccountScreen() {
           <SettingsRow
             label={t('Privacy Policy', 'Politique de confidentialite')}
             icon="shield-checkmark"
-            onPress={() => Linking.openURL('https://routeo.ca/privacy').catch(() => {})}
+            onPress={() => Linking.openURL('https://thewall.app/privacy').catch(() => {})}
             colours={colours}
             fonts={fonts}
             right={<Ionicons name="open-outline" size={16} color={colours.muted} />}

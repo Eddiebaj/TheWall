@@ -96,8 +96,8 @@ export default function FriendsScreen() {
       .from('friendships')
       .select(`
         id, status,
-        requester:profiles!friendships_requester_id_fkey(id, username, display_name, campus),
-        addressee:profiles!friendships_addressee_id_fkey(id, username, display_name, campus)
+        requester:profiles!friendships_requester_id_fkey(id, username, display_name),
+        addressee:profiles!friendships_addressee_id_fkey(id, username, display_name)
       `)
       .eq('status', 'accepted')
       .or(`requester_id.eq.${user!.id},addressee_id.eq.${user!.id}`);
@@ -139,7 +139,7 @@ export default function FriendsScreen() {
     setSearching(true);
     const { data } = await supabase
       .from('profiles')
-      .select('id, username, display_name, campus')
+      .select('id, username, display_name')
       .ilike('username', `%${query}%`)
       .neq('id', user!.id)
       .limit(5);
@@ -491,7 +491,6 @@ export default function FriendsScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{friend.display_name || friend.username}</Text>
                   <Text style={{ fontSize: 12, color: colours.muted }}>@{friend.username}</Text>
-                  {friend.campus && <Text style={{ fontSize: 11, color: colours.accent, marginTop: 2 }}>{friend.campus}</Text>}
                 </View>
                 <Ionicons name="chevron-forward" size={16} color={colours.muted} />
               </View>

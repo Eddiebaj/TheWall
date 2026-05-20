@@ -7,7 +7,6 @@ import {
   Image,
   Linking,
   Modal,
-  ScrollView,
   Share,
   Text,
   TextInput,
@@ -63,28 +62,28 @@ interface EventDetail {
 function getEventTags(title: string): string[] {
   const t = title.toLowerCase();
   const tags: string[] = [];
-  if (t.includes('live') || t.includes('band') || t.includes('music')) tags.push('🎵 Live Music');
-  if (t.includes('concert')) tags.push('🎸 Concert');
-  if (t.includes('dj') || t.includes('rave') || t.includes('techno') || t.includes('house') || t.includes('edm')) tags.push('🎧 DJ Set');
-  if (t.includes('karaoke')) tags.push('🎤 Karaoke');
-  if (t.includes('comedy') || t.includes('stand-up') || t.includes('standup')) tags.push('🎤 Comedy');
-  if (t.includes('art') || t.includes('gallery') || t.includes('exhibit')) tags.push('🎨 Art');
-  if (t.includes('trivia') || t.includes('quiz')) tags.push('🧠 Trivia');
-  if (t.includes('game') || t.includes('sport') || t.includes('tournament')) tags.push('🏆 Games');
-  if (t.includes('party') || t.includes('celebration') || t.includes('birthday') || t.includes('nye') || t.includes('halloween')) tags.push('🎉 Party');
-  if (t.includes('brunch')) tags.push('☕ Brunch');
-  if (t.includes('wine') || t.includes('winery') || t.includes('vineyard')) tags.push('🍷 Wine');
-  if (t.includes('cocktail') || t.includes('mixology')) tags.push('🥂 Cocktails');
-  if (t.includes('happy hour') || t.includes('happyhour')) tags.push('🍻 Happy Hour');
-  if (t.includes('food') || t.includes('taco') || t.includes('bbq') || t.includes('burger')) tags.push('🍔 Food & Drinks');
-  if (t.includes('patio') || t.includes('outdoor') || t.includes('rooftop')) tags.push('🌿 Outdoor');
+  if (t.includes('live') || t.includes('band') || t.includes('music')) tags.push('Live Music');
+  if (t.includes('concert')) tags.push('Concert');
+  if (t.includes('dj') || t.includes('rave') || t.includes('techno') || t.includes('house') || t.includes('edm')) tags.push('DJ Set');
+  if (t.includes('karaoke')) tags.push('Karaoke');
+  if (t.includes('comedy') || t.includes('stand-up') || t.includes('standup')) tags.push('Comedy');
+  if (t.includes('art') || t.includes('gallery') || t.includes('exhibit')) tags.push('Art');
+  if (t.includes('trivia') || t.includes('quiz')) tags.push('Trivia');
+  if (t.includes('game') || t.includes('sport') || t.includes('tournament')) tags.push('Games');
+  if (t.includes('party') || t.includes('celebration') || t.includes('birthday') || t.includes('nye') || t.includes('halloween')) tags.push('Party');
+  if (t.includes('brunch')) tags.push('Brunch');
+  if (t.includes('wine') || t.includes('winery') || t.includes('vineyard')) tags.push('Wine');
+  if (t.includes('cocktail') || t.includes('mixology')) tags.push('Cocktails');
+  if (t.includes('happy hour') || t.includes('happyhour')) tags.push('Happy Hour');
+  if (t.includes('food') || t.includes('taco') || t.includes('bbq') || t.includes('burger')) tags.push('Food & Drinks');
+  if (t.includes('patio') || t.includes('outdoor') || t.includes('rooftop')) tags.push('Outdoor');
   if (t.includes('all ages') || t.includes('family') || t.includes('kids')) {
     tags.push('All Ages');
   } else {
     tags.push('19+');
   }
-  if (tags.length < 3) tags.splice(tags.length - 1, 0, '🍺 Bar');
-  if (tags.length < 3) tags.splice(tags.length - 1, 0, '🎉 Party');
+  if (tags.length < 3) tags.splice(tags.length - 1, 0, 'Bar');
+  if (tags.length < 3) tags.splice(tags.length - 1, 0, 'Party');
   return tags;
 }
 
@@ -424,7 +423,7 @@ export default function EventDetailScreen() {
       </View>
 
       {/* Content */}
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}>
+      <View style={{ flex: 1, padding: 20, paddingBottom: insets.bottom + 40 }}>
         <Text style={{ fontSize: 26, fontWeight: '800', color: colours.text, marginBottom: 8 }}>
           {event.venue?.name || 'Unknown Venue'}
         </Text>
@@ -619,7 +618,7 @@ export default function EventDetailScreen() {
             </TouchableOpacity>
           )}
         </View>
-      </ScrollView>
+      </View>
 
       {/* Share options sheet */}
       <Modal
