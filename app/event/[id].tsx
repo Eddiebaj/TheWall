@@ -36,6 +36,12 @@ interface Friend {
   avatar_url: string | null;
 }
 
+interface GroupConv {
+  id: string;
+  name: string | null;
+  memberCount: number;
+}
+
 interface EventDetail {
   id: string;
   title: string;
@@ -86,19 +92,24 @@ export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colours, fonts } = useApp();
+  const { colours } = useApp();
   const { user } = useAuth();
 
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [rsvpProfiles, setRsvpProfiles] = useState<RsvpProfile[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Share sheet state
+  // Share sheet
   const [shareSheetVisible, setShareSheetVisible] = useState(false);
-  const [friendsSheetVisible, setFriendsSheetVisible] = useState(false);
+
+  // Friends/groups picker
+  const [pickerVisible, setPickerVisible] = useState(false);
   const [friends, setFriends] = useState<Friend[]>([]);
-  const [friendSearch, setFriendSearch] = useState('');
-  const [sendingTo, setSendingTo] = useState<string | null>(null);
+  const [groups, setGroups] = useState<GroupConv[]>([]);
+  const [search, setSearch] = useState('');
+  const [selectedFriendIds, setSelectedFriendIds] = useState<Set<string>>(new Set());
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     if (id) loadEvent();
@@ -209,90 +220,138 @@ export default function EventDetailScreen() {
     });
   };
 
-  const openShareToFriend = async () => {
+  const openFriendsPicker = async () => {
     if (!user) {
-      Alert.alert('Sign in required', 'Sign in to share events with friends.');
+      Alert.alert('Sign in required', 'Sign in to share events.');
       return;
     }
     setShareSheetVisible(false);
 
-    // Load accepted friends
-    const { data: rows } = await supabase
+    // Load friends
+    const { data: friendRows } = await supabase
       .from('friendships')
       .select('requester_id, addressee_id, requester:profiles!friendships_requester_id_fkey(id, username, avatar_url), addressee:profiles!friendships_addressee_id_fkey(id, username, avatar_url)')
       .eq('status', 'accepted')
       .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
 
-    const list: Friend[] = ((rows || []) as any[]).map((r: any) => {
+    const friendList: Friend[] = ((friendRows || []) as any[]).map((r: any) => {
       const other = r.requester_id === user.id ? r.addressee : r.requester;
       return other as Friend;
     }).filter(Boolean);
 
-    setFriends(list);
-    setFriendSearch('');
-    setFriendsSheetVisible(true);
+    // Load group conversations
+    const { data: memberRows } = await supabase
+      .from('conversation_members')
+      .select('conversation_id, conversations(id, name, type, conversation_members(user_id))')
+      .eq('user_id', user.id);
+
+    const groupList: GroupConv[] = ((memberRows || []) as any[])
+      .map((r: any) => r.conversations)
+      .filter((c: any) => c && c.type === 'group')
+      .map((c: any) => ({
+        id: c.id,
+        name: c.name || null,
+        memberCount: (c.conversation_members || []).length,
+      }));
+
+    setFriends(friendList);
+    setGroups(groupList);
+    setSelectedFriendIds(new Set());
+    setSelectedGroupIds(new Set());
+    setSearch('');
+    setPickerVisible(true);
   };
 
-  const handleSendToFriend = async (friend: Friend) => {
+  const toggleFriend = (id: string) => {
+    setSelectedFriendIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleGroup = (id: string) => {
+    setSelectedGroupIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSend = async () => {
     if (!user || !event) return;
-    setSendingTo(friend.id);
+    if (selectedFriendIds.size === 0 && selectedGroupIds.size === 0) return;
+    setSending(true);
+
+    const metadata = {
+      event_id: event.id,
+      title: event.title,
+      venue_name: event.venue?.name || null,
+      event_date: event.event_date || null,
+    };
 
     try {
-      // Find or create direct conversation
-      const { data: existing } = await supabase
-        .from('conversations')
-        .select('id, conversation_members(user_id)')
-        .eq('type', 'direct')
-        .contains('conversation_members.user_id', [user.id]);
+      // Resolve direct conversation IDs for each selected friend
+      const directConvIds: string[] = [];
 
-      let conversationId: string | null = null;
+      if (selectedFriendIds.size > 0) {
+        const { data: existing } = await supabase
+          .from('conversations')
+          .select('id, conversation_members(user_id)')
+          .eq('type', 'direct');
 
-      if (existing) {
-        for (const conv of existing as any[]) {
-          const memberIds: string[] = (conv.conversation_members || []).map((m: any) => m.user_id);
-          if (memberIds.includes(friend.id) && memberIds.length === 2) {
-            conversationId = conv.id;
-            break;
+        const existingConvs = (existing || []) as any[];
+
+        for (const friendId of Array.from(selectedFriendIds)) {
+          let convId: string | null = null;
+
+          for (const conv of existingConvs) {
+            const memberIds: string[] = (conv.conversation_members || []).map((m: any) => m.user_id);
+            if (memberIds.includes(user.id) && memberIds.includes(friendId) && memberIds.length === 2) {
+              convId = conv.id;
+              break;
+            }
           }
+
+          if (!convId) {
+            const { data: newConv, error: convErr } = await supabase
+              .from('conversations')
+              .insert({ type: 'direct' })
+              .select('id')
+              .single();
+            if (convErr || !newConv) continue;
+            convId = newConv.id;
+            await supabase.from('conversation_members').insert([
+              { conversation_id: convId, user_id: user.id },
+              { conversation_id: convId, user_id: friendId },
+            ]);
+          }
+
+          directConvIds.push(convId);
         }
       }
 
-      if (!conversationId) {
-        const { data: newConv, error: convErr } = await supabase
-          .from('conversations')
-          .insert({ type: 'direct' })
-          .select('id')
-          .single();
-        if (convErr || !newConv) throw new Error('Could not create conversation');
-        conversationId = newConv.id;
+      const allConvIds = [...directConvIds, ...Array.from(selectedGroupIds)];
 
-        await supabase.from('conversation_members').insert([
-          { conversation_id: conversationId, user_id: user.id },
-          { conversation_id: conversationId, user_id: friend.id },
-        ]);
-      }
-
-      // Insert event_share message
-      const { error: msgErr } = await supabase.from('messages').insert({
-        conversation_id: conversationId,
+      const messages = allConvIds.map(convId => ({
+        conversation_id: convId,
         sender_id: user.id,
         type: 'event_share',
-        metadata: {
-          event_id: event.id,
-          title: event.title,
-          venue_name: event.venue?.name || null,
-          event_date: event.event_date || null,
-        },
-      });
+        metadata,
+      }));
 
-      if (msgErr) throw msgErr;
+      if (messages.length > 0) {
+        const { error } = await supabase.from('messages').insert(messages);
+        if (error) throw error;
+      }
 
-      setFriendsSheetVisible(false);
-      Alert.alert('Sent!', `Event shared with ${friend.username}.`);
+      setPickerVisible(false);
+      const total = selectedFriendIds.size + selectedGroupIds.size;
+      Alert.alert('Sent!', `Event shared with ${total} ${total === 1 ? 'conversation' : 'conversations'}.`);
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Could not send event.');
     } finally {
-      setSendingTo(null);
+      setSending(false);
     }
   };
 
@@ -328,9 +387,12 @@ export default function EventDetailScreen() {
     ? new Date(event.event_date).toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })
     : null;
 
-  const filteredFriends = friends.filter(f =>
-    f.username.toLowerCase().includes(friendSearch.toLowerCase())
-  );
+  const q = search.toLowerCase();
+  const filteredFriends = friends.filter(f => f.username.toLowerCase().includes(q));
+  const filteredGroups = groups.filter(g => (g.name || '').toLowerCase().includes(q));
+  const totalSelected = selectedFriendIds.size + selectedGroupIds.size;
+
+  const CARD = colours.card || '#1c1c1e';
 
   return (
     <View style={{ flex: 1, backgroundColor: colours.bg }}>
@@ -343,8 +405,6 @@ export default function EventDetailScreen() {
             <Ionicons name="image-outline" size={48} color="rgba(255,255,255,0.2)" />
           </View>
         )}
-
-        {/* Back button */}
         <TouchableOpacity
           onPress={() => router.back()}
           style={{
@@ -365,12 +425,10 @@ export default function EventDetailScreen() {
 
       {/* Content */}
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}>
-        {/* Venue name */}
         <Text style={{ fontSize: 26, fontWeight: '800', color: colours.text, marginBottom: 8 }}>
           {event.venue?.name || 'Unknown Venue'}
         </Text>
 
-        {/* Neighbourhood pill */}
         {event.venue?.neighbourhood && (
           <View style={{
             alignSelf: 'flex-start',
@@ -388,12 +446,10 @@ export default function EventDetailScreen() {
           </View>
         )}
 
-        {/* Event title */}
         <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text, marginBottom: 16 }}>
           {event.title}
         </Text>
 
-        {/* Date / time / cover row */}
         <View style={{ flexDirection: 'row', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
           {formattedDate && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -415,7 +471,6 @@ export default function EventDetailScreen() {
           )}
         </View>
 
-        {/* Tags / vibe row */}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
           {getEventTags(event.title).map(tag => (
             <View
@@ -434,7 +489,6 @@ export default function EventDetailScreen() {
           ))}
         </View>
 
-        {/* About this event */}
         <View style={{ marginBottom: 28 }}>
           <Text style={{ fontSize: 14, fontWeight: '700', color: colours.muted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 }}>
             About this event
@@ -442,8 +496,6 @@ export default function EventDetailScreen() {
           <Text style={{ fontSize: 15, color: colours.text, lineHeight: 22, opacity: 0.85 }}>
             {event.description ?? 'Details coming soon. Check back closer to the date for more info.'}
           </Text>
-
-          {/* Venue address */}
           {event.venue?.address && (
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 16 }}>
               <Ionicons name="location-outline" size={16} color={colours.muted} style={{ marginTop: 2 }} />
@@ -454,7 +506,6 @@ export default function EventDetailScreen() {
           )}
         </View>
 
-        {/* RSVP avatar row */}
         {rsvpProfiles.length > 0 && (() => {
           const shown = rsvpProfiles.slice(0, 5);
           const extra = rsvpProfiles.length - shown.length;
@@ -500,7 +551,6 @@ export default function EventDetailScreen() {
           );
         })()}
 
-        {/* I'm Going button */}
         <TouchableOpacity
           onPress={() => handleToggleRsvp('going')}
           activeOpacity={0.85}
@@ -517,7 +567,6 @@ export default function EventDetailScreen() {
           </Text>
         </TouchableOpacity>
 
-        {/* Interested button */}
         <TouchableOpacity
           onPress={() => handleToggleRsvp('interested')}
           activeOpacity={0.85}
@@ -536,7 +585,6 @@ export default function EventDetailScreen() {
           </Text>
         </TouchableOpacity>
 
-        {/* Share + Directions icon row */}
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <TouchableOpacity
             onPress={() => setShareSheetVisible(true)}
@@ -573,7 +621,7 @@ export default function EventDetailScreen() {
         </View>
       </ScrollView>
 
-      {/* Share bottom sheet */}
+      {/* Share options sheet */}
       <Modal
         visible={shareSheetVisible}
         transparent
@@ -586,7 +634,7 @@ export default function EventDetailScreen() {
           onPress={() => setShareSheetVisible(false)}
         />
         <View style={{
-          backgroundColor: colours.card || '#1c1c1e',
+          backgroundColor: CARD,
           borderTopLeftRadius: 20,
           borderTopRightRadius: 20,
           paddingHorizontal: 20,
@@ -597,13 +645,11 @@ export default function EventDetailScreen() {
           left: 0,
           right: 0,
         }}>
-          {/* Handle */}
           <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)', alignSelf: 'center', marginBottom: 20 }} />
-
           <Text style={{ fontSize: 16, fontWeight: '700', color: colours.text, marginBottom: 16 }}>Share Event</Text>
 
           <TouchableOpacity
-            onPress={openShareToFriend}
+            onPress={openFriendsPicker}
             activeOpacity={0.85}
             style={{
               flexDirection: 'row',
@@ -615,23 +661,18 @@ export default function EventDetailScreen() {
             }}
           >
             <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons name="person-outline" size={20} color={colours.accent} />
+              <Ionicons name="people-outline" size={20} color={colours.accent} />
             </View>
             <View>
-              <Text style={{ fontSize: 15, fontWeight: '600', color: colours.text }}>Share to a Friend</Text>
-              <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>Send via direct message</Text>
+              <Text style={{ fontSize: 15, fontWeight: '600', color: colours.text }}>Share to Friends or Groups</Text>
+              <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>Send via direct message or group chat</Text>
             </View>
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={handleShareExternal}
             activeOpacity={0.85}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 14,
-              paddingVertical: 14,
-            }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14 }}
           >
             <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="share-outline" size={20} color={colours.text} />
@@ -644,36 +685,37 @@ export default function EventDetailScreen() {
         </View>
       </Modal>
 
-      {/* Friends picker sheet */}
+      {/* Friends & groups picker */}
       <Modal
-        visible={friendsSheetVisible}
+        visible={pickerVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setFriendsSheetVisible(false)}
+        onRequestClose={() => setPickerVisible(false)}
       >
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} />
         <View style={{
-          backgroundColor: colours.card || '#1c1c1e',
+          backgroundColor: CARD,
           borderTopLeftRadius: 20,
           borderTopRightRadius: 20,
           paddingTop: 12,
-          paddingBottom: insets.bottom + 16,
           position: 'absolute',
           bottom: 0,
           left: 0,
           right: 0,
-          maxHeight: SCREEN_HEIGHT * 0.65,
+          maxHeight: SCREEN_HEIGHT * 0.72,
         }}>
           {/* Handle */}
           <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)', alignSelf: 'center', marginBottom: 16 }} />
 
+          {/* Header */}
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginBottom: 12 }}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: colours.text, flex: 1 }}>Send to a Friend</Text>
-            <TouchableOpacity onPress={() => setFriendsSheetVisible(false)}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: colours.text, flex: 1 }}>Send to Friends or Groups</Text>
+            <TouchableOpacity onPress={() => setPickerVisible(false)}>
               <Ionicons name="close" size={22} color={colours.muted} />
             </TouchableOpacity>
           </View>
 
+          {/* Search */}
           <View style={{
             marginHorizontal: 20,
             marginBottom: 12,
@@ -686,9 +728,9 @@ export default function EventDetailScreen() {
           }}>
             <Ionicons name="search-outline" size={16} color={colours.muted} />
             <TextInput
-              value={friendSearch}
-              onChangeText={setFriendSearch}
-              placeholder="Search friends..."
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search..."
               placeholderTextColor={colours.muted}
               style={{ flex: 1, fontSize: 14, color: colours.text, paddingVertical: 10 }}
               autoCapitalize="none"
@@ -696,54 +738,120 @@ export default function EventDetailScreen() {
             />
           </View>
 
-          {filteredFriends.length === 0 ? (
-            <Text style={{ textAlign: 'center', color: colours.muted, fontSize: 14, paddingVertical: 32 }}>
-              {friends.length === 0 ? 'No friends yet' : 'No results'}
-            </Text>
-          ) : (
-            <FlatList
-              data={filteredFriends}
-              keyExtractor={f => f.id}
-              renderItem={({ item: f }) => (
+          <FlatList
+            data={[
+              ...(filteredFriends.length > 0 ? [{ _type: 'section', label: 'Friends' } as any] : []),
+              ...filteredFriends.map(f => ({ _type: 'friend', ...f })),
+              ...(filteredGroups.length > 0 ? [{ _type: 'section', label: 'Groups' } as any] : []),
+              ...filteredGroups.map(g => ({ _type: 'group', ...g })),
+              ...(filteredFriends.length === 0 && filteredGroups.length === 0
+                ? [{ _type: 'empty' } as any]
+                : []),
+            ]}
+            keyExtractor={(item, i) => item._type === 'section' ? `section-${item.label}` : item._type === 'empty' ? 'empty' : item.id}
+            renderItem={({ item }) => {
+              if (item._type === 'section') {
+                return (
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, letterSpacing: 0.8, textTransform: 'uppercase', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 6 }}>
+                    {item.label}
+                  </Text>
+                );
+              }
+              if (item._type === 'empty') {
+                return (
+                  <Text style={{ textAlign: 'center', color: colours.muted, fontSize: 14, paddingVertical: 32 }}>
+                    {friends.length === 0 && groups.length === 0 ? 'No friends or groups yet' : 'No results'}
+                  </Text>
+                );
+              }
+              if (item._type === 'friend') {
+                const selected = selectedFriendIds.has(item.id);
+                return (
+                  <TouchableOpacity
+                    onPress={() => toggleFriend(item.id)}
+                    activeOpacity={0.8}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 10 }}
+                  >
+                    <View style={{
+                      width: 40, height: 40, borderRadius: 20,
+                      backgroundColor: colours.accent,
+                      overflow: 'hidden', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {item.avatar_url ? (
+                        <Image source={{ uri: item.avatar_url }} style={{ width: '100%', height: '100%' }} />
+                      ) : (
+                        <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>{item.username[0].toUpperCase()}</Text>
+                      )}
+                    </View>
+                    <Text style={{ fontSize: 15, fontWeight: '600', color: colours.text, flex: 1 }}>@{item.username}</Text>
+                    <View style={{
+                      width: 24, height: 24, borderRadius: 12,
+                      borderWidth: 2,
+                      borderColor: selected ? colours.accent : 'rgba(255,255,255,0.2)',
+                      backgroundColor: selected ? colours.accent : 'transparent',
+                      alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {selected && <Ionicons name="checkmark" size={14} color="#fff" />}
+                    </View>
+                  </TouchableOpacity>
+                );
+              }
+              // group
+              const selected = selectedGroupIds.has(item.id);
+              return (
                 <TouchableOpacity
-                  onPress={() => handleSendToFriend(f)}
+                  onPress={() => toggleGroup(item.id)}
                   activeOpacity={0.8}
-                  disabled={sendingTo === f.id}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 12,
-                    paddingHorizontal: 20,
-                    paddingVertical: 12,
-                  }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 10 }}
                 >
                   <View style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: colours.accent,
-                    overflow: 'hidden',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    width: 40, height: 40, borderRadius: 20,
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    alignItems: 'center', justifyContent: 'center',
                   }}>
-                    {f.avatar_url ? (
-                      <Image source={{ uri: f.avatar_url }} style={{ width: '100%', height: '100%' }} />
-                    ) : (
-                      <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>
-                        {f.username[0].toUpperCase()}
-                      </Text>
-                    )}
+                    <Ionicons name="people" size={20} color={colours.text} />
                   </View>
-                  <Text style={{ fontSize: 15, fontWeight: '600', color: colours.text, flex: 1 }}>@{f.username}</Text>
-                  {sendingTo === f.id ? (
-                    <ActivityIndicator size="small" color={colours.accent} />
-                  ) : (
-                    <Ionicons name="paper-plane-outline" size={18} color={colours.accent} />
-                  )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '600', color: colours.text }}>{item.name || 'Group Chat'}</Text>
+                    <Text style={{ fontSize: 12, color: colours.muted, marginTop: 1 }}>{item.memberCount} members</Text>
+                  </View>
+                  <View style={{
+                    width: 24, height: 24, borderRadius: 12,
+                    borderWidth: 2,
+                    borderColor: selected ? colours.accent : 'rgba(255,255,255,0.2)',
+                    backgroundColor: selected ? colours.accent : 'transparent',
+                    alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {selected && <Ionicons name="checkmark" size={14} color="#fff" />}
+                  </View>
                 </TouchableOpacity>
+              );
+            }}
+            style={{ flexGrow: 0 }}
+          />
+
+          {/* Send button */}
+          <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: insets.bottom + 16 }}>
+            <TouchableOpacity
+              onPress={handleSend}
+              disabled={totalSelected === 0 || sending}
+              activeOpacity={0.85}
+              style={{
+                backgroundColor: totalSelected > 0 ? colours.accent : 'rgba(255,255,255,0.1)',
+                borderRadius: 14,
+                paddingVertical: 15,
+                alignItems: 'center',
+              }}
+            >
+              {sending ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={{ fontSize: 16, fontWeight: '700', color: totalSelected > 0 ? '#fff' : colours.muted }}>
+                  {totalSelected > 0 ? `Send to ${totalSelected} ${totalSelected === 1 ? 'chat' : 'chats'}` : 'Send'}
+                </Text>
               )}
-            />
-          )}
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
     </View>
