@@ -34,6 +34,7 @@ interface EventDetail {
   event_date: string | null;
   start_time: string | null;
   cover_charge: string | null;
+  description: string | null;
   venue: {
     name: string;
     neighbourhood: string | null;
@@ -41,6 +42,24 @@ interface EventDetail {
   } | null;
   goingCount: number;
   isGoing: boolean;
+}
+
+function getEventTags(title: string): string[] {
+  const t = title.toLowerCase();
+  const tags: string[] = [];
+  if (t.includes('live') || t.includes('band') || t.includes('concert') || t.includes('music')) tags.push('🎵 Live Music');
+  if (t.includes('dj') || t.includes('rave') || t.includes('techno') || t.includes('house') || t.includes('edm')) tags.push('🎧 DJ Set');
+  if (t.includes('comedy') || t.includes('stand-up') || t.includes('standup')) tags.push('🎤 Comedy');
+  if (t.includes('art') || t.includes('gallery') || t.includes('exhibit')) tags.push('🎨 Art');
+  if (t.includes('trivia') || t.includes('quiz')) tags.push('🧠 Trivia');
+  if (t.includes('karaoke')) tags.push('🎤 Karaoke');
+  if (t.includes('brunch')) tags.push('🍳 Brunch');
+  if (t.includes('rooftop')) tags.push('🏙 Rooftop');
+  if (t.includes('patio') || t.includes('outdoor')) tags.push('🌿 Outdoor');
+  // Always add bar + age
+  tags.push('🍺 Bar');
+  tags.push('19+');
+  return tags;
 }
 
 export default function EventDetailScreen() {
@@ -109,6 +128,7 @@ export default function EventDetailScreen() {
       event_date: data.date || null,
       start_time: null,
       cover_charge: null,
+      description: (data as any).description || null,
       venue: (data as any).venues || null,
       goingCount: goingCount || 0,
       isGoing,
@@ -262,6 +282,45 @@ export default function EventDetailScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Ionicons name="ticket-outline" size={15} color={colours.muted} />
               <Text style={{ fontSize: 13, color: colours.muted, fontWeight: '600' }}>{event.cover_charge}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Tags / vibe row */}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
+          {getEventTags(event.title).map(tag => (
+            <View
+              key={tag}
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.07)',
+                borderRadius: 20,
+                paddingHorizontal: 12,
+                paddingVertical: 5,
+                borderWidth: 1,
+                borderColor: 'rgba(255,255,255,0.12)',
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '600', color: colours.text }}>{tag}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* About this event */}
+        <View style={{ marginBottom: 28 }}>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: colours.muted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 }}>
+            About this event
+          </Text>
+          <Text style={{ fontSize: 15, color: colours.text, lineHeight: 22, opacity: 0.85 }}>
+            {event.description ?? 'Details coming soon. Check back closer to the date for more info.'}
+          </Text>
+
+          {/* Venue address */}
+          {event.venue?.address && (
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 16 }}>
+              <Ionicons name="location-outline" size={16} color={colours.muted} style={{ marginTop: 2 }} />
+              <Text style={{ fontSize: 14, color: colours.muted, fontWeight: '500', flex: 1 }}>
+                {event.venue.address}
+              </Text>
             </View>
           )}
         </View>
