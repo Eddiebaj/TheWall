@@ -6,6 +6,7 @@ import {
   Image,
   Linking,
   ScrollView,
+  Share,
   Text,
   TouchableOpacity,
   View,
@@ -137,6 +138,17 @@ export default function EventDetailScreen() {
         .insert({ event_id: event.id, user_id: user.id, status: 'going' });
       if (error) setEvent(e => e ? { ...e, isGoing: false, goingCount: Math.max(0, e.goingCount - 1) } : e);
     }
+  };
+
+  const handleShare = () => {
+    if (!event) return;
+    const venueName = event.venue?.name || 'a venue';
+    const dateStr = event.event_date
+      ? new Date(event.event_date).toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })
+      : 'an upcoming date';
+    Share.share({
+      message: `I'm going to ${event.title} at ${venueName} on ${dateStr} 🎉 Check it out on TheWall: https://thewall.app/event/${event.id}`,
+    });
   };
 
   const handleGetDirections = () => {
@@ -331,12 +343,32 @@ export default function EventDetailScreen() {
               borderColor: colours.border,
               borderRadius: 16,
               paddingVertical: 14,
+              marginBottom: 12,
             }}
           >
             <Ionicons name="navigate-outline" size={18} color={colours.text} />
             <Text style={{ fontSize: 15, fontWeight: '600', color: colours.text }}>Get Directions</Text>
           </TouchableOpacity>
         )}
+
+        {/* Share button */}
+        <TouchableOpacity
+          onPress={handleShare}
+          activeOpacity={0.85}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            borderWidth: 1,
+            borderColor: colours.border,
+            borderRadius: 16,
+            paddingVertical: 14,
+          }}
+        >
+          <Ionicons name="share-outline" size={18} color={colours.text} />
+          <Text style={{ fontSize: 15, fontWeight: '600', color: colours.text }}>Share</Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
