@@ -19,12 +19,22 @@ const CARD_HEIGHT = CARD_WIDTH * 1.35;
 
 const POSTER_URL = 'https://theprescott.com/wp-content/uploads/2026/04/PSC_Karaoke_2026_IG-SQUARE.jpg';
 
-const EVENTS = [
-  { id: '1', poster: POSTER_URL, venueName: 'The Prescott', eventTitle: 'Karaoke Night' },
-  { id: '2', poster: POSTER_URL, venueName: 'The Prescott', eventTitle: 'Saturday Live Music' },
-  { id: '3', poster: POSTER_URL, venueName: 'The Prescott', eventTitle: 'Thursday DJ Night' },
-  { id: '4', poster: POSTER_URL, venueName: 'The Prescott', eventTitle: 'Sunday Brunch Party' },
+const TORONTO_VENUES = [
+  { id: '1', venue: 'Bar Hop', neighbourhood: 'King West', event: 'Friday Night Craft Beer', date: 'Fri May 23', time: '5PM - 2AM', cover: 'No cover' },
+  { id: '2', venue: 'The Drake Hotel', neighbourhood: 'Queen West', event: 'Saturday Live Music', date: 'Sat May 24', time: '9PM - 2AM', cover: '$10' },
+  { id: '3', venue: 'Horseshoe Tavern', neighbourhood: 'Queen West', event: 'Indie Night', date: 'Fri May 23', time: '10PM - 3AM', cover: '$15' },
+  { id: '4', venue: "Lee's Palace", neighbourhood: 'Bloor', event: 'Live Concert', date: 'Sat May 24', time: '8PM - 1AM', cover: '$20' },
+  { id: '5', venue: 'The Garrison', neighbourhood: 'Dundas West', event: 'DJ Night', date: 'Fri May 23', time: '10PM - 3AM', cover: '$10' },
+  { id: '6', venue: 'Wrongbar', neighbourhood: 'Queen West', event: 'Electronic Night', date: 'Sat May 24', time: '11PM - 4AM', cover: '$15' },
+  { id: '7', venue: 'Adelaide Hall', neighbourhood: 'King West', event: 'Hip Hop Night', date: 'Fri May 23', time: '10PM - 3AM', cover: '$20' },
+  { id: '8', venue: 'The Great Hall', neighbourhood: 'Queen West', event: 'Karaoke Night', date: 'Thu May 22', time: '8PM - 1AM', cover: 'No cover' },
+  { id: '9', venue: 'Coda', neighbourhood: 'College', event: 'Techno Night', date: 'Sat May 24', time: '11PM - 6AM', cover: '$25' },
+  { id: '10', venue: '99 Sudbury', neighbourhood: 'West Queen West', event: 'Art + Music Night', date: 'Fri May 23', time: '9PM - 2AM', cover: '$10' },
+  { id: '11', venue: 'Rec Room', neighbourhood: 'Entertainment District', event: 'Games Night', date: 'Sat May 24', time: '5PM - 1AM', cover: 'No cover' },
+  { id: '12', venue: 'Baro', neighbourhood: 'King West', event: 'Latin Night', date: 'Fri May 23', time: '10PM - 3AM', cover: '$20' },
 ];
+
+const TONIGHT_DATES = ['Fri May 23', 'Thu May 22'];
 
 const SORT_OPTIONS = ['Tonight', 'This Week', 'Near Me'] as const;
 type SortOption = typeof SORT_OPTIONS[number];
@@ -32,6 +42,10 @@ type SortOption = typeof SORT_OPTIONS[number];
 export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
   const [sort, setSort] = useState<SortOption>('Tonight');
+
+  const filtered = sort === 'Tonight'
+    ? TORONTO_VENUES.filter((v) => TONIGHT_DATES.includes(v.date))
+    : TORONTO_VENUES;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -57,20 +71,31 @@ export default function DiscoverScreen() {
       </View>
 
       <FlatList
-        data={EVENTS}
+        data={filtered}
         keyExtractor={(item) => item.id}
         numColumns={2}
         contentContainerStyle={styles.grid}
         columnWrapperStyle={styles.row}
         renderItem={({ item }) => (
           <TouchableOpacity style={styles.card} activeOpacity={0.85}>
-            <Image source={{ uri: item.poster }} style={styles.cardImage} resizeMode="cover" />
+            <Image source={{ uri: POSTER_URL }} style={styles.cardImage} resizeMode="cover" />
             <LinearGradient
-              colors={['transparent', 'rgba(0,0,0,0.8)']}
+              colors={['transparent', 'rgba(0,0,0,0.85)']}
               style={styles.cardGradient}
             >
-              <Text style={styles.cardVenue} numberOfLines={1}>{item.venueName}</Text>
-              <Text style={styles.cardTitle} numberOfLines={2}>{item.eventTitle}</Text>
+              <View style={styles.cardTopRow}>
+                <View style={styles.pill}>
+                  <Text style={styles.pillText}>{item.neighbourhood}</Text>
+                </View>
+                <View style={styles.pill}>
+                  <Text style={styles.pillText}>{item.cover}</Text>
+                </View>
+              </View>
+              <View style={styles.cardBottom}>
+                <Text style={styles.cardVenue} numberOfLines={1}>{item.venue}</Text>
+                <Text style={styles.cardEvent} numberOfLines={1}>{item.event}</Text>
+                <Text style={styles.cardDatetime}>{item.date} · {item.time}</Text>
+              </View>
             </LinearGradient>
           </TouchableOpacity>
         )}
@@ -141,25 +166,48 @@ const styles = StyleSheet.create({
   },
   cardGradient: {
     position: 'absolute',
+    top: 0,
     bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 10,
-    paddingTop: 32,
-    paddingBottom: 10,
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    paddingBottom: 8,
+    justifyContent: 'space-between',
   },
-  cardVenue: {
-    color: 'rgba(255,255,255,0.7)',
+  cardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  pill: {
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 20,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    maxWidth: '55%',
+  },
+  pillText: {
+    color: '#fff',
     fontSize: 10,
     fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 2,
   },
-  cardTitle: {
+  cardBottom: {
+    gap: 1,
+  },
+  cardVenue: {
     color: '#fff',
     fontSize: 13,
-    fontWeight: '700',
-    lineHeight: 17,
+    fontWeight: '800',
+  },
+  cardEvent: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  cardDatetime: {
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 10,
+    marginTop: 2,
   },
 });
