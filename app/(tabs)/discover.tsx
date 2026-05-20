@@ -264,8 +264,8 @@ export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [sort, setSort] = useState<SortOption>('This Week');
-  const [neighbourhood, setNeighbourhood] = useState<string>('All');
-  const [entryFilter, setEntryFilter] = useState<EntryFilter>('All');
+  const [neighbourhoods, setNeighbourhoods] = useState<Set<string>>(new Set());
+  const [entryFilters, setEntryFilters] = useState<Set<string>>(new Set());
   const [events, setEvents] = useState<DiscoverEvent[]>([]);
   const [attendees, setAttendees] = useState<Record<string, AttendeeInfo>>({});
   const [loading, setLoading] = useState(true);
@@ -373,9 +373,9 @@ export default function DiscoverScreen() {
   const happeningNow = events.filter(isHappeningNow);
 
   const filteredEvents = (() => {
-    let base = neighbourhood === 'All' ? events : events.filter(e => e.neighbourhood === neighbourhood);
-    if (entryFilter !== 'All') {
-      base = base.filter(e => e.entry_type === entryFilter);
+    let base = neighbourhoods.size === 0 ? events : events.filter(e => e.neighbourhood != null && neighbourhoods.has(e.neighbourhood));
+    if (entryFilters.size > 0) {
+      base = base.filter(e => e.entry_type != null && entryFilters.has(e.entry_type));
     }
     if (gridSort === 'popular') {
       return [...base].sort((a, b) => (attendees[b.id]?.count ?? 0) - (attendees[a.id]?.count ?? 0));
@@ -430,18 +430,30 @@ export default function DiscoverScreen() {
           style={{ marginTop: 10 }}
           contentContainerStyle={{ gap: 6, paddingRight: 4 }}
         >
-          {NEIGHBOURHOODS.map((n) => (
-            <TouchableOpacity
-              key={n}
-              onPress={() => setNeighbourhood(n)}
-              style={[styles.nbBtn, neighbourhood === n && styles.nbBtnActive]}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.nbBtnText, neighbourhood === n && styles.nbBtnTextActive]}>
-                {n}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {NEIGHBOURHOODS.map((n) => {
+            const isAll = n === 'All';
+            const isActive = isAll ? neighbourhoods.size === 0 : neighbourhoods.has(n);
+            return (
+              <TouchableOpacity
+                key={n}
+                onPress={() => {
+                  if (isAll) {
+                    setNeighbourhoods(new Set());
+                  } else {
+                    setNeighbourhoods(prev => {
+                      const next = new Set(prev);
+                      next.has(n) ? next.delete(n) : next.add(n);
+                      return next;
+                    });
+                  }
+                }}
+                style={[styles.nbBtn, isActive && styles.nbBtnActive]}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.nbBtnText, isActive && styles.nbBtnTextActive]}>{n}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
         <ScrollView
           horizontal
@@ -450,12 +462,23 @@ export default function DiscoverScreen() {
           contentContainerStyle={{ gap: 6, paddingRight: 4 }}
         >
           {ENTRY_FILTERS.map((f) => {
+            const isAll = f === 'All';
             const isBottle = f === 'Bottle Service';
-            const isActive = entryFilter === f;
+            const isActive = isAll ? entryFilters.size === 0 : entryFilters.has(f);
             return (
               <TouchableOpacity
                 key={f}
-                onPress={() => setEntryFilter(f)}
+                onPress={() => {
+                  if (isAll) {
+                    setEntryFilters(new Set());
+                  } else {
+                    setEntryFilters(prev => {
+                      const next = new Set(prev);
+                      next.has(f) ? next.delete(f) : next.add(f);
+                      return next;
+                    });
+                  }
+                }}
                 style={[
                   styles.nbBtn,
                   isActive && (isBottle ? styles.entryBtnBottleActive : styles.nbBtnActive),
