@@ -36,7 +36,7 @@ const DARK_COLOURS = {
   lrt:      '#004890',
   text:     '#eef2f7',
   muted:    '#6b7f99',
-  green:    '#FF3B5C',
+  green:    '#22c55e',
   orange:   '#e8a020',
   red:      '#cc3b2a',
   purple:   '#7b5ea7',
@@ -58,7 +58,7 @@ const LIGHT_COLOURS = {
   lrt:      '#004890',
   text:     '#0d1117',
   muted:    '#7b8fa8',
-  green:    '#FF3B5C',
+  green:    '#16a34a',
   orange:   '#c47d0a',
   red:      '#b83224',
   purple:   '#6b4f9e',
@@ -100,7 +100,7 @@ const HIGH_CONTRAST_LIGHT = {
 
 // Palette accent overrides (applied on top of dark/light base)
 const PALETTE_OVERRIDES: Record<PaletteId, { accent: string; accentAlt: string; green: string }> = {
-  default:   { accent: '#FF3B5C', accentAlt: '#004890', green: '#FF3B5C' },
+  default:   { accent: '#FF3B5C', accentAlt: '#004890', green: '#22c55e' },
   senators:  { accent: '#C8102E', accentAlt: '#C69214', green: '#C8102E' },
   midnight:  { accent: '#3B82F6', accentAlt: '#1E3A5F', green: '#3B82F6' },
   forest:    { accent: '#2D8659', accentAlt: '#6B8F71', green: '#2D8659' },

@@ -75,3 +75,7 @@ export const SK_SESSION_COUNT = 'thewall_session_count';
 export const SK_SHOWN_PROMPTS = 'thewall_shown_prompts';
 export const SK_WATCHED_BUSES = 'thewall_watched_buses';
 export const SK_COMMUTE_DEALS_LAST_PUSH = 'thewall_commute_deals_last_push';
+
+// ── Invite / referral ──
+export const SK_INVITED_BY = 'thewall_invited_by';
+export const SK_PROFILE_SETUP_DONE = 'thewall_profile_setup_done';

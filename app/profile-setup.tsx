@@ -6,12 +6,11 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
-import { useApp } from '../context/AppContext';
 import { supabase } from '../lib/supabase';
+import { SK_INVITED_BY, SK_PROFILE_SETUP_DONE } from '../lib/storageKeys';
 
 export default function ProfileSetupScreen() {
   const { profile, updateProfile } = useAuth();
-  const { colours } = useApp();
   const router = useRouter();
   const [username, setUsername] = useState(profile?.username || '');
   const [displayName, setDisplayName] = useState(profile?.display_name || '');
@@ -39,18 +38,20 @@ export default function ProfileSetupScreen() {
         Alert.alert('Error', error.message);
       }
     } else {
-      await AsyncStorage.setItem('thewall_profile_setup_done', 'true');
+      await AsyncStorage.setItem(SK_PROFILE_SETUP_DONE, 'true');
       // Auto-send friend request to inviter if present
       try {
-        const inviterId = await AsyncStorage.getItem('thewall_invited_by');
-        const { data: { user } } = await supabase.auth.getUser();
-        if (inviterId && user && inviterId !== user.id) {
-          await supabase.from('friendships').insert({
-            requester_id: user.id,
-            addressee_id: inviterId,
-            status: 'pending',
-          });
-          await AsyncStorage.removeItem('thewall_invited_by');
+        const inviterId = await AsyncStorage.getItem(SK_INVITED_BY);
+        if (inviterId) {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user && inviterId !== user.id) {
+            await supabase.from('friendships').insert({
+              requester_id: user.id,
+              addressee_id: inviterId,
+              status: 'pending',
+            });
+            await AsyncStorage.removeItem(SK_INVITED_BY);
+          }
         }
       } catch {
         // Non-fatal: ignore errors silently

@@ -5,13 +5,11 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
-import { useApp } from '../context/AppContext';
 import { supabase } from '../lib/supabase';
 import { useAnalytics } from '../lib/analytics';
 
 export default function AuthScreen() {
   const { signInWithEmail } = useAuth();
-  const { colours } = useApp();
   const router = useRouter();
   const { capture } = useAnalytics();
   const [email, setEmail] = useState('');
