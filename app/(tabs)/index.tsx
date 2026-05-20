@@ -1,13 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
 import {
-  ActionSheetIOS,
-  Alert,
   Dimensions,
   FlatList,
   Image,
-  Platform,
   RefreshControl,
   StatusBar,
   StyleSheet,
@@ -15,25 +12,28 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
-import UploadModal from '../../components/UploadModal';
 
-const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const CARD_IMAGE_HEIGHT = Math.round(SCREEN_WIDTH * 0.52);
+const AVATAR_SIZE = 20;
+const AVATAR_OVERLAP = 6;
+const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&q=80';
 
-interface Post {
+interface FeedEvent {
   id: string;
-  video_url: string;
-  caption: string | null;
-  duration: number | null;
-  created_at: string;
-  user_id: string;
-  event_id: string | null;
-  profiles: { username: string } | null;
-  events: { title: string; venues: { neighbourhood: string | null } | null } | null;
+  title: string;
+  poster_url: string | null;
+  event_date: string | null;
+  start_time: string | null;
+  venue_name: string;
+  venue_id: string | null;
+  neighbourhood: string | null;
+  going_count: number;
+  going_avatars: { id: string; username: string; avatar_url: string | null }[];
 }
 
 interface ActivityItem {
@@ -56,119 +56,60 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-const REPORT_REASONS = [
-  'Inappropriate content',
-  'Spam',
-  'Harassment',
-  'Other',
-];
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return '';
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString('en-CA', {
+    weekday: 'short', month: 'short', day: 'numeric',
+  });
+}
 
-function VideoCard({ item, isActive, userId }: { item: Post; isActive: boolean; userId: string | undefined }) {
-  const insets = useSafeAreaInsets();
-  const videoRef = useRef<Video>(null);
-
-  const showReasonSheet = () => {
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: [...REPORT_REASONS, 'Cancel'],
-          cancelButtonIndex: REPORT_REASONS.length,
-          title: 'Why are you reporting this?',
-        },
-        async (idx) => {
-          if (idx === REPORT_REASONS.length) return;
-          await submitReport(REPORT_REASONS[idx]);
-        }
-      );
-    } else {
-      Alert.alert('Report reason', 'Select a reason', [
-        ...REPORT_REASONS.map(r => ({ text: r, onPress: () => submitReport(r) })),
-        { text: 'Cancel', style: 'cancel' },
-      ]);
-    }
-  };
-
-  const submitReport = async (reason: string) => {
-    if (!userId) {
-      Alert.alert('Sign in required', 'You must be signed in to report content.');
-      return;
-    }
-    const { error } = await supabase.from('reports').insert({
-      reporter_id: userId,
-      post_id: item.id,
-      reason,
-    });
-    if (error) {
-      Alert.alert('Error', 'Failed to submit report. Please try again.');
-    } else {
-      Alert.alert('Thanks for reporting', "We'll review this content.");
-    }
-  };
-
-  const showMenuSheet = () => {
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: ['Report', 'Cancel'],
-          cancelButtonIndex: 1,
-          destructiveButtonIndex: 0,
-        },
-        (idx) => {
-          if (idx === 0) showReasonSheet();
-        }
-      );
-    } else {
-      Alert.alert('Options', undefined, [
-        { text: 'Report', style: 'destructive', onPress: showReasonSheet },
-        { text: 'Cancel', style: 'cancel' },
-      ]);
-    }
-  };
-
-  useEffect(() => {
-    if (!videoRef.current) return;
-    if (isActive) {
-      videoRef.current.playAsync();
-    } else {
-      videoRef.current.pauseAsync();
-    }
-  }, [isActive]);
-
+function EventCard({ item, onPress }: { item: FeedEvent; onPress: () => void }) {
   return (
-    <View style={[styles.card, { height: SCREEN_HEIGHT }]}>
-      <TouchableOpacity
-        style={[styles.menuBtn, { top: insets.top + 12 }]}
-        onPress={showMenuSheet}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      >
-        <Ionicons name="ellipsis-horizontal" size={22} color="#fff" />
-      </TouchableOpacity>
-      <Video
-        ref={videoRef}
-        source={{ uri: item.video_url }}
-        style={StyleSheet.absoluteFill}
-        resizeMode={ResizeMode.COVER}
-        isLooping
-        isMuted
-        shouldPlay={false}
-        useNativeControls={false}
+    <TouchableOpacity style={styles.eventCard} activeOpacity={0.87} onPress={onPress}>
+      <Image
+        source={{ uri: item.poster_url || FALLBACK_IMAGE }}
+        style={styles.eventImage}
+        resizeMode="cover"
       />
       <LinearGradient
-        colors={['transparent', 'rgba(0,0,0,0.85)']}
-        style={[styles.gradient, { paddingBottom: insets.bottom + 90 }]}
+        colors={['transparent', 'rgba(0,0,0,0.88)']}
+        style={styles.eventGradient}
       >
-        <Text style={styles.username}>
-          {item.profiles?.username ? `@${item.profiles.username}` : '@user'}
-        </Text>
-        {item.events?.title && (
-          <Text style={styles.eventTag}>{item.events.title}</Text>
+        {item.going_count > 0 && (
+          <View style={styles.goingRow}>
+            <View style={{ flexDirection: 'row', height: AVATAR_SIZE, width: item.going_avatars.length * (AVATAR_SIZE - AVATAR_OVERLAP) + AVATAR_OVERLAP }}>
+              {item.going_avatars.map((a, i) => (
+                <View
+                  key={a.id}
+                  style={[styles.avatar, {
+                    left: i * (AVATAR_SIZE - AVATAR_OVERLAP),
+                    zIndex: item.going_avatars.length - i,
+                  }]}
+                >
+                  {a.avatar_url ? (
+                    <Image source={{ uri: a.avatar_url }} style={styles.avatarImage} />
+                  ) : (
+                    <Text style={styles.avatarInitial}>{a.username[0].toUpperCase()}</Text>
+                  )}
+                </View>
+              ))}
+            </View>
+            <Text style={styles.goingText}>{item.going_count} going</Text>
+          </View>
         )}
-        {item.caption ? (
-          <Text style={styles.caption} numberOfLines={2}>{item.caption}</Text>
-        ) : null}
-        <Text style={styles.timeAgo}>{timeAgo(item.created_at)}</Text>
+        <Text style={styles.eventVenue} numberOfLines={1}>{item.venue_name}</Text>
+        <Text style={styles.eventTitle} numberOfLines={2}>{item.title}</Text>
+        <Text style={styles.eventDate}>
+          {[formatDate(item.event_date), item.start_time].filter(Boolean).join(' · ')}
+        </Text>
       </LinearGradient>
-    </View>
+      {item.neighbourhood && (
+        <View style={styles.neighbourhoodPill}>
+          <Text style={styles.neighbourhoodText}>{item.neighbourhood}</Text>
+        </View>
+      )}
+    </TouchableOpacity>
   );
 }
 
@@ -231,11 +172,9 @@ function TabToggle({
 
 export default function FeedScreen() {
   const [activeTab, setActiveTab] = useState<'foryou' | 'activity'>('foryou');
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [feedEvents, setFeedEvents] = useState<FeedEvent[]>([]);
   const [activityItems, setActivityItems] = useState<ActivityItem[]>([]);
   const [hasFriends, setHasFriends] = useState(true);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [showUpload, setShowUpload] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const insets = useSafeAreaInsets();
@@ -243,70 +182,86 @@ export default function FeedScreen() {
   const router = useRouter();
 
   useEffect(() => {
-    loadPosts();
+    loadFeedEvents();
   }, [user]);
 
   useEffect(() => {
     if (activeTab === 'activity') loadActivity();
   }, [activeTab, user]);
 
-  const loadPosts = async () => {
-    const [postsRes, friendsRes, rsvpRes] = await Promise.all([
-      supabase
-        .from('posts')
-        .select('id, video_url, caption, duration, created_at, user_id, event_id, profiles(username), events(title, venues(neighbourhood))')
-        .order('created_at', { ascending: false })
-        .limit(50),
-      user
-        ? supabase
-            .from('friendships')
-            .select('requester_id, addressee_id')
-            .eq('status', 'accepted')
-            .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`)
-        : Promise.resolve({ data: null, error: null }),
-      user
-        ? supabase
-            .from('event_rsvps')
-            .select('events(venues(neighbourhood))')
-            .eq('user_id', user.id)
-            .eq('status', 'going')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
-    ]);
+  const loadFeedEvents = async () => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+
+    // Fetch user's preferred neighbourhoods from past RSVPs
+    let preferredNeighbourhoods = new Set<string>();
+    if (user) {
+      const { data: rsvpData } = await supabase
+        .from('event_rsvps')
+        .select('events(venues(neighbourhood))')
+        .eq('user_id', user.id)
+        .eq('status', 'going')
+        .limit(20);
+
+      if (rsvpData) {
+        for (const r of rsvpData as any[]) {
+          const n = r.events?.venues?.neighbourhood;
+          if (n) preferredNeighbourhoods.add(n);
+        }
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('events')
+      .select('id, title, poster_url, date, start_time, venue_id, venues(name, neighbourhood)')
+      .gte('date', today)
+      .order('date', { ascending: true })
+      .limit(60);
 
     setLoading(false);
-    if (postsRes.error || !postsRes.data) return;
+    if (error || !data) return;
 
-    const friendIds = new Set<string>(
-      (friendsRes.data ?? []).map((f: any) =>
-        f.requester_id === user?.id ? f.addressee_id : f.requester_id
-      )
-    );
+    // Load going counts
+    const eventIds = data.map((e: any) => e.id);
+    const { data: rsvpRows } = await supabase
+      .from('event_rsvps')
+      .select('event_id, profiles(id, username, avatar_url)')
+      .in('event_id', eventIds)
+      .eq('status', 'going');
 
-    const userNeighbourhood: string | null =
-      (rsvpRes.data as any)?.events?.venues?.neighbourhood ?? null;
-
-    const scored = (postsRes.data as Post[]).map(post => {
-      let score = 1;
-      if (user && friendIds.has(post.user_id)) {
-        score = 3;
-      } else if (
-        userNeighbourhood &&
-        post.events?.venues?.neighbourhood === userNeighbourhood
-      ) {
-        score = 2;
+    const attendeeMap: Record<string, { count: number; avatars: any[] }> = {};
+    for (const row of (rsvpRows ?? []) as any[]) {
+      const eid = row.event_id;
+      if (!attendeeMap[eid]) attendeeMap[eid] = { count: 0, avatars: [] };
+      attendeeMap[eid].count += 1;
+      if (attendeeMap[eid].avatars.length < 3 && row.profiles) {
+        attendeeMap[eid].avatars.push(row.profiles);
       }
-      return { post, score };
-    });
+    }
 
-    scored.sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return new Date(b.post.created_at).getTime() - new Date(a.post.created_at).getTime();
-    });
+    const mapped: FeedEvent[] = data.map((e: any) => ({
+      id: e.id,
+      title: e.title,
+      poster_url: e.poster_url || null,
+      event_date: e.date || null,
+      start_time: e.start_time || null,
+      venue_name: e.venues?.name || '',
+      venue_id: e.venue_id || null,
+      neighbourhood: e.venues?.neighbourhood || null,
+      going_count: attendeeMap[e.id]?.count ?? 0,
+      going_avatars: attendeeMap[e.id]?.avatars ?? [],
+    }));
 
-    setPosts(scored.map(s => s.post));
+    // Sort: preferred neighbourhood first (by going count desc within group), then rest by date
+    if (preferredNeighbourhoods.size > 0) {
+      const preferred = mapped.filter(e => e.neighbourhood && preferredNeighbourhoods.has(e.neighbourhood));
+      const rest = mapped.filter(e => !e.neighbourhood || !preferredNeighbourhoods.has(e.neighbourhood));
+      preferred.sort((a, b) => b.going_count - a.going_count || (a.event_date ?? '').localeCompare(b.event_date ?? ''));
+      setFeedEvents([...preferred, ...rest]);
+    } else {
+      setFeedEvents(mapped);
+    }
   };
 
   const loadActivity = async () => {
@@ -372,57 +327,40 @@ export default function FeedScreen() {
     setActivityItems(merged);
   };
 
-  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 });
-  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
-    if (viewableItems.length > 0) setActiveIndex(viewableItems[0].index ?? 0);
-  });
-
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadPosts();
+    await loadFeedEvents();
     if (activeTab === 'activity') await loadActivity();
     setRefreshing(false);
   }, [activeTab]);
 
-  const handleUploadSuccess = useCallback(() => {
-    setShowUpload(false);
-    loadPosts();
-  }, []);
-
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+      <StatusBar barStyle="light-content" />
 
       {activeTab === 'foryou'
-        ? (posts.length === 0 && !loading
+        ? (feedEvents.length === 0 && !loading
           ? (
             <View style={styles.emptyState}>
-              <Ionicons name="videocam-outline" size={48} color="rgba(255,255,255,0.3)" />
-              <Text style={styles.emptyText}>No Moments yet</Text>
-              <View style={styles.emptyActions}>
-                <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push('/(tabs)/discover')}>
-                  <Text style={styles.emptyBtnText}>Discover Events</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push('/(tabs)/friends')}>
-                  <Text style={styles.emptyBtnText}>Add Friends</Text>
-                </TouchableOpacity>
-              </View>
+              <Ionicons name="calendar-outline" size={48} color="rgba(255,255,255,0.3)" />
+              <Text style={styles.emptyText}>No upcoming events</Text>
+              <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push('/(tabs)/discover')}>
+                <Text style={styles.emptyBtnText}>Browse Discover</Text>
+              </TouchableOpacity>
             </View>
           )
           : (
             <FlatList
-              data={posts}
+              data={feedEvents}
               keyExtractor={item => item.id}
-              renderItem={({ item, index }) => (
-                <VideoCard item={item} isActive={index === activeIndex} userId={user?.id} />
+              renderItem={({ item }) => (
+                <EventCard
+                  item={item}
+                  onPress={() => router.push(`/event/${item.id}` as any)}
+                />
               )}
-              pagingEnabled
+              contentContainerStyle={[styles.feedList, { paddingTop: insets.top + 56 }]}
               showsVerticalScrollIndicator={false}
-              snapToInterval={SCREEN_HEIGHT}
-              snapToAlignment="start"
-              decelerationRate="fast"
-              viewabilityConfig={viewabilityConfig.current}
-              onViewableItemsChanged={onViewableItemsChanged.current}
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FF3B5C" />}
             />
           )
@@ -463,66 +401,12 @@ export default function FeedScreen() {
       }
 
       <TabToggle active={activeTab} onSelect={setActiveTab} insetTop={insets.top} />
-
-      <TouchableOpacity
-        style={[styles.fab, { bottom: insets.bottom - 8 }]}
-        onPress={() => setShowUpload(true)}
-        activeOpacity={0.85}
-      >
-        <Ionicons name="add" size={28} color="#fff" />
-      </TouchableOpacity>
-
-      <UploadModal
-        visible={showUpload}
-        onClose={() => setShowUpload(false)}
-        onSuccess={handleUploadSuccess}
-      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
-  card: { width: SCREEN_WIDTH, backgroundColor: '#000' },
-  menuBtn: {
-    position: 'absolute',
-    right: 16,
-    zIndex: 10,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    borderRadius: 16,
-    padding: 6,
-  },
-  gradient: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 20,
-    paddingTop: 60,
-  },
-  username: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  eventTag: {
-    color: '#FF3B5C',
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  caption: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '500',
-    marginBottom: 6,
-  },
-  timeAgo: {
-    color: 'rgba(255,255,255,0.45)',
-    fontSize: 12,
-    fontWeight: '500',
-  },
   tabBar: {
     position: 'absolute',
     left: 0,
@@ -562,39 +446,110 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.35)',
     fontSize: 14,
   },
-  emptyActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
   emptyBtn: {
     borderWidth: 1.5,
     borderColor: '#FF3B5C',
     borderRadius: 22,
     paddingVertical: 10,
     paddingHorizontal: 20,
+    marginTop: 4,
   },
   emptyBtnText: {
     color: '#FF3B5C',
     fontSize: 14,
     fontWeight: '700',
   },
-  fab: {
+  // For You feed
+  feedList: {
+    paddingHorizontal: 16,
+    paddingBottom: 100,
+    gap: 16,
+  },
+  eventCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#111',
+  },
+  eventImage: {
+    width: '100%',
+    height: CARD_IMAGE_HEIGHT,
+  },
+  eventGradient: {
     position: 'absolute',
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#FF3B5C',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 14,
+    paddingTop: 48,
+    paddingBottom: 14,
+  },
+  goingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  avatar: {
+    position: 'absolute',
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
+    backgroundColor: '#333',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 20,
-    shadowColor: '#FF3B5C',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 8,
+    borderWidth: 1.5,
+    borderColor: '#000',
+    overflow: 'hidden',
   },
+  avatarImage: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
+  },
+  avatarInitial: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  goingText: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  eventVenue: {
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 3,
+  },
+  eventTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 22,
+    marginBottom: 4,
+  },
+  eventDate: {
+    color: '#FF3B5C',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  neighbourhoodPill: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  neighbourhoodText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  // Activity feed
   activityList: {
     paddingHorizontal: 0,
     paddingBottom: 100,
