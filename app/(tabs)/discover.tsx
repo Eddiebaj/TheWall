@@ -248,6 +248,7 @@ export default function DiscoverScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [mapMode, setMapMode] = useState(false);
+  const [gridSort, setGridSort] = useState<'date' | 'popular'>('date');
   const [selectedEvent, setSelectedEvent] = useState<DiscoverEvent | null>(null);
   const slideAnim = useRef(new Animated.Value(300)).current;
 
@@ -344,9 +345,13 @@ export default function DiscoverScreen() {
     setAttendees(map);
   };
 
-  const filteredEvents = neighbourhood === 'All'
-    ? events
-    : events.filter(e => e.neighbourhood === neighbourhood);
+  const filteredEvents = (() => {
+    const base = neighbourhood === 'All' ? events : events.filter(e => e.neighbourhood === neighbourhood);
+    if (gridSort === 'popular') {
+      return [...base].sort((a, b) => (attendees[b.id]?.count ?? 0) - (attendees[a.id]?.count ?? 0));
+    }
+    return base;
+  })();
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -489,6 +494,26 @@ export default function DiscoverScreen() {
           contentContainerStyle={[styles.grid, { paddingBottom: insets.bottom + 100 }]}
           columnWrapperStyle={styles.row}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FF3B5C" />}
+          ListHeaderComponent={
+            <View style={styles.gridSortRow}>
+              <TouchableOpacity
+                onPress={() => setGridSort('date')}
+                style={[styles.gridSortBtn, gridSort === 'date' && styles.gridSortBtnActive]}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="calendar-outline" size={12} color={gridSort === 'date' ? '#fff' : 'rgba(255,255,255,0.5)'} />
+                <Text style={[styles.gridSortBtnText, gridSort === 'date' && styles.gridSortBtnTextActive]}>Date</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setGridSort('popular')}
+                style={[styles.gridSortBtn, gridSort === 'popular' && styles.gridSortBtnActive]}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="flame-outline" size={12} color={gridSort === 'popular' ? '#fff' : 'rgba(255,255,255,0.5)'} />
+                <Text style={[styles.gridSortBtnText, gridSort === 'popular' && styles.gridSortBtnTextActive]}>Popular</Text>
+              </TouchableOpacity>
+            </View>
+          }
           renderItem={({ item }) => {
             const info = attendees[item.id];
             return (
@@ -636,6 +661,34 @@ const styles = StyleSheet.create({
   },
   nbBtnTextActive: {
     color: '#FF3B5C',
+  },
+  gridSortRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 10,
+  },
+  gridSortBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'transparent',
+  },
+  gridSortBtnActive: {
+    backgroundColor: '#FF3B5C',
+    borderColor: '#FF3B5C',
+  },
+  gridSortBtnText: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  gridSortBtnTextActive: {
+    color: '#fff',
   },
   grid: {
     paddingHorizontal: CARD_MARGIN,
