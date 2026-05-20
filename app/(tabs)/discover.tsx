@@ -34,6 +34,9 @@ const NEIGHBOURHOODS = [
   'Dundas West', 'Kensington', 'Bloor', 'College', 'West Queen West',
 ] as const;
 
+const ENTRY_FILTERS = ['All', 'Free', 'Guestlist', 'Tickets', 'Bottle Service'] as const;
+type EntryFilter = typeof ENTRY_FILTERS[number];
+
 interface AttendeeInfo {
   count: number;
   avatars: { id: string; username: string; avatar_url: string | null }[];
@@ -47,6 +50,7 @@ interface DiscoverEvent {
   venue_name: string;
   neighbourhood: string | null;
   cover_charge: string | null;
+  entry_type: string | null;
   event_date: string | null;
   start_time: string | null;
   end_time: string | null;
@@ -261,6 +265,7 @@ export default function DiscoverScreen() {
   const router = useRouter();
   const [sort, setSort] = useState<SortOption>('This Week');
   const [neighbourhood, setNeighbourhood] = useState<string>('All');
+  const [entryFilter, setEntryFilter] = useState<EntryFilter>('All');
   const [events, setEvents] = useState<DiscoverEvent[]>([]);
   const [attendees, setAttendees] = useState<Record<string, AttendeeInfo>>({});
   const [loading, setLoading] = useState(true);
@@ -308,7 +313,7 @@ export default function DiscoverScreen() {
 
     let query = supabase
       .from('events')
-      .select('id, title, poster_url, date, start_time, end_time, venue_id, venues(name, neighbourhood, latitude, longitude)')
+      .select('id, title, poster_url, date, start_time, end_time, entry_type, venue_id, venues(name, neighbourhood, latitude, longitude)')
       .order('date', { ascending: true })
       .limit(50);
 
@@ -329,6 +334,7 @@ export default function DiscoverScreen() {
         venue_name: e.venues?.name || '',
         neighbourhood: e.venues?.neighbourhood || null,
         cover_charge: e.cover_charge || null,
+        entry_type: e.entry_type || null,
         event_date: e.date || null,
         start_time: e.start_time || null,
         end_time: e.end_time || null,
@@ -367,7 +373,10 @@ export default function DiscoverScreen() {
   const happeningNow = events.filter(isHappeningNow);
 
   const filteredEvents = (() => {
-    const base = neighbourhood === 'All' ? events : events.filter(e => e.neighbourhood === neighbourhood);
+    let base = neighbourhood === 'All' ? events : events.filter(e => e.neighbourhood === neighbourhood);
+    if (entryFilter !== 'All') {
+      base = base.filter(e => e.entry_type === entryFilter);
+    }
     if (gridSort === 'popular') {
       return [...base].sort((a, b) => (attendees[b.id]?.count ?? 0) - (attendees[a.id]?.count ?? 0));
     }
@@ -433,6 +442,36 @@ export default function DiscoverScreen() {
               </Text>
             </TouchableOpacity>
           ))}
+        </ScrollView>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ marginTop: 8 }}
+          contentContainerStyle={{ gap: 6, paddingRight: 4 }}
+        >
+          {ENTRY_FILTERS.map((f) => {
+            const isBottle = f === 'Bottle Service';
+            const isActive = entryFilter === f;
+            return (
+              <TouchableOpacity
+                key={f}
+                onPress={() => setEntryFilter(f)}
+                style={[
+                  styles.nbBtn,
+                  isActive && (isBottle ? styles.entryBtnBottleActive : styles.nbBtnActive),
+                ]}
+                activeOpacity={0.8}
+              >
+                <Text style={[
+                  styles.nbBtnText,
+                  isActive && (isBottle ? styles.entryBtnBottleText : styles.nbBtnTextActive),
+                  !isActive && isBottle && styles.entryBtnBottleInactive,
+                ]}>
+                  {f}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       </View>
 
@@ -720,6 +759,16 @@ const styles = StyleSheet.create({
   },
   nbBtnTextActive: {
     color: '#FF3B5C',
+  },
+  entryBtnBottleInactive: {
+    color: '#D4A017',
+  },
+  entryBtnBottleActive: {
+    backgroundColor: 'rgba(212,160,23,0.15)',
+    borderColor: '#D4A017',
+  },
+  entryBtnBottleText: {
+    color: '#D4A017',
   },
   nowSection: {
     marginBottom: 16,
