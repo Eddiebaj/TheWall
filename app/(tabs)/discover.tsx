@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
+  Animated,
   Dimensions,
   FlatList,
   Image,
+  RefreshControl,
   StatusBar,
   StyleSheet,
   Text,
@@ -13,6 +14,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { WebView } from 'react-native-webview';
 import { supabase } from '../../lib/supabase';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -34,11 +37,124 @@ interface DiscoverEvent {
   id: string;
   poster_url: string | null;
   title: string;
+  venue_id: string | null;
   venue_name: string;
   neighbourhood: string | null;
   cover_charge: string | null;
   event_date: string | null;
   start_time: string | null;
+  venue_lat: number | null;
+  venue_lng: number | null;
+}
+
+const TORONTO = { lat: 43.6532, lng: -79.3832 };
+
+function buildLeafletHtml(markers: DiscoverEvent[]): string {
+  const markersJson = JSON.stringify(
+    markers.map(e => ({
+      id: e.id,
+      lat: e.venue_lat,
+      lng: e.venue_lng,
+      venue: e.venue_name,
+      title: e.title,
+    }))
+  );
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body, #map { width: 100%; height: 100%; background: #0a0a0a; }
+    .leaflet-popup-content-wrapper {
+      background: #141720;
+      color: #fff;
+      border-radius: 10px;
+      border: none;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    }
+    .leaflet-popup-tip { background: #141720; }
+    .leaflet-popup-content { margin: 10px 14px; font-family: -apple-system, sans-serif; }
+    .popup-venue { font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 2px; }
+    .popup-title { font-size: 12px; color: rgba(255,255,255,0.65); }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  var map = L.map('map', { zoomControl: true, attributionControl: false }).setView([${TORONTO.lat}, ${TORONTO.lng}], 13);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+    maxZoom: 19,
+  }).addTo(map);
+
+  function getEventColor(title) {
+    var t = (title || '').toLowerCase();
+    if (/club|dj|nightlife|party/.test(t)) return '#FF3B5C';
+    if (/live music|concert|band/.test(t)) return '#FF6B35';
+    if (/happy hour|drinks|bar/.test(t)) return '#D4A017';
+    if (/food|brunch|restaurant/.test(t)) return '#00C853';
+    if (/art|comedy|game|trivia/.test(t)) return '#2979FF';
+    return '#FF3B5C';
+  }
+
+  function makeBannerIcon(venue, color, zoom, selected) {
+    var label = venue || '';
+    var opacity = selected ? '1' : '0.9';
+    var scale = selected ? 'scale(1.1)' : 'scale(1)';
+    var bgColor = color.replace(')', ', 0.85)').replace('rgb(', 'rgba(').replace(/^(#[0-9a-fA-F]+)$/, function(hex) {
+      var r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+      return 'rgba(' + r + ',' + g + ',' + b + ',0.85)';
+    });
+    var html = '<div class="pill-marker" style="background:' + bgColor + ';color:#fff;font-family:-apple-system,sans-serif;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;box-shadow:0 2px 8px rgba(0,0,0,0.5);cursor:pointer;transition:transform 0.15s ease,opacity 0.15s ease;opacity:' + opacity + ';transform:' + scale + ';display:inline-block;">'
+      + label
+      + '</div>';
+    return L.divIcon({
+      className: '',
+      html: html,
+      iconAnchor: [0, 14],
+    });
+  }
+
+  var markerObjects = [];
+  var markers = ${markersJson};
+
+  markers.forEach(function(m) {
+    var color = getEventColor(m.title);
+    var icon = makeBannerIcon(m.venue, color, map.getZoom(), false);
+    var marker = L.marker([m.lat, m.lng], { icon: icon }).addTo(map);
+    markerObjects.push({ leaflet: marker, data: m, color: color, selected: false });
+
+    marker.on('click', function(e) {
+      L.DomEvent.stopPropagation(e);
+      markerObjects.forEach(function(obj) {
+        obj.selected = (obj.data.id === m.id);
+        obj.leaflet.setIcon(makeBannerIcon(obj.data.venue, obj.color, map.getZoom(), obj.selected));
+      });
+      window.ReactNativeWebView.postMessage(m.id);
+    });
+  });
+
+  // Re-render icons when zoom changes
+  map.on('zoomend', function() {
+    var zoom = map.getZoom();
+    markerObjects.forEach(function(obj) {
+      obj.leaflet.setIcon(makeBannerIcon(obj.data.venue, obj.color, zoom, obj.selected));
+    });
+  });
+
+  map.on('click', function() {
+    markerObjects.forEach(function(obj) {
+      obj.selected = false;
+      obj.leaflet.setIcon(makeBannerIcon(obj.data.venue, obj.color, map.getZoom(), false));
+    });
+    window.ReactNativeWebView.postMessage('');
+  });
+</script>
+</body>
+</html>`;
 }
 
 function formatDate(dateStr: string | null): string {
@@ -47,17 +163,57 @@ function formatDate(dateStr: string | null): string {
   return new Date(year, month - 1, day).toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
+const SKELETON_COLOR = '#1E2230';
+
+function SkeletonGrid() {
+  const opacity = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.7, duration: 800, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.3, duration: 800, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
+  return (
+    <Animated.View style={[styles.skeletonGrid, { opacity }]}>
+      {Array.from({ length: 2 }).map((_, row) => (
+        <View key={row} style={styles.row}>
+          {Array.from({ length: 2 }).map((__, col) => (
+            <View key={col} style={styles.skeletonCard}>
+              <View style={styles.skeletonImage} />
+              <View style={styles.skeletonTextWide} />
+              <View style={styles.skeletonTextNarrow} />
+            </View>
+          ))}
+        </View>
+      ))}
+    </Animated.View>
+  );
+}
+
 export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [sort, setSort] = useState<SortOption>('Tonight');
+  const [sort, setSort] = useState<SortOption>('This Week');
   const [events, setEvents] = useState<DiscoverEvent[]>([]);
   const [attendees, setAttendees] = useState<Record<string, AttendeeInfo>>({});
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [mapMode, setMapMode] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<DiscoverEvent | null>(null);
 
   useEffect(() => {
     loadEvents(sort);
   }, [sort]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadEvents(sort);
+    setRefreshing(false);
+  };
 
   const loadEvents = async (activeSort: SortOption) => {
     setLoading(true);
@@ -70,7 +226,7 @@ export default function DiscoverScreen() {
 
     let query = supabase
       .from('events')
-      .select('id, title, poster_url, date, venues(name, neighbourhood)')
+      .select('id, title, poster_url, date, start_time, venue_id, venues(name, neighbourhood, latitude, longitude)')
       .order('date', { ascending: true })
       .limit(50);
 
@@ -87,11 +243,14 @@ export default function DiscoverScreen() {
         id: e.id,
         poster_url: e.poster_url || null,
         title: e.title,
+        venue_id: e.venue_id || null,
         venue_name: e.venues?.name || '',
         neighbourhood: e.venues?.neighbourhood || null,
         cover_charge: e.cover_charge || null,
         event_date: e.date || null,
         start_time: e.start_time || null,
+        venue_lat: e.venues?.latitude ?? null,
+        venue_lng: e.venues?.longitude ?? null,
       }));
       setEvents(mapped);
       loadAttendees(mapped.map(e => e.id));
@@ -127,7 +286,28 @@ export default function DiscoverScreen() {
       <StatusBar barStyle="light-content" />
 
       <View style={styles.header}>
-        <Text style={styles.title}>Discover</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Discover</Text>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              onPress={() => router.push('/search' as any)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="search" size={22} color="rgba(255,255,255,0.8)" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => { setMapMode(m => !m); setSelectedEvent(null); }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={{ marginLeft: 16 }}
+            >
+              <Ionicons
+                name={mapMode ? 'grid-outline' : 'map-outline'}
+                size={22}
+                color="rgba(255,255,255,0.8)"
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
         <View style={styles.sortRow}>
           {SORT_OPTIONS.map((opt) => (
             <TouchableOpacity
@@ -145,8 +325,48 @@ export default function DiscoverScreen() {
       </View>
 
       {loading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color="#FF3B5C" />
+        <SkeletonGrid />
+      ) : mapMode ? (
+        <View style={{ flex: 1 }}>
+          <WebView
+            style={{ flex: 1 }}
+            originWhitelist={['*']}
+            onMessage={(e) => {
+              const eventId = e.nativeEvent.data;
+              if (!eventId) { setSelectedEvent(null); return; }
+              const found = events.find(ev => ev.id === eventId) || null;
+              setSelectedEvent(found);
+            }}
+            source={{ html: buildLeafletHtml(events.filter(e => e.venue_lat != null && e.venue_lng != null)) }}
+          />
+          {selectedEvent && (
+            <View style={[styles.mapCard, { paddingBottom: insets.bottom + 16 }]}>
+              <Image
+                source={{ uri: selectedEvent.poster_url || 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&q=80' }}
+                style={styles.mapCardImage}
+                resizeMode="cover"
+              />
+              <View style={styles.mapCardBody}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.mapCardVenue} numberOfLines={1}>{selectedEvent.venue_name}</Text>
+                  <Text style={styles.mapCardTitle} numberOfLines={1}>{selectedEvent.title}</Text>
+                  <Text style={styles.mapCardDate}>
+                    {[formatDate(selectedEvent.event_date), selectedEvent.start_time].filter(Boolean).join(' · ')}
+                  </Text>
+                  <TouchableOpacity style={styles.mapCardRsvp} activeOpacity={0.85}>
+                    <Text style={styles.mapCardRsvpText}>I'm Going</Text>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity
+                  onPress={() => router.push(`/event/${selectedEvent.id}` as any)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={{ paddingLeft: 8, justifyContent: 'center' }}
+                >
+                  <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.6)" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </View>
       ) : events.length === 0 ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -161,6 +381,7 @@ export default function DiscoverScreen() {
           numColumns={2}
           contentContainerStyle={[styles.grid, { paddingBottom: insets.bottom + 100 }]}
           columnWrapperStyle={styles.row}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FF3B5C" />}
           renderItem={({ item }) => {
             const info = attendees[item.id];
             return (
@@ -173,6 +394,11 @@ export default function DiscoverScreen() {
                   source={{ uri: item.poster_url || 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&q=80' }}
                   style={styles.cardImage}
                   resizeMode="cover"
+                  onError={(e) => {
+                    (e.target as any).setNativeProps({
+                      src: [{ uri: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&q=80' }],
+                    });
+                  }}
                 />
                 <LinearGradient
                   colors={['transparent', 'rgba(0,0,0,0.85)']}
@@ -214,7 +440,12 @@ export default function DiscoverScreen() {
                         <Text style={styles.goingText}>{info.count} going</Text>
                       </View>
                     )}
-                    <Text style={styles.cardVenue} numberOfLines={1}>{item.venue_name}</Text>
+                    <TouchableOpacity
+                      onPress={() => item.venue_id && router.push(`/venue/${item.venue_id}` as any)}
+                      activeOpacity={item.venue_id ? 0.7 : 1}
+                    >
+                      <Text style={styles.cardVenue} numberOfLines={1}>{item.venue_name}</Text>
+                    </TouchableOpacity>
                     <Text style={styles.cardEvent} numberOfLines={1}>{item.title}</Text>
                     <Text style={styles.cardDatetime}>
                       {[formatDate(item.event_date), item.start_time].filter(Boolean).join(' · ')}
@@ -240,11 +471,20 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 12,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   title: {
     color: '#fff',
     fontSize: 24,
     fontWeight: '800',
-    marginBottom: 12,
   },
   sortRow: {
     flexDirection: 'row',
@@ -368,5 +608,82 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.55)',
     fontSize: 10,
     marginTop: 2,
+  },
+  skeletonGrid: {
+    paddingHorizontal: CARD_MARGIN,
+    paddingTop: CARD_MARGIN,
+    gap: CARD_MARGIN,
+  },
+  skeletonCard: {
+    width: CARD_WIDTH,
+    gap: 8,
+  },
+  skeletonImage: {
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
+    borderRadius: 12,
+    backgroundColor: SKELETON_COLOR,
+  },
+  skeletonTextWide: {
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: SKELETON_COLOR,
+    width: '75%',
+  },
+  skeletonTextNarrow: {
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: SKELETON_COLOR,
+    width: '50%',
+  },
+  mapCard: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#141720',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    overflow: 'hidden',
+  },
+  mapCardImage: {
+    width: '100%',
+    height: 140,
+  },
+  mapCardBody: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  mapCardVenue: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  mapCardTitle: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 13,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  mapCardDate: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 11,
+    marginBottom: 12,
+  },
+  mapCardRsvp: {
+    backgroundColor: '#FF3B5C',
+    borderRadius: 20,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    alignSelf: 'flex-start',
+  },
+  mapCardRsvpText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });
