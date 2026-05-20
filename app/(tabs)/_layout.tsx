@@ -33,9 +33,18 @@ function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          tabBarLabel: 'Wall',
+          tabBarLabel: 'Feed',
           tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? 'layers' : 'layers-outline'} size={22} color={color} />
+            <Ionicons name={focused ? 'play-circle' : 'play-circle-outline'} size={22} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="discover"
+        options={{
+          tabBarLabel: 'Discover',
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={focused ? 'grid' : 'grid-outline'} size={22} color={color} />
           ),
         }}
       />
@@ -48,21 +57,8 @@ function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          tabBarLabel: 'Profile',
-          tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? 'person' : 'person-outline'} size={22} color={color} />
-          ),
-        }}
-      />
+      <Tabs.Screen name="profile" options={{ href: null }} />
       <Tabs.Screen name="account" options={{ href: null }} />
-      <Tabs.Screen name="map" options={{ href: null }} />
-      <Tabs.Screen name="planner" options={{ href: null }} />
-      <Tabs.Screen name="saved" options={{ href: null }} />
-      <Tabs.Screen name="discover" options={{ href: null }} />
-      <Tabs.Screen name="alerts" options={{ href: null }} />
     </Tabs>
   );
 }

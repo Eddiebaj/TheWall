@@ -7,7 +7,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useApp } from '../../context/AppContext';
-import AroundOttawaSection from '../../components/MyBoard/AroundOttawaSection';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 
@@ -177,15 +176,15 @@ export default function FriendsScreen() {
 
   const handleShareInvite = async () => {
     await Share.share({
-      message: `Hey! I'm using The Wall to coordinate nights out. Add me @${profile?.username} and we can plan where to go together 🎉\n\nDownload: https://routeo.app/invite/${profile?.username}`,
-      url: `https://routeo.app/invite/${profile?.username}`,
+      message: `Hey! I'm using The Wall to coordinate nights out. Add me @${profile?.username} and we can plan where to go together 🎉\n\nDownload: https://thewall.app/invite/${profile?.username}`,
+      url: `https://thewall.app/invite/${profile?.username}`,
     });
   };
 
   const handleInviteLink = async () => {
-    const link = `https://routeo.app/invite/${profile?.username}`;
+    const link = `https://thewall.app/invite/${profile?.username}`;
     Clipboard.setString(link);
-    Alert.alert('Link copied!', `Share routeo.app/invite/${profile?.username} with your friends - when they sign up, you'll be connected automatically.`);
+    Alert.alert('Link copied!', `Share thewall.app/invite/${profile?.username} with your friends - when they sign up, you'll be connected automatically.`);
   };
 
   const createGroup = () => setShowNewGroup(true);
@@ -221,10 +220,23 @@ export default function FriendsScreen() {
       <View style={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colours.border }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <Text style={{ fontSize: 24, fontWeight: '800', color: colours.text }}>Friends</Text>
-          <TouchableOpacity onPress={createGroup} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: colours.accent + '18', borderWidth: 1, borderColor: colours.accent + '40' }}>
-            <Ionicons name="add" size={16} color={colours.accent} />
-            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>New Group</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <TouchableOpacity onPress={createGroup} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: colours.accent + '18', borderWidth: 1, borderColor: colours.accent + '40' }}>
+              <Ionicons name="add" size={16} color={colours.accent} />
+              <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>New Group</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/profile' as any)} activeOpacity={0.8}>
+              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colours.accent + '60' }}>
+                {profile?.avatar_url ? (
+                  <Image source={{ uri: profile.avatar_url }} style={{ width: 36, height: 36, borderRadius: 18 }} />
+                ) : (
+                  <Text style={{ fontSize: 15, fontWeight: '800', color: colours.accent }}>
+                    {(profile?.display_name || profile?.username || '?')[0].toUpperCase()}
+                  </Text>
+                )}
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* I'm down tonight toggle */}
@@ -485,19 +497,6 @@ export default function FriendsScreen() {
               </View>
             ))
           )}
-        </View>
-
-        {/* The Wall - filtered by friends */}
-        <View style={{ marginTop: 24, marginBottom: 8 }}>
-          <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
-            THE WALL
-          </Text>
-          <AroundOttawaSection
-            colours={colours}
-            t={t}
-            cardShadow={{}}
-            language={language}
-          />
         </View>
 
         {/* Invite friends */}

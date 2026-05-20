@@ -142,8 +142,8 @@ export default function OnboardingScreen() {
           </Text>
           <Text style={{ fontSize: 16, color: '#8899aa', textAlign: 'center', lineHeight: 24, maxWidth: 300, marginBottom: 28 }}>
             {t(
-              'Live arrivals, ghost bus alerts, and reliability scores for Ottawa riders.',
-              'Arriv\u00e9es en direct, alertes bus fant\u00f4mes et scores de fiabilit\u00e9 pour les usagers d\u2019Ottawa.',
+              'Live arrivals, ghost bus alerts, and reliability scores for Toronto riders.',
+              'Arriv\u00e9es en direct, alertes bus fant\u00f4mes et scores de fiabilit\u00e9 pour les usagers de Toronto.',
             )}
           </Text>
           {/* Feature highlights */}

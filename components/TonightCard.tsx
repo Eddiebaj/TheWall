@@ -127,10 +127,10 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, on
 
   if (!show || !summary) return null;
 
-  const eyebrow = focusName ? t('TONIGHT IN OTTAWA', 'CE SOIR \u00c0 OTTAWA') : null;
+  const eyebrow = focusName ? t('TONIGHT IN TORONTO', 'CE SOIR \u00c0 TORONTO') : null;
   const title = focusName
     ? (language === 'fr' ? focusName.fr : focusName.en)
-    : t('Tonight in Ottawa', 'Ce soir \u00e0 Ottawa');
+    : t('Tonight in Toronto', 'Ce soir \u00e0 Toronto');
 
   // Build a compact subtitle: "3 events · 5 deals" or "2 events"
   const parts: string[] = [];

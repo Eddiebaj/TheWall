@@ -457,7 +457,7 @@ export default function BusinessDashboardScreen() {
         </View>
 
         <TouchableOpacity
-          onPress={() => Linking.openURL('mailto:support@routeo.app?subject=' + encodeURIComponent('Business Support - ' + (business?.business_name || '')))}
+          onPress={() => Linking.openURL('mailto:support@thewall.app?subject=' + encodeURIComponent('Business Support - ' + (business?.business_name || '')))}
           style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, marginTop: 8 }}
         >
           <Ionicons name="mail-outline" size={20} color={colours.accent} />

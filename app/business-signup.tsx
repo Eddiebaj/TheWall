@@ -99,10 +99,10 @@ export default function BusinessSignupScreen() {
         <View style={{ padding: 16, borderRadius: 14, backgroundColor: '#e8a020' + '12', borderWidth: 1, borderColor: '#e8a020' + '30' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <Ionicons name="storefront-outline" size={18} color="#e8a020" />
-            <Text style={{ fontSize: 14, fontWeight: '800', color: colours.text }}>Get featured on RouteO</Text>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: colours.text }}>Get featured on The Wall</Text>
           </View>
           <Text style={{ fontSize: 13, color: colours.muted, lineHeight: 20 }}>
-            Reach commuters within 500m of your location at exactly the time they're deciding where to go. Featured placement in Deals, Trending, and Around Ottawa.
+            Reach commuters within 500m of your location at exactly the time they're deciding where to go. Featured placement in Deals, Trending, and Around Toronto.
           </Text>
           <Text style={{ fontSize: 13, fontWeight: '700', color: '#e8a020', marginTop: 8 }}>$49/mo during beta · $149/mo at launch</Text>
         </View>
@@ -155,7 +155,7 @@ export default function BusinessSignupScreen() {
             style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colours.text }}
             value={address}
             onChangeText={setAddress}
-            placeholder="e.g. 1 Rideau Street, Ottawa"
+            placeholder="e.g. 1 Yonge Street, Toronto"
             placeholderTextColor={colours.muted}
           />
         </View>

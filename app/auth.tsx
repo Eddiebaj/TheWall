@@ -195,6 +195,23 @@ export default function AuthScreen() {
             Continue without account
           </Text>
         </TouchableOpacity>
+
+        {__DEV__ && (
+          <TouchableOpacity
+            onPress={async () => {
+              setLoading(true);
+              const { error } = await supabase.auth.signInWithPassword({
+                email: 'test@thewall.com',
+                password: 'test123456',
+              });
+              setLoading(false);
+              if (error) Alert.alert('Dev sign in failed', error.message);
+            }}
+            style={{ marginTop: 24, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10, borderWidth: 1, borderColor: colours.border }}
+          >
+            <Text style={{ fontSize: 13, color: colours.muted, fontWeight: '600' }}>⚙️ Dev Sign In</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </KeyboardAvoidingView>
   );

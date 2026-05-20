@@ -27,7 +27,7 @@ const FEATURES = [
   { icon: 'color-palette-outline' as const, en: 'Custom colour palettes', fr: 'Palettes de couleurs personnalisees' },
   { icon: 'calendar-outline' as const,       en: 'Full schedule look-ahead (up to 20 classes)', fr: 'Vue complete de l\'horaire (jusqu\'a 20 cours)' },
   { icon: 'pricetag-outline' as const,       en: 'Early-access community deals', fr: 'Offres communautaires en avant-premiere' },
-  { icon: 'star-outline' as const,           en: 'Support ongoing RouteO development', fr: 'Soutenir le developpement de RouteO' },
+  { icon: 'star-outline' as const,           en: 'Support ongoing The Wall development', fr: 'Soutenir le developpement de The Wall' },
 ];
 
 export default function PaywallSheet({ visible, onClose, onDismiss, onSuccess, featureHint, highlightFeature }: Props) {
@@ -128,7 +128,7 @@ export default function PaywallSheet({ visible, onClose, onDismiss, onSuccess, f
               <Ionicons name="star" size={28} color={colours.accent} />
             </View>
             <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text, textAlign: 'center' }}>
-              {t('RouteO Premium', 'RouteO Premium')}
+              {t('The Wall Premium', 'The Wall Premium')}
             </Text>
             {featureHint ? (
               <Text style={{ fontSize: fonts.sm, color: colours.muted, textAlign: 'center', marginTop: 4 }}>
@@ -136,7 +136,7 @@ export default function PaywallSheet({ visible, onClose, onDismiss, onSuccess, f
               </Text>
             ) : (
               <Text style={{ fontSize: fonts.sm, color: colours.muted, textAlign: 'center', marginTop: 4 }}>
-                {t('Unlock the full RouteO experience', 'Debloquez l\'experience RouteO complete')}
+                {t('Unlock the full The Wall experience', 'Debloquez l\'experience The Wall complete')}
               </Text>
             )}
           </View>

@@ -48,7 +48,7 @@ export default function ProfileSetupScreen() {
       }
     } else {
       await AsyncStorage.setItem('routeo_profile_setup_done', 'true');
-      router.replace('/(tabs)/map' as any);
+      router.replace('/(tabs)/' as any);
     }
   };
 

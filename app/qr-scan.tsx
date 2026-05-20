@@ -28,7 +28,7 @@ export default function QRScanScreen() {
       // QR data format: routeo://venue/{venue_qr_id}
       const match = data.match(/routeo:\/\/venue\/([a-f0-9-]+)/);
       if (!match) {
-        Alert.alert('Invalid QR', 'This QR code is not a RouteO venue code.', [
+        Alert.alert('Invalid QR', 'This QR code is not a The Wall venue code.', [
           { text: 'Try Again', onPress: () => setScanned(false) }
         ]);
         setProcessing(false);

@@ -21,10 +21,7 @@ import { useRouter } from 'expo-router';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { cardShadow as sharedCardShadow } from '../../lib/styles';
 import { hapticLight, hapticMedium, hapticSuccess } from '../../lib/haptics';
-import ClassScheduleModal from '../../components/ClassScheduleModal';
 import FlipPoster from '../../components/FlipPoster';
-import { ClassSchedule } from '../../lib/scheduleData';
-import { SK_CLASS_SCHEDULE } from '../../lib/storageKeys';
 import {
   CommuteAlertSettings,
   getCommuteAlertSettings,
@@ -206,8 +203,6 @@ export default function AccountScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const [classModalVisible, setClassModalVisible] = useState(false);
-  const [classSchedule, setClassSchedule] = useState<ClassSchedule | null>(null);
   const [paywallVisible, setPaywallVisible] = useState(false);
   const isLight = resolvedTheme === 'light';
   const cardShadow = isLight ? sharedCardShadow : {};
@@ -235,7 +230,6 @@ export default function AccountScreen() {
   const [recentSearchCount, setRecentSearchCount] = useState(0);
   const [homeSaveStatus, setHomeSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [workSaveStatus, setWorkSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [isStudent, setIsStudent] = useState(false);
   const [accessibleRoutingEnabled, setAccessibleRoutingEnabled] = useState(false);
 
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -245,9 +239,6 @@ export default function AccountScreen() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem('routeo_is_student').then(val => setIsStudent(val === 'true')).catch(() => {});
-  }, []);
-
   useEffect(() => {
     AsyncStorage.getItem('routeo_accessibility_routing').then(v => { if (v === 'true') setAccessibleRoutingEnabled(true); }).catch(() => {});
   }, []);
@@ -262,9 +253,6 @@ export default function AccountScreen() {
         if (resp.ok) { const data = await resp.json(); setGhostStats(data); }
       } catch (e) { if (__DEV__) console.warn(e); }
     })();
-    AsyncStorage.getItem(SK_CLASS_SCHEDULE).then(val => {
-      if (val) { try { setClassSchedule(JSON.parse(val)); } catch {} }
-    }).catch(() => {});
     AsyncStorage.getItem(SK_HOME_ADDRESS).then(val => {
       try { if (val) { const p = JSON.parse(val); setHomeAddress(p.label || ''); } } catch {}
     }).catch(() => {});
@@ -491,7 +479,7 @@ export default function AccountScreen() {
               <Text style={{ fontSize: 13, color: colours.muted }}>@{profile?.username || 'username'}</Text>
               {profile?.campus && (
                 <Text style={{ fontSize: 12, color: colours.accent, marginTop: 2 }}>
-                  {profile.campus === 'carleton' ? 'Carleton University' : profile.campus === 'uottawa' ? 'University of Ottawa' : profile.campus === 'algonquin' ? 'Algonquin College' : profile.campus}
+                  {profile.campus === 'uoft' ? 'University of Toronto' : profile.campus === 'tmu' ? 'Toronto Metropolitan University' : profile.campus === 'yorku' ? 'York University' : profile.campus === 'other' ? 'Other / Not a student' : profile.campus}
                 </Text>
               )}
             </View>
@@ -782,7 +770,7 @@ export default function AccountScreen() {
                       try {
                         let deviceId: string | null = null;
                         try { deviceId = await AsyncStorage.getItem(SK_DEVICE_ID); } catch (e) { if (__DEV__) console.warn(e); }
-                        const appVersion = `RouteO ${Platform.OS} ${Platform.Version}`;
+                        const appVersion = `The Wall ${Platform.OS} ${Platform.Version}`;
                         await supabase.from('bug_reports').insert({
                           message: bugMessage.trim(),
                           screen: bugScreen || null,
@@ -791,12 +779,12 @@ export default function AccountScreen() {
                         });
                         hapticSuccess();
                         setBugSent(true);
-                        const subject = encodeURIComponent('RouteO Bug Report');
+                        const subject = encodeURIComponent('The Wall Bug Report');
                         const body = encodeURIComponent(`${bugMessage.trim()}\n\n---\nScreen: ${bugScreen || 'N/A'}\nDevice: ${Platform.OS} ${Platform.Version}\nDate: ${new Date().toLocaleDateString('en-CA')}\n`);
                         Linking.openURL(`mailto:support@routeo.ca?subject=${subject}&body=${body}`).catch(() => {});
                       } catch (e) {
                         if (__DEV__) console.warn('bug report failed:', e);
-                        const subject = encodeURIComponent('RouteO Bug Report');
+                        const subject = encodeURIComponent('The Wall Bug Report');
                         const body = encodeURIComponent(`${bugMessage.trim()}\n\n---\nScreen: ${bugScreen || 'N/A'}\nDevice: ${Platform.OS} ${Platform.Version}\nDate: ${new Date().toLocaleDateString('en-CA')}\n`);
                         Linking.openURL(`mailto:support@routeo.ca?subject=${subject}&body=${body}`).catch(() => Alert.alert(t('Could not send report', 'Impossible d\'envoyer le rapport')));
                         setBugSent(true);
@@ -852,7 +840,7 @@ export default function AccountScreen() {
 
             <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Campus</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
-              {[{id:'carleton',label:'Carleton'},{id:'uottawa',label:'uOttawa'},{id:'algonquin',label:'Algonquin'},{id:'other',label:'Other'}].map(c => (
+              {[{id:'uoft',label:'UofT'},{id:'tmu',label:'TMU'},{id:'yorku',label:'York'},{id:'other',label:'Other'}].map(c => (
                 <TouchableOpacity key={c.id} onPress={() => setEditCampus(editCampus === c.id ? '' : c.id)}
                   style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, backgroundColor: editCampus === c.id ? colours.accent : colours.surface, borderColor: editCampus === c.id ? colours.accent : colours.border }}>
                   <Text style={{ fontSize: 13, fontWeight: '600', color: editCampus === c.id ? 'white' : colours.text }}>{c.label}</Text>
@@ -875,16 +863,6 @@ export default function AccountScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <ClassScheduleModal
-        visible={classModalVisible}
-        onClose={() => setClassModalVisible(false)}
-        colours={colours}
-        fonts={fonts}
-        t={t}
-        language={language}
-        schedule={classSchedule}
-        onSave={setClassSchedule}
-      />
       <PaywallSheet
         visible={paywallVisible}
         onClose={() => setPaywallVisible(false)}

@@ -330,7 +330,7 @@ export default function ClassScheduleModal({ visible, onClose, colours, fonts, t
     if (!selectedBuilding) {
       Alert.alert(
         t('Building required', 'Bâtiment requis'),
-        t('Please select a building so RouteO can route you there.', 'Veuillez sélectionner un bâtiment pour que RouteO puisse vous y amener.')
+        t('Please select a building so The Wall can route you there.', 'Veuillez sélectionner un bâtiment pour que The Wall puisse vous y amener.')
       );
       return;
     }

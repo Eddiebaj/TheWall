@@ -117,7 +117,7 @@ export default function SocialModal({
                       </View>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                         <Ionicons name="location-outline" size={12} color={colours.muted} />
-                        <Text style={{ fontSize: 11, color: colours.muted }}>{v.address || 'Ottawa'}</Text>
+                        <Text style={{ fontSize: 11, color: colours.muted }}>{v.address || 'Toronto'}</Text>
                       </View>
                       {deals.length > 0 && (
                         <View style={{ marginTop: 2, gap: 4 }}>

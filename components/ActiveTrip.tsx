@@ -477,8 +477,8 @@ export default function ActiveTrip({ visible, itinerary, onEnd, colours, t, redu
     const deepLink = `routeo://plan?fromLat=${fromLat}&fromLng=${fromLng}&toLat=${toLat}&toLng=${toLng}&mode=TRANSIT`;
 
     const message = t(
-      `I'm on Route ${routes} from ${from} to ${to}. Arriving at ${eta}.\nOpen in RouteO: ${deepLink}`,
-      `Je suis sur la route ${routes} de ${from} a ${to}. Arrivee a ${eta}.\nOuvrir dans RouteO: ${deepLink}`
+      `I'm on Route ${routes} from ${from} to ${to}. Arriving at ${eta}.\nOpen in The Wall: ${deepLink}`,
+      `Je suis sur la route ${routes} de ${from} a ${to}. Arrivee a ${eta}.\nOuvrir dans The Wall: ${deepLink}`
     );
 
     Share.share({ message });

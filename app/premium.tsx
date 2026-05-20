@@ -11,7 +11,7 @@ const FEATURES = [
   { icon: 'analytics-outline', title: 'Commute Insights', desc: 'Track your commute patterns' },
   { icon: 'git-branch-outline', title: 'Multi-stop Planner', desc: 'Plan trips with multiple stops' },
   { icon: 'notifications-outline', title: 'Advanced Notifications', desc: 'Custom alerts and reminders' },
-  { icon: 'color-palette-outline', title: 'Custom Themes', desc: 'Personalize your RouteO' },
+  { icon: 'color-palette-outline', title: 'Custom Themes', desc: 'Personalize your The Wall' },
   { icon: 'time-outline', title: 'Extended Schedule', desc: 'See arrivals up to 2 hours ahead' },
   { icon: 'ticket-outline', title: 'Early Access Deals', desc: 'See deals before everyone else' },
   { icon: 'mic-outline', title: 'AI Trip Assistant', desc: 'Voice-powered trip planning' },
@@ -34,10 +34,10 @@ export default function PremiumScreen() {
             <Ionicons name="star" size={36} color="#e8a020" />
           </View>
           <Text style={{ fontSize: 28, fontWeight: '800', color: colours.text, textAlign: 'center', marginBottom: 8 }}>
-            RouteO Premium
+            The Wall Premium
           </Text>
           <Text style={{ fontSize: 15, color: colours.muted, textAlign: 'center', lineHeight: 22 }}>
-            The full Ottawa experience - offline maps, AI assistant, commute insights and more.
+            The full Toronto experience - offline maps, AI assistant, commute insights and more.
           </Text>
         </View>
 

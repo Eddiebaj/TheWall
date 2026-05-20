@@ -42,7 +42,7 @@ export default function HappeningInOttawaSection({ events, onPressEvent }: Props
   return (
     <View style={{ marginBottom: 16 }}>
       <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, paddingHorizontal: 20, marginBottom: 10 }}>
-        {t('Happening in Ottawa', 'Se passe à Ottawa')}
+        {t('Happening in Toronto', 'Se passe à Toronto')}
       </Text>
 
       <ScrollView

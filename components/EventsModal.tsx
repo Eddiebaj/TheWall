@@ -131,7 +131,7 @@ export default function EventsModal({
         )}
         {ev.venue ? <Text style={{ fontSize: fonts.sm, color: colours.muted }}>{ev.venue}</Text> : null}
         {ev.url && <Text style={{ fontSize: fonts.sm, color: colours.accent, fontWeight: '600', marginTop: 7 }}>
-          {eventsSource === 'ticketmaster' ? 'Get tickets →' : ev.source === 'City of Ottawa' ? 'View on ottawa.ca →' : 'Get tickets →'}
+          {eventsSource === 'ticketmaster' ? 'Get tickets →' : ev.source === 'City of Ottawa' ? 'View on toronto.ca →' : 'Get tickets →'}
         </Text>}
       </TouchableOpacity>
     );
@@ -146,7 +146,7 @@ export default function EventsModal({
               {eventsSource === 'ticketmaster' ? 'Live Events' : 'Community Events'}
             </Text>
             <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 2 }}>
-              {eventsSource === 'ticketmaster' ? 'Ticketmaster · Ottawa' : 'Arts & Community · Ottawa'}
+              {eventsSource === 'ticketmaster' ? 'Ticketmaster · Toronto' : 'Arts & Community · Toronto'}
             </Text>
           </View>
           <TouchableOpacity style={[modalStyles.modalClose, { backgroundColor: colours.surface, borderColor: colours.border }]} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('Close', 'Fermer')}>
@@ -230,7 +230,7 @@ export default function EventsModal({
             <View style={modalStyles.modalCenter}>
               <Ionicons name="calendar-outline" size={36} color={colours.muted} />
               <Text style={{ color: colours.muted, marginTop: 12, textAlign: 'center' }}>
-                {eventsSearch || eventsCategory ? t('No events match your filters.', 'Aucun événement ne correspond.') : t('No upcoming events found in Ottawa.', 'Aucun événement à venir à Ottawa.')}
+                {eventsSearch || eventsCategory ? t('No events match your filters.', 'Aucun événement ne correspond.') : t('No upcoming events found in Toronto.', 'Aucun événement à venir à Toronto.')}
               </Text>
               {!eventsSearch && !eventsCategory && (
                 <TouchableOpacity
