@@ -19,9 +19,16 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_MARGIN = 8;
 const CARD_WIDTH = (SCREEN_WIDTH - CARD_MARGIN * 3) / 2;
 const CARD_HEIGHT = CARD_WIDTH * 1.35;
+const AVATAR_SIZE = 20;
+const AVATAR_OVERLAP = 6;
 
 const SORT_OPTIONS = ['Tonight', 'This Week', 'Near Me'] as const;
 type SortOption = typeof SORT_OPTIONS[number];
+
+interface AttendeeInfo {
+  count: number;
+  avatars: { id: string; username: string; avatar_url: string | null }[];
+}
 
 interface DiscoverEvent {
   id: string;
@@ -36,24 +43,8 @@ interface DiscoverEvent {
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '';
-  return new Date(dateStr).toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' });
-}
-
-function isTonight(dateStr: string | null): boolean {
-  if (!dateStr) return false;
-  const today = new Date();
-  const d = new Date(dateStr);
-  return d.getFullYear() === today.getFullYear() &&
-    d.getMonth() === today.getMonth() &&
-    d.getDate() === today.getDate();
-}
-
-function isThisWeek(dateStr: string | null): boolean {
-  if (!dateStr) return false;
-  const today = new Date();
-  const d = new Date(dateStr);
-  const diffMs = d.getTime() - today.setHours(0, 0, 0, 0);
-  return diffMs >= 0 && diffMs <= 7 * 24 * 60 * 60 * 1000;
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 export default function DiscoverScreen() {
@@ -61,42 +52,80 @@ export default function DiscoverScreen() {
   const router = useRouter();
   const [sort, setSort] = useState<SortOption>('Tonight');
   const [events, setEvents] = useState<DiscoverEvent[]>([]);
+  const [attendees, setAttendees] = useState<Record<string, AttendeeInfo>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadEvents();
-  }, []);
+    loadEvents(sort);
+  }, [sort]);
 
-  const loadEvents = async () => {
+  const loadEvents = async (activeSort: SortOption) => {
     setLoading(true);
-    const { data, error } = await supabase
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    const weekOutDate = new Date(now);
+    weekOutDate.setDate(now.getDate() + 7);
+    const weekOut = `${weekOutDate.getFullYear()}-${pad(weekOutDate.getMonth() + 1)}-${pad(weekOutDate.getDate())}`;
+
+    let query = supabase
       .from('events')
-      .select('id, title, poster_url, event_date, start_time, cover_charge, venues(name, neighbourhood)')
-      .order('event_date', { ascending: true })
+      .select('id, title, poster_url, date, venues(name, neighbourhood)')
+      .order('date', { ascending: true })
       .limit(50);
 
+    if (activeSort === 'Tonight') {
+      query = query.eq('date', today);
+    } else if (activeSort === 'This Week') {
+      query = query.gte('date', today).lte('date', weekOut);
+    }
+
+    const { data, error } = await query;
+
     if (!error && data) {
-      setEvents(data.map((e: any) => ({
+      const mapped: DiscoverEvent[] = data.map((e: any) => ({
         id: e.id,
         poster_url: e.poster_url || null,
         title: e.title,
         venue_name: e.venues?.name || '',
         neighbourhood: e.venues?.neighbourhood || null,
         cover_charge: e.cover_charge || null,
-        event_date: e.event_date || null,
+        event_date: e.date || null,
         start_time: e.start_time || null,
-      })));
+      }));
+      setEvents(mapped);
+      loadAttendees(mapped.map(e => e.id));
     }
     setLoading(false);
   };
 
-  const filtered = events;
+  const loadAttendees = async (eventIds: string[]) => {
+    if (eventIds.length === 0) return;
+
+    const { data } = await supabase
+      .from('event_rsvps')
+      .select('event_id, profiles(id, username, avatar_url)')
+      .in('event_id', eventIds)
+      .eq('status', 'going');
+
+    if (!data) return;
+
+    const map: Record<string, AttendeeInfo> = {};
+    for (const row of data as any[]) {
+      const eid = row.event_id;
+      if (!map[eid]) map[eid] = { count: 0, avatars: [] };
+      map[eid].count += 1;
+      if (map[eid].avatars.length < 3 && row.profiles) {
+        map[eid].avatars.push(row.profiles);
+      }
+    }
+    setAttendees(map);
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" />
 
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Discover</Text>
         <View style={styles.sortRow}>
@@ -119,7 +148,7 @@ export default function DiscoverScreen() {
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator color="#FF3B5C" />
         </View>
-      ) : filtered.length === 0 ? (
+      ) : events.length === 0 ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 15, fontWeight: '600' }}>
             No events {sort === 'Tonight' ? 'tonight' : 'this week'}
@@ -127,48 +156,74 @@ export default function DiscoverScreen() {
         </View>
       ) : (
         <FlatList
-          data={filtered}
+          data={events}
           keyExtractor={(item) => item.id}
           numColumns={2}
-          contentContainerStyle={styles.grid}
+          contentContainerStyle={[styles.grid, { paddingBottom: insets.bottom + 100 }]}
           columnWrapperStyle={styles.row}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.card}
-              activeOpacity={0.85}
-              onPress={() => router.push(`/event/${item.id}` as any)}
-            >
-              {item.poster_url ? (
-                <Image source={{ uri: item.poster_url }} style={styles.cardImage} resizeMode="cover" />
-              ) : (
-                <View style={[styles.cardImage, { backgroundColor: '#2a2a2a' }]} />
-              )}
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.85)']}
-                style={styles.cardGradient}
+          renderItem={({ item }) => {
+            const info = attendees[item.id];
+            return (
+              <TouchableOpacity
+                style={styles.card}
+                activeOpacity={0.85}
+                onPress={() => router.push(`/event/${item.id}` as any)}
               >
-                <View style={styles.cardTopRow}>
-                  {item.neighbourhood && (
-                    <View style={styles.pill}>
-                      <Text style={styles.pillText}>{item.neighbourhood}</Text>
-                    </View>
-                  )}
-                  {item.cover_charge && (
-                    <View style={styles.pill}>
-                      <Text style={styles.pillText}>{item.cover_charge}</Text>
-                    </View>
-                  )}
-                </View>
-                <View style={styles.cardBottom}>
-                  <Text style={styles.cardVenue} numberOfLines={1}>{item.venue_name}</Text>
-                  <Text style={styles.cardEvent} numberOfLines={1}>{item.title}</Text>
-                  <Text style={styles.cardDatetime}>
-                    {[formatDate(item.event_date), item.start_time].filter(Boolean).join(' · ')}
-                  </Text>
-                </View>
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
+                <Image
+                  source={{ uri: item.poster_url || 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&q=80' }}
+                  style={styles.cardImage}
+                  resizeMode="cover"
+                />
+                <LinearGradient
+                  colors={['transparent', 'rgba(0,0,0,0.85)']}
+                  style={styles.cardGradient}
+                >
+                  <View style={styles.cardTopRow}>
+                    {item.neighbourhood && (
+                      <View style={styles.pill}>
+                        <Text style={styles.pillText}>{item.neighbourhood}</Text>
+                      </View>
+                    )}
+                    {item.cover_charge && (
+                      <View style={styles.pill}>
+                        <Text style={styles.pillText}>{item.cover_charge}</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <View style={styles.cardBottom}>
+                    {info && info.count > 0 && (
+                      <View style={styles.attendeeRow}>
+                        <View style={{ flexDirection: 'row', height: AVATAR_SIZE, width: info.avatars.length * (AVATAR_SIZE - AVATAR_OVERLAP) + AVATAR_OVERLAP }}>
+                          {info.avatars.map((a, i) => (
+                            <View
+                              key={a.id}
+                              style={[styles.avatar, {
+                                left: i * (AVATAR_SIZE - AVATAR_OVERLAP),
+                                zIndex: info.avatars.length - i,
+                              }]}
+                            >
+                              {a.avatar_url ? (
+                                <Image source={{ uri: a.avatar_url }} style={styles.avatarImage} />
+                              ) : (
+                                <Text style={styles.avatarInitial}>{a.username[0].toUpperCase()}</Text>
+                              )}
+                            </View>
+                          ))}
+                        </View>
+                        <Text style={styles.goingText}>{info.count} going</Text>
+                      </View>
+                    )}
+                    <Text style={styles.cardVenue} numberOfLines={1}>{item.venue_name}</Text>
+                    <Text style={styles.cardEvent} numberOfLines={1}>{item.title}</Text>
+                    <Text style={styles.cardDatetime}>
+                      {[formatDate(item.event_date), item.start_time].filter(Boolean).join(' · ')}
+                    </Text>
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            );
+          }}
         />
       )}
     </View>
@@ -265,6 +320,39 @@ const styles = StyleSheet.create({
   },
   cardBottom: {
     gap: 1,
+  },
+  attendeeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 4,
+  },
+  avatar: {
+    position: 'absolute',
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
+    backgroundColor: '#FF3B5C',
+    borderWidth: 1.5,
+    borderColor: 'rgba(0,0,0,0.6)',
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarInitial: {
+    color: '#fff',
+    fontSize: 8,
+    fontWeight: '700',
+  },
+  goingText: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 10,
+    fontWeight: '600',
+    marginLeft: 4,
   },
   cardVenue: {
     color: '#fff',

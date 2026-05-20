@@ -4,10 +4,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator, Alert, DeviceEventEmitter, Image, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView,
+    ActivityIndicator, Alert, DeviceEventEmitter, Dimensions, Image, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView,
     StatusBar, Switch, Text, TextInput,
     TouchableOpacity, View,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,7 +22,6 @@ import { useRouter } from 'expo-router';
 import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { cardShadow as sharedCardShadow } from '../../lib/styles';
 import { hapticLight, hapticMedium, hapticSuccess } from '../../lib/haptics';
-import FlipPoster from '../../components/FlipPoster';
 import {
   CommuteAlertSettings,
   getCommuteAlertSettings,
@@ -114,73 +114,85 @@ function SettingsRow({ label, icon, onPress, colours, fonts, right }: {
   );
 }
 
-function MyWallSection() {
-  const { colours, fonts } = useApp();
+const WALL_CARD_GAP = 8;
+const WALL_CARD_WIDTH = (Dimensions.get('window').width - 40 - WALL_CARD_GAP) / 2;
+const WALL_CARD_HEIGHT = WALL_CARD_WIDTH * 1.35;
+
+interface WallEvent {
+  rsvpId: string;
+  eventId: string;
+  title: string;
+  poster_url: string | null;
+  venue_name: string;
+}
+
+function MyWallSection({ onCountChange }: { onCountChange: (n: number) => void }) {
+  const { colours } = useApp();
   const { user } = useAuth();
-  const [rsvps, setRsvps] = useState<any[]>([]);
-  const [scans, setScans] = useState<any[]>([]);
-  const [memories, setMemories] = useState<any[]>([]);
+  const router = useRouter();
+  const [events, setEvents] = useState<WallEvent[]>([]);
 
-  const loadData = () => {
-    if (!user) return;
+  useEffect(() => {
+    if (!user) { onCountChange(0); return; }
     supabase
-      .from('city_board_rsvps')
-      .select('*')
+      .from('event_rsvps')
+      .select('id, event_id, events(id, title, poster_url, venues(name))')
       .eq('user_id', user.id)
+      .eq('status', 'going')
       .order('created_at', { ascending: false })
-      .limit(20)
-      .then(({ data }) => setRsvps(data || []));
-    supabase
-      .from('venue_qr_scans')
-      .select('*')
-      .eq('user_id', user.id)
-      .then(({ data }) => setScans(data || []));
-    supabase
-      .from('poster_memories')
-      .select('*')
-      .eq('user_id', user.id)
-      .then(({ data }) => setMemories(data || []));
-  };
+      .limit(40)
+      .then(({ data }) => {
+        const mapped: WallEvent[] = (data || []).map((r: any) => ({
+          rsvpId: r.id,
+          eventId: r.events?.id ?? r.event_id,
+          title: r.events?.title ?? '',
+          poster_url: r.events?.poster_url ?? null,
+          venue_name: r.events?.venues?.name ?? '',
+        }));
+        setEvents(mapped);
+        onCountChange(mapped.length);
+      });
+  }, [user]);
 
-  useEffect(() => { loadData(); }, [user]);
-
-  if (rsvps.length === 0) return (
-    <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>MY WALL</Text>
+  if (events.length === 0) {
+    return (
+      <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>MY WALL</Text>
+        <View style={{ borderRadius: 16, borderWidth: 1, borderColor: colours.border, borderStyle: 'dashed', padding: 24, alignItems: 'center' }}>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text, marginBottom: 4 }}>Your wall starts here</Text>
+          <Text style={{ fontSize: 12, color: colours.muted, textAlign: 'center', lineHeight: 18 }}>
+            RSVP to events to start your collection
+          </Text>
+        </View>
       </View>
-      <View style={{ borderRadius: 16, borderWidth: 1, borderColor: colours.border, borderStyle: 'dashed', padding: 20, alignItems: 'center' }}>
-        <Text style={{ fontSize: 20, marginBottom: 6 }}>🎭</Text>
-        <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text, marginBottom: 2 }}>Your wall starts here</Text>
-        <Text style={{ fontSize: 12, color: colours.muted, textAlign: 'center' }}>RSVP to events on The Wall to start collecting</Text>
-      </View>
-    </View>
-  );
+    );
+  }
 
   return (
     <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>MY WALL</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <Text style={{ fontSize: 12, color: colours.muted, fontWeight: '600' }}>{rsvps.length} nights</Text>
-        </View>
-      </View>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-        {rsvps.map((r) => {
-          const scan = scans.find(s => s.venue_name === r.venue_name) || null;
-          const memory = memories.find(m => m.venue_name === r.venue_name) || null;
-          return (
-            <FlipPoster
-              key={r.id}
-              rsvp={r}
-              scan={scan}
-              memory={memory}
-              colours={colours}
-              fonts={fonts}
-              onMemoryAdded={loadData}
-            />
-          );
-        })}
+      <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>MY WALL</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: WALL_CARD_GAP }}>
+        {events.map((item) => (
+          <TouchableOpacity
+            key={item.rsvpId}
+            style={{ width: WALL_CARD_WIDTH, height: WALL_CARD_HEIGHT, borderRadius: 12, overflow: 'hidden', backgroundColor: '#1a1a1a' }}
+            activeOpacity={0.85}
+            onPress={() => router.push(`/event/${item.eventId}` as any)}
+          >
+            {item.poster_url ? (
+              <Image source={{ uri: item.poster_url }} style={{ width: '100%', height: '100%', position: 'absolute' }} resizeMode="cover" />
+            ) : (
+              <View style={{ flex: 1, backgroundColor: '#2a2a2a' }} />
+            )}
+            <LinearGradient
+              colors={['transparent', 'rgba(0,0,0,0.85)']}
+              style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 8 }}
+            >
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '800' }} numberOfLines={1}>{item.venue_name}</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11 }} numberOfLines={1}>{item.title}</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        ))}
       </View>
     </View>
   );
@@ -201,6 +213,32 @@ export default function AccountScreen() {
   const insets = useSafeAreaInsets();
 
   const [paywallVisible, setPaywallVisible] = useState(false);
+
+  // Auth state (shown when not signed in)
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
+
+  const handleAuth = async () => {
+    setAuthError('');
+    if (!authEmail.trim() || !authPassword) {
+      setAuthError('Please enter your email and password.');
+      return;
+    }
+    setAuthLoading(true);
+    const { error } = authMode === 'signin'
+      ? await supabase.auth.signInWithPassword({ email: authEmail.trim(), password: authPassword })
+      : await supabase.auth.signUp({ email: authEmail.trim(), password: authPassword });
+    setAuthLoading(false);
+    if (error) {
+      setAuthError(error.message);
+    } else if (authMode === 'signup') {
+      setAuthError('Check your email to confirm your account.');
+    }
+  };
+
   const isLight = resolvedTheme === 'light';
   const cardShadow = isLight ? sharedCardShadow : {};
 
@@ -228,6 +266,8 @@ export default function AccountScreen() {
   const [homeSaveStatus, setHomeSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [workSaveStatus, setWorkSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [accessibleRoutingEnabled, setAccessibleRoutingEnabled] = useState(false);
+
+  const [wallCount, setWallCount] = useState(0);
 
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editName, setEditName] = useState('');
@@ -426,6 +466,85 @@ export default function AccountScreen() {
     </View>
   );
 
+  if (!user) {
+    return (
+      <KeyboardAvoidingView
+        style={{ flex: 1, backgroundColor: colours.bg }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingBottom: insets.bottom + 40 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={{ alignItems: 'center', marginBottom: 40 }}>
+            <Text style={{ fontSize: 32, fontWeight: '900', color: colours.text, letterSpacing: -0.5 }}>TheWall</Text>
+            <Text style={{ fontSize: 14, color: colours.muted, marginTop: 6 }}>
+              {authMode === 'signin' ? 'Sign in to your account' : 'Create an account'}
+            </Text>
+          </View>
+
+          <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Email</Text>
+          <TextInput
+            style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15, color: colours.text, marginBottom: 14 }}
+            placeholder="you@example.com"
+            placeholderTextColor={colours.muted}
+            value={authEmail}
+            onChangeText={setAuthEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            autoCorrect={false}
+            editable={!authLoading}
+          />
+
+          <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Password</Text>
+          <TextInput
+            style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15, color: colours.text, marginBottom: 20 }}
+            placeholder="••••••••"
+            placeholderTextColor={colours.muted}
+            value={authPassword}
+            onChangeText={setAuthPassword}
+            secureTextEntry
+            editable={!authLoading}
+          />
+
+          {authError ? (
+            <Text style={{ fontSize: 13, color: colours.accent, fontWeight: '600', marginBottom: 14, textAlign: 'center' }}>
+              {authError}
+            </Text>
+          ) : null}
+
+          <TouchableOpacity
+            onPress={handleAuth}
+            disabled={authLoading}
+            style={{ backgroundColor: colours.accent, borderRadius: 14, paddingVertical: 16, alignItems: 'center', opacity: authLoading ? 0.7 : 1 }}
+            activeOpacity={0.85}
+          >
+            {authLoading
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>
+                  {authMode === 'signin' ? 'Sign In' : 'Sign Up'}
+                </Text>
+            }
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => { setAuthMode(m => m === 'signin' ? 'signup' : 'signin'); setAuthError(''); }}
+            style={{ marginTop: 20, alignItems: 'center' }}
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: 14, color: colours.muted }}>
+              {authMode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
+              <Text style={{ color: colours.accent, fontWeight: '700' }}>
+                {authMode === 'signin' ? 'Sign Up' : 'Sign In'}
+              </Text>
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: colours.bg }}>
       <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
@@ -470,12 +589,17 @@ export default function AccountScreen() {
                 </TouchableOpacity>
               </View>
               <Text style={{ fontSize: 13, color: colours.muted }}>@{profile?.username || 'username'}</Text>
+              {wallCount > 0 && (
+                <Text style={{ fontSize: 12, color: colours.accent, fontWeight: '600', marginTop: 2 }}>
+                  {wallCount} {wallCount === 1 ? 'night out' : 'nights out'}
+                </Text>
+              )}
             </View>
           </View>
         </View>
 
         {/* MY WALL */}
-        <MyWallSection />
+        <MyWallSection onCountChange={setWallCount} />
 
         <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
           <Text

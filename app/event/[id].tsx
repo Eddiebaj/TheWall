@@ -20,6 +20,12 @@ import { useApp } from '../../context/AppContext';
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 const POSTER_HEIGHT = SCREEN_HEIGHT * 0.42;
 
+interface RsvpProfile {
+  id: string;
+  username: string;
+  avatar_url: string | null;
+}
+
 interface EventDetail {
   id: string;
   title: string;
@@ -44,6 +50,7 @@ export default function EventDetailScreen() {
   const { user } = useAuth();
 
   const [event, setEvent] = useState<EventDetail | null>(null);
+  const [rsvpProfiles, setRsvpProfiles] = useState<RsvpProfile[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -55,7 +62,7 @@ export default function EventDetailScreen() {
 
     const { data, error } = await supabase
       .from('events')
-      .select('id, title, poster_url, event_date, start_time, cover_charge, venues(name, neighbourhood, address)')
+      .select('id, title, poster_url, date, venues(name, neighbourhood, address)')
       .eq('id', id)
       .single();
 
@@ -82,13 +89,25 @@ export default function EventDetailScreen() {
       isGoing = !!rsvp;
     }
 
+    const { data: rsvpRows } = await supabase
+      .from('event_rsvps')
+      .select('profiles(id, username, avatar_url)')
+      .eq('event_id', id)
+      .eq('status', 'going')
+      .limit(20);
+    const profiles = ((rsvpRows || []) as any[])
+      .map((r: any) => r.profiles)
+      .filter(Boolean) as RsvpProfile[];
+    setRsvpProfiles(profiles
+    );
+
     setEvent({
       id: data.id,
       title: data.title,
       poster_url: data.poster_url || null,
-      event_date: data.event_date || null,
-      start_time: data.start_time || null,
-      cover_charge: data.cover_charge || null,
+      event_date: data.date || null,
+      start_time: null,
+      cover_charge: null,
       venue: (data as any).venues || null,
       goingCount: goingCount || 0,
       isGoing,
@@ -235,15 +254,51 @@ export default function EventDetailScreen() {
           )}
         </View>
 
-        {/* Going count */}
-        {event.goingCount > 0 && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 24 }}>
-            <Ionicons name="people-outline" size={16} color={colours.muted} />
-            <Text style={{ fontSize: 14, color: colours.muted, fontWeight: '600' }}>
-              {event.goingCount} {event.goingCount === 1 ? 'person' : 'people'} going
-            </Text>
-          </View>
-        )}
+        {/* RSVP avatar row */}
+        {rsvpProfiles.length > 0 && (() => {
+          const shown = rsvpProfiles.slice(0, 5);
+          const extra = rsvpProfiles.length - shown.length;
+          const AVATAR_SIZE = 36;
+          const OVERLAP = 12;
+          return (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24, minHeight: AVATAR_SIZE }}>
+              <View style={{ flexDirection: 'row', width: shown.length * (AVATAR_SIZE - OVERLAP) + OVERLAP, height: AVATAR_SIZE }}>
+                {shown.map((p, i) => (
+                  <View
+                    key={p.id}
+                    style={{
+                      position: 'absolute',
+                      left: i * (AVATAR_SIZE - OVERLAP),
+                      width: AVATAR_SIZE,
+                      height: AVATAR_SIZE,
+                      borderRadius: AVATAR_SIZE / 2,
+                      borderWidth: 2,
+                      borderColor: colours.bg,
+                      backgroundColor: colours.accent,
+                      overflow: 'hidden',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      zIndex: shown.length - i,
+                    }}
+                  >
+                    {p.avatar_url ? (
+                      <Image source={{ uri: p.avatar_url }} style={{ width: '100%', height: '100%' }} />
+                    ) : (
+                      <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>
+                        {p.username[0].toUpperCase()}
+                      </Text>
+                    )}
+                  </View>
+                ))}
+              </View>
+              <Text style={{ fontSize: 13, color: colours.muted, fontWeight: '600', marginLeft: 8 }}>
+                {extra > 0
+                  ? `${shown.length}+${extra} going`
+                  : `${rsvpProfiles.length} ${rsvpProfiles.length === 1 ? 'person' : 'people'} going`}
+              </Text>
+            </View>
+          );
+        })()}
 
         {/* I'm Going button */}
         <TouchableOpacity
