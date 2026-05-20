@@ -49,6 +49,7 @@ interface DiscoverEvent {
   cover_charge: string | null;
   event_date: string | null;
   start_time: string | null;
+  end_time: string | null;
   venue_lat: number | null;
   venue_lng: number | null;
 }
@@ -201,6 +202,23 @@ function buildLeafletHtml(markers: DiscoverEvent[]): string {
 </html>`;
 }
 
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function isHappeningNow(event: DiscoverEvent): boolean {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  if (event.event_date !== today) return false;
+  if (!event.start_time) return false;
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const startMins = timeToMinutes(event.start_time);
+  const endMins = event.end_time ? timeToMinutes(event.end_time) : startMins + 180;
+  return nowMins >= startMins && nowMins <= endMins;
+}
+
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '';
   const [year, month, day] = dateStr.split('-').map(Number);
@@ -290,7 +308,7 @@ export default function DiscoverScreen() {
 
     let query = supabase
       .from('events')
-      .select('id, title, poster_url, date, start_time, venue_id, venues(name, neighbourhood, latitude, longitude)')
+      .select('id, title, poster_url, date, start_time, end_time, venue_id, venues(name, neighbourhood, latitude, longitude)')
       .order('date', { ascending: true })
       .limit(50);
 
@@ -313,6 +331,7 @@ export default function DiscoverScreen() {
         cover_charge: e.cover_charge || null,
         event_date: e.date || null,
         start_time: e.start_time || null,
+        end_time: e.end_time || null,
         venue_lat: e.venues?.latitude ?? null,
         venue_lng: e.venues?.longitude ?? null,
       }));
@@ -344,6 +363,8 @@ export default function DiscoverScreen() {
     }
     setAttendees(map);
   };
+
+  const happeningNow = events.filter(isHappeningNow);
 
   const filteredEvents = (() => {
     const base = neighbourhood === 'All' ? events : events.filter(e => e.neighbourhood === neighbourhood);
@@ -495,24 +516,62 @@ export default function DiscoverScreen() {
           columnWrapperStyle={styles.row}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FF3B5C" />}
           ListHeaderComponent={
-            <View style={styles.gridSortRow}>
-              <TouchableOpacity
-                onPress={() => setGridSort('date')}
-                style={[styles.gridSortBtn, gridSort === 'date' && styles.gridSortBtnActive]}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="calendar-outline" size={12} color={gridSort === 'date' ? '#fff' : 'rgba(255,255,255,0.5)'} />
-                <Text style={[styles.gridSortBtnText, gridSort === 'date' && styles.gridSortBtnTextActive]}>Date</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setGridSort('popular')}
-                style={[styles.gridSortBtn, gridSort === 'popular' && styles.gridSortBtnActive]}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="flame-outline" size={12} color={gridSort === 'popular' ? '#fff' : 'rgba(255,255,255,0.5)'} />
-                <Text style={[styles.gridSortBtnText, gridSort === 'popular' && styles.gridSortBtnTextActive]}>Popular</Text>
-              </TouchableOpacity>
-            </View>
+            <>
+              {happeningNow.length > 0 && (
+                <View style={styles.nowSection}>
+                  <Text style={styles.nowHeader}>HAPPENING NOW</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ gap: 10, paddingRight: 4 }}
+                  >
+                    {happeningNow.map((item) => (
+                      <TouchableOpacity
+                        key={item.id}
+                        style={styles.nowCard}
+                        activeOpacity={0.85}
+                        onPress={() => router.push(`/event/${item.id}` as any)}
+                      >
+                        <Image
+                          source={{ uri: item.poster_url || 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&q=80' }}
+                          style={styles.nowCardImage}
+                          resizeMode="cover"
+                        />
+                        <View style={styles.nowBadge}>
+                          <View style={styles.nowDot} />
+                          <Text style={styles.nowBadgeText}>Now</Text>
+                        </View>
+                        <LinearGradient
+                          colors={['transparent', 'rgba(0,0,0,0.8)']}
+                          style={styles.nowCardGradient}
+                        >
+                          <Text style={styles.nowCardVenue} numberOfLines={1}>{item.venue_name}</Text>
+                          <Text style={styles.nowCardTitle} numberOfLines={1}>{item.title}</Text>
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+              <View style={styles.gridSortRow}>
+                <TouchableOpacity
+                  onPress={() => setGridSort('date')}
+                  style={[styles.gridSortBtn, gridSort === 'date' && styles.gridSortBtnActive]}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="calendar-outline" size={12} color={gridSort === 'date' ? '#fff' : 'rgba(255,255,255,0.5)'} />
+                  <Text style={[styles.gridSortBtnText, gridSort === 'date' && styles.gridSortBtnTextActive]}>Date</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setGridSort('popular')}
+                  style={[styles.gridSortBtn, gridSort === 'popular' && styles.gridSortBtnActive]}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="flame-outline" size={12} color={gridSort === 'popular' ? '#fff' : 'rgba(255,255,255,0.5)'} />
+                  <Text style={[styles.gridSortBtnText, gridSort === 'popular' && styles.gridSortBtnTextActive]}>Popular</Text>
+                </TouchableOpacity>
+              </View>
+            </>
           }
           renderItem={({ item }) => {
             const info = attendees[item.id];
@@ -661,6 +720,73 @@ const styles = StyleSheet.create({
   },
   nbBtnTextActive: {
     color: '#FF3B5C',
+  },
+  nowSection: {
+    marginBottom: 16,
+  },
+  nowHeader: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 10,
+  },
+  nowCard: {
+    width: 140,
+    height: 180,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#1a1a1a',
+  },
+  nowCardImage: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+  },
+  nowCardGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+    paddingTop: 24,
+  },
+  nowCardVenue: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  nowCardTitle: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 10,
+    fontWeight: '500',
+    marginTop: 1,
+  },
+  nowBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 20,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: '#00C07A',
+  },
+  nowDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#00C07A',
+  },
+  nowBadgeText: {
+    color: '#00C07A',
+    fontSize: 10,
+    fontWeight: '700',
   },
   gridSortRow: {
     flexDirection: 'row',
