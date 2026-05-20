@@ -5,6 +5,7 @@ import {
   FlatList,
   Image,
   RefreshControl,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -27,6 +28,11 @@ const AVATAR_OVERLAP = 6;
 
 const SORT_OPTIONS = ['Tonight', 'This Week', 'Near Me'] as const;
 type SortOption = typeof SORT_OPTIONS[number];
+
+const NEIGHBOURHOODS = [
+  'All', 'King West', 'Queen West', 'Entertainment District',
+  'Dundas West', 'Kensington', 'Bloor', 'College', 'West Queen West',
+] as const;
 
 interface AttendeeInfo {
   count: number;
@@ -64,6 +70,8 @@ function buildLeafletHtml(markers: DiscoverEvent[]): string {
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css"/>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body, #map { width: 100%; height: 100%; background: #0a0a0a; }
@@ -78,11 +86,29 @@ function buildLeafletHtml(markers: DiscoverEvent[]): string {
     .leaflet-popup-content { margin: 10px 14px; font-family: -apple-system, sans-serif; }
     .popup-venue { font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 2px; }
     .popup-title { font-size: 12px; color: rgba(255,255,255,0.65); }
+    .marker-cluster {
+      background: rgba(26,26,46,0.9) !important;
+      border: 2px solid #FF3B5C !important;
+    }
+    .marker-cluster div {
+      background: transparent !important;
+      color: #fff !important;
+      font-family: -apple-system, sans-serif !important;
+      font-size: 13px !important;
+      font-weight: 800 !important;
+    }
+    .marker-cluster-small, .marker-cluster-medium, .marker-cluster-large {
+      background: rgba(26,26,46,0.9) !important;
+    }
+    .marker-cluster-small div, .marker-cluster-medium div, .marker-cluster-large div {
+      background: transparent !important;
+    }
   </style>
 </head>
 <body>
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
 <script>
   var map = L.map('map', { zoomControl: true, attributionControl: false }).setView([${TORONTO.lat}, ${TORONTO.lng}], 13);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -118,13 +144,27 @@ function buildLeafletHtml(markers: DiscoverEvent[]): string {
     });
   }
 
+  var clusterGroup = L.markerClusterGroup({
+    showCoverageOnHover: false,
+    maxClusterRadius: 60,
+    iconCreateFunction: function(cluster) {
+      var count = cluster.getChildCount();
+      return L.divIcon({
+        html: '<div style="width:40px;height:40px;border-radius:20px;background:rgba(26,26,46,0.95);border:2px solid #FF3B5C;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:800;font-family:-apple-system,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.6);">' + count + '</div>',
+        className: '',
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+      });
+    },
+  });
+
   var markerObjects = [];
   var markers = ${markersJson};
 
   markers.forEach(function(m) {
     var color = getEventColor(m.title);
     var icon = makeBannerIcon(m.venue, color, map.getZoom(), false);
-    var marker = L.marker([m.lat, m.lng], { icon: icon }).addTo(map);
+    var marker = L.marker([m.lat, m.lng], { icon: icon });
     markerObjects.push({ leaflet: marker, data: m, color: color, selected: false });
 
     marker.on('click', function(e) {
@@ -135,7 +175,11 @@ function buildLeafletHtml(markers: DiscoverEvent[]): string {
       });
       window.ReactNativeWebView.postMessage(m.id);
     });
+
+    clusterGroup.addLayer(marker);
   });
+
+  map.addLayer(clusterGroup);
 
   // Re-render icons when zoom changes
   map.on('zoomend', function() {
@@ -198,6 +242,7 @@ export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [sort, setSort] = useState<SortOption>('This Week');
+  const [neighbourhood, setNeighbourhood] = useState<string>('All');
   const [events, setEvents] = useState<DiscoverEvent[]>([]);
   const [attendees, setAttendees] = useState<Record<string, AttendeeInfo>>({});
   const [loading, setLoading] = useState(true);
@@ -299,6 +344,10 @@ export default function DiscoverScreen() {
     setAttendees(map);
   };
 
+  const filteredEvents = neighbourhood === 'All'
+    ? events
+    : events.filter(e => e.neighbourhood === neighbourhood);
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" />
@@ -340,6 +389,25 @@ export default function DiscoverScreen() {
             </TouchableOpacity>
           ))}
         </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ marginTop: 10 }}
+          contentContainerStyle={{ gap: 6, paddingRight: 4 }}
+        >
+          {NEIGHBOURHOODS.map((n) => (
+            <TouchableOpacity
+              key={n}
+              onPress={() => setNeighbourhood(n)}
+              style={[styles.nbBtn, neighbourhood === n && styles.nbBtnActive]}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.nbBtnText, neighbourhood === n && styles.nbBtnTextActive]}>
+                {n}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
       {loading ? (
@@ -355,7 +423,7 @@ export default function DiscoverScreen() {
               const found = events.find(ev => ev.id === eventId) || null;
               setSelectedEvent(found);
             }}
-            source={{ html: buildLeafletHtml(events.filter(e => e.venue_lat != null && e.venue_lng != null)) }}
+            source={{ html: buildLeafletHtml(filteredEvents.filter(e => e.venue_lat != null && e.venue_lng != null)) }}
           />
           <Animated.View
             style={[
@@ -407,7 +475,7 @@ export default function DiscoverScreen() {
             )}
           </Animated.View>
         </View>
-      ) : events.length === 0 ? (
+      ) : filteredEvents.length === 0 ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 15, fontWeight: '600' }}>
             No events {sort === 'Tonight' ? 'tonight' : 'this week'}
@@ -415,7 +483,7 @@ export default function DiscoverScreen() {
         </View>
       ) : (
         <FlatList
-          data={events}
+          data={filteredEvents}
           keyExtractor={(item) => item.id}
           numColumns={2}
           contentContainerStyle={[styles.grid, { paddingBottom: insets.bottom + 100 }]}
@@ -548,6 +616,26 @@ const styles = StyleSheet.create({
   },
   sortBtnTextActive: {
     color: '#fff',
+  },
+  nbBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'transparent',
+  },
+  nbBtnActive: {
+    backgroundColor: 'rgba(255,59,92,0.15)',
+    borderColor: '#FF3B5C',
+  },
+  nbBtnText: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  nbBtnTextActive: {
+    color: '#FF3B5C',
   },
   grid: {
     paddingHorizontal: CARD_MARGIN,
