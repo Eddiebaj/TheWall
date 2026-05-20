@@ -6,6 +6,7 @@ import {
   Alert,
   Dimensions,
   FlatList,
+  Image,
   Platform,
   RefreshControl,
   StatusBar,
@@ -33,6 +34,16 @@ interface Post {
   event_id: string | null;
   profiles: { username: string } | null;
   events: { title: string; venues: { neighbourhood: string | null } | null } | null;
+}
+
+interface ActivityItem {
+  id: string;
+  type: 'rsvp' | 'post';
+  created_at: string;
+  user_id: string;
+  event_id: string | null;
+  profile: { username: string; avatar_url: string | null } | null;
+  event: { id: string; title: string; venue_name: string | null } | null;
 }
 
 function timeAgo(dateStr: string): string {
@@ -70,7 +81,6 @@ function VideoCard({ item, isActive, userId }: { item: Post; isActive: boolean; 
         }
       );
     } else {
-      // Android fallback via Alert
       Alert.alert('Report reason', 'Select a reason', [
         ...REPORT_REASONS.map(r => ({ text: r, onPress: () => submitReport(r) })),
         { text: 'Cancel', style: 'cancel' },
@@ -162,13 +172,47 @@ function VideoCard({ item, isActive, userId }: { item: Post; isActive: boolean; 
   );
 }
 
+function ActivityRow({ item, onPress }: { item: ActivityItem; onPress: () => void }) {
+  const username = item.profile?.username ?? 'Someone';
+  const avatarUrl = item.profile?.avatar_url;
+  const initial = username.charAt(0).toUpperCase();
+
+  let text = '';
+  if (item.type === 'rsvp') {
+    text = `${username} is going to ${item.event?.title ?? 'an event'}`;
+    if (item.event?.venue_name) text += ` at ${item.event.venue_name}`;
+  } else {
+    text = `${username} posted`;
+    if (item.event?.title) text += ` at ${item.event.title}`;
+  }
+
+  return (
+    <TouchableOpacity style={styles.activityRow} onPress={onPress} activeOpacity={0.75}>
+      <View style={styles.activityAvatar}>
+        {avatarUrl ? (
+          <Image source={{ uri: avatarUrl }} style={styles.activityAvatarImg} />
+        ) : (
+          <Text style={styles.activityAvatarInitial}>{initial}</Text>
+        )}
+      </View>
+      <View style={styles.activityContent}>
+        <Text style={styles.activityText} numberOfLines={2}>{text}</Text>
+        <Text style={styles.activityTime}>{timeAgo(item.created_at)}</Text>
+      </View>
+      {item.event_id && (
+        <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.3)" />
+      )}
+    </TouchableOpacity>
+  );
+}
+
 function TabToggle({
   active,
   onSelect,
   insetTop,
 }: {
-  active: 'foryou' | 'following';
-  onSelect: (t: 'foryou' | 'following') => void;
+  active: 'foryou' | 'activity';
+  onSelect: (t: 'foryou' | 'activity') => void;
   insetTop: number;
 }) {
   return (
@@ -177,21 +221,20 @@ function TabToggle({
         <Text style={[styles.tabText, active === 'foryou' && styles.tabTextActive]}>For You</Text>
         {active === 'foryou' && <View style={styles.tabUnderline} />}
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => onSelect('following')} style={styles.tabBtn}>
-        <Text style={[styles.tabText, active === 'following' && styles.tabTextActive]}>Following</Text>
-        {active === 'following' && <View style={styles.tabUnderline} />}
+      <TouchableOpacity onPress={() => onSelect('activity')} style={styles.tabBtn}>
+        <Text style={[styles.tabText, active === 'activity' && styles.tabTextActive]}>Activity</Text>
+        {active === 'activity' && <View style={styles.tabUnderline} />}
       </TouchableOpacity>
     </View>
   );
 }
 
 export default function FeedScreen() {
-  const [activeTab, setActiveTab] = useState<'foryou' | 'following'>('foryou');
+  const [activeTab, setActiveTab] = useState<'foryou' | 'activity'>('foryou');
   const [posts, setPosts] = useState<Post[]>([]);
-  const [followingPosts, setFollowingPosts] = useState<Post[]>([]);
+  const [activityItems, setActivityItems] = useState<ActivityItem[]>([]);
   const [hasFriends, setHasFriends] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [followingActiveIndex, setFollowingActiveIndex] = useState(0);
   const [showUpload, setShowUpload] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -204,7 +247,7 @@ export default function FeedScreen() {
   }, [user]);
 
   useEffect(() => {
-    if (activeTab === 'following') loadFollowingPosts();
+    if (activeTab === 'activity') loadActivity();
   }, [activeTab, user]);
 
   const loadPosts = async () => {
@@ -266,8 +309,8 @@ export default function FeedScreen() {
     setPosts(scored.map(s => s.post));
   };
 
-  const loadFollowingPosts = async () => {
-    if (!user) { setHasFriends(false); setFollowingPosts([]); return; }
+  const loadActivity = async () => {
+    if (!user) { setHasFriends(false); setActivityItems([]); return; }
 
     const { data: friendships } = await supabase
       .from('friendships')
@@ -277,37 +320,67 @@ export default function FeedScreen() {
 
     if (!friendships || friendships.length === 0) {
       setHasFriends(false);
-      setFollowingPosts([]);
+      setActivityItems([]);
       return;
     }
 
     setHasFriends(true);
-    const friendIds = friendships.map(f =>
+    const friendIds = friendships.map((f: any) =>
       f.requester_id === user.id ? f.addressee_id : f.requester_id
     );
 
-    const { data, error } = await supabase
-      .from('posts')
-      .select('id, video_url, caption, duration, created_at, user_id, event_id, profiles(username), events(title)')
-      .in('user_id', friendIds)
-      .order('created_at', { ascending: false })
-      .limit(50);
+    const [rsvpRes, postRes] = await Promise.all([
+      supabase
+        .from('event_rsvps')
+        .select('id, created_at, user_id, event_id, profiles(username, avatar_url), events(id, title, venues(name))')
+        .in('user_id', friendIds)
+        .eq('status', 'going')
+        .order('created_at', { ascending: false })
+        .limit(50),
+      supabase
+        .from('posts')
+        .select('id, created_at, user_id, event_id, profiles(username, avatar_url), events(id, title, venues(name))')
+        .in('user_id', friendIds)
+        .order('created_at', { ascending: false })
+        .limit(50),
+    ]);
 
-    if (!error && data) setFollowingPosts(data as Post[]);
+    const rsvpItems: ActivityItem[] = (rsvpRes.data ?? []).map((r: any) => ({
+      id: `rsvp-${r.id}`,
+      type: 'rsvp',
+      created_at: r.created_at,
+      user_id: r.user_id,
+      event_id: r.event_id,
+      profile: r.profiles ?? null,
+      event: r.events ? { id: r.events.id, title: r.events.title, venue_name: r.events.venues?.name ?? null } : null,
+    }));
+
+    const postItems: ActivityItem[] = (postRes.data ?? []).map((p: any) => ({
+      id: `post-${p.id}`,
+      type: 'post',
+      created_at: p.created_at,
+      user_id: p.user_id,
+      event_id: p.event_id,
+      profile: p.profiles ?? null,
+      event: p.events ? { id: p.events.id, title: p.events.title, venue_name: p.events.venues?.name ?? null } : null,
+    }));
+
+    const merged = [...rsvpItems, ...postItems]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 50);
+
+    setActivityItems(merged);
   };
 
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 });
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
     if (viewableItems.length > 0) setActiveIndex(viewableItems[0].index ?? 0);
   });
-  const onFollowingViewableItemsChanged = useRef(({ viewableItems }: any) => {
-    if (viewableItems.length > 0) setFollowingActiveIndex(viewableItems[0].index ?? 0);
-  });
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadPosts();
-    if (activeTab === 'following') await loadFollowingPosts();
+    if (activeTab === 'activity') await loadActivity();
     setRefreshing(false);
   }, [activeTab]);
 
@@ -315,35 +388,6 @@ export default function FeedScreen() {
     setShowUpload(false);
     loadPosts();
   }, []);
-
-  const renderFeed = (data: Post[], activeIdx: number, onViewable: React.MutableRefObject<any>, emptyIcon: string, emptyText: string, emptyHint: string, refreshCtrl?: React.ReactElement) => {
-    if (data.length === 0) {
-      return (
-        <View style={styles.emptyState}>
-          <Ionicons name={emptyIcon as any} size={48} color="rgba(255,255,255,0.3)" />
-          <Text style={styles.emptyText}>{emptyText}</Text>
-          <Text style={styles.emptyHint}>{emptyHint}</Text>
-        </View>
-      );
-    }
-    return (
-      <FlatList
-        data={data}
-        keyExtractor={item => item.id}
-        renderItem={({ item, index }) => (
-          <VideoCard item={item} isActive={index === activeIdx} userId={user?.id} />
-        )}
-        pagingEnabled
-        showsVerticalScrollIndicator={false}
-        snapToInterval={SCREEN_HEIGHT}
-        snapToAlignment="start"
-        decelerationRate="fast"
-        viewabilityConfig={viewabilityConfig.current}
-        onViewableItemsChanged={onViewable.current}
-        refreshControl={refreshCtrl}
-      />
-    );
-  };
 
   return (
     <View style={styles.container}>
@@ -365,23 +409,63 @@ export default function FeedScreen() {
               </View>
             </View>
           )
-          : renderFeed(posts, activeIndex, onViewableItemsChanged, 'videocam-outline', 'No moments yet', 'Be the first to share a moment', <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FF3B5C" />)
+          : (
+            <FlatList
+              data={posts}
+              keyExtractor={item => item.id}
+              renderItem={({ item, index }) => (
+                <VideoCard item={item} isActive={index === activeIndex} userId={user?.id} />
+              )}
+              pagingEnabled
+              showsVerticalScrollIndicator={false}
+              snapToInterval={SCREEN_HEIGHT}
+              snapToAlignment="start"
+              decelerationRate="fast"
+              viewabilityConfig={viewabilityConfig.current}
+              onViewableItemsChanged={onViewableItemsChanged.current}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FF3B5C" />}
+            />
+          )
         )
         : !hasFriends
           ? (
             <View style={styles.emptyState}>
               <Ionicons name="people-outline" size={48} color="rgba(255,255,255,0.3)" />
-              <Text style={styles.emptyText}>Add friends to see their Moments</Text>
-              <Text style={styles.emptyHint}>Find friends in the Friends tab</Text>
+              <Text style={styles.emptyText}>No activity yet</Text>
+              <Text style={styles.emptyHint}>Add friends to see what they're up to</Text>
             </View>
           )
-          : renderFeed(followingPosts, followingActiveIndex, onFollowingViewableItemsChanged, 'videocam-outline', "Your friends haven't posted any Moments yet", 'Check back soon', <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FF3B5C" />)
+          : activityItems.length === 0
+            ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="flash-outline" size={48} color="rgba(255,255,255,0.3)" />
+                <Text style={styles.emptyText}>No activity yet</Text>
+                <Text style={styles.emptyHint}>Add friends to see what they're up to</Text>
+              </View>
+            )
+            : (
+              <FlatList
+                data={activityItems}
+                keyExtractor={item => item.id}
+                renderItem={({ item }) => (
+                  <ActivityRow
+                    item={item}
+                    onPress={() => {
+                      if (item.event_id) router.push(`/event/${item.event_id}` as any);
+                    }}
+                  />
+                )}
+                contentContainerStyle={[styles.activityList, { paddingTop: insets.top + 56 }]}
+                showsVerticalScrollIndicator={false}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FF3B5C" />}
+              />
+            )
       }
 
       <TabToggle active={activeTab} onSelect={setActiveTab} insetTop={insets.top} />
 
       <TouchableOpacity
-        style={[styles.fab, { bottom: insets.bottom + 8 }]}
+        style={[styles.fab, { bottom: insets.bottom - 8 }]}
         onPress={() => setShowUpload(true)}
         activeOpacity={0.85}
       >
@@ -510,5 +594,52 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 8,
+  },
+  activityList: {
+    paddingHorizontal: 0,
+    paddingBottom: 100,
+  },
+  activityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+    gap: 12,
+  },
+  activityAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#2a2a2a',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  activityAvatarImg: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+  },
+  activityAvatarInitial: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  activityContent: {
+    flex: 1,
+    gap: 3,
+  },
+  activityText: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 14,
+    fontWeight: '500',
+    lineHeight: 20,
+  },
+  activityTime: {
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: 12,
   },
 });
