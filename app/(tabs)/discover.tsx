@@ -628,9 +628,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   goingText: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 10,
-    fontWeight: '600',
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '800',
     marginLeft: 4,
   },
   cardVenue: {
