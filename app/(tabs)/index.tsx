@@ -99,9 +99,12 @@ export default function FeedScreen() {
   const loadEvents = async () => {
     const { data: events, error } = await supabase
       .from('events')
-      .select('id, title, poster_url, venues(name, username)')
+      .select('id, title, poster_url, venues(name)')
       .order('created_at', { ascending: false })
       .limit(20);
+
+    console.log('[loadEvents] data:', JSON.stringify(events, null, 2));
+    console.log('[loadEvents] error:', error);
 
     if (error || !events) return;
 
@@ -134,7 +137,7 @@ export default function FeedScreen() {
       id: e.id,
       poster: e.poster_url || null,
       venueName: e.venues?.name || '',
-      username: e.venues?.username ? `@${e.venues.username}` : '',
+      username: e.venues?.name ? `@${e.venues.name.toLowerCase().replace(/\s+/g, '')}` : '',
       eventTitle: e.title,
       goingCount: countMap[e.id] || 0,
       isGoing: userRsvpIds.includes(e.id),
