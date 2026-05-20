@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
+import { supabase } from '../lib/supabase';
 
 export default function ProfileSetupScreen() {
   const { profile, updateProfile } = useAuth();
@@ -39,31 +40,46 @@ export default function ProfileSetupScreen() {
       }
     } else {
       await AsyncStorage.setItem('thewall_profile_setup_done', 'true');
+      // Auto-send friend request to inviter if present
+      try {
+        const inviterId = await AsyncStorage.getItem('thewall_invited_by');
+        const { data: { user } } = await supabase.auth.getUser();
+        if (inviterId && user && inviterId !== user.id) {
+          await supabase.from('friendships').insert({
+            requester_id: user.id,
+            addressee_id: inviterId,
+            status: 'pending',
+          });
+          await AsyncStorage.removeItem('thewall_invited_by');
+        }
+      } catch {
+        // Non-fatal: ignore errors silently
+      }
       router.replace('/(tabs)/' as any);
     }
   };
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colours.bg }}
+      style={{ flex: 1, backgroundColor: '#0a0a0a' }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 32, justifyContent: 'center' }}>
-        <Text style={{ fontSize: 28, fontWeight: '800', color: colours.text, marginBottom: 8 }}>
+        <Text style={{ fontSize: 28, fontWeight: '700', color: '#fff', marginBottom: 8 }}>
           Set up your profile
         </Text>
-        <Text style={{ fontSize: 15, color: colours.muted, marginBottom: 40, lineHeight: 22 }}>
+        <Text style={{ fontSize: 16, color: '#999', marginBottom: 40, lineHeight: 24 }}>
           This is how your friends will find you on The Wall.
         </Text>
 
         {/* Username */}
-        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: '#666', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
           Username
         </Text>
         <TextInput
-          style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: colours.text, marginBottom: 24 }}
+          style={{ backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: '#eef2f7', marginBottom: 24 }}
           placeholder="e.g. eddie_ott"
-          placeholderTextColor={colours.muted}
+          placeholderTextColor="#555"
           value={username}
           onChangeText={t => setUsername(t.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
           autoCapitalize="none"
@@ -71,13 +87,13 @@ export default function ProfileSetupScreen() {
         />
 
         {/* Display name */}
-        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: '#666', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
           Display Name
         </Text>
         <TextInput
-          style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: colours.text, marginBottom: 24 }}
+          style={{ backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: '#eef2f7', marginBottom: 24 }}
           placeholder="e.g. Eddie"
-          placeholderTextColor={colours.muted}
+          placeholderTextColor="#555"
           value={displayName}
           onChangeText={setDisplayName}
         />
@@ -85,9 +101,9 @@ export default function ProfileSetupScreen() {
         <TouchableOpacity
           onPress={handleSave}
           disabled={loading || !username.trim()}
-          style={{ backgroundColor: username.trim() ? colours.accent : colours.border, borderRadius: 14, paddingVertical: 16, alignItems: 'center' }}
+          style={{ backgroundColor: username.trim() ? '#fff' : '#2a2a2a', borderRadius: 14, paddingVertical: 16, alignItems: 'center' }}
         >
-          {loading ? <ActivityIndicator color="white" /> : <Text style={{ fontSize: 16, fontWeight: '700', color: 'white' }}>Let's go</Text>}
+          {loading ? <ActivityIndicator color={username.trim() ? '#000' : '#666'} /> : <Text style={{ fontSize: 16, fontWeight: '700', color: username.trim() ? '#000' : '#555' }}>Let's go</Text>}
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
