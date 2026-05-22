@@ -5,6 +5,7 @@ import {
   FlatList,
   Image,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -570,36 +571,42 @@ export default function DiscoverScreen() {
         <SkeletonGrid />
       ) : mapMode ? (
         <View style={{ flex: 1 }}>
-          <Mapbox.MapView
-            style={{ flex: 1 }}
-            styleURL="mapbox://styles/mapbox/dark-v11"
-            onPress={() => setSelectedEvent(null)}
-            logoEnabled={false}
-            attributionEnabled={false}
-            compassEnabled={false}
-          >
-            <Mapbox.Camera
-              defaultSettings={{
-                centerCoordinate: [TORONTO.lng, TORONTO.lat],
-                zoomLevel: 12,
-              }}
-            />
-            {filteredEvents
-              .filter(e => e.venue_lat != null && e.venue_lng != null)
-              .map(event => (
-                <Mapbox.MarkerView
-                  key={event.id}
-                  coordinate={[event.venue_lng!, event.venue_lat!]}
-                  allowOverlap
-                >
-                  <VenuePin
-                    event={event}
-                    selected={selectedEvent?.id === event.id}
-                    onPress={() => setSelectedEvent(event)}
-                  />
-                </Mapbox.MarkerView>
-              ))}
-          </Mapbox.MapView>
+          {Platform.OS !== 'web' ? (
+            <Mapbox.MapView
+              style={{ flex: 1 }}
+              styleURL="mapbox://styles/mapbox/dark-v11"
+              onPress={() => setSelectedEvent(null)}
+              logoEnabled={false}
+              attributionEnabled={false}
+              compassEnabled={false}
+            >
+              <Mapbox.Camera
+                defaultSettings={{
+                  centerCoordinate: [TORONTO.lng, TORONTO.lat],
+                  zoomLevel: 12,
+                }}
+              />
+              {filteredEvents
+                .filter(e => e.venue_lat != null && e.venue_lng != null)
+                .map(event => (
+                  <Mapbox.MarkerView
+                    key={event.id}
+                    coordinate={[event.venue_lng!, event.venue_lat!]}
+                    allowOverlap
+                  >
+                    <VenuePin
+                      event={event}
+                      selected={selectedEvent?.id === event.id}
+                      onPress={() => setSelectedEvent(event)}
+                    />
+                  </Mapbox.MarkerView>
+                ))}
+            </Mapbox.MapView>
+          ) : (
+            <View style={{ flex: 1, backgroundColor: '#0a0a0a', alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: '#666', fontSize: 14 }}>Map view not available on web</Text>
+            </View>
+          )}
           <Animated.View
             style={[
               styles.mapCard,
