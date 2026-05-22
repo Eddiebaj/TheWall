@@ -5,7 +5,7 @@ const HTML = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TheWall for Venues — Reach Toronto's Nightlife Crowd</title>
+  <title>affiche for Venues — Reach Toronto's Nightlife Crowd</title>
   <meta name="description" content="Get your venue seen by thousands of Toronto nightlife users. List events, boost visibility, and grow your crowd — all in one place." />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -210,7 +210,7 @@ const HTML = `<!DOCTYPE html>
 
   <nav class="nav">
     <div class="container nav-inner">
-      <span class="nav-brand">TheWall</span>
+      <span class="nav-brand">affiche</span>
       <a href="/business/signup" class="nav-cta">Get Started</a>
     </div>
   </nav>
@@ -219,7 +219,7 @@ const HTML = `<!DOCTYPE html>
     <div class="container">
       <div class="hero-eyebrow">Toronto Nightlife</div>
       <h1 class="hero-title">Get your venue in front of thousands of people every weekend</h1>
-      <p class="hero-sub">TheWall is where Toronto decides where to go out. List your events, boost your placement, and track what's working.</p>
+      <p class="hero-sub">affiche is where Toronto decides where to go out. List your events, boost your placement, and track what's working.</p>
     </div>
   </section>
 
@@ -270,7 +270,7 @@ const HTML = `<!DOCTYPE html>
   <section class="venues">
     <div class="container">
       <p class="venues-line">
-        Venues on TheWall &mdash;
+        Venues on affiche &mdash;
         <span>Rebel</span>,
         <span>Coda</span>,
         <span>Toybox</span>,
@@ -285,7 +285,7 @@ const HTML = `<!DOCTYPE html>
 
   <footer class="footer">
     <div class="container footer-inner">
-      <span>© 2026 TheWall</span>
+      <span>© 2026 affiche</span>
       <a href="mailto:hello@thewall.app">hello@thewall.app</a>
     </div>
   </footer>

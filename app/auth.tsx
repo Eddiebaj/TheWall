@@ -140,14 +140,14 @@ export default function AuthScreen() {
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
         {/* Logo */}
         <Text style={{ fontSize: 40, fontWeight: '800', color: '#fff', letterSpacing: -1, marginBottom: 8 }}>
-          The Wall
+          affiche
         </Text>
         <Text style={{ fontSize: 16, color: '#999', marginBottom: 48 }}>
           Toronto's social event wall
         </Text>
 
         <Text style={{ fontSize: 22, fontWeight: '800', color: '#fff', marginBottom: 8, textAlign: 'center' }}>
-          Join your friends on The Wall
+          Join your friends on affiche
         </Text>
         <Text style={{ fontSize: 15, color: '#999', textAlign: 'center', marginBottom: 32, lineHeight: 22 }}>
           Enter your email and we'll send you a 6-digit code to sign in.

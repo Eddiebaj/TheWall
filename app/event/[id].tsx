@@ -257,7 +257,7 @@ export default function EventDetailScreen() {
       ? new Date(event.event_date).toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })
       : 'an upcoming date';
     Share.share({
-      message: `Check out ${event.title} at ${venueName} on ${dateStr} - open in The Wall: thewall://event/${event.id}`,
+      message: `Check out ${event.title} at ${venueName} on ${dateStr} - open in affiche: affiche://event/${event.id}`,
     });
   };
 

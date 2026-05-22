@@ -99,7 +99,7 @@ export default function BusinessSignupScreen() {
         <View style={{ padding: 16, borderRadius: 14, backgroundColor: '#e8a020' + '12', borderWidth: 1, borderColor: '#e8a020' + '30' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <Ionicons name="storefront-outline" size={18} color="#e8a020" />
-            <Text style={{ fontSize: 14, fontWeight: '800', color: colours.text }}>Get featured on The Wall</Text>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: colours.text }}>Get featured on affiche</Text>
           </View>
           <Text style={{ fontSize: 13, color: colours.muted, lineHeight: 20 }}>
             Reach commuters within 500m of your location at exactly the time they're deciding where to go. Featured placement in Deals, Trending, and Around Toronto.

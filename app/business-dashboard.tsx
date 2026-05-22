@@ -275,7 +275,7 @@ export default function BusinessDashboardScreen() {
         is_active: true,
       });
       setShowAddPoster(false);
-      Alert.alert('Poster Live!', 'Your poster is now on The Wall.');
+      Alert.alert('Poster Live!', 'Your poster is now on affiche.');
     } catch (e) {
       Alert.alert('Error', 'Could not upload poster.');
     } finally {
@@ -506,10 +506,10 @@ export default function BusinessDashboardScreen() {
           ))}
         </View>
 
-        {/* Post to The Wall */}
+        {/* Post to affiche */}
         <View style={{ padding: 16, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>The Wall</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>affiche</Text>
             <TouchableOpacity onPress={() => setShowAddPoster(!showAddPoster)} style={{ backgroundColor: colours.accent, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8 }}>
               <Text style={{ fontSize: 12, fontWeight: '700', color: 'white' }}>+ Post</Text>
             </TouchableOpacity>
@@ -530,7 +530,7 @@ export default function BusinessDashboardScreen() {
             </View>
           )}
           {!showAddPoster && !posterUrl && (
-            <Text style={{ fontSize: 12, color: colours.muted, textAlign: 'center' }}>Upload your event poster to appear on The Wall</Text>
+            <Text style={{ fontSize: 12, color: colours.muted, textAlign: 'center' }}>Upload your event poster to appear on affiche</Text>
           )}
         </View>
 

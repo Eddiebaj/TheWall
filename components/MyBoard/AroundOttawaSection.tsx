@@ -213,7 +213,7 @@ export default function AroundOttawaSection({ colours, t, cardShadow, language, 
       .then(({ data }) => setWallPosts(data || []));
   }, []);
 
-  // Google Places removed  -  The Wall shows only seeded posters
+  // Google Places removed  -  affiche shows only seeded posters
 
   const categories = [
     { key: 'all', label: 'All' },

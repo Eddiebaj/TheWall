@@ -30,7 +30,7 @@ export default function InviteScreen() {
         resizeMode="contain"
       />
       <Text style={{ fontSize: 28, fontWeight: '800', color: colours.text, textAlign: 'center', marginBottom: 12 }}>
-        The Wall
+        affiche
       </Text>
       <Text style={{ fontSize: 18, fontWeight: '600', color: colours.text, textAlign: 'center', marginBottom: 8 }}>
         You've been invited to join!

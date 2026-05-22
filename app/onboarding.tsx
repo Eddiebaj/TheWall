@@ -13,7 +13,7 @@ const { width } = Dimensions.get('window');
 
 const SLIDES = [
   {
-    headline: 'The Wall',
+    headline: 'affiche',
     subtext: 'Discover what\'s happening tonight in Toronto. Real venues, real events, updated daily.',
     icon: 'flame' as const,
   },

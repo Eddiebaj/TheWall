@@ -4,13 +4,13 @@ export default function PrivacyPolicy() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Text style={styles.brand}>TheWall</Text>
+        <Text style={styles.brand}>affiche</Text>
         <Text style={styles.title}>Privacy Policy</Text>
         <Text style={styles.updated}>Last updated: May 20, 2026</Text>
       </View>
 
       <Section title="1. Information We Collect">
-        <P>We collect the following information when you use TheWall:</P>
+        <P>We collect the following information when you use affiche:</P>
         <Bullet>
           <B>Account information:</B> Your email address and username when you create an account.
         </Bullet>
@@ -27,7 +27,7 @@ export default function PrivacyPolicy() {
 
       <Section title="2. How We Use Your Information">
         <P>We use the information we collect to:</P>
-        <Bullet>Provide and operate the TheWall social experience, including friend connections and group sharing.</Bullet>
+        <Bullet>Provide and operate the affiche social experience, including friend connections and group sharing.</Bullet>
         <Bullet>Match your moments to the correct venue based on location at upload time.</Bullet>
         <Bullet>Display your moments to friends and, where applicable, other users at the same venue.</Bullet>
         <Bullet>Send you notifications related to your account and social activity (you can opt out in settings).</Bullet>
@@ -43,7 +43,7 @@ export default function PrivacyPolicy() {
       <Section title="4. Data Sharing">
         <P>We share your data only in limited circumstances:</P>
         <Bullet>
-          <B>Service providers:</B> Trusted third-party services that help us operate TheWall (e.g., cloud storage, analytics) under strict confidentiality agreements.
+          <B>Service providers:</B> Trusted third-party services that help us operate affiche (e.g., cloud storage, analytics) under strict confidentiality agreements.
         </Bullet>
         <Bullet>
           <B>Legal requirements:</B> If required by law or to protect the rights and safety of our users.
@@ -66,7 +66,7 @@ export default function PrivacyPolicy() {
 
       <Section title="7. Children's Privacy">
         <P>
-          TheWall is not intended for users under the age of 13. We do not knowingly collect personal information from children under 13. If you believe we have inadvertently collected such information, please contact us immediately.
+          affiche is not intended for users under the age of 13. We do not knowingly collect personal information from children under 13. If you believe we have inadvertently collected such information, please contact us immediately.
         </P>
       </Section>
 
@@ -78,7 +78,7 @@ export default function PrivacyPolicy() {
 
       <Section title="9. Changes to This Policy">
         <P>
-          We may update this Privacy Policy from time to time. We will notify you of significant changes via email or an in-app notice. Continued use of TheWall after changes take effect constitutes your acceptance of the updated policy.
+          We may update this Privacy Policy from time to time. We will notify you of significant changes via email or an in-app notice. Continued use of affiche after changes take effect constitutes your acceptance of the updated policy.
         </P>
       </Section>
 

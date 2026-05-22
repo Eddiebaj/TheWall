@@ -248,7 +248,7 @@ export default function FriendsScreen() {
   const handleShareInvite = async () => {
     const inviteUrl = `https://thewall.app/invite/${user!.id}`;
     await Share.share({
-      message: `Join me on The Wall discover Toronto's best nights out 🎉 ${inviteUrl}`,
+      message: `Join me on affiche discover Toronto's best nights out 🎉 ${inviteUrl}`,
       url: inviteUrl,
     });
   };
@@ -658,7 +658,7 @@ export default function FriendsScreen() {
             Invite your friends
           </Text>
           <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 16, lineHeight: 18 }}>
-            The Wall is better with friends. Share your invite link and coordinate nights out together.
+            affiche is better with friends. Share your invite link and coordinate nights out together.
           </Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <TouchableOpacity

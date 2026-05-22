@@ -70,7 +70,7 @@ export default function ProfileSetupScreen() {
           Set up your profile
         </Text>
         <Text style={{ fontSize: 16, color: '#999', marginBottom: 40, lineHeight: 24 }}>
-          This is how your friends will find you on The Wall.
+          This is how your friends will find you on affiche.
         </Text>
 
         {/* Username */}

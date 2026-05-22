@@ -166,7 +166,7 @@ export default function BusinessSignupScreen() {
               List Your Venue
             </Text>
             <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', lineHeight: 20 }}>
-              Get featured on TheWall and reach Toronto's nightlife audience.
+              Get featured on affiche and reach Toronto's nightlife audience.
             </Text>
           </View>
 

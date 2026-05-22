@@ -1,17 +1,17 @@
 {
   "expo": {
-    "name": "TheWall",
-    "slug": "thewall",
+    "name": "affiche",
+    "slug": "affiche",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "thewall",
+    "scheme": "affiche",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
       "associatedDomains": ["applinks:thewall.app"],
       "buildNumber": "2",
-      "bundleIdentifier": "com.eddiebaj.thewall",
+      "bundleIdentifier": "com.eddiebaj.affiche",
       "appleTeamId": "9556L24Y4A",
       "entitlements": {
         "com.apple.security.application-groups": [
@@ -23,8 +23,8 @@
           "NSAllowsArbitraryLoads": false
         },
         "ITSAppUsesNonExemptEncryption": false,
-        "NSPhotoLibraryUsageDescription": "The Wall lets you attach a photo when submitting a community deal.",
-        "NSCameraUsageDescription": "The Wall lets you take a photo when submitting a community deal.",
+        "NSPhotoLibraryUsageDescription": "affiche lets you attach a photo when submitting a community deal.",
+        "NSCameraUsageDescription": "affiche lets you take a photo when submitting a community deal.",
         "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to use speech recognition.",
         "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to use the microphone."
       }
@@ -47,7 +47,7 @@
       "versionCode": 2,
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.eddie.routeo"
+      "package": "com.eddiebaj.affiche"
     },
     "web": {
       "output": "static",
@@ -74,7 +74,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "The Wall needs your location to show nearby stops and transit options."
+          "locationWhenInUsePermission": "affiche needs your location to show nearby stops and transit options."
         }
       ],
       "expo-image-picker",

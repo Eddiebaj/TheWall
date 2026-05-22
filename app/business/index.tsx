@@ -127,7 +127,7 @@ export default function BusinessLandingPage() {
               {' '}of Toronto nightlife users
             </Text>
             <Text style={styles.heroSub}>
-              TheWall connects venue owners with Toronto's most active nightlife audience.
+              affiche connects venue owners with Toronto's most active nightlife audience.
               List your events, boost your visibility, and grow your crowd — all in one place.
             </Text>
             <TouchableOpacity
@@ -225,8 +225,8 @@ export default function BusinessLandingPage() {
         <View style={styles.section}>
           <View style={styles.container}>
             <Text style={styles.sectionLabel}>Social proof</Text>
-            <Text style={styles.sectionTitle}>Join venues already on TheWall</Text>
-            <Text style={styles.sectionSub}>Toronto's top nightlife destinations trust TheWall to reach their audience.</Text>
+            <Text style={styles.sectionTitle}>Join venues already on affiche</Text>
+            <Text style={styles.sectionSub}>Toronto's top nightlife destinations trust affiche to reach their audience.</Text>
             <View style={styles.venueGrid}>
               {VENUES.map((name) => (
                 <View key={name} style={styles.venueChip}>
@@ -242,7 +242,7 @@ export default function BusinessLandingPage() {
         <View style={[styles.section, styles.finalCta]}>
           <View style={styles.container}>
             <Text style={styles.finalCtaTitle}>Ready to grow your venue?</Text>
-            <Text style={styles.finalCtaSub}>Join TheWall and start reaching Toronto's nightlife crowd today.</Text>
+            <Text style={styles.finalCtaSub}>Join affiche and start reaching Toronto's nightlife crowd today.</Text>
             <TouchableOpacity
               style={styles.heroCta}
               onPress={() => router.push('/business/signup' as any)}
@@ -256,8 +256,8 @@ export default function BusinessLandingPage() {
         {/* ── Footer ── */}
         <View style={styles.footer}>
           <View style={[styles.container, styles.footerInner]}>
-            <Text style={styles.footerBrand}>TheWall</Text>
-            <Text style={styles.footerCopy}>© 2026 TheWall. All rights reserved.</Text>
+            <Text style={styles.footerBrand}>affiche</Text>
+            <Text style={styles.footerCopy}>© 2026 affiche. All rights reserved.</Text>
             <Text style={styles.footerContact}>hello@thewall.app</Text>
           </View>
         </View>

@@ -74,7 +74,7 @@ export default function AdminScreen() {
     setSeedVenueName(''); setSeedEventTitle(''); setSeedEventDate(''); setSeedPosterUrl('');
     await loadData();
     setSeedingPoster(false);
-    Alert.alert('Posted!', 'Poster is live on The Wall.');
+    Alert.alert('Posted!', 'Poster is live on affiche.');
   };
 
   const toggleSponsored = async (id: string, current: boolean) => {
@@ -207,20 +207,20 @@ export default function AdminScreen() {
             ))}
           </View>
 
-          {/* Seed The Wall */}
+          {/* Seed affiche */}
           <View style={{ gap: 12 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>Seed The Wall</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>Seed affiche</Text>
             <TextInput value={seedVenueName} onChangeText={setSeedVenueName} placeholder="Venue name" placeholderTextColor={colours.muted} style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 10, padding: 12, color: colours.text, backgroundColor: colours.surface }} />
             <TextInput value={seedEventTitle} onChangeText={setSeedEventTitle} placeholder="Event title (optional)" placeholderTextColor={colours.muted} style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 10, padding: 12, color: colours.text, backgroundColor: colours.surface }} />
             <TextInput value={seedEventDate} onChangeText={setSeedEventDate} placeholder="Date e.g. May 16, 2026" placeholderTextColor={colours.muted} style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 10, padding: 12, color: colours.text, backgroundColor: colours.surface }} />
             <TextInput value={seedPosterUrl} onChangeText={setSeedPosterUrl} placeholder="Poster image URL" placeholderTextColor={colours.muted} style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 10, padding: 12, color: colours.text, backgroundColor: colours.surface }} />
             {seedPosterUrl ? <Image source={{ uri: seedPosterUrl }} style={{ width: '100%', height: 160, borderRadius: 10 }} resizeMode="cover" /> : null}
             <TouchableOpacity onPress={seedPoster} disabled={seedingPoster} style={{ backgroundColor: colours.accent, borderRadius: 10, paddingVertical: 12, alignItems: 'center' }}>
-              {seedingPoster ? <ActivityIndicator color="white" /> : <Text style={{ fontSize: 14, fontWeight: '700', color: 'white' }}>Post to The Wall</Text>}
+              {seedingPoster ? <ActivityIndicator color="white" /> : <Text style={{ fontSize: 14, fontWeight: '700', color: 'white' }}>Post to affiche</Text>}
             </TouchableOpacity>
             {wallPosts.length > 0 && (
               <View style={{ gap: 8 }}>
-                <Text style={{ fontSize: 12, color: colours.muted }}>{wallPosts.length} posts on The Wall</Text>
+                <Text style={{ fontSize: 12, color: colours.muted }}>{wallPosts.length} posts on affiche</Text>
                 {wallPosts.slice(0, 5).map(p => (
                   <View key={p.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 10, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
                     {p.poster_url && <Image source={{ uri: p.poster_url }} style={{ width: 40, height: 40, borderRadius: 6 }} />}

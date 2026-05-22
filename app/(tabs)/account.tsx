@@ -479,7 +479,7 @@ export default function AccountScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={{ alignItems: 'center', marginBottom: 40 }}>
-            <Text style={{ fontSize: 32, fontWeight: '900', color: colours.text, letterSpacing: -0.5 }}>TheWall</Text>
+            <Text style={{ fontSize: 32, fontWeight: '900', color: colours.text, letterSpacing: -0.5 }}>affiche</Text>
             <Text style={{ fontSize: 14, color: colours.muted, marginTop: 6 }}>
               {authCodeSent ? 'Check your email' : 'Sign in or create an account'}
             </Text>
@@ -865,7 +865,7 @@ export default function AccountScreen() {
           {/* TODO: Uncomment when real App Store / Play Store IDs are available
           <Divider colours={colours} />
           <SettingsRow
-            label={t('Rate The Wall', 'Evaluer The Wall')}
+            label={t('Rate affiche', 'Evaluer affiche')}
             icon="star"
             onPress={() => {
               const storeUrl = Platform.OS === 'ios'
@@ -971,7 +971,7 @@ export default function AccountScreen() {
                       try {
                         let deviceId: string | null = null;
                         try { deviceId = await AsyncStorage.getItem(SK_DEVICE_ID); } catch (e) { if (__DEV__) console.warn(e); }
-                        const appVersion = `The Wall ${Platform.OS} ${Platform.Version}`;
+                        const appVersion = `affiche ${Platform.OS} ${Platform.Version}`;
                         await supabase.from('bug_reports').insert({
                           message: bugMessage.trim(),
                           screen: bugScreen || null,
@@ -980,12 +980,12 @@ export default function AccountScreen() {
                         });
                         hapticSuccess();
                         setBugSent(true);
-                        const subject = encodeURIComponent('The Wall Bug Report');
+                        const subject = encodeURIComponent('affiche Bug Report');
                         const body = encodeURIComponent(`${bugMessage.trim()}\n\n---\nScreen: ${bugScreen || 'N/A'}\nDevice: ${Platform.OS} ${Platform.Version}\nDate: ${new Date().toLocaleDateString('en-CA')}\n`);
                         Linking.openURL(`mailto:support@routeo.ca?subject=${subject}&body=${body}`).catch(() => {});
                       } catch (e) {
                         if (__DEV__) console.warn('bug report failed:', e);
-                        const subject = encodeURIComponent('The Wall Bug Report');
+                        const subject = encodeURIComponent('affiche Bug Report');
                         const body = encodeURIComponent(`${bugMessage.trim()}\n\n---\nScreen: ${bugScreen || 'N/A'}\nDevice: ${Platform.OS} ${Platform.Version}\nDate: ${new Date().toLocaleDateString('en-CA')}\n`);
                         Linking.openURL(`mailto:support@routeo.ca?subject=${subject}&body=${body}`).catch(() => Alert.alert(t('Could not send report', 'Impossible d\'envoyer le rapport')));
                         setBugSent(true);

@@ -59,8 +59,8 @@ class RootErrorBoundary extends React.Component<
       return (
         <View style={styles.container}>
           <View style={styles.card}>
-            <Text style={styles.title}>The Wall Crashed</Text>
-            <Text style={[styles.title, { fontSize: 18, marginBottom: 12 }]}>The Wall a plant\u00e9</Text>
+            <Text style={styles.title}>affiche Crashed</Text>
+            <Text style={[styles.title, { fontSize: 18, marginBottom: 12 }]}>affiche a plant\u00e9</Text>
             <Text style={styles.subtitle}>
               Something went wrong at startup. This info can help debug the issue:
             </Text>
