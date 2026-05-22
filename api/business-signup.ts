@@ -432,7 +432,7 @@ const HTML = `<!DOCTYPE html>
       }
 
       // Basic email format check
-      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         document.getElementById('email').classList.add('error');
         showError('Please enter a valid email address.');
         return;
@@ -473,7 +473,7 @@ const HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
-export default function handler(req: VercelRequest, res: VercelResponse) {
+export default function handler(_req: VercelRequest, res: VercelResponse) {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.status(200).send(HTML);
 }
