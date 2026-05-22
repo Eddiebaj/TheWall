@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { WebView } from 'react-native-webview';
+import Mapbox from '@rnmapbox/maps';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useAnalytics } from '../../lib/analytics';
@@ -72,145 +72,48 @@ function getFeatureMultiplier(tier: DiscoverEvent['venue_feature_tier']): number
 
 const TORONTO = { lat: 43.6532, lng: -79.3832 };
 
-function buildLeafletHtml(markers: DiscoverEvent[]): string {
-  const markersJson = JSON.stringify(
-    markers.map(e => ({
-      id: e.id,
-      lat: e.venue_lat,
-      lng: e.venue_lng,
-      venue: e.venue_name,
-      title: e.title,
-      featured: e.venue_feature_tier != null,
-    }))
+function VenuePin({
+  event,
+  selected,
+  onPress,
+}: {
+  event: DiscoverEvent;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  const featured = event.venue_feature_tier != null;
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.8}
+      style={{
+        backgroundColor: featured ? '#1f1a00' : '#1a1a1a',
+        borderWidth: featured ? 2 : 1,
+        borderColor: featured ? '#FFD700' : '#444',
+        borderRadius: 20,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        maxWidth: 130,
+        opacity: selected ? 1 : 0.9,
+        transform: [{ scale: selected ? 1.12 : 1 }],
+        shadowColor: featured ? '#FFD700' : '#000',
+        shadowOpacity: featured ? 0.4 : 0.5,
+        shadowRadius: featured ? 8 : 5,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: featured ? 8 : 3,
+      }}
+    >
+      {featured && (
+        <Text style={{ color: '#FFD700', fontSize: 9, lineHeight: 13 }}>★</Text>
+      )}
+      <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }} numberOfLines={1}>
+        {event.venue_name}
+      </Text>
+    </TouchableOpacity>
   );
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css"/>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body, #map { width: 100%; height: 100%; background: #0a0a0a; }
-    .leaflet-popup-content-wrapper {
-      background: #141720;
-      color: #fff;
-      border-radius: 10px;
-      border: none;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-    }
-    .leaflet-popup-tip { background: #141720; }
-    .leaflet-popup-content { margin: 10px 14px; font-family: -apple-system, sans-serif; }
-    .popup-venue { font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 2px; }
-    .popup-title { font-size: 12px; color: rgba(255,255,255,0.65); }
-    .marker-cluster {
-      background: rgba(26,26,46,0.9) !important;
-      border: 2px solid #FF3B5C !important;
-    }
-    .marker-cluster div {
-      background: transparent !important;
-      color: #fff !important;
-      font-family: -apple-system, sans-serif !important;
-      font-size: 13px !important;
-      font-weight: 800 !important;
-    }
-    .marker-cluster-small, .marker-cluster-medium, .marker-cluster-large {
-      background: rgba(26,26,46,0.9) !important;
-    }
-    .marker-cluster-small div, .marker-cluster-medium div, .marker-cluster-large div {
-      background: transparent !important;
-    }
-  </style>
-</head>
-<body>
-<div id="map"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
-<script>
-  var map = L.map('map', { zoomControl: true, attributionControl: false }).setView([${TORONTO.lat}, ${TORONTO.lng}], 13);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-    maxZoom: 19,
-  }).addTo(map);
-
-  function getEventColor(title) {
-    return '#1a1a1a';
-  }
-
-  function makeBannerIcon(venue, color, zoom, selected, featured) {
-    var label = venue || '';
-    var opacity = selected ? '1' : '0.9';
-    var scale = selected ? 'scale(1.15)' : 'scale(1)';
-    var border = featured ? '2px solid #FFD700' : '1px solid #333';
-    var bg = featured ? '#1f1a00' : '#1a1a1a';
-    var shadow = featured ? '0 2px 10px rgba(255,215,0,0.35)' : '0 2px 8px rgba(0,0,0,0.5)';
-    var star = featured ? '<span style="color:#FFD700;font-size:10px;margin-right:4px;">★</span>' : '';
-    var html = '<div class="pill-marker" style="background:' + bg + ';border:' + border + ';color:#fff;font-family:-apple-system,sans-serif;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;box-shadow:' + shadow + ';cursor:pointer;transition:transform 0.15s ease,opacity 0.15s ease;opacity:' + opacity + ';transform:' + scale + ';display:inline-flex;align-items:center;">'
-      + star + label
-      + '</div>';
-    return L.divIcon({
-      className: '',
-      html: html,
-      iconAnchor: [0, 14],
-    });
-  }
-
-  var clusterGroup = L.markerClusterGroup({
-    showCoverageOnHover: false,
-    maxClusterRadius: 60,
-    iconCreateFunction: function(cluster) {
-      var count = cluster.getChildCount();
-      return L.divIcon({
-        html: '<div style="width:40px;height:40px;border-radius:20px;background:rgba(26,26,46,0.95);border:2px solid #FF3B5C;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:800;font-family:-apple-system,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.6);">' + count + '</div>',
-        className: '',
-        iconSize: [40, 40],
-        iconAnchor: [20, 20],
-      });
-    },
-  });
-
-  var markerObjects = [];
-  var markers = ${markersJson};
-
-  markers.forEach(function(m) {
-    var color = getEventColor(m.title);
-    var icon = makeBannerIcon(m.venue, color, map.getZoom(), false, m.featured);
-    var marker = L.marker([m.lat, m.lng], { icon: icon, zIndexOffset: m.featured ? 1000 : 0 });
-    markerObjects.push({ leaflet: marker, data: m, color: color, selected: false });
-
-    marker.on('click', function(e) {
-      L.DomEvent.stopPropagation(e);
-      markerObjects.forEach(function(obj) {
-        obj.selected = (obj.data.id === m.id);
-        obj.leaflet.setIcon(makeBannerIcon(obj.data.venue, obj.color, map.getZoom(), obj.selected, obj.data.featured));
-      });
-      window.ReactNativeWebView.postMessage(m.id);
-    });
-
-    clusterGroup.addLayer(marker);
-  });
-
-  map.addLayer(clusterGroup);
-
-  // Re-render icons when zoom changes
-  map.on('zoomend', function() {
-    var zoom = map.getZoom();
-    markerObjects.forEach(function(obj) {
-      obj.leaflet.setIcon(makeBannerIcon(obj.data.venue, obj.color, zoom, obj.selected, obj.data.featured));
-    });
-  });
-
-  map.on('click', function() {
-    markerObjects.forEach(function(obj) {
-      obj.selected = false;
-      obj.leaflet.setIcon(makeBannerIcon(obj.data.venue, obj.color, map.getZoom(), false, obj.data.featured));
-    });
-    window.ReactNativeWebView.postMessage('');
-  });
-</script>
-</body>
-</html>`;
 }
 
 function timeToMinutes(t: string): number {
@@ -667,17 +570,36 @@ export default function DiscoverScreen() {
         <SkeletonGrid />
       ) : mapMode ? (
         <View style={{ flex: 1 }}>
-          <WebView
+          <Mapbox.MapView
             style={{ flex: 1 }}
-            originWhitelist={['*']}
-            onMessage={(e) => {
-              const eventId = e.nativeEvent.data;
-              if (!eventId) { setSelectedEvent(null); return; }
-              const found = events.find(ev => ev.id === eventId) || null;
-              setSelectedEvent(found);
-            }}
-            source={{ html: buildLeafletHtml(filteredEvents.filter(e => e.venue_lat != null && e.venue_lng != null)) }}
-          />
+            styleURL="mapbox://styles/mapbox/dark-v11"
+            onPress={() => setSelectedEvent(null)}
+            logoEnabled={false}
+            attributionEnabled={false}
+            compassEnabled={false}
+          >
+            <Mapbox.Camera
+              defaultSettings={{
+                centerCoordinate: [TORONTO.lng, TORONTO.lat],
+                zoomLevel: 12,
+              }}
+            />
+            {filteredEvents
+              .filter(e => e.venue_lat != null && e.venue_lng != null)
+              .map(event => (
+                <Mapbox.MarkerView
+                  key={event.id}
+                  coordinate={[event.venue_lng!, event.venue_lat!]}
+                  allowOverlap
+                >
+                  <VenuePin
+                    event={event}
+                    selected={selectedEvent?.id === event.id}
+                    onPress={() => setSelectedEvent(event)}
+                  />
+                </Mapbox.MarkerView>
+              ))}
+          </Mapbox.MapView>
           <Animated.View
             style={[
               styles.mapCard,

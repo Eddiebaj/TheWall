@@ -1,4 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Mapbox from '@rnmapbox/maps';
+
+Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '');
 import { PostHogProvider } from 'posthog-react-native';
 import * as Notifications from 'expo-notifications';
 import { Stack, router } from 'expo-router';

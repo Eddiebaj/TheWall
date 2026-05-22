@@ -1,13 +1,13 @@
-// ⚠️ TEST MODE  -  replace with live links before launch
-// To get live links: Stripe Dashboard → switch to Live mode → Payment Links → copy URLs
+// Stripe payment links — set via environment variables.
+// Test-mode links go in .env.local; live links go in Vercel environment variables.
 export const STRIPE_LINKS = {
   // Business plans
-  business_beta: 'https://buy.stripe.com/test_aFafZi6CE1fCamhgrL04800',
-  business_launch: 'https://buy.stripe.com/test_5kQcN6f9a7E02TPcbv04801',
-  business_scale: 'https://buy.stripe.com/test_6oU14od120bygKF3EZ04802',
-  business_single_event: 'https://buy.stripe.com/test_8x2fZif9abUg8e9cbv04803',
+  business_beta:         process.env.EXPO_PUBLIC_STRIPE_LINK_BUSINESS_BETA         ?? '',
+  business_launch:       process.env.EXPO_PUBLIC_STRIPE_LINK_BUSINESS_LAUNCH       ?? '',
+  business_scale:        process.env.EXPO_PUBLIC_STRIPE_LINK_BUSINESS_SCALE        ?? '',
+  business_single_event: process.env.EXPO_PUBLIC_STRIPE_LINK_BUSINESS_SINGLE_EVENT ?? '',
 
   // User premium
-  premium_monthly: 'https://buy.stripe.com/test_8x228s4uw9M89iddfz04804',
-  premium_annual: 'https://buy.stripe.com/test_eVq6oI1ik9M80LH3EZ04805',
+  premium_monthly: process.env.EXPO_PUBLIC_STRIPE_LINK_PREMIUM_MONTHLY ?? '',
+  premium_annual:  process.env.EXPO_PUBLIC_STRIPE_LINK_PREMIUM_ANNUAL  ?? '',
 };

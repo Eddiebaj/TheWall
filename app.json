@@ -96,7 +96,13 @@
         }
       ],
       "@sentry/react-native",
-      "expo-speech-recognition"
+      "expo-speech-recognition",
+      [
+        "@rnmapbox/maps",
+        {
+          "RNMapboxMapsDownloadToken": "MAPBOX_DOWNLOADS_TOKEN_PLACEHOLDER"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
