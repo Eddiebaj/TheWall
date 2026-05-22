@@ -10,7 +10,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "postinstall": "patch-package",
-    "seed:venues": "npx tsx scripts/seedVenues.ts"
+    "seed:venues": "npx tsx scripts/seedVenues.ts",
+    "create:stripe-products": "npx tsx scripts/createStripeProducts.ts"
   },
   "dependencies": {
     "@bacons/apple-targets": "^4.0.6",

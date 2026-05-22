@@ -60,6 +60,14 @@ interface DiscoverEvent {
   end_time: string | null;
   venue_lat: number | null;
   venue_lng: number | null;
+  venue_feature_tier: 'basic' | 'pro' | 'featured' | null;
+}
+
+function getFeatureMultiplier(tier: DiscoverEvent['venue_feature_tier']): number {
+  if (tier === 'featured') return 3;
+  if (tier === 'pro') return 2;
+  if (tier === 'basic') return 1.5;
+  return 1;
 }
 
 const TORONTO = { lat: 43.6532, lng: -79.3832 };
@@ -72,6 +80,7 @@ function buildLeafletHtml(markers: DiscoverEvent[]): string {
       lng: e.venue_lng,
       venue: e.venue_name,
       title: e.title,
+      featured: e.venue_feature_tier != null,
     }))
   );
   return `<!DOCTYPE html>
@@ -129,12 +138,16 @@ function buildLeafletHtml(markers: DiscoverEvent[]): string {
     return '#1a1a1a';
   }
 
-  function makeBannerIcon(venue, color, zoom, selected) {
+  function makeBannerIcon(venue, color, zoom, selected, featured) {
     var label = venue || '';
     var opacity = selected ? '1' : '0.9';
-    var scale = selected ? 'scale(1.1)' : 'scale(1)';
-    var html = '<div class="pill-marker" style="background:#1a1a1a;border:1px solid #333;color:#fff;font-family:-apple-system,sans-serif;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;box-shadow:0 2px 8px rgba(0,0,0,0.5);cursor:pointer;transition:transform 0.15s ease,opacity 0.15s ease;opacity:' + opacity + ';transform:' + scale + ';display:inline-block;">'
-      + label
+    var scale = selected ? 'scale(1.15)' : 'scale(1)';
+    var border = featured ? '2px solid #FFD700' : '1px solid #333';
+    var bg = featured ? '#1f1a00' : '#1a1a1a';
+    var shadow = featured ? '0 2px 10px rgba(255,215,0,0.35)' : '0 2px 8px rgba(0,0,0,0.5)';
+    var star = featured ? '<span style="color:#FFD700;font-size:10px;margin-right:4px;">★</span>' : '';
+    var html = '<div class="pill-marker" style="background:' + bg + ';border:' + border + ';color:#fff;font-family:-apple-system,sans-serif;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;box-shadow:' + shadow + ';cursor:pointer;transition:transform 0.15s ease,opacity 0.15s ease;opacity:' + opacity + ';transform:' + scale + ';display:inline-flex;align-items:center;">'
+      + star + label
       + '</div>';
     return L.divIcon({
       className: '',
@@ -162,15 +175,15 @@ function buildLeafletHtml(markers: DiscoverEvent[]): string {
 
   markers.forEach(function(m) {
     var color = getEventColor(m.title);
-    var icon = makeBannerIcon(m.venue, color, map.getZoom(), false);
-    var marker = L.marker([m.lat, m.lng], { icon: icon });
+    var icon = makeBannerIcon(m.venue, color, map.getZoom(), false, m.featured);
+    var marker = L.marker([m.lat, m.lng], { icon: icon, zIndexOffset: m.featured ? 1000 : 0 });
     markerObjects.push({ leaflet: marker, data: m, color: color, selected: false });
 
     marker.on('click', function(e) {
       L.DomEvent.stopPropagation(e);
       markerObjects.forEach(function(obj) {
         obj.selected = (obj.data.id === m.id);
-        obj.leaflet.setIcon(makeBannerIcon(obj.data.venue, obj.color, map.getZoom(), obj.selected));
+        obj.leaflet.setIcon(makeBannerIcon(obj.data.venue, obj.color, map.getZoom(), obj.selected, obj.data.featured));
       });
       window.ReactNativeWebView.postMessage(m.id);
     });
@@ -184,14 +197,14 @@ function buildLeafletHtml(markers: DiscoverEvent[]): string {
   map.on('zoomend', function() {
     var zoom = map.getZoom();
     markerObjects.forEach(function(obj) {
-      obj.leaflet.setIcon(makeBannerIcon(obj.data.venue, obj.color, zoom, obj.selected));
+      obj.leaflet.setIcon(makeBannerIcon(obj.data.venue, obj.color, zoom, obj.selected, obj.data.featured));
     });
   });
 
   map.on('click', function() {
     markerObjects.forEach(function(obj) {
       obj.selected = false;
-      obj.leaflet.setIcon(makeBannerIcon(obj.data.venue, obj.color, map.getZoom(), false));
+      obj.leaflet.setIcon(makeBannerIcon(obj.data.venue, obj.color, map.getZoom(), false, obj.data.featured));
     });
     window.ReactNativeWebView.postMessage('');
   });
@@ -345,7 +358,7 @@ export default function DiscoverScreen() {
 
     let query = supabase
       .from('events')
-      .select('id, title, poster_url, date, start_time, end_time, entry_type, venue_id, venues(name, neighbourhood, latitude, longitude)')
+      .select('id, title, poster_url, date, start_time, end_time, entry_type, venue_id, venues(name, neighbourhood, latitude, longitude, feature_tier)')
       .order('date', { ascending: true })
       .limit(50);
 
@@ -372,6 +385,7 @@ export default function DiscoverScreen() {
         end_time: e.end_time || null,
         venue_lat: e.venues?.latitude ?? null,
         venue_lng: e.venues?.longitude ?? null,
+        venue_feature_tier: e.venues?.feature_tier ?? null,
       }));
       setEvents(mapped);
       loadAttendees(mapped.map(e => e.id));
@@ -435,9 +449,21 @@ export default function DiscoverScreen() {
       );
     }
     if (gridSort === 'popular') {
-      return [...base].sort((a, b) => (attendees[b.id]?.count ?? 0) - (attendees[a.id]?.count ?? 0));
+      return [...base].sort((a, b) => {
+        const scoreA = (attendees[a.id]?.count ?? 0) * getFeatureMultiplier(a.venue_feature_tier);
+        const scoreB = (attendees[b.id]?.count ?? 0) * getFeatureMultiplier(b.venue_feature_tier);
+        return scoreB - scoreA;
+      });
     }
-    return base;
+    // Date sort: apply feature multiplier as a recency score boost
+    const now = Date.now();
+    return [...base].sort((a, b) => {
+      const daysA = a.event_date ? (new Date(a.event_date).getTime() - now) / 86400000 : 999;
+      const daysB = b.event_date ? (new Date(b.event_date).getTime() - now) / 86400000 : 999;
+      const scoreA = getFeatureMultiplier(a.venue_feature_tier) / (Math.max(daysA, 0) + 1);
+      const scoreB = getFeatureMultiplier(b.venue_feature_tier) / (Math.max(daysB, 0) + 1);
+      return scoreB - scoreA;
+    });
   })();
 
   return (
@@ -858,6 +884,13 @@ export default function DiscoverScreen() {
                     color={isSaved ? '#FF3B5C' : 'rgba(255,255,255,0.85)'}
                   />
                 </TouchableOpacity>
+
+                {/* Featured badge */}
+                {item.venue_feature_tier != null && (
+                  <View style={styles.featuredBadge}>
+                    <Ionicons name="star" size={9} color="#FFD700" />
+                  </View>
+                )}
               </TouchableOpacity>
             );
           }}
@@ -915,6 +948,19 @@ const styles = StyleSheet.create({
   },
   sortBtnTextActive: {
     color: '#fff',
+  },
+  featuredBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    borderWidth: 1.5,
+    borderColor: '#FFD700',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   nbBtn: {
     paddingHorizontal: 12,
