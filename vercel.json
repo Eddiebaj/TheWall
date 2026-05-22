@@ -7,6 +7,6 @@
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/business", "destination": "/api/business-page" },
-    { "source": "/business/signup", "destination": "/public/signup.html" }
+    { "source": "/business/signup", "destination": "/api/business-signup" }
   ]
 }
