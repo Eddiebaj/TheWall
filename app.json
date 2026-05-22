@@ -5,10 +5,11 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "routeo",
+    "scheme": "thewall",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
+      "associatedDomains": ["applinks:thewall.app"],
       "buildNumber": "2",
       "bundleIdentifier": "com.eddiebaj.thewall",
       "appleTeamId": "9556L24Y4A",
@@ -22,8 +23,8 @@
           "NSAllowsArbitraryLoads": false
         },
         "ITSAppUsesNonExemptEncryption": false,
-        "NSPhotoLibraryUsageDescription": "RouteO lets you attach a photo when submitting a community deal.",
-        "NSCameraUsageDescription": "RouteO lets you take a photo when submitting a community deal.",
+        "NSPhotoLibraryUsageDescription": "The Wall lets you attach a photo when submitting a community deal.",
+        "NSCameraUsageDescription": "The Wall lets you take a photo when submitting a community deal.",
         "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to use speech recognition.",
         "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to use the microphone."
       }
@@ -53,12 +54,6 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      [
-        "react-native-maps",
-        {
-          "googleMapsApiKey": "AIzaSyCKwAVVCbxHKsKViJ4Dq0ZQ5r6k-arue3E"
-        }
-      ],
       "expo-router",
       [
         "expo-splash-screen",
@@ -79,7 +74,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "RouteO needs your location to show nearby stops and transit options."
+          "locationWhenInUsePermission": "The Wall needs your location to show nearby stops and transit options."
         }
       ],
       "expo-image-picker",

@@ -2,7 +2,7 @@ let Notifications: typeof import('expo-notifications') | null = null;
 try { Notifications = require('expo-notifications'); } catch {}
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator, Alert, DeviceEventEmitter, Dimensions, Image, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView,
     StatusBar, Switch, Text, TextInput,
@@ -16,76 +16,33 @@ import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { useBoard } from '../../context/BoardContext';
 import { supabase } from '../../lib/supabase';
+import { useAnalytics } from '../../lib/analytics';
 import { registerPushToken, syncSubscriptions } from '../../lib/pushNotifications';
-import { SK_NOTIF_SETTINGS, SK_DEVICE_ID, SK_HOME_ADDRESS, SK_WORK_PLACE, SK_RECENT_SEARCHES } from '../../lib/storageKeys';
+import { SK_NOTIF_SETTINGS, SK_DEVICE_ID } from '../../lib/storageKeys';
 import { useRouter } from 'expo-router';
-import { fetchWithTimeout } from '../../lib/fetchWithTimeout';
 import { cardShadow as sharedCardShadow } from '../../lib/styles';
 import { hapticLight, hapticMedium, hapticSuccess } from '../../lib/haptics';
-import {
-  CommuteAlertSettings,
-  getCommuteAlertSettings,
-  saveCommuteAlertSettings,
-  refreshCommuteNotification,
-  filterPremiumNotifSubs,
-} from '../../lib/commuteNotifications';
-import { useIsPremium } from '../../lib/premium';
-import { PREMIUM_ENABLED } from '../../lib/flags';
-import PaywallSheet from '../../components/PaywallSheet';
+import { filterPremiumNotifSubs } from '../../lib/commuteNotifications';
 
 type NotifSettings = {
-  tripAlerts: boolean;
-  serviceDisruptions: boolean;
   events: boolean;
-  leaveNow: boolean;
-  arrivalAlerts: boolean;
-  transferAtRisk: boolean;
-  tripDisruption: boolean;
-  lastBus: boolean;
-  lrtDisruption: boolean;
-  routeCancellation: boolean;
-  significantDelay: boolean;
-  serviceResumed: boolean;
-  busRunningEarly: boolean;
-  festivalEvents: boolean;
-  liveEventsNearby: boolean;
-  commuteDeals: boolean;
-  criticalAlerts: boolean;
-  delayAlerts: boolean;
+  friends: boolean;
+  reminders: boolean;
 };
 
 const DEFAULT_NOTIF_SETTINGS: NotifSettings = {
-  tripAlerts: true,
-  serviceDisruptions: true,
   events: true,
-  leaveNow: true,
-  arrivalAlerts: true,
-  transferAtRisk: true,
-  tripDisruption: true,
-  lastBus: true,
-  lrtDisruption: true,
-  routeCancellation: true,
-  significantDelay: false,
-  serviceResumed: true,
-  busRunningEarly: false,
-  festivalEvents: false,
-  liveEventsNearby: false,
-  commuteDeals: true,
-  criticalAlerts: true,
-  delayAlerts: false,
+  friends: true,
+  reminders: true,
 };
 
-const MASTER_KEY_MAP: Record<string, (keyof NotifSettings)[]> = {
-  tripAlerts: ['leaveNow', 'arrivalAlerts', 'transferAtRisk', 'tripDisruption', 'lastBus'],
-  serviceDisruptions: ['lrtDisruption', 'routeCancellation', 'significantDelay', 'serviceResumed', 'busRunningEarly'],
-  events: ['festivalEvents', 'liveEventsNearby', 'commuteDeals'],
-};
+const MASTER_KEY_MAP: Record<string, (keyof NotifSettings)[]> = {};
 
 const NOTIF_SETTINGS_KEY = SK_NOTIF_SETTINGS;
 
 function SectionHeader({ label, icon, colours, fonts }: { label: string; icon: string; colours: any; fonts: any }) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, marginBottom: 8, marginTop: 4 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, marginTop: 12, marginBottom: 4 }}>
       <Ionicons name={icon as any} size={16} color={colours.muted} />
       <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</Text>
     </View>
@@ -156,7 +113,7 @@ function MyWallSection({ onCountChange }: { onCountChange: (n: number) => void }
 
   if (events.length === 0) {
     return (
-      <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
+      <View style={{ paddingHorizontal: 16, marginTop: 16, marginBottom: 8 }}>
         <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>MY WALL</Text>
         <View style={{ borderRadius: 16, borderWidth: 1, borderColor: colours.border, borderStyle: 'dashed', padding: 24, alignItems: 'center' }}>
           <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text, marginBottom: 4 }}>Your wall starts here</Text>
@@ -169,7 +126,7 @@ function MyWallSection({ onCountChange }: { onCountChange: (n: number) => void }
   }
 
   return (
-    <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
+    <View style={{ paddingHorizontal: 16, marginTop: 16, marginBottom: 8 }}>
       <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>MY WALL</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: WALL_CARD_GAP }}>
         {events.map((item) => (
@@ -211,32 +168,53 @@ export default function AccountScreen() {
   const { savedBoard } = useBoard();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { capture } = useAnalytics();
 
-  const [paywallVisible, setPaywallVisible] = useState(false);
+  useEffect(() => {
+    capture('profile_viewed');
+  }, []);
 
   // Auth state (shown when not signed in)
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [authCodeSent, setAuthCodeSent] = useState(false);
+  const [authOtp, setAuthOtp] = useState('');
+  const [authVerifying, setAuthVerifying] = useState(false);
 
-  const handleAuth = async () => {
+  const handleSendCode = async () => {
     setAuthError('');
-    if (!authEmail.trim() || !authPassword) {
-      setAuthError('Please enter your email and password.');
+    if (!authEmail.trim()) {
+      setAuthError('Please enter your email.');
       return;
     }
     setAuthLoading(true);
-    const { error } = authMode === 'signin'
-      ? await supabase.auth.signInWithPassword({ email: authEmail.trim(), password: authPassword })
-      : await supabase.auth.signUp({ email: authEmail.trim(), password: authPassword });
+    const { error } = await supabase.auth.signInWithOtp({
+      email: authEmail.trim().toLowerCase(),
+      options: { shouldCreateUser: true },
+    });
     setAuthLoading(false);
     if (error) {
       setAuthError(error.message);
-    } else if (authMode === 'signup') {
-      setAuthError('Check your email to confirm your account.');
+    } else {
+      setAuthOtp('');
+      setAuthCodeSent(true);
     }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (authOtp.length !== 6) return;
+    setAuthVerifying(true);
+    const { error } = await supabase.auth.verifyOtp({
+      email: authEmail.trim().toLowerCase(),
+      token: authOtp,
+      type: 'email',
+    });
+    setAuthVerifying(false);
+    if (error) {
+      setAuthError(error.message);
+    }
+    // On success, onAuthStateChange in AuthContext fires and routes automatically
   };
 
   const isLight = resolvedTheme === 'light';
@@ -244,14 +222,6 @@ export default function AccountScreen() {
 
   const [notifSettings, setNotifSettings] = useState<NotifSettings>(DEFAULT_NOTIF_SETTINGS);
   const [notifPermission, setNotifPermission] = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
-  const [commuteAlert, setCommuteAlert] = useState<CommuteAlertSettings>({ enabled: false, hour: 7, minute: 15 });
-  const [lastMinuteDeals, setLastMinuteDeals] = React.useState(false);
-
-  React.useEffect(() => {
-    AsyncStorage.getItem('thewall_lastminute_notifs').then(v => setLastMinuteDeals(v === 'true'));
-  }, []);
-  const [commuteTimePickerVisible, setCommuteTimePickerVisible] = useState(false);
-  const [ghostStats, setGhostStats] = useState<{ totalThisWeek: number; mostAffectedRoute: string | null; mostAffectedCount: number } | null>(null);
 
   const [bugModalVisible, setBugModalVisible] = useState(false);
   const [bugMessage, setBugMessage] = useState('');
@@ -259,29 +229,59 @@ export default function AccountScreen() {
   const [bugSending, setBugSending] = useState(false);
   const [bugSent, setBugSent] = useState(false);
 
-  // My Places state
-  const [homeAddress, setHomeAddress] = useState('');
-  const [workAddress, setWorkAddress] = useState('');
-  const [recentSearchCount, setRecentSearchCount] = useState(0);
-  const [homeSaveStatus, setHomeSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [workSaveStatus, setWorkSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [accessibleRoutingEnabled, setAccessibleRoutingEnabled] = useState(false);
-
   const [wallCount, setWallCount] = useState(0);
-  const [profileStats, setProfileStats] = useState<{ eventsAttended: number; totalPosts: number; memberSince: string | null } | null>(null);
+  const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
+  const [profileStats, setProfileStats] = useState<{ eventsAttended: number; totalPosts: number; memberSince: string | null; mostVisitedVenue: string | null } | null>(null);
+  const [savedEvents, setSavedEvents] = useState<{ id: string; title: string; venue_name: string; poster_url: string | null }[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('saved_events')
+      .select('event_id, events(id, title, poster_url, venues(name))')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(20)
+      .then(({ data }) => {
+        if (data) {
+          setSavedEvents(
+            (data as any[]).map((r) => ({
+              id: r.events?.id ?? r.event_id,
+              title: r.events?.title ?? '',
+              venue_name: r.events?.venues?.name ?? '',
+              poster_url: r.events?.poster_url ?? null,
+            }))
+          );
+        }
+      });
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
     const fetchStats = async () => {
-      const [rsvpResult, postsResult, profileResult] = await Promise.all([
+      const [rsvpResult, postsResult, profileResult, venueResult] = await Promise.all([
         supabase.from('event_rsvps').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('status', 'going'),
         supabase.from('posts').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
         supabase.from('profiles').select('created_at').eq('id', user.id).single(),
+        supabase.from('event_rsvps').select('events(venues(name))').eq('user_id', user.id).eq('status', 'going'),
       ]);
+
+      let mostVisitedVenue: string | null = null;
+      if (venueResult.data && venueResult.data.length > 0) {
+        const counts: Record<string, number> = {};
+        for (const row of venueResult.data as any[]) {
+          const name = row.events?.venues?.name;
+          if (name) counts[name] = (counts[name] ?? 0) + 1;
+        }
+        const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+        if (top) mostVisitedVenue = top[0];
+      }
+
       setProfileStats({
         eventsAttended: rsvpResult.count ?? 0,
         totalPosts: postsResult.count ?? 0,
         memberSince: profileResult.data?.created_at ?? null,
+        mostVisitedVenue,
       });
     };
     fetchStats();
@@ -292,30 +292,53 @@ export default function AccountScreen() {
   const [editUsername, setEditUsername] = useState('');
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    AsyncStorage.getItem('thewall_accessibility_routing').then(v => { if (v === 'true') setAccessibleRoutingEnabled(true); }).catch(() => {});
-  }, []);
+  // Profile setup (shown for new users who have no username yet)
+  const [setupDisplayName, setSetupDisplayName] = useState('');
+  const [setupUsername, setSetupUsername] = useState('');
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [setupSaving, setSetupSaving] = useState(false);
+  const [setupError, setSetupError] = useState('');
+  const usernameDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const needsProfileSetup = !!user && !profile?.username;
 
   useEffect(() => {
-    (async () => {
-      try {
-        const { getDeviceId } = require('../../lib/pushNotifications');
-        const deviceId = await getDeviceId();
-        if (!deviceId) return;
-        const resp = await fetchWithTimeout(`https://routeo-backend.vercel.app/api/community?action=ghost.device_stats&device_id=${deviceId}`);
-        if (resp.ok) { const data = await resp.json(); setGhostStats(data); }
-      } catch (e) { if (__DEV__) console.warn(e); }
-    })();
-    AsyncStorage.getItem(SK_HOME_ADDRESS).then(val => {
-      try { if (val) { const p = JSON.parse(val); setHomeAddress(p.label || ''); } } catch {}
-    }).catch(() => {});
-    AsyncStorage.getItem(SK_WORK_PLACE).then(val => {
-      try { if (val) { const p = JSON.parse(val); setWorkAddress(p.label || ''); } } catch {}
-    }).catch(() => {});
-    AsyncStorage.getItem(SK_RECENT_SEARCHES).then(val => {
-      try { if (val) setRecentSearchCount(JSON.parse(val).length); } catch {}
-    }).catch(() => {});
-  }, []);
+    if (!setupUsername || setupUsername.length < 2) {
+      setUsernameStatus('idle');
+      return;
+    }
+    setUsernameStatus('checking');
+    if (usernameDebounceRef.current) clearTimeout(usernameDebounceRef.current);
+    usernameDebounceRef.current = setTimeout(async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', setupUsername)
+        .maybeSingle();
+      setUsernameStatus(data ? 'taken' : 'available');
+    }, 500);
+  }, [setupUsername]);
+
+  const handleSetupProfile = async () => {
+    setSetupError('');
+    if (!setupUsername.trim()) { setSetupError('Username is required.'); return; }
+    if (usernameStatus === 'taken') { setSetupError('That username is taken.'); return; }
+    if (usernameStatus === 'checking') { setSetupError('Still checking username…'); return; }
+    setSetupSaving(true);
+    const { error } = await supabase.from('profiles').upsert({
+      id: user!.id,
+      display_name: setupDisplayName.trim() || null,
+      username: setupUsername.trim(),
+    });
+    setSetupSaving(false);
+    if (error) {
+      setSetupError(error.message);
+    } else {
+      // Refresh profile in AuthContext by triggering a reload
+      await updateProfile({ display_name: setupDisplayName.trim() || null, username: setupUsername.trim() });
+    }
+  };
+
 
   useEffect(() => {
     AsyncStorage.getItem(NOTIF_SETTINGS_KEY).then(val => {
@@ -325,24 +348,14 @@ export default function AccountScreen() {
       }
     }).catch(e => { if (__DEV__) console.warn('AsyncStorage notif read error:', e); });
     if (Notifications) Notifications.getPermissionsAsync().then(({ status }) => setNotifPermission(status as 'granted' | 'denied' | 'undetermined')).catch(e => { if (__DEV__) console.warn('Notification permission check failed:', e); });
-    getCommuteAlertSettings().then(setCommuteAlert).catch(() => {});
   }, []);
 
   const saveNotifSettings = async (updated: NotifSettings) => {
     setNotifSettings(updated);
     await AsyncStorage.setItem(NOTIF_SETTINGS_KEY, JSON.stringify(updated));
-    const pushTypes: (keyof NotifSettings)[] = [
-      'lrtDisruption', 'routeCancellation', 'significantDelay',
-      'serviceResumed', 'arrivalAlerts', 'tripDisruption',
-    ];
-    const stopIds = savedBoard
-      .filter((i) => i.type === 'bus_stop' || i.type === 'lrt_station')
-      .map((i) => 'id' in i ? i.id : '')
-      .slice(0, 10);
-    const subs = pushTypes.map(key => ({
+    const subs = (Object.keys(updated) as (keyof NotifSettings)[]).map(key => ({
       type: key,
       enabled: updated[key],
-      ...(key === 'arrivalAlerts' ? { metadata: { stop_ids: stopIds } } : {}),
     }));
     const filteredSubs = filterPremiumNotifSubs(subs, isPremium);
     registerPushToken(language).then(() => syncSubscriptions(filteredSubs)).catch(() => {
@@ -391,7 +404,9 @@ export default function AccountScreen() {
   };
 
   const notifToggles = [
-    { key: 'events', label: t('Events', '\u00c9v\u00e9nements'), icon: 'calendar' },
+    { key: 'events', label: 'Events', description: 'Friend RSVPs and new events near you', icon: 'calendar-outline' },
+    { key: 'friends', label: 'Friends', description: 'Friend requests and accepts', icon: 'people-outline' },
+    { key: 'reminders', label: 'Reminders', description: '1 hour before an event you RSVPd to', icon: 'alarm-outline' },
   ];
 
   const handleAvatarPress = async () => {
@@ -413,71 +428,39 @@ export default function AccountScreen() {
 
   const uploadAvatar = async (uri: string) => {
     if (!user) return;
-    const fileExt = uri.split('.').pop()?.toLowerCase() || 'jpg';
-    const filePath = `${user.id}/avatar.${fileExt}`;
+    const filePath = `${user.id}/avatar.jpg`;
 
-    const formData = new FormData();
-    formData.append('file', {
-      uri,
-      name: `avatar.${fileExt}`,
-      type: `image/${fileExt}`,
-    } as any);
+    // Optimistic update show selected image immediately
+    setLocalAvatarUrl(uri);
 
-    const { error: uploadError } = await supabase.storage
-      .from('avatars')
-      .upload(filePath, formData, { upsert: true, contentType: 'multipart/form-data' });
+    try {
+      const response = await fetch(uri);
+      const blob = await response.blob();
 
-    console.log('[Avatar] upload error:', uploadError?.message);
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, blob, { upsert: true, contentType: 'image/jpeg' });
 
-    if (!uploadError) {
+      if (uploadError) {
+        setLocalAvatarUrl(null);
+        Alert.alert('Upload failed', uploadError.message);
+        return;
+      }
+
       const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
-      console.log('[Avatar] public url:', data.publicUrl);
       await updateProfile({ avatar_url: data.publicUrl });
+      // Profile refetch will update global state; local override no longer needed
+      setLocalAvatarUrl(null);
+    } catch (err: any) {
+      setLocalAvatarUrl(null);
+      Alert.alert('Upload failed', err.message ?? 'Something went wrong.');
     }
-  };
-
-  const TripHistoryCard = () => {
-    const [tripCount, setTripCount] = useState(0);
-    const [totalKm, setTotalKm] = useState(0);
-    useEffect(() => {
-      AsyncStorage.getItem('thewall_trip_history')
-        .then(val => {
-          if (!val) return;
-          const trips = JSON.parse(val);
-          setTripCount(trips.length);
-          setTotalKm(Math.round(trips.reduce((s: number, t: any) => s + (t.distanceKm ?? 0), 0)));
-        })
-        .catch(() => {});
-    }, []);
-    if (tripCount === 0) return null;
-    return (
-      <TouchableOpacity
-        onPress={() => router.push('/insights' as any)}
-        style={{ marginHorizontal: 20, marginBottom: 16, backgroundColor: colours.surface, borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: colours.border, ...cardShadow }}
-        activeOpacity={0.8}
-      >
-        <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
-          <Ionicons name="map-outline" size={20} color={colours.accent} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
-            {tripCount} {t('trips this week', 'trajets cette semaine')}
-          </Text>
-          {totalKm > 0 && (
-            <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>
-              {totalKm} km {t('travelled', 'parcourus')}
-            </Text>
-          )}
-        </View>
-        <Ionicons name="chevron-forward" size={16} color={colours.muted} />
-      </TouchableOpacity>
-    );
   };
 
   const Card = ({ children, style }: { children: React.ReactNode; style?: any }) => (
     <View style={[{
-      borderWidth: 1, borderColor: colours.border, borderRadius: 16,
-      marginHorizontal: 20, marginBottom: 20, overflow: 'hidden',
+      borderWidth: 1, borderColor: colours.border, borderRadius: 12,
+      marginHorizontal: 20, marginBottom: 0, overflow: 'hidden',
       backgroundColor: colours.surface,
     }, cardShadow, style]}>
       {children}
@@ -498,65 +481,164 @@ export default function AccountScreen() {
           <View style={{ alignItems: 'center', marginBottom: 40 }}>
             <Text style={{ fontSize: 32, fontWeight: '900', color: colours.text, letterSpacing: -0.5 }}>TheWall</Text>
             <Text style={{ fontSize: 14, color: colours.muted, marginTop: 6 }}>
-              {authMode === 'signin' ? 'Sign in to your account' : 'Create an account'}
+              {authCodeSent ? 'Check your email' : 'Sign in or create an account'}
             </Text>
           </View>
 
-          <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Email</Text>
-          <TextInput
-            style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15, color: colours.text, marginBottom: 14 }}
-            placeholder="you@example.com"
-            placeholderTextColor={colours.muted}
-            value={authEmail}
-            onChangeText={setAuthEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            autoCorrect={false}
-            editable={!authLoading}
-          />
+          {authCodeSent ? (
+            <>
+              <Text style={{ fontSize: 14, color: colours.muted, textAlign: 'center', marginBottom: 24, lineHeight: 20 }}>
+                Enter the 6-digit code sent to {authEmail}
+              </Text>
+              <TextInput
+                style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, fontSize: 28, fontWeight: '700', color: colours.text, textAlign: 'center', letterSpacing: 8, marginBottom: 20 }}
+                placeholder="000000"
+                placeholderTextColor={colours.muted}
+                value={authOtp}
+                onChangeText={t => setAuthOtp(t.replace(/[^0-9]/g, '').slice(0, 6))}
+                keyboardType="number-pad"
+                maxLength={6}
+                autoFocus
+                returnKeyType="go"
+                onSubmitEditing={handleVerifyOtp}
+              />
 
-          <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Password</Text>
+              {authError ? (
+                <Text style={{ fontSize: 13, color: colours.accent, fontWeight: '600', marginBottom: 14, textAlign: 'center' }}>
+                  {authError}
+                </Text>
+              ) : null}
+
+              <TouchableOpacity
+                onPress={handleVerifyOtp}
+                disabled={authVerifying || authOtp.length !== 6}
+                style={{ backgroundColor: authOtp.length === 6 ? colours.accent : colours.border, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginBottom: 16 }}
+                activeOpacity={0.85}
+              >
+                {authVerifying ? <ActivityIndicator color="#fff" /> : <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Verify</Text>}
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={handleSendCode} disabled={authLoading} style={{ alignItems: 'center', marginBottom: 12 }}>
+                <Text style={{ fontSize: 14, color: colours.muted, fontWeight: '600' }}>
+                  {authLoading ? 'Sending…' : 'Resend code'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => { setAuthCodeSent(false); setAuthOtp(''); setAuthError(''); }} style={{ alignItems: 'center' }}>
+                <Text style={{ fontSize: 14, color: colours.muted }}>Use a different email</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Email</Text>
+              <TextInput
+                style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15, color: colours.text, marginBottom: 20 }}
+                placeholder="you@example.com"
+                placeholderTextColor={colours.muted}
+                value={authEmail}
+                onChangeText={setAuthEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                autoCorrect={false}
+                editable={!authLoading}
+                returnKeyType="go"
+                onSubmitEditing={handleSendCode}
+              />
+
+              {authError ? (
+                <Text style={{ fontSize: 13, color: colours.accent, fontWeight: '600', marginBottom: 14, textAlign: 'center' }}>
+                  {authError}
+                </Text>
+              ) : null}
+
+              <TouchableOpacity
+                onPress={handleSendCode}
+                disabled={authLoading || !authEmail.trim()}
+                style={{ backgroundColor: authEmail.trim() ? colours.accent : colours.border, borderRadius: 14, paddingVertical: 16, alignItems: 'center', opacity: authLoading ? 0.7 : 1 }}
+                activeOpacity={0.85}
+              >
+                {authLoading ? <ActivityIndicator color="#fff" /> : <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Send Code</Text>}
+              </TouchableOpacity>
+            </>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  if (needsProfileSetup) {
+    return (
+      <KeyboardAvoidingView
+        style={{ flex: 1, backgroundColor: colours.bg }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingBottom: insets.bottom + 40 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={{ alignItems: 'center', marginBottom: 36 }}>
+            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+              <Ionicons name="person-outline" size={30} color={colours.accent} />
+            </View>
+            <Text style={{ fontSize: 24, fontWeight: '900', color: colours.text, letterSpacing: -0.5, marginBottom: 6 }}>Set up your profile</Text>
+            <Text style={{ fontSize: 14, color: colours.muted, textAlign: 'center', lineHeight: 20 }}>
+              Choose a username so your friends can find you.
+            </Text>
+          </View>
+
+          <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Display Name</Text>
           <TextInput
             style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15, color: colours.text, marginBottom: 20 }}
-            placeholder="••••••••"
+            placeholder="Your name"
             placeholderTextColor={colours.muted}
-            value={authPassword}
-            onChangeText={setAuthPassword}
-            secureTextEntry
-            editable={!authLoading}
+            value={setupDisplayName}
+            onChangeText={setSetupDisplayName}
+            autoCorrect={false}
+            returnKeyType="next"
           />
 
-          {authError ? (
-            <Text style={{ fontSize: 13, color: colours.accent, fontWeight: '600', marginBottom: 14, textAlign: 'center' }}>
-              {authError}
+          <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Username</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderWidth: 1, borderColor: usernameStatus === 'taken' ? '#FF3B5C' : usernameStatus === 'available' ? '#00C07A' : colours.border, borderRadius: 12, paddingHorizontal: 14, marginBottom: 8 }}>
+            <Text style={{ fontSize: 15, color: colours.muted, marginRight: 2 }}>@</Text>
+            <TextInput
+              style={{ flex: 1, paddingVertical: 13, fontSize: 15, color: colours.text }}
+              placeholder="yourhandle"
+              placeholderTextColor={colours.muted}
+              value={setupUsername}
+              onChangeText={v => setSetupUsername(v.toLowerCase().replace(/[^a-z0-9_.]/g, ''))}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="done"
+              onSubmitEditing={handleSetupProfile}
+            />
+            {usernameStatus === 'checking' && <ActivityIndicator size="small" color={colours.muted} />}
+            {usernameStatus === 'available' && <Text style={{ fontSize: 13, color: '#00C07A', fontWeight: '700' }}>✓ available</Text>}
+            {usernameStatus === 'taken' && <Text style={{ fontSize: 13, color: '#FF3B5C', fontWeight: '700' }}>✗ taken</Text>}
+          </View>
+          <Text style={{ fontSize: 12, color: colours.muted, marginBottom: 24 }}>
+            Lowercase letters, numbers, underscores and dots only.
+          </Text>
+
+          {setupError ? (
+            <Text style={{ fontSize: 13, color: '#FF3B5C', fontWeight: '600', marginBottom: 14, textAlign: 'center' }}>
+              {setupError}
             </Text>
           ) : null}
 
           <TouchableOpacity
-            onPress={handleAuth}
-            disabled={authLoading}
-            style={{ backgroundColor: colours.accent, borderRadius: 14, paddingVertical: 16, alignItems: 'center', opacity: authLoading ? 0.7 : 1 }}
+            onPress={handleSetupProfile}
+            disabled={setupSaving || !setupUsername.trim() || usernameStatus === 'taken' || usernameStatus === 'checking'}
+            style={{
+              backgroundColor: (setupUsername.trim() && usernameStatus === 'available') ? colours.accent : colours.border,
+              borderRadius: 14, paddingVertical: 16, alignItems: 'center',
+            }}
             activeOpacity={0.85}
           >
-            {authLoading
+            {setupSaving
               ? <ActivityIndicator color="#fff" />
-              : <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>
-                  {authMode === 'signin' ? 'Sign In' : 'Sign Up'}
-                </Text>
+              : <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Set up profile</Text>
             }
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => { setAuthMode(m => m === 'signin' ? 'signup' : 'signin'); setAuthError(''); }}
-            style={{ marginTop: 20, alignItems: 'center' }}
-            activeOpacity={0.7}
-          >
-            <Text style={{ fontSize: 14, color: colours.muted }}>
-              {authMode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
-              <Text style={{ color: colours.accent, fontWeight: '700' }}>
-                {authMode === 'signin' ? 'Sign Up' : 'Sign In'}
-              </Text>
-            </Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -568,12 +650,12 @@ export default function AccountScreen() {
       <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}>
 
-        <View style={{ backgroundColor: colours.surface, borderBottomWidth: 1, borderBottomColor: colours.border, paddingTop: insets.top + 20, paddingBottom: 20, paddingHorizontal: 20 }}>
+        <View style={{ backgroundColor: colours.bg, paddingTop: insets.top + 16, paddingBottom: 8, paddingHorizontal: 20 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
             {/* Avatar */}
             <TouchableOpacity onPress={handleAvatarPress} style={{ position: 'relative' }}>
-              {profile?.avatar_url ? (
-                <Image source={{ uri: profile.avatar_url + '?t=' + Date.now() }} style={{ width: 56, height: 56, borderRadius: 14 }} />
+              {(localAvatarUrl || profile?.avatar_url) ? (
+                <Image source={{ uri: localAvatarUrl ?? (profile!.avatar_url + '?t=' + Date.now()) }} style={{ width: 56, height: 56, borderRadius: 14 }} />
               ) : (
                 <View style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center' }}>
                   <Text style={{ fontSize: 22, fontWeight: '800', color: colours.accent }}>
@@ -587,7 +669,7 @@ export default function AccountScreen() {
             </TouchableOpacity>
             {/* Info */}
             <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Text style={{ fontSize: 17, fontWeight: '800', color: colours.text }}>
                   {profile?.display_name || profile?.username || 'Your Name'}
                 </Text>
@@ -597,13 +679,6 @@ export default function AccountScreen() {
                   setShowEditProfile(true);
                 }}>
                   <Ionicons name="pencil-outline" size={16} color={colours.muted} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => { if (!isAdmin && !isPremium) router.push('/premium' as any); }}>
-                  <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: isAdmin ? '#e8a020' + '25' : colours.accent + '18', borderWidth: 1, borderColor: isAdmin ? '#e8a020' + '60' : colours.accent + '40' }}>
-                    <Text style={{ fontSize: 10, fontWeight: '800', color: isAdmin ? '#e8a020' : colours.accent, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                      {isAdmin ? 'Admin' : isPremium ? 'Premium' : 'Free'}
-                    </Text>
-                  </View>
                 </TouchableOpacity>
               </View>
               <Text style={{ fontSize: 13, color: colours.muted }}>@{profile?.username || 'username'}</Text>
@@ -619,21 +694,51 @@ export default function AccountScreen() {
         {/* MY WALL */}
         <MyWallSection onCountChange={setWallCount} />
 
+        {/* SAVED EVENTS */}
+        <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Saved Events</Text>
+          {savedEvents.length === 0 ? (
+            <Text style={{ fontSize: 13, color: colours.muted }}>No saved events yet</Text>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+              {savedEvents.map((ev) => (
+                <TouchableOpacity
+                  key={ev.id}
+                  onPress={() => router.push(`/event/${ev.id}` as any)}
+                  activeOpacity={0.85}
+                  style={{ width: 120, borderRadius: 12, overflow: 'hidden', backgroundColor: colours.card }}
+                >
+                  <Image
+                    source={{ uri: ev.poster_url || 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&q=80' }}
+                    style={{ width: 120, height: 100 }}
+                    resizeMode="cover"
+                  />
+                  <View style={{ padding: 7 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: colours.text }} numberOfLines={1}>{ev.venue_name}</Text>
+                    <Text style={{ fontSize: 10, color: colours.muted, marginTop: 1 }} numberOfLines={1}>{ev.title}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+
         {/* PROFILE STATS */}
         {profileStats && (
-          <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Profile Stats</Text>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
+          <View style={{ paddingHorizontal: 16, marginBottom: 0 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Profile Stats</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {[
-                { value: profileStats.eventsAttended, label: 'Events Attended' },
-                { value: profileStats.totalPosts, label: 'Posts' },
-                { value: profileStats.memberSince ? new Date(profileStats.memberSince).toLocaleDateString('en-CA', { month: 'short', year: 'numeric' }) : '—', label: 'Member Since' },
+                { value: String(profileStats.eventsAttended), label: 'Events Attended' },
+                { value: String(profileStats.totalPosts), label: 'Posts' },
+                { value: profileStats.memberSince ? new Date(profileStats.memberSince).toLocaleDateString('en-CA', { month: 'short', year: 'numeric' }) : '', label: 'Member Since' },
+                { value: profileStats.mostVisitedVenue ?? '', label: 'Most Visited' },
               ].map((stat) => (
                 <View
                   key={stat.label}
-                  style={{ flex: 1, backgroundColor: colours.card, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 10, alignItems: 'center', borderWidth: 1, borderColor: colours.border }}
+                  style={{ width: '47%', backgroundColor: colours.card, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 10, alignItems: 'center', borderWidth: 1, borderColor: colours.border }}
                 >
-                  <Text style={{ fontSize: 20, fontWeight: '700', color: colours.text, marginBottom: 4 }}>{stat.value}</Text>
+                  <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text, marginBottom: 4 }} numberOfLines={1} adjustsFontSizeToFit>{stat.value}</Text>
                   <Text style={{ fontSize: 11, color: colours.muted, textAlign: 'center' }}>{stat.label}</Text>
                 </View>
               ))}
@@ -641,9 +746,9 @@ export default function AccountScreen() {
           </View>
         )}
 
-        <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
+        <View style={{ paddingHorizontal: 20, marginTop: 12, marginBottom: 4 }}>
           <Text
-            style={{ fontSize: fonts.xxl, fontWeight: '700', color: colours.text, marginTop: 20 }}
+            style={{ fontSize: fonts.xxl, fontWeight: '700', color: colours.text }}
             accessibilityRole="header"
           >
             {t('Settings', 'Param\u00e8tres')}
@@ -673,9 +778,14 @@ export default function AccountScreen() {
               {i > 0 && <Divider colours={colours} />}
               <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 }}>
                 <Ionicons name={item.icon as any} size={18} color={notifSettings[item.key as keyof NotifSettings] ? colours.accent : colours.muted} />
-                <Text style={{ fontSize: fonts.md, color: notifSettings[item.key as keyof NotifSettings] ? colours.text : colours.muted, flex: 1 }}>
-                  {item.label}
-                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: fonts.md, color: notifSettings[item.key as keyof NotifSettings] ? colours.text : colours.muted }}>
+                    {item.label}
+                  </Text>
+                  <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>
+                    {(item as any).description}
+                  </Text>
+                </View>
                 <Switch
                   value={!!notifSettings[item.key as keyof NotifSettings]}
                   onValueChange={v => toggleMaster(item.key, v)}
@@ -688,7 +798,6 @@ export default function AccountScreen() {
             </View>
           ))}
         </Card>
-
 
         {/* ── APPEARANCE ── */}
         <SectionHeader label={t('Appearance', 'Apparence')} icon="color-palette-outline" colours={colours} fonts={fonts} />
@@ -726,19 +835,21 @@ export default function AccountScreen() {
               </TouchableOpacity>
             ))}
           </View>
-
         </Card>
 
         {isAdmin && (
-          <Card>
-            <SettingsRow
-              label="Admin Panel"
-              icon="shield-checkmark-outline"
-              onPress={() => router.push('/admin' as any)}
-              colours={colours}
-              fonts={fonts}
-            />
-          </Card>
+          <>
+            <SectionHeader label="Admin" icon="shield-checkmark-outline" colours={colours} fonts={fonts} />
+            <Card>
+              <SettingsRow
+                label="Admin Panel"
+                icon="shield-checkmark-outline"
+                onPress={() => router.push('/admin' as any)}
+                colours={colours}
+                fonts={fonts}
+              />
+            </Card>
+          </>
         )}
 
         {/* ── SUPPORT ── */}
@@ -754,7 +865,7 @@ export default function AccountScreen() {
           {/* TODO: Uncomment when real App Store / Play Store IDs are available
           <Divider colours={colours} />
           <SettingsRow
-            label={t('Rate RouteO', 'Evaluer RouteO')}
+            label={t('Rate The Wall', 'Evaluer The Wall')}
             icon="star"
             onPress={() => {
               const storeUrl = Platform.OS === 'ios'
@@ -771,46 +882,16 @@ export default function AccountScreen() {
           <SettingsRow
             label={t('Privacy Policy', 'Politique de confidentialite')}
             icon="shield-checkmark"
-            onPress={() => Linking.openURL('https://thewall.app/privacy').catch(() => {})}
+            onPress={() => router.push('/privacy-policy')}
             colours={colours}
             fonts={fonts}
-            right={<Ionicons name="open-outline" size={16} color={colours.muted} />}
+            right={<Ionicons name="chevron-forward" size={16} color={colours.muted} />}
           />
         </Card>
 
-        {/* Footer */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40, alignItems: 'center' }}>
-          <Text style={{ fontSize: fonts.sm, color: colours.muted }}>
-            TheWall v1.0.0
-          </Text>
-        </View>
-
-        {!isPremium && !isAdmin && (
-          <TouchableOpacity
-            onPress={() => router.push('/premium' as any)}
-            style={{ marginHorizontal: 20, marginBottom: 16, padding: 20, borderRadius: 16, backgroundColor: '#e8a020' + '12', borderWidth: 1, borderColor: '#e8a020' + '40' }}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-              <Ionicons name="star" size={20} color="#e8a020" />
-              <Text style={{ fontSize: 16, fontWeight: '800', color: colours.text }}>Upgrade to Premium</Text>
-            </View>
-            <View style={{ gap: 6, marginBottom: 16 }}>
-              {['Venue boosts', 'Early event access', "See who's going", 'Group chat per event'].map((f, i) => (
-                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Ionicons name="checkmark-circle" size={14} color="#e8a020" />
-                  <Text style={{ fontSize: 13, color: colours.muted }}>{f}</Text>
-                </View>
-              ))}
-            </View>
-            <View style={{ backgroundColor: '#e8a020', borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}>
-              <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>Get Premium - $2.99/mo</Text>
-            </View>
-          </TouchableOpacity>
-        )}
-
         <TouchableOpacity
           onPress={signOut}
-          style={{ marginHorizontal: 20, marginTop: 24, marginBottom: 16, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: '#cc3b2a40', backgroundColor: '#cc3b2a12', alignItems: 'center' }}
+          style={{ marginHorizontal: 20, marginTop: 16, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: '#cc3b2a40', backgroundColor: '#cc3b2a12', alignItems: 'center' }}
         >
           <Text style={{ fontSize: 15, fontWeight: '700', color: '#cc3b2a' }}>Sign out</Text>
         </TouchableOpacity>
@@ -852,7 +933,7 @@ export default function AccountScreen() {
 
                 <Text style={{ fontSize: fonts.sm, color: colours.muted, marginBottom: 4 }}>{t('Screen', 'Ecran')}</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                  {['Home', 'Map', 'Alerts', 'Nearby', 'My Favourites', 'Other'].map(s => (
+                  {['Feed', 'Discover', 'Friends', 'Profile', 'Other'].map(s => (
                     <TouchableOpacity
                       key={s}
                       onPress={() => { hapticLight(); setBugScreen(bugScreen === s ? '' : s); }}
@@ -867,7 +948,7 @@ export default function AccountScreen() {
                       accessibilityState={{ selected: bugScreen === s }}
                     >
                       <Text style={{ fontSize: fonts.sm, color: bugScreen === s ? colours.red : colours.text }}>
-                        {t(s, s === 'Home' ? 'Accueil' : s === 'Map' ? 'Carte' : s === 'Alerts' ? 'Alertes' : s === 'Nearby' ? 'Proximite' : s === 'My Favourites' ? 'Mes favoris' : 'Autre')}
+                        {s}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -973,11 +1054,6 @@ export default function AccountScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <PaywallSheet
-        visible={paywallVisible}
-        onClose={() => setPaywallVisible(false)}
-        featureHint={t('Unlock custom colour palettes and more', 'Debloquez les palettes de couleurs et plus encore')}
-      />
     </View>
   );
 }
