@@ -77,7 +77,33 @@
       color: #e5e5e5;
       line-height: 1.6;
       max-width: 480px;
-      margin-bottom: 0;
+      margin-bottom: 12px;
+    }
+    .hero-tagline {
+      font-size: 13px;
+      color: rgba(255,255,255,0.35);
+    }
+
+    /* ── Stats ── */
+    .stats {
+      padding: 0 0 48px;
+    }
+    .stats-row {
+      display: flex;
+      gap: 48px;
+      border-top: 1px solid rgba(255,255,255,0.07);
+      padding-top: 32px;
+    }
+    .stat-number {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+    .stat-label {
+      font-size: 12px;
+      color: rgba(255,255,255,0.35);
     }
 
     /* ── Pricing ── */
@@ -167,6 +193,39 @@
       color: #fff;
     }
 
+    /* ── FAQ ── */
+    .faq {
+      padding: 0 0 48px;
+    }
+    .faq-list {
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+      margin-bottom: 32px;
+    }
+    .faq-q {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+    .faq-a {
+      font-size: 13px;
+      color: rgba(255,255,255,0.45);
+      line-height: 1.6;
+      max-width: 560px;
+    }
+    .faq-contact {
+      font-size: 13px;
+      color: rgba(255,255,255,0.35);
+    }
+    .faq-contact a {
+      color: rgba(255,255,255,0.6);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .faq-contact a:hover { color: #fff; }
+
     /* ── Social proof ── */
     .venues {
       padding: 0 0 48px;
@@ -218,12 +277,32 @@
       <div class="hero-eyebrow">Toronto Nightlife</div>
       <h1 class="hero-title">Get your venue in front of thousands of people every weekend</h1>
       <p class="hero-sub">TheWall is where Toronto decides where to go out. List your events, boost your placement, and track what's working.</p>
+      <p class="hero-tagline">Sign up in 2 minutes, we handle the rest.</p>
+    </div>
+  </section>
+
+  <section class="stats">
+    <div class="container">
+      <div class="stats-row">
+        <div class="stat">
+          <div class="stat-number">86 Venues</div>
+          <div class="stat-label">Toronto's top spots</div>
+        </div>
+        <div class="stat">
+          <div class="stat-number">250+ Events</div>
+          <div class="stat-label">Listed this week</div>
+        </div>
+        <div class="stat">
+          <div class="stat-number">2 min</div>
+          <div class="stat-label">Average setup time</div>
+        </div>
+      </div>
     </div>
   </section>
 
   <section class="pricing">
     <div class="container">
-      <p class="pricing-meta">Flat monthly pricing &mdash; cancel anytime</p>
+      <p class="pricing-meta">Flat monthly pricing. Cancel anytime.</p>
       <div class="pricing-row">
 
         <div class="pricing-card">
@@ -265,10 +344,30 @@
     </div>
   </section>
 
+  <section class="faq">
+    <div class="container">
+      <div class="faq-list">
+        <div class="faq-item">
+          <p class="faq-q">Do I need to manually add my events?</p>
+          <p class="faq-a">No. We sync events automatically via Ticketmaster. If your venue runs events not on Ticketmaster, you can add them manually from your dashboard.</p>
+        </div>
+        <div class="faq-item">
+          <p class="faq-q">Can I cancel anytime?</p>
+          <p class="faq-a">Yes. No contracts, no commitments. Cancel from your dashboard at any time and you will not be charged again.</p>
+        </div>
+        <div class="faq-item">
+          <p class="faq-q">How quickly will I be featured?</p>
+          <p class="faq-a">Immediately after payment. Your venue badge and algorithm boost activate the same day.</p>
+        </div>
+      </div>
+      <p class="faq-contact">Questions? Email us at <a href="mailto:hello@thewall.app">hello@thewall.app</a> or <a href="https://calendly.com/thewall" target="_blank" rel="noopener">book a quick call</a>.</p>
+    </div>
+  </section>
+
   <section class="venues">
     <div class="container">
       <p class="venues-line">
-        Venues on TheWall &mdash;
+        Venues on TheWall:
         <span>Rebel</span>,
         <span>Coda</span>,
         <span>Toybox</span>,
