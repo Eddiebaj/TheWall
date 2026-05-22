@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { usePostHog } from 'posthog-react-native';
 import { SK_ANALYTICS } from './storageKeys';
 
 export type AnalyticsEvent =
@@ -27,6 +28,16 @@ export function trackEvent(event: AnalyticsEvent): void {
       // silent  -  analytics should never crash the app
     }
   })();
+}
+
+export function useAnalytics() {
+  const posthog = usePostHog();
+
+  function capture(event: string, properties?: object) {
+    posthog.capture(event, properties);
+  }
+
+  return { capture };
 }
 
 /**

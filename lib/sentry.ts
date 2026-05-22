@@ -6,7 +6,7 @@
 let Sentry: typeof import('@sentry/react-native') | null = null;
 try { Sentry = require('@sentry/react-native'); } catch {}
 
-const SENTRY_DSN = 'https://2a4fbb19b820e96b9395e3131f39a4ab@o4511174475120640.ingest.us.sentry.io/4511174478725120';
+const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? '';
 
 let initialized = false;
 

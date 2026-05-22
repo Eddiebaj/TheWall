@@ -48,7 +48,7 @@ export default function FriendsScreen() {
       if (stored === today) {
         setDownTonight(true);
       } else if (stored && stored !== today) {
-        // New day — clear stale state
+        // New day clear stale state
         setDownTonight(false);
         await AsyncStorage.removeItem(DOWN_TONIGHT_KEY);
         await supabase.from('profiles').update({ is_down_tonight: false }).eq('id', user.id);
@@ -248,7 +248,7 @@ export default function FriendsScreen() {
   const handleShareInvite = async () => {
     const inviteUrl = `https://thewall.app/invite/${user!.id}`;
     await Share.share({
-      message: `Join me on The Wall — discover Toronto's best nights out 🎉 ${inviteUrl}`,
+      message: `Join me on The Wall discover Toronto's best nights out 🎉 ${inviteUrl}`,
       url: inviteUrl,
     });
   };
@@ -256,7 +256,7 @@ export default function FriendsScreen() {
   const handleInviteLink = async () => {
     const inviteUrl = `https://thewall.app/invite/${user!.id}`;
     await Clipboard.setStringAsync(inviteUrl);
-    Alert.alert('Link copied!', 'Share the link with your friends — when they sign up, you\'ll be connected automatically.');
+    Alert.alert('Link copied!', 'Share the link with your friends when they sign up, you\'ll be connected automatically.');
   };
 
   const createGroup = () => {
@@ -305,7 +305,7 @@ export default function FriendsScreen() {
       return;
     }
 
-    // Optimistic update — add to list immediately
+    // Optimistic update add to list immediately
     setConversations(prev => [conv, ...prev]);
     setNewGroupName('');
     setGroupFriendSearch('');
@@ -363,7 +363,7 @@ export default function FriendsScreen() {
         <View
           style={{
             flexDirection: 'row', alignItems: 'center', gap: 10,
-            paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14,
+            paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14,
             borderWidth: 1.5,
             borderColor: downTonight ? '#00C07A' : 'rgba(255,255,255,0.08)',
             backgroundColor: downTonight ? '#00C07A12' : '#1E2230',
@@ -631,7 +631,7 @@ export default function FriendsScreen() {
           {loading ? (
             <ActivityIndicator color={colours.accent} />
           ) : friends.length === 0 ? (
-            <View style={{ padding: 32, alignItems: 'center', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderStyle: 'dashed', backgroundColor: 'transparent' }}>
+            <View style={{ padding: 32, alignItems: 'center', borderRadius: 16, borderWidth: 1, borderColor: '#2a2a2a', backgroundColor: 'transparent' }}>
               <Ionicons name="people-outline" size={48} color={colours.muted} style={{ marginBottom: 8 }} />
               <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text, marginBottom: 4 }}>No friends yet</Text>
               <Text style={{ fontSize: 13, color: colours.muted, textAlign: 'center' }}>Search for friends by username above</Text>
@@ -653,7 +653,7 @@ export default function FriendsScreen() {
         </View>
 
         {/* Invite friends */}
-        <View style={{ marginTop: 8, padding: 20, borderRadius: 16, backgroundColor: '#1A2E1A', borderWidth: 1, borderColor: 'rgba(0,192,122,0.2)' }}>
+        <View style={{ marginTop: 8, padding: 20, borderRadius: 16, backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a' }}>
           <Text style={{ fontSize: 16, fontWeight: '800', color: '#fff', marginBottom: 4 }}>
             Invite your friends
           </Text>
@@ -663,14 +663,14 @@ export default function FriendsScreen() {
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <TouchableOpacity
               onPress={handleInviteLink}
-              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: 'rgba(0,192,122,0.12)', borderWidth: 1, borderColor: 'rgba(0,192,122,0.3)' }}
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: 'transparent', borderWidth: 1, borderColor: '#2a2a2a' }}
             >
-              <Ionicons name="link-outline" size={16} color="#00C07A" />
-              <Text style={{ fontSize: 14, fontWeight: '700', color: '#00C07A' }}>Copy link</Text>
+              <Ionicons name="link-outline" size={16} color="#fff" />
+              <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>Copy link</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleShareInvite}
-              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: '#00C07A' }}
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: '#FF3B5C' }}
             >
               <Ionicons name="share-outline" size={16} color="white" />
               <Text style={{ fontSize: 14, fontWeight: '700', color: 'white' }}>Share</Text>
@@ -716,7 +716,7 @@ export default function FriendsScreen() {
             <ScrollView style={{ maxHeight: 240 }} showsVerticalScrollIndicator={false}>
               {friends.length === 0 ? (
                 <Text style={{ fontSize: 13, color: colours.muted, textAlign: 'center', paddingVertical: 16 }}>
-                  No friends yet — add friends first
+                  Add friends first to create a group
                 </Text>
               ) : (
                 friends

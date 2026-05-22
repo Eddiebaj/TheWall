@@ -1,18 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { PostHogProvider } from 'posthog-react-native';
+import * as Notifications from 'expo-notifications';
 import { Stack, router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Image, View, Text, ScrollView, StyleSheet } from 'react-native';
+import { Animated, Image, Linking, View, Text, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppProvider } from '../context/AppContext';
 import { BoardProvider } from '../context/BoardContext';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import NetworkBanner from '../components/NetworkBanner';
-import { SK_ONBOARDED, SK_CRASH_LOG, SK_LANGUAGE } from '../lib/storageKeys';
+import { SK_ONBOARDED, SK_CRASH_LOG } from '../lib/storageKeys';
 import { initSentry, captureException } from '../lib/sentry';
-import { refreshCommuteNotification } from '../lib/commuteNotifications';
 import { incrementSessionCount } from '../lib/onboardingPrompts';
-import { resumeWatcherIfNeeded } from '../lib/watchedBuses';
 
 // Prevent the native splash screen from auto-hiding until our animated splash starts
 SplashScreen.preventAutoHideAsync();
@@ -126,6 +126,21 @@ function RootNav() {
   // Declare ref BEFORE the useEffect that assigns to it
   const animationResolveRef = useRef<(() => void) | null>(null);
 
+  // Deep link handler for thewall://event/:id
+  useEffect(() => {
+    const handleUrl = (url: string) => {
+      const match = url.match(/^thewall:\/\/event\/([^/?#]+)/);
+      if (match) {
+        router.push(`/event/${match[1]}` as any);
+      }
+    };
+    // Handle cold-start deep link
+    Linking.getInitialURL().then(url => { if (url) handleUrl(url); }).catch(() => {});
+    // Handle foreground deep links
+    const sub = Linking.addEventListener('url', ({ url }) => handleUrl(url));
+    return () => sub.remove();
+  }, []);
+
   useEffect(() => {
     if (__DEV__) console.log('[RootNav] useEffect start - creating storagePromise and animationPromise');
 
@@ -153,12 +168,6 @@ function RootNav() {
       setDestination(dest);
       // Increment session counter for onboarding prompts
       incrementSessionCount().catch(() => {});
-      // Resume any bus approach watchers from a previous session
-      resumeWatcherIfNeeded().catch(() => {});
-      // Refresh morning commute notification with latest route data
-      AsyncStorage.getItem(SK_LANGUAGE)
-        .then(lang => refreshCommuteNotification(lang || 'en'))
-        .catch(() => {});
     });
   }, []);
 
@@ -195,6 +204,14 @@ function RootNav() {
           } else {
             if (__DEV__) console.log('[RootNav] Routing to /(tabs)/index');
             router.replace('/(tabs)/index');
+            // Request push notification permissions once after login
+            Notifications.getPermissionsAsync().then(({ status }) => {
+              if (status !== 'granted') {
+                Notifications.requestPermissionsAsync().then(({ status: newStatus }) => {
+                  AsyncStorage.setItem('thewall_notif_permission', newStatus).catch(() => {});
+                });
+              }
+            }).catch(() => {});
           }
         })();
       }
@@ -218,12 +235,14 @@ function RootNav() {
       <Stack.Screen name="business-signup" options={{ headerShown: false }} />
       <Stack.Screen name="business-dashboard" options={{ headerShown: false }} />
       <Stack.Screen name="qr-scan" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+      <Stack.Screen name="invite/[id]" options={{ headerShown: false }} />
     </Stack>
   );
 }
 
 export default function RootLayout() {
   return (
+    <PostHogProvider apiKey={process.env.EXPO_PUBLIC_POSTHOG_API_KEY ?? ''} options={{ host: 'https://us.i.posthog.com' }}>
     <AuthProvider>
       <SafeAreaProvider>
         <RootErrorBoundary>
@@ -236,6 +255,7 @@ export default function RootLayout() {
         </RootErrorBoundary>
       </SafeAreaProvider>
     </AuthProvider>
+    </PostHogProvider>
   );
 }
 

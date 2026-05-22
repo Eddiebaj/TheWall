@@ -10,6 +10,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -19,6 +20,8 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../context/AuthContext';
+import { useAnalytics } from '../../lib/analytics';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_MARGIN = 8;
@@ -123,24 +126,14 @@ function buildLeafletHtml(markers: DiscoverEvent[]): string {
   }).addTo(map);
 
   function getEventColor(title) {
-    var t = (title || '').toLowerCase();
-    if (/club|dj|nightlife|party/.test(t)) return '#FF3B5C';
-    if (/live music|concert|band/.test(t)) return '#FF6B35';
-    if (/happy hour|drinks|bar/.test(t)) return '#D4A017';
-    if (/food|brunch|restaurant/.test(t)) return '#00C853';
-    if (/art|comedy|game|trivia/.test(t)) return '#2979FF';
-    return '#FF3B5C';
+    return '#1a1a1a';
   }
 
   function makeBannerIcon(venue, color, zoom, selected) {
     var label = venue || '';
     var opacity = selected ? '1' : '0.9';
     var scale = selected ? 'scale(1.1)' : 'scale(1)';
-    var bgColor = color.replace(')', ', 0.85)').replace('rgb(', 'rgba(').replace(/^(#[0-9a-fA-F]+)$/, function(hex) {
-      var r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
-      return 'rgba(' + r + ',' + g + ',' + b + ',0.85)';
-    });
-    var html = '<div class="pill-marker" style="background:' + bgColor + ';color:#fff;font-family:-apple-system,sans-serif;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;box-shadow:0 2px 8px rgba(0,0,0,0.5);cursor:pointer;transition:transform 0.15s ease,opacity 0.15s ease;opacity:' + opacity + ';transform:' + scale + ';display:inline-block;">'
+    var html = '<div class="pill-marker" style="background:#1a1a1a;border:1px solid #333;color:#fff;font-family:-apple-system,sans-serif;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;box-shadow:0 2px 8px rgba(0,0,0,0.5);cursor:pointer;transition:transform 0.15s ease,opacity 0.15s ease;opacity:' + opacity + ';transform:' + scale + ';display:inline-block;">'
       + label
       + '</div>';
     return L.divIcon({
@@ -264,17 +257,24 @@ function SkeletonGrid() {
 export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
+  const { capture } = useAnalytics();
   const [sort, setSort] = useState<SortOption>('This Week');
   const [neighbourhoods, setNeighbourhoods] = useState<Set<string>>(new Set());
   const [entryFilters, setEntryFilters] = useState<Set<string>>(new Set());
   const [events, setEvents] = useState<DiscoverEvent[]>([]);
   const [attendees, setAttendees] = useState<Record<string, AttendeeInfo>>({});
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [mapMode, setMapMode] = useState(false);
   const [gridSort, setGridSort] = useState<'date' | 'popular'>('date');
   const [selectedEvent, setSelectedEvent] = useState<DiscoverEvent | null>(null);
   const [showFilterSheet, setShowFilterSheet] = useState(false);
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchHeightAnim = useRef(new Animated.Value(0)).current;
+  const searchInputRef = useRef<any>(null);
   const slideAnim = useRef(new Animated.Value(300)).current;
 
   useEffect(() => {
@@ -297,6 +297,36 @@ export default function DiscoverScreen() {
   useEffect(() => {
     loadEvents(sort);
   }, [sort]);
+
+  useEffect(() => {
+    if (user) loadSavedIds();
+  }, [user]);
+
+  const loadSavedIds = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('saved_events')
+      .select('event_id')
+      .eq('user_id', user.id);
+    if (data) setSavedIds(new Set((data as any[]).map(r => r.event_id)));
+  };
+
+  const toggleSave = async (eventId: string) => {
+    if (!user) return;
+    const isSaved = savedIds.has(eventId);
+    // Optimistic update
+    setSavedIds(prev => {
+      const next = new Set(prev);
+      isSaved ? next.delete(eventId) : next.add(eventId);
+      return next;
+    });
+    if (isSaved) {
+      await supabase.from('saved_events').delete().eq('user_id', user.id).eq('event_id', eventId);
+    } else {
+      capture('event_saved', { event_id: eventId });
+      await supabase.from('saved_events').upsert({ user_id: user.id, event_id: eventId });
+    }
+  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -374,10 +404,35 @@ export default function DiscoverScreen() {
 
   const happeningNow = events.filter(isHappeningNow);
 
+  const toggleSearch = () => {
+    if (searchVisible) {
+      setSearchQuery('');
+      Animated.timing(searchHeightAnim, { toValue: 0, duration: 200, useNativeDriver: false }).start(() => setSearchVisible(false));
+    } else {
+      setSearchVisible(true);
+      Animated.timing(searchHeightAnim, { toValue: 52, duration: 200, useNativeDriver: false }).start(() => {
+        searchInputRef.current?.focus();
+      });
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    Animated.timing(searchHeightAnim, { toValue: 0, duration: 200, useNativeDriver: false }).start(() => setSearchVisible(false));
+  };
+
   const filteredEvents = (() => {
     let base = neighbourhoods.size === 0 ? events : events.filter(e => e.neighbourhood != null && neighbourhoods.has(e.neighbourhood));
     if (entryFilters.size > 0) {
       base = base.filter(e => e.entry_type != null && entryFilters.has(e.entry_type));
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      base = base.filter(e =>
+        e.title.toLowerCase().includes(q) ||
+        e.venue_name.toLowerCase().includes(q) ||
+        (e.neighbourhood ?? '').toLowerCase().includes(q)
+      );
     }
     if (gridSort === 'popular') {
       return [...base].sort((a, b) => (attendees[b.id]?.count ?? 0) - (attendees[a.id]?.count ?? 0));
@@ -394,10 +449,10 @@ export default function DiscoverScreen() {
           <Text style={styles.title}>Discover</Text>
           <View style={styles.headerActions}>
             <TouchableOpacity
-              onPress={() => router.push('/search' as any)}
+              onPress={toggleSearch}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Ionicons name="search" size={22} color="rgba(255,255,255,0.8)" />
+              <Ionicons name={searchVisible ? 'search' : 'search'} size={22} color={searchVisible ? '#fff' : 'rgba(255,255,255,0.8)'} />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => { setMapMode(m => !m); setSelectedEvent(null); }}
@@ -441,6 +496,44 @@ export default function DiscoverScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Inline search bar */}
+      <Animated.View style={{ height: searchHeightAnim, overflow: 'hidden', paddingHorizontal: 16 }}>
+        {searchVisible && (
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: '#1a1a1a',
+            borderRadius: 12,
+            paddingHorizontal: 12,
+            height: 44,
+            gap: 8,
+          }}>
+            <Ionicons name="search-outline" size={16} color="rgba(255,255,255,0.4)" />
+            <TextInput
+              ref={searchInputRef}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search events, venues..."
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              style={{ flex: 1, fontSize: 15, color: '#fff', paddingVertical: 0 }}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close-circle" size={18} color="rgba(255,255,255,0.4)" />
+              </TouchableOpacity>
+            )}
+            {searchQuery.length === 0 && (
+              <TouchableOpacity onPress={clearSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={18} color="rgba(255,255,255,0.4)" />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+      </Animated.View>
 
       <Modal
         visible={showFilterSheet}
@@ -612,7 +705,7 @@ export default function DiscoverScreen() {
       ) : filteredEvents.length === 0 ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 15, fontWeight: '600' }}>
-            No events {sort === 'Tonight' ? 'tonight' : 'this week'}
+            {searchQuery.trim() ? 'No events found' : `No events ${sort === 'Tonight' ? 'tonight' : 'this week'}`}
           </Text>
         </View>
       ) : (
@@ -683,6 +776,7 @@ export default function DiscoverScreen() {
           }
           renderItem={({ item }) => {
             const info = attendees[item.id];
+            const isSaved = savedIds.has(item.id);
             return (
               <TouchableOpacity
                 style={styles.card}
@@ -751,6 +845,19 @@ export default function DiscoverScreen() {
                     </Text>
                   </View>
                 </LinearGradient>
+
+                {/* Heart / save button */}
+                <TouchableOpacity
+                  style={styles.heartBtn}
+                  onPress={() => toggleSave(item.id)}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <Ionicons
+                    name={isSaved ? 'heart' : 'heart-outline'}
+                    size={18}
+                    color={isSaved ? '#FF3B5C' : 'rgba(255,255,255,0.85)'}
+                  />
+                </TouchableOpacity>
               </TouchableOpacity>
             );
           }}
@@ -1113,6 +1220,17 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.55)',
     fontSize: 10,
     marginTop: 2,
+  },
+  heartBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   skeletonGrid: {
     paddingHorizontal: CARD_MARGIN,

@@ -13,15 +13,15 @@ function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: colours.surface,
-          borderTopColor: colours.border,
+          backgroundColor: '#0C0E12',
+          borderTopColor: '#1E2230',
           borderTopWidth: 0.5,
           height: 56 + insets.bottom,
           paddingTop: 6,
           paddingBottom: insets.bottom,
         },
-        tabBarActiveTintColor: colours.accent,
-        tabBarInactiveTintColor: colours.muted,
+        tabBarActiveTintColor: '#FF3B5C',
+        tabBarInactiveTintColor: '#666',
         tabBarLabelStyle: {
           fontSize: 10,
           fontWeight: '600',

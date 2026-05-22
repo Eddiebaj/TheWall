@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
+import { useAnalytics } from '../../lib/analytics';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 const POSTER_HEIGHT = SCREEN_HEIGHT * 0.42;
@@ -47,8 +48,10 @@ interface EventDetail {
   poster_url: string | null;
   event_date: string | null;
   start_time: string | null;
+  end_time: string | null;
   cover_charge: string | null;
   description: string | null;
+  venue_id: string | null;
   venue: {
     name: string;
     neighbourhood: string | null;
@@ -94,9 +97,12 @@ export default function EventDetailScreen() {
   const { colours } = useApp();
   const { user } = useAuth();
 
+  const { capture } = useAnalytics();
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [rsvpProfiles, setRsvpProfiles] = useState<RsvpProfile[]>([]);
+  const [friendIds, setFriendIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [isSaved, setIsSaved] = useState(false);
 
   // Share sheet
   const [shareSheetVisible, setShareSheetVisible] = useState(false);
@@ -119,7 +125,7 @@ export default function EventDetailScreen() {
 
     const { data, error } = await supabase
       .from('events')
-      .select('id, title, poster_url, date, venues(name, neighbourhood, address)')
+      .select('id, title, poster_url, date, start_time, end_time, cover_charge, venue_id, venues(name, neighbourhood, address)')
       .eq('id', id)
       .single();
 
@@ -137,35 +143,54 @@ export default function EventDetailScreen() {
     let isGoing = false;
     let isInterested = false;
     if (user) {
-      const { data: rsvp } = await supabase
-        .from('event_rsvps')
-        .select('status')
-        .eq('event_id', id)
-        .eq('user_id', user.id)
-        .maybeSingle();
+      const [{ data: rsvp }, { data: interest }, { data: saved }] = await Promise.all([
+        supabase.from('event_rsvps').select('status').eq('event_id', id).eq('user_id', user.id).maybeSingle(),
+        supabase.from('event_interests').select('id').eq('event_id', id).eq('user_id', user.id).maybeSingle(),
+        supabase.from('saved_events').select('id').eq('event_id', id).eq('user_id', user.id).maybeSingle(),
+      ]);
       isGoing = rsvp?.status === 'going';
-      isInterested = rsvp?.status === 'interested';
+      isInterested = !!interest;
+      setIsSaved(!!saved);
     }
 
-    const { data: rsvpRows } = await supabase
-      .from('event_rsvps')
-      .select('profiles(id, username, avatar_url)')
-      .eq('event_id', id)
-      .eq('status', 'going')
-      .limit(20);
+    const [{ data: rsvpRows }, { data: friendRows }] = await Promise.all([
+      supabase
+        .from('event_rsvps')
+        .select('profiles(id, username, avatar_url)')
+        .eq('event_id', id)
+        .eq('status', 'going')
+        .limit(20),
+      user
+        ? supabase
+            .from('friendships')
+            .select('requester_id, addressee_id')
+            .eq('status', 'accepted')
+            .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`)
+        : Promise.resolve({ data: [] }),
+    ]);
+
     const profiles = ((rsvpRows || []) as any[])
       .map((r: any) => r.profiles)
       .filter(Boolean) as RsvpProfile[];
     setRsvpProfiles(profiles);
+
+    const ids = new Set<string>(
+      ((friendRows || []) as any[]).map((f: any) =>
+        f.requester_id === user?.id ? f.addressee_id : f.requester_id
+      )
+    );
+    setFriendIds(ids);
 
     setEvent({
       id: data.id,
       title: data.title,
       poster_url: data.poster_url || null,
       event_date: data.date || null,
-      start_time: null,
-      cover_charge: null,
+      start_time: (data as any).start_time || null,
+      end_time: (data as any).end_time || null,
+      cover_charge: (data as any).cover_charge || null,
       description: (data as any).description || null,
+      venue_id: (data as any).venue_id || null,
       venue: (data as any).venues || null,
       goingCount: goingCount || 0,
       isGoing,
@@ -190,20 +215,37 @@ export default function EventDetailScreen() {
         if (error) setEvent(e => e ? { ...e, isGoing: true, goingCount: e.goingCount + 1 } : e);
       } else {
         setEvent(e => e ? { ...e, isInterested: false } : e);
-        const { error } = await supabase.from('event_rsvps').delete().eq('event_id', event.id).eq('user_id', user.id);
+        const { error } = await supabase.from('event_interests').delete().eq('event_id', event.id).eq('user_id', user.id);
         if (error) setEvent(e => e ? { ...e, isInterested: true } : e);
       }
     } else {
       if (status === 'going') {
-        setEvent(e => e ? { ...e, isGoing: true, isInterested: false, goingCount: e.goingCount + (e.isGoing ? 0 : 1) } : e);
+        setEvent(e => e ? { ...e, isGoing: true, goingCount: e.goingCount + (e.isGoing ? 0 : 1) } : e);
         const { error } = await supabase.from('event_rsvps').upsert({ event_id: event.id, user_id: user.id, status: 'going' }, { onConflict: 'event_id,user_id' });
         if (error) setEvent(e => e ? { ...e, isGoing: false, goingCount: Math.max(0, e.goingCount - 1) } : e);
       } else {
-        const wasGoing = event.isGoing;
-        setEvent(e => e ? { ...e, isInterested: true, isGoing: false, goingCount: wasGoing ? Math.max(0, e.goingCount - 1) : e.goingCount } : e);
-        const { error } = await supabase.from('event_rsvps').upsert({ event_id: event.id, user_id: user.id, status: 'interested' }, { onConflict: 'event_id,user_id' });
-        if (error) setEvent(e => e ? { ...e, isInterested: false, isGoing: wasGoing, goingCount: wasGoing ? e.goingCount + 1 : e.goingCount } : e);
+        setEvent(e => e ? { ...e, isInterested: true } : e);
+        const { error } = await supabase.from('event_interests').insert({ event_id: event.id, user_id: user.id });
+        if (error) setEvent(e => e ? { ...e, isInterested: false } : e);
       }
+    }
+  };
+
+  const handleToggleSave = async () => {
+    if (!user) {
+      Alert.alert('Sign in required', 'Sign in to save events.');
+      return;
+    }
+    if (!event) return;
+    const nowSaved = !isSaved;
+    setIsSaved(nowSaved);
+    if (nowSaved) {
+      capture('event_saved', { event_id: event.id });
+      const { error } = await supabase.from('saved_events').upsert({ user_id: user.id, event_id: event.id });
+      if (error) setIsSaved(false);
+    } else {
+      const { error } = await supabase.from('saved_events').delete().eq('user_id', user.id).eq('event_id', event.id);
+      if (error) setIsSaved(true);
     }
   };
 
@@ -215,7 +257,7 @@ export default function EventDetailScreen() {
       ? new Date(event.event_date).toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })
       : 'an upcoming date';
     Share.share({
-      message: `Check out ${event.title} at ${venueName} on ${dateStr} 🎉`,
+      message: `Check out ${event.title} at ${venueName} on ${dateStr} - open in The Wall: thewall://event/${event.id}`,
     });
   };
 
@@ -386,6 +428,13 @@ export default function EventDetailScreen() {
     ? new Date(event.event_date).toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })
     : null;
 
+  const formattedDateTime = (() => {
+    if (!formattedDate) return null;
+    if (event.start_time && event.end_time) return `${formattedDate} · ${event.start_time} – ${event.end_time}`;
+    if (event.start_time) return `${formattedDate} · ${event.start_time}`;
+    return formattedDate;
+  })();
+
   const q = search.toLowerCase();
   const filteredFriends = friends.filter(f => f.username.toLowerCase().includes(q));
   const filteredGroups = groups.filter(g => (g.name || '').toLowerCase().includes(q));
@@ -420,13 +469,50 @@ export default function EventDetailScreen() {
         >
           <Ionicons name="chevron-back" size={22} color="#fff" />
         </TouchableOpacity>
+        <TouchableOpacity
+          onPress={handleToggleSave}
+          style={{
+            position: 'absolute',
+            top: insets.top + 12,
+            right: 60,
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Ionicons name={isSaved ? 'bookmark' : 'bookmark-outline'} size={20} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={handleShareExternal}
+          style={{
+            position: 'absolute',
+            top: insets.top + 12,
+            right: 16,
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Ionicons name="share-outline" size={20} color="#fff" />
+        </TouchableOpacity>
       </View>
 
       {/* Content */}
       <View style={{ flex: 1, padding: 20, paddingBottom: insets.bottom + 40 }}>
-        <Text style={{ fontSize: 26, fontWeight: '800', color: colours.text, marginBottom: 8 }}>
-          {event.venue?.name || 'Unknown Venue'}
-        </Text>
+        <TouchableOpacity
+          activeOpacity={event.venue_id ? 0.7 : 1}
+          onPress={() => event.venue_id && router.push(`/venue/${event.venue_id}` as any)}
+        >
+          <Text style={{ fontSize: 26, fontWeight: '800', color: colours.text, marginBottom: 8 }}>
+            {event.venue?.name || 'Unknown Venue'}
+          </Text>
+        </TouchableOpacity>
 
         {event.venue?.neighbourhood && (
           <View style={{
@@ -450,16 +536,10 @@ export default function EventDetailScreen() {
         </Text>
 
         <View style={{ flexDirection: 'row', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
-          {formattedDate && (
+          {formattedDateTime && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Ionicons name="calendar-outline" size={15} color={colours.muted} />
-              <Text style={{ fontSize: 13, color: colours.muted, fontWeight: '600' }}>{formattedDate}</Text>
-            </View>
-          )}
-          {event.start_time && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name="time-outline" size={15} color={colours.muted} />
-              <Text style={{ fontSize: 13, color: colours.muted, fontWeight: '600' }}>{event.start_time}</Text>
+              <Text style={{ fontSize: 13, color: colours.muted, fontWeight: '600' }}>{formattedDateTime}</Text>
             </View>
           )}
           {event.cover_charge && (
@@ -506,52 +586,71 @@ export default function EventDetailScreen() {
         </View>
 
         {rsvpProfiles.length > 0 && (() => {
-          const shown = rsvpProfiles.slice(0, 5);
-          const extra = rsvpProfiles.length - shown.length;
+          const friendProfiles = rsvpProfiles.filter(p => friendIds.has(p.id));
+          const otherCount = rsvpProfiles.length - friendProfiles.length;
+          const shownFriends = friendProfiles.slice(0, 5);
           const AVATAR_SIZE = 36;
           const OVERLAP = 12;
+          const hasFriends = shownFriends.length > 0;
           return (
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24, minHeight: AVATAR_SIZE }}>
-              <View style={{ flexDirection: 'row', width: shown.length * (AVATAR_SIZE - OVERLAP) + OVERLAP, height: AVATAR_SIZE }}>
-                {shown.map((p, i) => (
-                  <View
-                    key={p.id}
-                    style={{
-                      position: 'absolute',
-                      left: i * (AVATAR_SIZE - OVERLAP),
-                      width: AVATAR_SIZE,
-                      height: AVATAR_SIZE,
-                      borderRadius: AVATAR_SIZE / 2,
-                      borderWidth: 2,
-                      borderColor: colours.bg,
-                      backgroundColor: colours.accent,
-                      overflow: 'hidden',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      zIndex: shown.length - i,
-                    }}
-                  >
-                    {p.avatar_url ? (
-                      <Image source={{ uri: p.avatar_url }} style={{ width: '100%', height: '100%' }} />
-                    ) : (
-                      <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>
-                        {p.username[0].toUpperCase()}
-                      </Text>
-                    )}
-                  </View>
-                ))}
+              {hasFriends && (
+                <View style={{ flexDirection: 'row', width: shownFriends.length * (AVATAR_SIZE - OVERLAP) + OVERLAP, height: AVATAR_SIZE, marginRight: 8 }}>
+                  {shownFriends.map((p, i) => (
+                    <View
+                      key={p.id}
+                      style={{
+                        position: 'absolute',
+                        left: i * (AVATAR_SIZE - OVERLAP),
+                        width: AVATAR_SIZE,
+                        height: AVATAR_SIZE,
+                        borderRadius: AVATAR_SIZE / 2,
+                        borderWidth: 2,
+                        borderColor: colours.bg,
+                        backgroundColor: colours.accent,
+                        overflow: 'hidden',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: shownFriends.length - i,
+                      }}
+                    >
+                      {p.avatar_url ? (
+                        <Image source={{ uri: p.avatar_url }} style={{ width: '100%', height: '100%' }} />
+                      ) : (
+                        <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>
+                          {p.username[0].toUpperCase()}
+                        </Text>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              )}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                {hasFriends && (
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>
+                    {friendProfiles.length} {friendProfiles.length === 1 ? 'friend' : 'friends'} going
+                  </Text>
+                )}
+                {!hasFriends && otherCount > 0 && (
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: colours.muted }}>
+                    {otherCount} {otherCount === 1 ? 'person' : 'people'} going
+                  </Text>
+                )}
+                {hasFriends && otherCount > 0 && (
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: colours.muted }}>
+                    · +{otherCount} others
+                  </Text>
+                )}
               </View>
-              <Text style={{ fontSize: 13, color: colours.muted, fontWeight: '600', marginLeft: 8 }}>
-                {extra > 0
-                  ? `${shown.length}+${extra} going`
-                  : `${rsvpProfiles.length} ${rsvpProfiles.length === 1 ? 'person' : 'people'} going`}
-              </Text>
             </View>
           );
         })()}
 
         <TouchableOpacity
-          onPress={() => handleToggleRsvp('going')}
+          onPress={() => {
+            if (!event.isGoing) capture('rsvp_tapped', { event_id: event.id });
+            handleToggleRsvp('going');
+          }}
           activeOpacity={0.85}
           style={{
             backgroundColor: event.isGoing ? '#c0392b' : '#FF3B5C',
@@ -573,16 +672,70 @@ export default function EventDetailScreen() {
             borderRadius: 14,
             paddingVertical: 15,
             alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'row',
+            gap: 6,
             marginBottom: 14,
             borderWidth: 1.5,
-            borderColor: event.isInterested ? colours.accent : colours.border,
-            backgroundColor: event.isInterested ? colours.accent + '18' : 'transparent',
+            borderColor: event.isInterested ? '#444' : colours.border,
+            backgroundColor: event.isInterested ? '#1a1a1a' : 'transparent',
           }}
         >
-          <Text style={{ fontSize: 16, fontWeight: '700', color: event.isInterested ? colours.accent : colours.text }}>
+          {event.isInterested && <Ionicons name="checkmark" size={16} color="#fff" />}
+          <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>
             Interested
           </Text>
         </TouchableOpacity>
+
+        {rsvpProfiles.length > 0 && (
+          <View style={{ marginBottom: 20 }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff', marginBottom: 12 }}>
+              Who's going
+            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {rsvpProfiles.slice(0, 5).map((p) => (
+                <View
+                  key={p.id}
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: colours.accent,
+                    overflow: 'hidden',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderWidth: 2,
+                    borderColor: colours.bg,
+                  }}
+                >
+                  {p.avatar_url ? (
+                    <Image source={{ uri: p.avatar_url }} style={{ width: '100%', height: '100%' }} />
+                  ) : (
+                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>
+                      {p.username[0].toUpperCase()}
+                    </Text>
+                  )}
+                </View>
+              ))}
+              {rsvpProfiles.length > 5 && (
+                <View style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  backgroundColor: 'rgba(255,255,255,0.1)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderWidth: 2,
+                  borderColor: colours.bg,
+                }}>
+                  <Text style={{ color: colours.muted, fontSize: 11, fontWeight: '700' }}>
+                    +{rsvpProfiles.length - 5}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <TouchableOpacity

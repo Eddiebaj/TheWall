@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, TextInput, Switch, Image } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, TextInput, Image, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -72,6 +72,58 @@ function VenueAnalytics({ venueName, colours }: { venueName: string; colours: an
   );
 }
 
+// ─── Event card with live stats ─────────────────────────────────────────────
+function EventCard({ event, colours }: { event: any; colours: any }) {
+  const [stats, setStats] = useState({ going: 0, interested: 0, moments: 0 });
+
+  useEffect(() => {
+    Promise.all([
+      supabase.from('venue_event_rsvps').select('id', { count: 'exact', head: true }).eq('event_id', event.id).eq('status', 'going'),
+      supabase.from('venue_event_rsvps').select('id', { count: 'exact', head: true }).eq('event_id', event.id).eq('status', 'interested'),
+      supabase.from('city_board_posts').select('id', { count: 'exact', head: true }).eq('event_id', event.id),
+    ]).then(([going, interested, moments]) => {
+      setStats({ going: going.count ?? 0, interested: interested.count ?? 0, moments: moments.count ?? 0 });
+    });
+  }, [event.id]);
+
+  const dateStr = event.event_date
+    ? new Date(event.event_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : '';
+
+  return (
+    <View style={{ padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, marginBottom: 10 }}>
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        {event.poster_url ? (
+          <Image source={{ uri: event.poster_url }} style={{ width: 56, height: 56, borderRadius: 10 }} resizeMode="cover" />
+        ) : (
+          <View style={{ width: 56, height: 56, borderRadius: 10, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="calendar-outline" size={24} color={colours.muted} />
+          </View>
+        )}
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text }}>{event.title}</Text>
+          <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>
+            {dateStr}{event.event_time ? ` · ${event.event_time}` : ''}{event.cover_charge && event.cover_charge !== 'Free' ? ` · ${event.cover_charge}` : ''}
+          </Text>
+        </View>
+      </View>
+      <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+        {[
+          { icon: 'checkmark-circle-outline', label: 'Going', value: stats.going, color: '#00C07A' },
+          { icon: 'star-outline', label: 'Interested', value: stats.interested, color: colours.accent },
+          { icon: 'images-outline', label: 'Moments', value: stats.moments, color: '#A78BFA' },
+        ].map((s, i) => (
+          <View key={i} style={{ flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 10, backgroundColor: colours.bg }}>
+            <Ionicons name={s.icon as any} size={14} color={s.color} />
+            <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text, marginTop: 2 }}>{s.value}</Text>
+            <Text style={{ fontSize: 10, color: colours.muted }}>{s.label}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export default function BusinessDashboardScreen() {
   const { colours } = useApp();
   const router = useRouter();
@@ -79,8 +131,10 @@ export default function BusinessDashboardScreen() {
 
   const [business, setBusiness] = useState<any>(null);
   const [deals, setDeals] = useState<any[]>([]);
+  const [venueEvents, setVenueEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDeal, setShowAddDeal] = useState(false);
+  const [showCreateEvent, setShowCreateEvent] = useState(false);
 
   // New deal form
   const [dealTitle, setDealTitle] = useState('');
@@ -99,6 +153,15 @@ export default function BusinessDashboardScreen() {
   const [eventPrice, setEventPrice] = useState('Free');
   const [ticketUrl, setTicketUrl] = useState('');
   const [showAddPoster, setShowAddPoster] = useState(false);
+
+  // Create event form
+  const [newEventTitle, setNewEventTitle] = useState('');
+  const [newEventDate, setNewEventDate] = useState('');
+  const [newEventTime, setNewEventTime] = useState('');
+  const [newEventCharge, setNewEventCharge] = useState('Free');
+  const [newEventPosterUrl, setNewEventPosterUrl] = useState<string | null>(null);
+  const [uploadingEventPoster, setUploadingEventPoster] = useState(false);
+  const [creatingEvent, setCreatingEvent] = useState(false);
 
   useEffect(() => { loadData(); }, []);
 
@@ -128,6 +191,14 @@ export default function BusinessDashboardScreen() {
       .order('created_at', { ascending: false });
 
     setDeals(bizDeals || []);
+
+    const { data: events } = await supabase
+      .from('venue_events')
+      .select('*')
+      .eq('business_id', biz.id)
+      .order('event_date', { ascending: false });
+
+    setVenueEvents(events || []);
 
     const { data: existingQR } = await supabase
       .from('venue_qr_codes')
@@ -210,6 +281,51 @@ export default function BusinessDashboardScreen() {
     } finally {
       setUploadingPoster(false);
     }
+  };
+
+  const uploadEventPoster = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+    setUploadingEventPoster(true);
+    try {
+      const asset = result.assets[0];
+      const ext = asset.uri.split('.').pop() || 'jpg';
+      const path = `event-posters/${business.business_name.replace(/\s+/g, '_')}_${Date.now()}.${ext}`;
+      const response = await fetch(asset.uri);
+      const blob = await response.blob();
+      const { error: uploadError } = await supabase.storage
+        .from('poster-memories')
+        .upload(path, blob, { contentType: `image/${ext}` });
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage.from('poster-memories').getPublicUrl(path);
+      setNewEventPosterUrl(publicUrl);
+    } catch {
+      Alert.alert('Error', 'Could not upload poster.');
+    } finally {
+      setUploadingEventPoster(false);
+    }
+  };
+
+  const createEvent = async () => {
+    if (!newEventTitle.trim()) { Alert.alert('Required', 'Please enter an event title.'); return; }
+    if (!newEventDate.trim()) { Alert.alert('Required', 'Please enter a date (e.g. 2026-06-15).'); return; }
+    setCreatingEvent(true);
+    const { error } = await supabase.from('venue_events').insert({
+      business_id: business.id,
+      title: newEventTitle.trim(),
+      event_date: newEventDate.trim(),
+      event_time: newEventTime.trim() || null,
+      cover_charge: newEventCharge.trim() || 'Free',
+      poster_url: newEventPosterUrl || null,
+    });
+    setCreatingEvent(false);
+    if (error) { Alert.alert('Error', error.message); return; }
+    setNewEventTitle(''); setNewEventDate(''); setNewEventTime(''); setNewEventCharge('Free'); setNewEventPosterUrl(null);
+    setShowCreateEvent(false);
+    loadData();
   };
 
   const submitDeal = async () => {
@@ -311,6 +427,84 @@ export default function BusinessDashboardScreen() {
 
         {/* Live Analytics */}
         <VenueAnalytics venueName={business?.business_name} colours={colours} />
+
+        {/* Events */}
+        <View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, flex: 1 }}>
+              Events ({venueEvents.length})
+            </Text>
+            <TouchableOpacity
+              onPress={() => setShowCreateEvent(!showCreateEvent)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, backgroundColor: colours.accent }}
+            >
+              <Ionicons name="add" size={16} color="white" />
+              <Text style={{ fontSize: 13, fontWeight: '700', color: 'white' }}>Create Event</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Create event form */}
+          {showCreateEvent && (
+            <View style={{ padding: 16, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, marginBottom: 12, gap: 12 }}>
+              <Text style={{ fontSize: 15, fontWeight: '800', color: colours.text }}>New Event</Text>
+
+              <TextInput
+                style={{ backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colours.text }}
+                value={newEventTitle} onChangeText={setNewEventTitle}
+                placeholder="Event title" placeholderTextColor={colours.muted}
+              />
+              <TextInput
+                style={{ backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colours.text }}
+                value={newEventDate} onChangeText={setNewEventDate}
+                placeholder="Date (YYYY-MM-DD)" placeholderTextColor={colours.muted}
+              />
+              <TextInput
+                style={{ backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colours.text }}
+                value={newEventTime} onChangeText={setNewEventTime}
+                placeholder="Time e.g. 9:00 PM" placeholderTextColor={colours.muted}
+              />
+              <TextInput
+                style={{ backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colours.text }}
+                value={newEventCharge} onChangeText={setNewEventCharge}
+                placeholder="Cover charge e.g. Free / $10" placeholderTextColor={colours.muted}
+              />
+
+              {/* Poster upload */}
+              <TouchableOpacity
+                onPress={uploadEventPoster}
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, borderRadius: 12, borderWidth: 2, borderColor: colours.accent, borderStyle: 'dashed' }}
+              >
+                {uploadingEventPoster
+                  ? <ActivityIndicator color={colours.accent} />
+                  : <Ionicons name={newEventPosterUrl ? 'checkmark-circle-outline' : 'image-outline'} size={20} color={colours.accent} />
+                }
+                <Text style={{ fontSize: 14, fontWeight: '600', color: colours.accent }}>
+                  {uploadingEventPoster ? 'Uploading...' : newEventPosterUrl ? 'Poster uploaded' : 'Upload Poster'}
+                </Text>
+              </TouchableOpacity>
+              {newEventPosterUrl && (
+                <Image source={{ uri: newEventPosterUrl }} style={{ width: '100%', height: 160, borderRadius: 10 }} resizeMode="cover" />
+              )}
+
+              <TouchableOpacity
+                onPress={createEvent}
+                disabled={creatingEvent}
+                style={{ backgroundColor: colours.accent, borderRadius: 10, paddingVertical: 12, alignItems: 'center' }}
+              >
+                {creatingEvent ? <ActivityIndicator color="white" /> : <Text style={{ fontSize: 14, fontWeight: '700', color: 'white' }}>Create Event</Text>}
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {venueEvents.length === 0 && !showCreateEvent ? (
+            <View style={{ padding: 24, borderRadius: 14, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
+              <Ionicons name="calendar-outline" size={32} color={colours.muted} style={{ marginBottom: 8 }} />
+              <Text style={{ color: colours.muted }}>No events yet create your first one</Text>
+            </View>
+          ) : venueEvents.map(ev => (
+            <EventCard key={ev.id} event={ev} colours={colours} />
+          ))}
+        </View>
 
         {/* Post to The Wall */}
         <View style={{ padding: 16, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>

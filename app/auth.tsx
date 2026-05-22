@@ -199,7 +199,7 @@ export default function AuthScreen() {
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => router.replace('/(tabs)/map' as any)}>
+        <TouchableOpacity onPress={() => router.replace('/(tabs)/index' as any)}>
           <Text style={{ fontSize: 13, color: '#555' }}>
             Continue without account
           </Text>

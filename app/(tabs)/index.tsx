@@ -16,11 +16,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
+import { useAnalytics } from '../../lib/analytics';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CARD_IMAGE_HEIGHT = Math.round(SCREEN_WIDTH * 0.52);
-const AVATAR_SIZE = 20;
-const AVATAR_OVERLAP = 6;
+const GRID_PADDING = 16;
+const GRID_GAP = 8;
+const CARD_WIDTH = (SCREEN_WIDTH - GRID_PADDING * 2 - GRID_GAP) / 2;
+const CARD_IMAGE_HEIGHT = Math.round(CARD_WIDTH * 1.25);
+const AVATAR_SIZE = 18;
+const AVATAR_OVERLAP = 5;
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&q=80';
 
 interface FeedEvent {
@@ -32,6 +36,7 @@ interface FeedEvent {
   venue_name: string;
   venue_id: string | null;
   neighbourhood: string | null;
+  entry_type: string | null;
   going_count: number;
   going_avatars: { id: string; username: string; avatar_url: string | null }[];
 }
@@ -65,20 +70,27 @@ function formatDate(dateStr: string | null): string {
 }
 
 function EventCard({ item, onPress }: { item: FeedEvent; onPress: () => void }) {
+  const [imgError, setImgError] = React.useState(false);
+  const showImage = item.poster_url && !imgError;
   return (
     <TouchableOpacity style={styles.eventCard} activeOpacity={0.87} onPress={onPress}>
-      <Image
-        source={{ uri: item.poster_url || FALLBACK_IMAGE }}
-        style={styles.eventImage}
-        resizeMode="cover"
-      />
+      {showImage ? (
+        <Image
+          source={{ uri: item.poster_url! }}
+          style={styles.eventImage}
+          resizeMode="cover"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <View style={[styles.eventImage, { backgroundColor: '#1a1a1a' }]} />
+      )}
       <LinearGradient
         colors={['transparent', 'rgba(0,0,0,0.88)']}
         style={styles.eventGradient}
       >
         {item.going_count > 0 && (
           <View style={styles.goingRow}>
-            <View style={{ flexDirection: 'row', height: AVATAR_SIZE, width: item.going_avatars.length * (AVATAR_SIZE - AVATAR_OVERLAP) + AVATAR_OVERLAP }}>
+            <View style={{ flexDirection: 'row', height: AVATAR_SIZE, width: item.going_avatars.length * (AVATAR_SIZE - AVATAR_OVERLAP) + AVATAR_OVERLAP + 2 }}>
               {item.going_avatars.map((a, i) => (
                 <View
                   key={a.id}
@@ -173,13 +185,20 @@ function TabToggle({
 export default function FeedScreen() {
   const [activeTab, setActiveTab] = useState<'foryou' | 'activity'>('foryou');
   const [feedEvents, setFeedEvents] = useState<FeedEvent[]>([]);
+  const [fallbackEvents, setFallbackEvents] = useState<FeedEvent[]>([]);
   const [activityItems, setActivityItems] = useState<ActivityItem[]>([]);
   const [hasFriends, setHasFriends] = useState(true);
+  const [hasProfile, setHasProfile] = useState<boolean | null>(null); // null = loading
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const router = useRouter();
+  const { capture } = useAnalytics();
+
+  useEffect(() => {
+    capture('app_opened');
+  }, []);
 
   useEffect(() => {
     loadFeedEvents();
@@ -190,45 +209,87 @@ export default function FeedScreen() {
   }, [activeTab, user]);
 
   const loadFeedEvents = async () => {
+    setLoading(true);
+
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
     const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 
-    // Fetch user's preferred neighbourhoods from past RSVPs
-    let preferredNeighbourhoods = new Set<string>();
-    if (user) {
-      const { data: rsvpData } = await supabase
-        .from('event_rsvps')
-        .select('events(venues(neighbourhood))')
-        .eq('user_id', user.id)
-        .eq('status', 'going')
-        .limit(20);
+    // Build taste profile from RSVPs and saved events
+    const preferredNeighbourhoods = new Set<string>();
+    const preferredEntryTypes = new Set<string>();
+    const preferredVenueIds = new Set<string>();
+    const savedEventIds = new Set<string>();
 
-      if (rsvpData) {
-        for (const r of rsvpData as any[]) {
-          const n = r.events?.venues?.neighbourhood;
-          if (n) preferredNeighbourhoods.add(n);
-        }
+    if (user) {
+      const [rsvpRes, savedRes] = await Promise.all([
+        supabase
+          .from('event_rsvps')
+          .select('events(venue_id, entry_type, venues(neighbourhood))')
+          .eq('user_id', user.id)
+          .eq('status', 'going')
+          .limit(30),
+        supabase
+          .from('saved_events')
+          .select('event_id')
+          .eq('user_id', user.id),
+      ]);
+
+      for (const r of (rsvpRes.data ?? []) as any[]) {
+        const ev = r.events;
+        if (!ev) continue;
+        if (ev.venues?.neighbourhood) preferredNeighbourhoods.add(ev.venues.neighbourhood);
+        if (ev.entry_type) preferredEntryTypes.add(ev.entry_type);
+        if (ev.venue_id) preferredVenueIds.add(ev.venue_id);
+      }
+
+      for (const s of (savedRes.data ?? []) as any[]) {
+        if (s.event_id) savedEventIds.add(s.event_id);
       }
     }
 
+    // No taste profile yet → load fallback instead of blank screen
+    if (preferredNeighbourhoods.size === 0 && preferredEntryTypes.size === 0 && savedEventIds.size === 0) {
+      setHasProfile(false);
+      await loadFallbackEvents();
+      setLoading(false);
+      return;
+    }
+
+    setHasProfile(true);
+
     const { data, error } = await supabase
       .from('events')
-      .select('id, title, poster_url, date, start_time, venue_id, venues(name, neighbourhood)')
+      .select('id, title, poster_url, date, start_time, entry_type, venue_id, venues(name, neighbourhood)')
       .gte('date', today)
       .order('date', { ascending: true })
-      .limit(60);
+      .limit(120);
 
     setLoading(false);
     if (error || !data) return;
 
+    // Filter to events matching the taste profile or explicitly saved
+    const relevant = (data as any[]).filter(e => {
+      if (savedEventIds.has(e.id)) return true;
+      const neighbourhood = e.venues?.neighbourhood;
+      const venueId = e.venue_id;
+      const entryType = e.entry_type;
+      return (
+        (neighbourhood && preferredNeighbourhoods.has(neighbourhood)) ||
+        (entryType && preferredEntryTypes.has(entryType)) ||
+        (venueId && preferredVenueIds.has(venueId))
+      );
+    });
+
     // Load going counts
-    const eventIds = data.map((e: any) => e.id);
-    const { data: rsvpRows } = await supabase
-      .from('event_rsvps')
-      .select('event_id, profiles(id, username, avatar_url)')
-      .in('event_id', eventIds)
-      .eq('status', 'going');
+    const eventIds = relevant.map((e: any) => e.id);
+    const { data: rsvpRows } = eventIds.length > 0
+      ? await supabase
+          .from('event_rsvps')
+          .select('event_id, profiles(id, username, avatar_url)')
+          .in('event_id', eventIds)
+          .eq('status', 'going')
+      : { data: [] };
 
     const attendeeMap: Record<string, { count: number; avatars: any[] }> = {};
     for (const row of (rsvpRows ?? []) as any[]) {
@@ -240,7 +301,7 @@ export default function FeedScreen() {
       }
     }
 
-    const mapped: FeedEvent[] = data.map((e: any) => ({
+    const mapped: FeedEvent[] = relevant.map((e: any) => ({
       id: e.id,
       title: e.title,
       poster_url: e.poster_url || null,
@@ -249,19 +310,53 @@ export default function FeedScreen() {
       venue_name: e.venues?.name || '',
       venue_id: e.venue_id || null,
       neighbourhood: e.venues?.neighbourhood || null,
+      entry_type: e.entry_type || null,
       going_count: attendeeMap[e.id]?.count ?? 0,
       going_avatars: attendeeMap[e.id]?.avatars ?? [],
     }));
 
-    // Sort: preferred neighbourhood first (by going count desc within group), then rest by date
-    if (preferredNeighbourhoods.size > 0) {
-      const preferred = mapped.filter(e => e.neighbourhood && preferredNeighbourhoods.has(e.neighbourhood));
-      const rest = mapped.filter(e => !e.neighbourhood || !preferredNeighbourhoods.has(e.neighbourhood));
-      preferred.sort((a, b) => b.going_count - a.going_count || (a.event_date ?? '').localeCompare(b.event_date ?? ''));
-      setFeedEvents([...preferred, ...rest]);
-    } else {
-      setFeedEvents(mapped);
-    }
+    // Saved events and popular events first, then by date
+    mapped.sort((a, b) => {
+      const aSaved = savedEventIds.has(a.id) ? 1 : 0;
+      const bSaved = savedEventIds.has(b.id) ? 1 : 0;
+      if (bSaved !== aSaved) return bSaved - aSaved;
+      if (b.going_count !== a.going_count) return b.going_count - a.going_count;
+      return (a.event_date ?? '').localeCompare(b.event_date ?? '');
+    });
+
+    // If personalised list is thin, also load fallback events
+    if (mapped.length < 3) await loadFallbackEvents();
+
+    setFeedEvents(mapped);
+  };
+
+  const loadFallbackEvents = async () => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+
+    const { data } = await supabase
+      .from('events')
+      .select('id, title, poster_url, date, start_time, entry_type, venue_id, venues(name, neighbourhood)')
+      .gte('date', today)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (!data) return;
+    const mapped: FeedEvent[] = (data as any[]).map(e => ({
+      id: e.id,
+      title: e.title,
+      poster_url: e.poster_url || null,
+      event_date: e.date || null,
+      start_time: e.start_time || null,
+      venue_name: e.venues?.name || '',
+      venue_id: e.venue_id || null,
+      neighbourhood: e.venues?.neighbourhood || null,
+      entry_type: e.entry_type || null,
+      going_count: 0,
+      going_avatars: [],
+    }));
+    setFallbackEvents(mapped);
   };
 
   const loadActivity = async () => {
@@ -334,37 +429,57 @@ export default function FeedScreen() {
     setRefreshing(false);
   }, [activeTab]);
 
+  const renderForYou = () => {
+    if (loading || hasProfile === null) return null;
+
+    const showFallback = hasProfile === false || feedEvents.length < 3;
+    const displayEvents = showFallback ? fallbackEvents : feedEvents;
+
+    if (showFallback && fallbackEvents.length === 0) {
+      return (
+        <View style={styles.emptyState}>
+          <Ionicons name="star-outline" size={48} color="rgba(255,255,255,0.3)" />
+          <Text style={styles.emptyText}>Your personal feed starts here</Text>
+          <Text style={styles.emptyHint}>RSVP to events or save venues to build your For You feed</Text>
+          <TouchableOpacity
+            style={styles.emptyBtn}
+            onPress={() => router.push('/(tabs)/discover' as any)}
+          >
+            <Text style={styles.emptyBtnText}>Explore Discover</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return (
+      <FlatList
+        key="foryou-grid"
+        data={displayEvents}
+        keyExtractor={item => item.id}
+        numColumns={2}
+        columnWrapperStyle={styles.feedRow}
+        ListHeaderComponent={showFallback ? (
+          <Text style={styles.fallbackLabel}>Popular this week</Text>
+        ) : null}
+        renderItem={({ item }) => (
+          <EventCard
+            item={item}
+            onPress={() => router.push(`/event/${item.id}` as any)}
+          />
+        )}
+        contentContainerStyle={[styles.feedList, { paddingTop: insets.top + 56 }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FF3B5C" />}
+      />
+    );
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
 
       {activeTab === 'foryou'
-        ? (feedEvents.length === 0 && !loading
-          ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="calendar-outline" size={48} color="rgba(255,255,255,0.3)" />
-              <Text style={styles.emptyText}>No upcoming events</Text>
-              <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push('/(tabs)/discover')}>
-                <Text style={styles.emptyBtnText}>Browse Discover</Text>
-              </TouchableOpacity>
-            </View>
-          )
-          : (
-            <FlatList
-              data={feedEvents}
-              keyExtractor={item => item.id}
-              renderItem={({ item }) => (
-                <EventCard
-                  item={item}
-                  onPress={() => router.push(`/event/${item.id}` as any)}
-                />
-              )}
-              contentContainerStyle={[styles.feedList, { paddingTop: insets.top + 56 }]}
-              showsVerticalScrollIndicator={false}
-              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FF3B5C" />}
-            />
-          )
-        )
+        ? renderForYou()
         : !hasFriends
           ? (
             <View style={styles.emptyState}>
@@ -383,6 +498,7 @@ export default function FeedScreen() {
             )
             : (
               <FlatList
+                key="activity-list"
                 data={activityItems}
                 keyExtractor={item => item.id}
                 renderItem={({ item }) => (
@@ -436,15 +552,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
+    paddingHorizontal: 32,
   },
   emptyText: {
     color: 'rgba(255,255,255,0.6)',
     fontSize: 18,
     fontWeight: '700',
+    textAlign: 'center',
   },
   emptyHint: {
     color: 'rgba(255,255,255,0.35)',
     fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   emptyBtn: {
     borderWidth: 1.5,
@@ -459,19 +579,32 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  // For You feed
+  fallbackLabel: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    paddingHorizontal: 4,
+    paddingBottom: 12,
+  },
+  // For You grid
   feedList: {
-    paddingHorizontal: 16,
+    paddingHorizontal: GRID_PADDING,
     paddingBottom: 100,
-    gap: 16,
+    gap: GRID_GAP,
+  },
+  feedRow: {
+    gap: GRID_GAP,
   },
   eventCard: {
-    borderRadius: 16,
+    width: CARD_WIDTH,
+    borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#111',
   },
   eventImage: {
-    width: '100%',
+    width: CARD_WIDTH,
     height: CARD_IMAGE_HEIGHT,
   },
   eventGradient: {
@@ -479,15 +612,15 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 14,
-    paddingTop: 48,
-    paddingBottom: 14,
+    paddingHorizontal: 10,
+    paddingTop: 36,
+    paddingBottom: 10,
   },
   goingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 6,
+    gap: 4,
+    marginBottom: 5,
   },
   avatar: {
     position: 'absolute',
@@ -508,45 +641,45 @@ const styles = StyleSheet.create({
   },
   avatarInitial: {
     color: '#fff',
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: '700',
   },
   goingText: {
     color: 'rgba(255,255,255,0.75)',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
-    marginLeft: 4,
+    marginLeft: 2,
   },
   eventVenue: {
     color: 'rgba(255,255,255,0.55)',
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '600',
-    marginBottom: 3,
+    marginBottom: 2,
   },
   eventTitle: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '700',
-    lineHeight: 22,
-    marginBottom: 4,
+    lineHeight: 18,
+    marginBottom: 3,
   },
   eventDate: {
     color: '#FF3B5C',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
   neighbourhoodPill: {
     position: 'absolute',
-    top: 12,
-    left: 12,
+    top: 8,
+    left: 8,
     backgroundColor: 'rgba(0,0,0,0.55)',
     borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
   neighbourhoodText: {
     color: '#fff',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
   },
   // Activity feed

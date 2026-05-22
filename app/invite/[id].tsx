@@ -19,7 +19,7 @@ export default function InviteScreen() {
   }, [id]);
 
   const handleSignUp = () => {
-    router.replace('/(tabs)/account' as any);
+    router.replace('/auth');
   };
 
   return (
