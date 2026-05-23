@@ -229,6 +229,80 @@ const HTML = `<!DOCTYPE html>
       margin-bottom: 8px;
     }
 
+    /* Boost cards */
+    .boost-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .boost-card {
+      position: relative;
+      background: #1a1a1a;
+      border: 1.5px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 16px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .boost-card:hover {
+      border-color: rgba(255,255,255,0.2);
+    }
+    .boost-card.selected {
+      border-color: #FF3B5C;
+      background: rgba(255,59,92,0.06);
+    }
+    .boost-card input[type="checkbox"] {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .boost-check {
+      width: 20px;
+      height: 20px;
+      min-width: 20px;
+      border-radius: 6px;
+      border: 1.5px solid rgba(255,255,255,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .boost-card.selected .boost-check {
+      background: #FF3B5C;
+      border-color: #FF3B5C;
+    }
+    .boost-check svg {
+      display: none;
+    }
+    .boost-card.selected .boost-check svg {
+      display: block;
+    }
+    .boost-info {
+      flex: 1;
+    }
+    .boost-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 2px;
+    }
+    .boost-desc {
+      font-size: 12px;
+      color: rgba(255,255,255,0.45);
+    }
+    .boost-price {
+      font-size: 15px;
+      font-weight: 800;
+      color: #fff;
+      white-space: nowrap;
+    }
+
     /* Error message */
     .error-msg {
       display: none;
@@ -277,7 +351,7 @@ const HTML = `<!DOCTYPE html>
     <div class="container">
       <div class="nav-inner">
         <span class="nav-brand">affiche</span>
-        <a href="/business" class="nav-back">Back to overview</a>
+        <a href="https://eddiebaj.github.io/thewall-business" class="nav-back">Back to overview</a>
       </div>
     </div>
   </nav>
@@ -360,6 +434,50 @@ const HTML = `<!DOCTYPE html>
 
         <hr class="section-divider" />
 
+        <p class="section-label">One-time Boosts <span style="font-weight:400;color:rgba(255,255,255,0.3)">(optional)</span></p>
+
+        <div class="boost-grid">
+
+          <label class="boost-card" id="boost-event3">
+            <input type="checkbox" name="boosts" value="event_boost_3d" />
+            <div class="boost-check">
+              <svg width="12" height="9" viewBox="0 0 12 9" fill="none"><path d="M1 4l3.5 3.5L11 1" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="boost-info">
+              <p class="boost-name">Event Boost — 3 Days</p>
+              <p class="boost-desc">Boost a specific event to the top of the feed for 3 days</p>
+            </div>
+            <p class="boost-price">$9.99</p>
+          </label>
+
+          <label class="boost-card" id="boost-event7">
+            <input type="checkbox" name="boosts" value="event_boost_7d" />
+            <div class="boost-check">
+              <svg width="12" height="9" viewBox="0 0 12 9" fill="none"><path d="M1 4l3.5 3.5L11 1" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="boost-info">
+              <p class="boost-name">Event Boost — 7 Days</p>
+              <p class="boost-desc">Boost a specific event to the top of the feed for 7 days</p>
+            </div>
+            <p class="boost-price">$19.99</p>
+          </label>
+
+          <label class="boost-card" id="boost-weekend">
+            <input type="checkbox" name="boosts" value="weekend_spotlight" />
+            <div class="boost-check">
+              <svg width="12" height="9" viewBox="0 0 12 9" fill="none"><path d="M1 4l3.5 3.5L11 1" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="boost-info">
+              <p class="boost-name">Weekend Spotlight</p>
+              <p class="boost-desc">Featured placement Friday and Saturday</p>
+            </div>
+            <p class="boost-price">$29.99</p>
+          </label>
+
+        </div>
+
+        <hr class="section-divider" />
+
         <div class="error-msg" id="error-msg"></div>
 
         <button type="submit" class="submit-btn" id="submit-btn">Continue to Payment</button>
@@ -382,6 +500,15 @@ const HTML = `<!DOCTYPE html>
       card.addEventListener('click', function() {
         planCards.forEach(function(c) { c.classList.remove('selected'); });
         card.classList.add('selected');
+      });
+    });
+
+    // Boost card toggle
+    document.querySelectorAll('.boost-card').forEach(function(card) {
+      card.addEventListener('click', function() {
+        var cb = card.querySelector('input[type="checkbox"]');
+        cb.checked = !cb.checked;
+        card.classList.toggle('selected', cb.checked);
       });
     });
 
@@ -412,6 +539,7 @@ const HTML = `<!DOCTYPE html>
       var venueName = document.getElementById('venue_name').value.trim();
       var planInput = form.querySelector('input[name="plan"]:checked');
       var plan = planInput ? planInput.value : null;
+      var boosts = Array.from(form.querySelectorAll('input[name="boosts"]:checked')).map(function(cb) { return cb.value; });
 
       // Clear previous error states
       ['business_name', 'contact_name', 'email', 'venue_name'].forEach(function(id) {
@@ -449,7 +577,8 @@ const HTML = `<!DOCTYPE html>
           contact_name: contactName,
           email: email,
           venue_name: venueName,
-          plan: plan
+          plan: plan,
+          boosts: boosts
         })
       })
       .then(function(res) {
