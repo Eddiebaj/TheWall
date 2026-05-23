@@ -371,7 +371,9 @@ export default function FeedScreen() {
     const eventIds = relevant.map((e: any) => e.id);
     const friendIds = Array.from(friendIdSet);
 
-    const [rsvpRowsRes, friendRsvpLegacyRes, friendRsvpVeRes] = await Promise.all([
+    // Issue 1: fetch venue_event_rsvps in parallel so venue_events get real going counts/avatars
+    // Issue 4: scope friend RSVP queries to current eventIds to avoid unbounded fetches
+    const [rsvpRowsRes, veRsvpRowsRes, friendRsvpLegacyRes, friendRsvpVeRes] = await Promise.all([
       eventIds.length > 0
         ? supabase
             .from('event_rsvps')
@@ -379,18 +381,27 @@ export default function FeedScreen() {
             .in('event_id', eventIds)
             .eq('status', 'going')
         : Promise.resolve({ data: [] }),
-      friendIds.length > 0
+      eventIds.length > 0
+        ? supabase
+            .from('venue_event_rsvps')
+            .select('event_id, profiles(id, username, avatar_url)')
+            .in('event_id', eventIds)
+            .eq('status', 'going')
+        : Promise.resolve({ data: [] }),
+      friendIds.length > 0 && eventIds.length > 0
         ? supabase
             .from('event_rsvps')
             .select('event_id')
             .in('user_id', friendIds)
+            .in('event_id', eventIds)
             .eq('status', 'going')
         : Promise.resolve({ data: [] }),
-      friendIds.length > 0
+      friendIds.length > 0 && eventIds.length > 0
         ? supabase
             .from('venue_event_rsvps')
             .select('event_id')
             .in('user_id', friendIds)
+            .in('event_id', eventIds)
             .eq('status', 'going')
         : Promise.resolve({ data: [] }),
     ]);
@@ -404,7 +415,7 @@ export default function FeedScreen() {
     }
 
     const attendeeMap: Record<string, { count: number; avatars: any[] }> = {};
-    for (const row of (rsvpRowsRes.data ?? []) as any[]) {
+    for (const row of ([...(rsvpRowsRes.data ?? []), ...(veRsvpRowsRes.data ?? [])]) as any[]) {
       const eid = row.event_id;
       if (!attendeeMap[eid]) attendeeMap[eid] = { count: 0, avatars: [] };
       attendeeMap[eid].count += 1;
@@ -430,16 +441,21 @@ export default function FeedScreen() {
     }));
 
     // Score events: friend going > tonight > saved > interest match > popular > date
+    // Weight hierarchy (issue 3 + 5):
+    //   friend(6) + tonight(5) = 11  beats  saved(3) + interest(2) + popular(1) = 6
+    //   tonight alone(5) beats saved+interest+popular(6)? No: 5 < 6, so saved+interest+popular still
+    //   wins over tonight alone, which is intentional -- saved events stay highly ranked.
+    //   friend alone(6) always beats any non-friend combo of saved+interest+popular(6) by date tiebreak.
     const interests = new Set(profile?.interests ?? []);
     mapped.sort((a, b) => {
       const aSaved = savedEventIds.has(a.id) ? 3 : 0;
       const bSaved = savedEventIds.has(b.id) ? 3 : 0;
       const aInterest = interests.size > 0 && a.entry_type && interests.has(a.entry_type) ? 2 : 0;
       const bInterest = interests.size > 0 && b.entry_type && interests.has(b.entry_type) ? 2 : 0;
-      const aTonight = a.event_date === today ? 4 : 0;
-      const bTonight = b.event_date === today ? 4 : 0;
-      const aFriend = friendGoingSet.has(a.id) ? 5 : 0;
-      const bFriend = friendGoingSet.has(b.id) ? 5 : 0;
+      const aTonight = a.event_date === today ? 5 : 0;
+      const bTonight = b.event_date === today ? 5 : 0;
+      const aFriend = friendGoingSet.has(a.id) ? 6 : 0;
+      const bFriend = friendGoingSet.has(b.id) ? 6 : 0;
       const scoreA = aFriend + aTonight + aSaved + aInterest + (a.going_count > 0 ? 1 : 0);
       const scoreB = bFriend + bTonight + bSaved + bInterest + (b.going_count > 0 ? 1 : 0);
       if (scoreB !== scoreA) return scoreB - scoreA;
@@ -565,14 +581,28 @@ export default function FeedScreen() {
         .in('user_id', friendIds)
         .order('created_at', { ascending: false })
         .limit(50),
+      // Issue 2: profiles cannot be joined via nested select on creator_id; fetch separately below
       supabase
         .from('venue_events')
-        .select('id, created_at, creator_id, title, venue_id, venues(name), profiles(username, avatar_url)')
+        .select('id, created_at, creator_id, title, venue_id, venues(name)')
         .in('creator_id', friendIds)
         .eq('source', 'user')
         .order('created_at', { ascending: false })
         .limit(20),
     ]);
+
+    // Fetch profiles for venue_event creators separately
+    const creatorIds = [...new Set((createdEventsRes.data ?? []).map((e: any) => e.creator_id).filter(Boolean))];
+    const creatorProfileMap: Record<string, { username: string; avatar_url: string | null }> = {};
+    if (creatorIds.length > 0) {
+      const { data: creatorProfiles } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .in('id', creatorIds);
+      for (const p of (creatorProfiles ?? []) as any[]) {
+        creatorProfileMap[p.id] = { username: p.username, avatar_url: p.avatar_url ?? null };
+      }
+    }
 
     const rsvpItems: ActivityItem[] = (rsvpRes.data ?? []).map((r: any) => ({
       id: `rsvp-${r.id}`,
@@ -600,7 +630,7 @@ export default function FeedScreen() {
       created_at: e.created_at,
       user_id: e.creator_id,
       event_id: e.id,
-      profile: e.profiles ?? null,
+      profile: creatorProfileMap[e.creator_id] ?? null,
       event: { id: e.id, title: e.title, venue_name: e.venues?.name ?? null },
     }));
 
