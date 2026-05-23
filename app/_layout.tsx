@@ -16,6 +16,7 @@ import NetworkBanner from '../components/NetworkBanner';
 import { SK_ONBOARDED, SK_CRASH_LOG } from '../lib/storageKeys';
 import { initSentry, captureException } from '../lib/sentry';
 import { incrementSessionCount } from '../lib/onboardingPrompts';
+import { routeForNotification, NotificationType } from '../lib/notificationTypes';
 
 // Prevent the native splash screen from auto-hiding until our animated splash starts
 SplashScreen.preventAutoHideAsync();
@@ -128,6 +129,18 @@ function RootNav() {
 
   // Declare ref BEFORE the useEffect that assigns to it
   const animationResolveRef = useRef<(() => void) | null>(null);
+
+  // Notification tap handler
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data as Record<string, string> | undefined;
+      const type = data?.type as NotificationType | undefined;
+      if (!type) return;
+      const route = routeForNotification(type, data);
+      if (route) router.push(route as any);
+    });
+    return () => sub.remove();
+  }, []);
 
   // Deep link handler for thewall://event/:id
   useEffect(() => {

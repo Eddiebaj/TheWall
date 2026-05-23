@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { registerForPushNotifications, savePushToken } from '../lib/notifications';
 
 interface Profile {
   id: string;
@@ -44,8 +45,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
-      else setProfile(null);
+      if (session?.user) {
+        fetchProfile(session.user.id);
+        registerForPushNotifications().then(token => {
+          if (token && session.user) savePushToken(session.user.id, token).catch(() => {});
+        }).catch(() => {});
+      } else {
+        setProfile(null);
+      }
     });
 
     return () => subscription.unsubscribe();
