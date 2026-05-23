@@ -240,6 +240,7 @@ function RootNav() {
       <Stack.Screen name="business-dashboard" options={{ headerShown: false }} />
       <Stack.Screen name="qr-scan" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
       <Stack.Screen name="invite/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="profile/[id]" options={{ headerShown: false }} />
     </Stack>
   );
 }

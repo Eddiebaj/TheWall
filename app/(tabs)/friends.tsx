@@ -39,6 +39,7 @@ export default function FriendsScreen() {
   const [downTonight, setDownTonight] = useState(false);
   const [friendsDown, setFriendsDown] = useState<any[]>([]);
   const [friendsActivity, setFriendsActivity] = useState<any[]>([]);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
 
   // Restore downTonight state; auto-reset if stored date isn't today
   useEffect(() => {
@@ -180,7 +181,40 @@ export default function FriendsScreen() {
       `)
       .eq('user_id', user!.id);
 
-    if (data) setConversations(data.map(d => d.conversation).filter(Boolean));
+    const convs = (data || []).map(d => d.conversation).filter(Boolean);
+    setConversations(convs);
+    if (convs.length > 0) {
+      await loadUnreadCounts(convs.map((c: any) => c.id));
+    }
+  };
+
+  const loadUnreadCounts = async (convIds: string[]) => {
+    if (!convIds.length) return;
+    // Fetch all messages in these convs not sent by me
+    const { data: msgs } = await supabase
+      .from('messages')
+      .select('id, conversation_id')
+      .in('conversation_id', convIds)
+      .neq('sender_id', user!.id);
+
+    if (!msgs?.length) return;
+
+    const msgIds = msgs.map(m => m.id);
+    // Fetch which of those I have already read
+    const { data: reads } = await supabase
+      .from('message_reads')
+      .select('message_id')
+      .eq('user_id', user!.id)
+      .in('message_id', msgIds);
+
+    const readSet = new Set((reads || []).map((r: any) => r.message_id));
+    const counts: Record<string, number> = {};
+    for (const msg of msgs) {
+      if (!readSet.has(msg.id)) {
+        counts[msg.conversation_id] = (counts[msg.conversation_id] || 0) + 1;
+      }
+    }
+    setUnreadCounts(counts);
   };
 
   const searchUsers = async (query: string) => {
@@ -615,18 +649,27 @@ export default function FriendsScreen() {
             <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
               Groups
             </Text>
-            {conversations.map(conv => (
-              <TouchableOpacity key={conv.id} onPress={() => router.push({ pathname: '/chat/[id]', params: { id: conv.id, name: conv.name } } as any)} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, padding: 14, marginBottom: 8 }}>
-                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#7b5ea7' + '20', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                  <Ionicons name="people" size={20} color="#7b5ea7" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{conv.name}</Text>
-                  <Text style={{ fontSize: 12, color: colours.muted }}>Tap to open chat</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={colours.muted} />
-              </TouchableOpacity>
-            ))}
+            {conversations.map(conv => {
+              const unread = unreadCounts[conv.id] || 0;
+              return (
+                <TouchableOpacity key={conv.id} onPress={() => router.push({ pathname: '/chat/[id]', params: { id: conv.id, name: conv.name } } as any)} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: unread > 0 ? colours.accent + '50' : colours.border, padding: 14, marginBottom: 8 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#7b5ea7' + '20', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                    <Ionicons name="people" size={20} color="#7b5ea7" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{conv.name}</Text>
+                    <Text style={{ fontSize: 12, color: colours.muted }}>{unread > 0 ? `${unread} new message${unread > 1 ? 's' : ''}` : 'Tap to open chat'}</Text>
+                  </View>
+                  {unread > 0 ? (
+                    <View style={{ minWidth: 22, height: 22, borderRadius: 11, backgroundColor: colours.accent, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, marginRight: 6 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '800', color: 'white' }}>{unread > 99 ? '99+' : unread}</Text>
+                    </View>
+                  ) : (
+                    <Ionicons name="chevron-forward" size={16} color={colours.muted} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
 
@@ -645,7 +688,43 @@ export default function FriendsScreen() {
             </View>
           ) : (
             friends.map(friend => (
-              <TouchableOpacity key={friend.id} activeOpacity={0.7} onPress={() => router.push(`/profile/${friend.id}` as any)} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, padding: 14, marginBottom: 8 }}>
+              <TouchableOpacity
+                key={friend.id}
+                activeOpacity={0.7}
+                onPress={() => router.push(`/profile/${friend.id}` as any)}
+                onLongPress={() => {
+                  Alert.alert(
+                    friend.display_name || friend.username,
+                    'What would you like to do?',
+                    [
+                      { text: 'View profile', onPress: () => router.push(`/profile/${friend.id}` as any) },
+                      {
+                        text: 'Remove friend',
+                        style: 'destructive',
+                        onPress: () => {
+                          Alert.alert(
+                            'Remove friend',
+                            `Remove ${friend.display_name || friend.username} from your friends?`,
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              {
+                                text: 'Remove',
+                                style: 'destructive',
+                                onPress: async () => {
+                                  await supabase.from('friendships').delete().eq('id', friend.friendshipId);
+                                  setFriends(prev => prev.filter(f => f.id !== friend.id));
+                                },
+                              },
+                            ]
+                          );
+                        },
+                      },
+                      { text: 'Cancel', style: 'cancel' },
+                    ]
+                  );
+                }}
+                style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, padding: 14, marginBottom: 8 }}
+              >
                 <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
                   <Text style={{ fontSize: 18, fontWeight: '700', color: colours.accent }}>{friend.username?.[0]?.toUpperCase()}</Text>
                 </View>
