@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Dimensions,
   FlatList,
   Image,
@@ -102,48 +103,67 @@ function formatDate(dateStr: string | null): string {
 function VenuePin({
   event,
   selected,
+  hasCheckins,
+  pulseAnim,
   onPress,
 }: {
   event: DiscoverEvent;
   selected: boolean;
+  hasCheckins: boolean;
+  pulseAnim: Animated.Value;
   onPress: () => void;
 }) {
   const featured = event.venue_feature_tier != null;
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.8}
-      style={{
-        backgroundColor: featured ? '#1f1a00' : '#1a1a1a',
-        borderWidth: featured ? 2 : 1,
-        borderColor: featured ? '#FFD700' : '#444',
-        borderRadius: 20,
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        maxWidth: 130,
-        opacity: selected ? 1 : 0.9,
-        transform: [{ scale: selected ? 1.12 : 1 }],
-        shadowColor: featured ? '#FFD700' : '#000',
-        shadowOpacity: featured ? 0.4 : 0.5,
-        shadowRadius: featured ? 8 : 5,
-        shadowOffset: { width: 0, height: 2 },
-        elevation: featured ? 8 : 3,
-      }}
-    >
-      {featured && (
-        <Text style={{ color: '#FFD700', fontSize: 9, lineHeight: 13 }}>★</Text>
+    <View style={{ alignItems: 'center' }}>
+      {hasCheckins && (
+        <Animated.View style={{
+          position: 'absolute',
+          top: -4,
+          right: -4,
+          width: 10,
+          height: 10,
+          borderRadius: 5,
+          backgroundColor: '#FF3B5C',
+          transform: [{ scale: pulseAnim }],
+          zIndex: 10,
+        }} />
       )}
-      <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }} numberOfLines={1}>
-        {event.venue_name}
-      </Text>
-    </TouchableOpacity>
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.8}
+        style={{
+          backgroundColor: featured ? '#1f1a00' : '#1a1a1a',
+          borderWidth: featured ? 2 : 1,
+          borderColor: featured ? '#FFD700' : '#444',
+          borderRadius: 20,
+          paddingHorizontal: 10,
+          paddingVertical: 5,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 4,
+          maxWidth: 130,
+          opacity: selected ? 1 : 0.9,
+          transform: [{ scale: selected ? 1.12 : 1 }],
+          shadowColor: featured ? '#FFD700' : '#000',
+          shadowOpacity: featured ? 0.4 : 0.5,
+          shadowRadius: featured ? 8 : 5,
+          shadowOffset: { width: 0, height: 2 },
+          elevation: featured ? 8 : 3,
+        }}
+      >
+        {featured && (
+          <Text style={{ color: '#FFD700', fontSize: 9, lineHeight: 13 }}>★</Text>
+        )}
+        <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }} numberOfLines={1}>
+          {event.venue_name}
+        </Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
-function EventCard({ event, onPress }: { event: DiscoverEvent; onPress: () => void }) {
+function EventCard({ event, onPress, checkinCount }: { event: DiscoverEvent; onPress: () => void; checkinCount?: number }) {
   const isFeatured = event.venue_feature_tier === 'featured';
   const catDef = CATEGORIES.find(c => c.key === event.category);
   const emoji = catDef?.emoji ?? '📅';
@@ -178,6 +198,14 @@ function EventCard({ event, onPress }: { event: DiscoverEvent; onPress: () => vo
         {event.event_date ? (
           <Text style={styles.cardDate}>{formatDate(event.event_date)}</Text>
         ) : null}
+        {checkinCount != null && checkinCount > 0 && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#FF3B5C' }} />
+            <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.75)', fontWeight: '600' }}>
+              {checkinCount} here now
+            </Text>
+          </View>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -218,11 +246,13 @@ function CategoryRow({
   events,
   onCardPress,
   onSeeAll,
+  activeCheckinVenueIds,
 }: {
   category: typeof CATEGORIES[0];
   events: DiscoverEvent[];
   onCardPress: (e: DiscoverEvent) => void;
   onSeeAll: () => void;
+  activeCheckinVenueIds: Set<string>;
 }) {
   return (
     <View style={styles.categorySection}>
@@ -240,7 +270,12 @@ function CategoryRow({
         contentContainerStyle={styles.cardRow}
       >
         {events.map(e => (
-          <EventCard key={e.id} event={e} onPress={() => onCardPress(e)} />
+          <EventCard
+            key={e.id}
+            event={e}
+            onPress={() => onCardPress(e)}
+            checkinCount={e.venue_id && activeCheckinVenueIds.has(e.venue_id) ? 1 : 0}
+          />
         ))}
       </ScrollView>
     </View>
@@ -260,6 +295,8 @@ export default function DiscoverScreen() {
   const [selectedEvent, setSelectedEvent] = useState<DiscoverEvent | null>(null);
   const [happyHourDeals, setHappyHourDeals] = useState<HappyHourDeal[]>([]);
   const [nowMins, setNowMins] = useState(0);
+  const [activeCheckinVenueIds, setActiveCheckinVenueIds] = useState<Set<string>>(new Set());
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   // Determine if happy hour window (3pm-8pm weekdays)
   const isHappyHourWindow = (() => {
@@ -273,8 +310,30 @@ export default function DiscoverScreen() {
     const now = new Date();
     setNowMins(now.getHours() * 60 + now.getMinutes());
     loadEvents();
+    loadActiveCheckins();
     if (isHappyHourWindow) loadHappyHour();
+
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.6, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
   }, []);
+
+  const loadActiveCheckins = async () => {
+    const cutoff = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
+    const { data } = await supabase
+      .from('checkins')
+      .select('venue_id')
+      .is('checked_out_at', null)
+      .gte('checked_in_at', cutoff);
+    if (data) {
+      setActiveCheckinVenueIds(new Set((data as any[]).map((c: any) => c.venue_id)));
+    }
+  };
 
   const loadEvents = async () => {
     setLoading(true);
@@ -437,6 +496,7 @@ export default function DiscoverScreen() {
                 router.push(`/event/${e.id}`);
               }}
               onSeeAll={() => router.push(`/category/${encodeURIComponent(cat.key)}` as any)}
+              activeCheckinVenueIds={activeCheckinVenueIds}
             />
           ))}
           {visibleCategories.length === 0 && (
@@ -488,6 +548,8 @@ export default function DiscoverScreen() {
                 <VenuePin
                   event={e}
                   selected={selectedEvent?.id === e.id}
+                  hasCheckins={e.venue_id != null && activeCheckinVenueIds.has(e.venue_id)}
+                  pulseAnim={pulseAnim}
                   onPress={() => setSelectedEvent(prev => prev?.id === e.id ? null : e)}
                 />
               </Mapbox.MarkerView>

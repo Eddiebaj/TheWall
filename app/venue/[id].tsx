@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  Animated,
   Dimensions,
   FlatList,
   Image,
@@ -14,6 +16,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../context/AuthContext';
+import { sendNotification } from '../../lib/notificationHelpers';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const HERO_HEIGHT = 260;
@@ -67,10 +71,17 @@ function formatDate(dateStr: string): string {
   });
 }
 
+interface CheckinProfile {
+  id: string;
+  username: string;
+  avatar_url: string | null;
+}
+
 export default function VenueScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user, profile } = useAuth();
 
   const [venue, setVenue] = useState<Venue | null>(null);
   const [events, setEvents] = useState<VenueEvent[]>([]);
@@ -78,9 +89,134 @@ export default function VenueScreen() {
   const [happyHours, setHappyHours] = useState<HappyHour[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Check-in state
+  const [isCheckedIn, setIsCheckedIn] = useState(false);
+  const [checkinId, setCheckinId] = useState<string | null>(null);
+  const [checkinCount, setCheckinCount] = useState(0);
+  const [checkinFriends, setCheckinFriends] = useState<CheckinProfile[]>([]);
+  const [checkinLoading, setCheckinLoading] = useState(false);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // Pulse animation for live dot
   useEffect(() => {
-    if (id) load();
-  }, [id]);
+    if (checkinCount === 0) return;
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.4, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, [checkinCount]);
+
+  useEffect(() => {
+    if (id) {
+      load();
+      loadCheckins();
+    }
+  }, [id, user]);
+
+  const loadCheckins = async () => {
+    if (!id) return;
+    const cutoff = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
+
+    const { count } = await supabase
+      .from('checkins')
+      .select('*', { count: 'exact', head: true })
+      .eq('venue_id', id)
+      .is('checked_out_at', null)
+      .gte('checked_in_at', cutoff);
+    setCheckinCount(count || 0);
+
+    if (user) {
+      const { data: myCheckin } = await supabase
+        .from('checkins')
+        .select('id')
+        .eq('venue_id', id)
+        .eq('user_id', user.id)
+        .is('checked_out_at', null)
+        .gte('checked_in_at', cutoff)
+        .maybeSingle();
+      setIsCheckedIn(!!myCheckin);
+      setCheckinId((myCheckin as any)?.id || null);
+
+      const { data: friendRows } = await supabase
+        .from('friendships')
+        .select('requester_id, addressee_id')
+        .eq('status', 'accepted')
+        .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
+
+      if (friendRows && friendRows.length > 0) {
+        const friendIds = (friendRows as any[]).map((f: any) =>
+          f.requester_id === user.id ? f.addressee_id : f.requester_id
+        );
+        const { data: friendCheckins } = await supabase
+          .from('checkins')
+          .select('user_id, profiles(id, username, avatar_url)')
+          .eq('venue_id', id)
+          .is('checked_out_at', null)
+          .gte('checked_in_at', cutoff)
+          .in('user_id', friendIds);
+
+        const profiles: CheckinProfile[] = ((friendCheckins || []) as any[])
+          .map((c: any) => c.profiles)
+          .filter(Boolean);
+        setCheckinFriends(profiles);
+      }
+    }
+  };
+
+  const handleCheckin = async () => {
+    if (!user) {
+      Alert.alert('Sign in required', 'Sign in to check in to venues.');
+      return;
+    }
+    if (!id || !venue) return;
+    setCheckinLoading(true);
+
+    try {
+      if (isCheckedIn && checkinId) {
+        await supabase.from('checkins').update({ checked_out_at: new Date().toISOString() }).eq('id', checkinId);
+        setIsCheckedIn(false);
+        setCheckinId(null);
+        setCheckinCount(c => Math.max(0, c - 1));
+      } else {
+        const { data: newCheckin } = await supabase
+          .from('checkins')
+          .insert({ user_id: user.id, venue_id: id })
+          .select('id')
+          .single();
+        setIsCheckedIn(true);
+        setCheckinId((newCheckin as any)?.id || null);
+        setCheckinCount(c => c + 1);
+
+        const myName = profile?.username || 'Someone';
+        const { data: friendRows } = await supabase
+          .from('friendships')
+          .select('requester_id, addressee_id')
+          .eq('status', 'accepted')
+          .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
+
+        for (const row of (friendRows || []) as any[]) {
+          const friendId = row.requester_id === user.id ? row.addressee_id : row.requester_id;
+          sendNotification(
+            friendId,
+            'friend_checkin',
+            'Out right now',
+            `${myName} is at ${venue.name} right now`,
+            { type: 'friend_checkin', venueId: String(id) },
+            false,
+            'normal'
+          );
+        }
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Could not update check-in.');
+    } finally {
+      setCheckinLoading(false);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -235,13 +371,86 @@ export default function VenueScreen() {
           </View>
 
           {venue.address && (
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 24 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 20 }}>
               <Ionicons name="location-outline" size={15} color="rgba(255,255,255,0.45)" style={{ marginTop: 1 }} />
               <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', fontWeight: '500', flex: 1 }}>
                 {venue.address}
               </Text>
             </View>
           )}
+
+          {/* Check-in section */}
+          <View style={{ marginBottom: 24 }}>
+            {/* Live count */}
+            {checkinCount > 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <Animated.View style={{
+                  width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF3B5C',
+                  transform: [{ scale: pulseAnim }],
+                }} />
+                <Text style={{ fontSize: 13, color: '#fff', fontWeight: '600' }}>
+                  {checkinCount} {checkinCount === 1 ? 'person' : 'people'} here now
+                </Text>
+                {checkinFriends.length > 0 && (
+                  <View style={{ flexDirection: 'row', marginLeft: 4, gap: -8 }}>
+                    {checkinFriends.slice(0, 4).map((f, i) => (
+                      <View
+                        key={f.id}
+                        style={{
+                          width: 24, height: 24, borderRadius: 12,
+                          backgroundColor: '#FF3B5C',
+                          borderWidth: 2, borderColor: '#0a0a0a',
+                          overflow: 'hidden', alignItems: 'center', justifyContent: 'center',
+                          zIndex: 10 - i, marginLeft: i === 0 ? 0 : -8,
+                        }}
+                      >
+                        {f.avatar_url ? (
+                          <Image source={{ uri: f.avatar_url }} style={{ width: '100%', height: '100%' }} />
+                        ) : (
+                          <Text style={{ color: '#fff', fontSize: 9, fontWeight: '700' }}>
+                            {f.username[0].toUpperCase()}
+                          </Text>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Check-in button */}
+            <TouchableOpacity
+              onPress={handleCheckin}
+              disabled={checkinLoading}
+              activeOpacity={0.85}
+              style={{
+                backgroundColor: isCheckedIn ? '#1a1a1a' : '#FF3B5C',
+                borderRadius: 14,
+                paddingVertical: 14,
+                alignItems: 'center',
+                flexDirection: 'row',
+                justifyContent: 'center',
+                gap: 8,
+                borderWidth: isCheckedIn ? 1.5 : 0,
+                borderColor: isCheckedIn ? 'rgba(255,255,255,0.15)' : 'transparent',
+              }}
+            >
+              {checkinLoading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <>
+                  <Ionicons
+                    name={isCheckedIn ? 'checkmark-circle' : 'location'}
+                    size={18}
+                    color={isCheckedIn ? '#4ade80' : '#fff'}
+                  />
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: isCheckedIn ? '#4ade80' : '#fff' }}>
+                    {isCheckedIn ? "I'm here" : "I'm here"}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
 
           {/* Upcoming Events */}
           <Text style={{ fontSize: 14, fontWeight: '700', color: 'rgba(255,255,255,0.45)', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 12 }}>

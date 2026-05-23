@@ -341,6 +341,7 @@ export default function FeedScreen() {
   const [feedEvents, setFeedEvents] = useState<FeedEvent[]>([]);
   const [fallbackEvents, setFallbackEvents] = useState<FeedEvent[]>([]);
   const [activityItems, setActivityItems] = useState<ActivityItem[]>([]);
+  const [planInvites, setPlanInvites] = useState<any[]>([]);
   const [hasFriends, setHasFriends] = useState(true);
   const [hasProfile, setHasProfile] = useState<boolean | null>(null); // null = loading
   const [refreshing, setRefreshing] = useState(false);
@@ -359,8 +360,76 @@ export default function FeedScreen() {
   }, [user]);
 
   useEffect(() => {
-    if (activeTab === 'activity') loadActivity();
+    if (activeTab === 'activity') {
+      loadActivity();
+      if (user) loadPlanInvites();
+    }
   }, [activeTab, user]);
+
+  const loadPlanInvites = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('pending_plans')
+      .select('id, creator_id, event_id, event_title, event_venue, event_date, responses, profiles!pending_plans_creator_id_fkey(username, avatar_url)')
+      .contains('invited_user_ids', [user.id])
+      .order('created_at', { ascending: false })
+      .limit(10);
+    setPlanInvites((data || []) as any[]);
+  };
+
+  const handlePlanResponse = async (planId: string, creatorId: string, response: 'in' | 'maybe' | 'pass', plan: any) => {
+    if (!user) return;
+    const { data: existing } = await supabase
+      .from('pending_plans')
+      .select('responses, invited_user_ids')
+      .eq('id', planId)
+      .single();
+    if (!existing) return;
+
+    const newResponses = { ...(existing.responses || {}), [user.id]: response };
+    await supabase.from('pending_plans').update({ responses: newResponses }).eq('id', planId);
+
+    // Check if 2+ people said "in" - auto-create group chat
+    const inCount = Object.values(newResponses).filter(v => v === 'in').length;
+    if (inCount >= 2) {
+      // Check if group chat already exists for this plan
+      const { data: existingConv } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('name', `Plan: ${plan.event_title}`)
+        .maybeSingle();
+
+      if (!existingConv) {
+        const allInIds = [creatorId, ...Object.entries(newResponses).filter(([, v]) => v === 'in').map(([k]) => k)];
+        const uniqueIds = [...new Set(allInIds)];
+        const { data: conv } = await supabase
+          .from('conversations')
+          .insert({ type: 'group', name: `Plan: ${plan.event_title}` })
+          .select('id')
+          .single();
+        if (conv) {
+          await supabase.from('conversation_members').insert(
+            uniqueIds.map(uid => ({ conversation_id: conv.id, user_id: uid }))
+          );
+          // Notify all members
+          for (const uid of uniqueIds) {
+            if (uid === user.id) continue;
+            sendNotification(
+              uid,
+              'plan_crew_going',
+              'Your crew is going',
+              `Your crew is going to ${plan.event_title}! Chat started.`,
+              { type: 'plan_crew', conversationId: conv.id, eventId: String(plan.event_id) },
+              true,
+              'high'
+            );
+          }
+        }
+      }
+    }
+
+    await loadPlanInvites();
+  };
 
   const loadFeedEvents = async (today: string, showSpinner = true) => {
     if (showSpinner) setLoading(true);
@@ -768,7 +837,10 @@ export default function FeedScreen() {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadFeedEvents(getToday(), false);
-    if (activeTab === 'activity') await loadActivity();
+    if (activeTab === 'activity') {
+      await loadActivity();
+      if (user) await loadPlanInvites();
+    }
     setRefreshing(false);
   }, [activeTab, user]);
 
@@ -857,6 +929,75 @@ export default function FeedScreen() {
                 key="activity-list"
                 data={activityItems}
                 keyExtractor={item => item.id}
+                ListHeaderComponent={planInvites.length > 0 ? (
+                  <View style={{ paddingBottom: 4 }}>
+                    {planInvites.map(plan => {
+                      const myResponse = plan.responses?.[user?.id ?? ''];
+                      const creatorName = (plan.profiles as any)?.username || 'Someone';
+                      return (
+                        <View
+                          key={plan.id}
+                          style={{
+                            backgroundColor: '#141414',
+                            marginHorizontal: 16,
+                            marginBottom: 8,
+                            borderRadius: 14,
+                            padding: 14,
+                            borderWidth: 1,
+                            borderColor: 'rgba(255,59,92,0.2)',
+                          }}
+                        >
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <Ionicons name="people-outline" size={14} color="#FF3B5C" />
+                            <Text style={{ fontSize: 12, color: '#FF3B5C', fontWeight: '700', flex: 1 }} numberOfLines={1}>
+                              {creatorName} wants to go out
+                            </Text>
+                          </View>
+                          <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff', marginBottom: 2 }} numberOfLines={2}>
+                            {plan.event_title}
+                          </Text>
+                          {plan.event_venue ? (
+                            <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', marginBottom: 10 }}>
+                              {plan.event_venue}{plan.event_date ? ` · ${plan.event_date}` : ''}
+                            </Text>
+                          ) : null}
+                          {myResponse ? (
+                            <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)' }}>
+                              You responded: <Text style={{ color: myResponse === 'in' ? '#4ade80' : myResponse === 'maybe' ? '#facc15' : 'rgba(255,255,255,0.4)', fontWeight: '700' }}>{myResponse}</Text>
+                            </Text>
+                          ) : (
+                            <View style={{ flexDirection: 'row', gap: 8 }}>
+                              {(['in', 'maybe', 'pass'] as const).map(r => (
+                                <TouchableOpacity
+                                  key={r}
+                                  onPress={() => handlePlanResponse(plan.id, plan.creator_id, r, plan)}
+                                  style={{
+                                    flex: 1,
+                                    paddingVertical: 8,
+                                    borderRadius: 8,
+                                    alignItems: 'center',
+                                    backgroundColor: r === 'in' ? 'rgba(74,222,128,0.12)' : r === 'maybe' ? 'rgba(250,204,21,0.1)' : 'rgba(255,255,255,0.06)',
+                                    borderWidth: 1,
+                                    borderColor: r === 'in' ? 'rgba(74,222,128,0.3)' : r === 'maybe' ? 'rgba(250,204,21,0.25)' : 'rgba(255,255,255,0.1)',
+                                  }}
+                                >
+                                  <Text style={{
+                                    fontSize: 13,
+                                    fontWeight: '700',
+                                    color: r === 'in' ? '#4ade80' : r === 'maybe' ? '#facc15' : 'rgba(255,255,255,0.5)',
+                                    textTransform: 'capitalize',
+                                  }}>
+                                    {r}
+                                  </Text>
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
+                  </View>
+                ) : null}
                 renderItem={({ item }) => (
                   <ActivityRow
                     item={item}

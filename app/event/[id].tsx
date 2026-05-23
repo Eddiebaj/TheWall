@@ -111,6 +111,9 @@ export default function EventDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [isSaved, setIsSaved] = useState(false);
 
+  // Plan status
+  const [planStatus, setPlanStatus] = useState<{ inCount: number; totalInvited: number } | null>(null);
+
   // Share sheet
   const [shareSheetVisible, setShareSheetVisible] = useState(false);
 
@@ -124,8 +127,26 @@ export default function EventDetailScreen() {
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    if (id) loadEvent();
+    if (id) {
+      loadEvent();
+      if (user) loadPlanStatus();
+    }
   }, [id, user]);
+
+  const loadPlanStatus = async () => {
+    if (!user || !id) return;
+    const { data } = await supabase
+      .from('pending_plans')
+      .select('invited_user_ids, responses')
+      .eq('creator_id', user.id)
+      .eq('event_id', id)
+      .maybeSingle();
+    if (data) {
+      const responses = (data.responses || {}) as Record<string, string>;
+      const inCount = Object.values(responses).filter(v => v === 'in').length;
+      setPlanStatus({ inCount, totalInvited: (data.invited_user_ids || []).length });
+    }
+  };
 
   const loadEvent = async () => {
     setLoading(true);
@@ -832,6 +853,49 @@ export default function EventDetailScreen() {
             Interested
           </Text>
         </TouchableOpacity>
+
+        {/* Plan with friends */}
+        <TouchableOpacity
+          onPress={() => {
+            const params = new URLSearchParams({
+              eventId: event.id,
+              eventTitle: event.title,
+              eventVenue: event.venue?.name || '',
+              eventDate: event.event_date || '',
+            });
+            router.push(`/lets-go?${params.toString()}` as any);
+          }}
+          activeOpacity={0.85}
+          style={{
+            borderRadius: 14,
+            paddingVertical: 14,
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'row',
+            gap: 8,
+            marginBottom: 14,
+            borderWidth: 1.5,
+            borderColor: 'rgba(255,59,92,0.35)',
+            backgroundColor: 'rgba(255,59,92,0.08)',
+          }}
+        >
+          <Ionicons name="people-outline" size={18} color={colours.accent} />
+          <Text style={{ fontSize: 15, fontWeight: '700', color: colours.accent }}>
+            Plan with friends
+          </Text>
+        </TouchableOpacity>
+
+        {planStatus && (
+          <View style={{
+            flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16,
+            paddingHorizontal: 2,
+          }}>
+            <Ionicons name="checkmark-circle-outline" size={14} color={colours.accent} />
+            <Text style={{ fontSize: 13, color: colours.accent, fontWeight: '600' }}>
+              {planStatus.inCount} of {planStatus.totalInvited} friends are in
+            </Text>
+          </View>
+        )}
 
         {rsvpProfiles.length > 0 && (
           <View style={{ marginBottom: 20 }}>
