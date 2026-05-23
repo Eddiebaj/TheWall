@@ -63,6 +63,8 @@ interface EventDetail {
   isInterested: boolean;
   source?: string | null;
   creator_username?: string | null;
+  creator_is_organizer?: boolean;
+  organizer_name?: string | null;
   recurrence?: string | null;
 }
 
@@ -142,7 +144,7 @@ export default function EventDetailScreen() {
     } else {
       const { data: veData } = await supabase
         .from('venue_events')
-        .select('id, title, poster_url, event_date, event_time, end_time, cover_charge, entry_type, description, venue_id, source, creator_id, recurrence, venues(name, neighbourhood, address)')
+        .select('id, title, poster_url, event_date, event_time, end_time, cover_charge, entry_type, description, venue_id, source, creator_id, recurrence, organizer_name, venues(name, neighbourhood, address)')
         .eq('id', id)
         .maybeSingle();
       if (veData) {
@@ -156,15 +158,17 @@ export default function EventDetailScreen() {
       return;
     }
 
-    // Resolve creator username for user-created events
+    // Resolve creator profile for user-created events
     let creatorUsername: string | null = null;
+    let creatorIsOrganizer = false;
     if (isVenueEvent && eventData.source === 'user' && eventData.creator_id) {
       const { data: prof } = await supabase
         .from('profiles')
-        .select('username')
+        .select('username, is_organizer')
         .eq('id', eventData.creator_id)
         .maybeSingle();
       creatorUsername = (prof as any)?.username ?? null;
+      creatorIsOrganizer = (prof as any)?.is_organizer ?? false;
     }
 
     const rsvpTable = isVenueEvent ? 'venue_event_rsvps' : 'event_rsvps';
@@ -237,6 +241,8 @@ export default function EventDetailScreen() {
       isInterested,
       source: isVenueEvent ? (eventData.source || null) : null,
       creator_username: creatorUsername,
+      creator_is_organizer: creatorIsOrganizer,
+      organizer_name: isVenueEvent ? (eventData.organizer_name || null) : null,
       recurrence: isVenueEvent ? (eventData.recurrence || null) : null,
     });
     setLoading(false);
@@ -610,13 +616,41 @@ export default function EventDetailScreen() {
           </View>
         )}
 
+        {event.source === 'user' && event.creator_is_organizer ? (
+          <View style={{
+            alignSelf: 'flex-start',
+            backgroundColor: '#FF3B5C18',
+            borderRadius: 20,
+            paddingHorizontal: 10,
+            paddingVertical: 3,
+            marginBottom: 8,
+            borderWidth: 1,
+            borderColor: '#FF3B5C40',
+          }}>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: '#FF3B5C', letterSpacing: 0.5 }}>ORGANIZER</Text>
+          </View>
+        ) : event.source !== 'user' && event.source != null ? (
+          <View style={{
+            alignSelf: 'flex-start',
+            backgroundColor: '#FF3B5C18',
+            borderRadius: 20,
+            paddingHorizontal: 10,
+            paddingVertical: 3,
+            marginBottom: 8,
+            borderWidth: 1,
+            borderColor: '#FF3B5C40',
+          }}>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: '#FF3B5C', letterSpacing: 0.5 }}>VENUE</Text>
+          </View>
+        ) : null}
+
         <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text, marginBottom: event.creator_username || event.recurrence ? 6 : 16 }}>
           {event.title}
         </Text>
 
         {event.source === 'user' && event.creator_username && (
           <Text style={{ fontSize: 13, color: colours.muted, fontWeight: '500', marginBottom: 10 }}>
-            by @{event.creator_username}
+            by {event.organizer_name ? event.organizer_name : `@${event.creator_username}`}
           </Text>
         )}
 

@@ -138,7 +138,7 @@ export default function UserProfileScreen() {
     const dmName = profile.display_name || profile.username;
     const { data: conv, error } = await supabase
       .from('conversations')
-      .insert({ name: dmName, created_by: user.id })
+      .insert({ name: dmName, created_by: user.id, type: 'direct' })
       .select()
       .single();
 

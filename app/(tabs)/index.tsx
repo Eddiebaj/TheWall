@@ -40,6 +40,8 @@ interface FeedEvent {
   entry_type: string | null;
   going_count: number;
   going_avatars: { id: string; username: string; avatar_url: string | null }[];
+  source?: string | null;
+  creator_is_organizer?: boolean;
 }
 
 interface ActivityItem {
@@ -68,6 +70,14 @@ function formatDate(dateStr: string | null): string {
   return new Date(year, month - 1, day).toLocaleDateString('en-CA', {
     weekday: 'short', month: 'short', day: 'numeric',
   });
+}
+
+function formatTime(timeStr: string | null): string {
+  if (!timeStr) return '';
+  const [h, m] = timeStr.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hh = h % 12 || 12;
+  return `${hh}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
 function EventCard({ item, onPress }: { item: FeedEvent; onPress: () => void }) {
@@ -114,7 +124,7 @@ function EventCard({ item, onPress }: { item: FeedEvent; onPress: () => void }) 
         <Text style={styles.eventVenue} numberOfLines={1}>{item.venue_name}</Text>
         <Text style={styles.eventTitle} numberOfLines={2}>{item.title}</Text>
         <Text style={styles.eventDate}>
-          {[formatDate(item.event_date), item.start_time].filter(Boolean).join(' · ')}
+          {[formatDate(item.event_date), formatTime(item.start_time)].filter(Boolean).join(' · ')}
         </Text>
       </LinearGradient>
       {item.neighbourhood && (
@@ -122,6 +132,15 @@ function EventCard({ item, onPress }: { item: FeedEvent; onPress: () => void }) 
           <Text style={styles.neighbourhoodText}>{item.neighbourhood}</Text>
         </View>
       )}
+      {item.source === 'user' && item.creator_is_organizer ? (
+        <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: '#FF3B5C', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
+          <Text style={{ fontSize: 9, fontWeight: '800', color: '#fff', letterSpacing: 0.4 }}>ORGANIZER</Text>
+        </View>
+      ) : item.source != null && item.source !== 'user' ? (
+        <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: '#FF3B5C', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
+          <Text style={{ fontSize: 9, fontWeight: '800', color: '#fff', letterSpacing: 0.4 }}>VENUE</Text>
+        </View>
+      ) : null}
     </TouchableOpacity>
   );
 }
@@ -259,26 +278,89 @@ export default function FeedScreen() {
 
     setHasProfile(true);
 
-    const { data, error } = await supabase
-      .from('events')
-      .select('id, title, poster_url, date, start_time, entry_type, category, venue_id, venues(name, neighbourhood)')
-      .gte('date', today)
-      .order('date', { ascending: true })
-      .limit(120);
+    // Fetch friend IDs so we can include friends-only venue_events from people we follow
+    let friendIdSet = new Set<string>();
+    if (user) {
+      const { data: fships } = await supabase
+        .from('friendships')
+        .select('requester_id, addressee_id')
+        .eq('status', 'accepted')
+        .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
+      for (const f of (fships ?? []) as any[]) {
+        friendIdSet.add(f.requester_id === user.id ? f.addressee_id : f.requester_id);
+      }
+    }
+
+    const [legacyRes, venueEventsRes] = await Promise.all([
+      supabase
+        .from('events')
+        .select('id, title, poster_url, date, start_time, entry_type, category, venue_id, venues(name, neighbourhood)')
+        .gte('date', today)
+        .order('date', { ascending: true })
+        .limit(120),
+      supabase
+        .from('venue_events')
+        .select('id, title, poster_url, event_date, event_time, entry_type, category, venue_id, source, creator_id, visibility, venues(name, neighbourhood)')
+        .gte('event_date', today)
+        .in('source', ['user', 'ticketmaster'])
+        .order('event_date', { ascending: true })
+        .limit(120),
+    ]);
 
     setLoading(false);
-    if (error || !data) return;
+    if (legacyRes.error && venueEventsRes.error) return;
+
+    // Normalise legacy events
+    const legacyNorm: any[] = (legacyRes.data ?? []).map((e: any) => ({
+      id: e.id,
+      title: e.title,
+      poster_url: e.poster_url || null,
+      event_date: e.date || null,
+      start_time: e.start_time || null,
+      venue_name: e.venues?.name || '',
+      venue_id: e.venue_id || null,
+      neighbourhood: e.venues?.neighbourhood || null,
+      entry_type: e.entry_type || null,
+      source: null,
+      creator_is_organizer: false,
+    }));
+
+    // Normalise venue_events, filtering friends-only
+    const veNorm: any[] = (venueEventsRes.data ?? [])
+      .filter((e: any) => {
+        if (e.visibility === 'friends') {
+          return e.creator_id && (friendIdSet.has(e.creator_id) || e.creator_id === user?.id);
+        }
+        return true;
+      })
+      .map((e: any) => ({
+        id: e.id,
+        title: e.title,
+        poster_url: e.poster_url || null,
+        event_date: e.event_date || null,
+        start_time: e.event_time || null,
+        venue_name: e.venues?.name || '',
+        venue_id: e.venue_id || null,
+        neighbourhood: e.venues?.neighbourhood || null,
+        entry_type: e.entry_type || null,
+        source: e.source || null,
+        creator_is_organizer: false,
+      }));
+
+    // Merge, deduplicate by id
+    const seen = new Set<string>();
+    const combined: any[] = [];
+    for (const e of [...legacyNorm, ...veNorm]) {
+      if (!seen.has(e.id)) { seen.add(e.id); combined.push(e); }
+    }
 
     // Filter to events matching the taste profile or explicitly saved
-    const relevant = (data as any[]).filter(e => {
+    const relevant = combined.filter(e => {
       if (savedEventIds.has(e.id)) return true;
-      const neighbourhood = e.venues?.neighbourhood;
-      const venueId = e.venue_id;
-      const entryType = e.entry_type;
       return (
-        (neighbourhood && preferredNeighbourhoods.has(neighbourhood)) ||
-        (entryType && preferredEntryTypes.has(entryType)) ||
-        (venueId && preferredVenueIds.has(venueId))
+        (e.neighbourhood && preferredNeighbourhoods.has(e.neighbourhood)) ||
+        (e.entry_type && preferredEntryTypes.has(e.entry_type)) ||
+        (e.venue_id && preferredVenueIds.has(e.venue_id))
       );
     });
 
@@ -305,15 +387,17 @@ export default function FeedScreen() {
     const mapped: FeedEvent[] = relevant.map((e: any) => ({
       id: e.id,
       title: e.title,
-      poster_url: e.poster_url || null,
-      event_date: e.date || null,
-      start_time: e.start_time || null,
-      venue_name: e.venues?.name || '',
-      venue_id: e.venue_id || null,
-      neighbourhood: e.venues?.neighbourhood || null,
-      entry_type: e.entry_type || null,
+      poster_url: e.poster_url,
+      event_date: e.event_date,
+      start_time: e.start_time,
+      venue_name: e.venue_name,
+      venue_id: e.venue_id,
+      neighbourhood: e.neighbourhood,
+      entry_type: e.entry_type,
       going_count: attendeeMap[e.id]?.count ?? 0,
       going_avatars: attendeeMap[e.id]?.avatars ?? [],
+      source: e.source,
+      creator_is_organizer: e.creator_is_organizer,
     }));
 
     // Score events: saved > interest match > popular > date
@@ -340,28 +424,45 @@ export default function FeedScreen() {
     const pad = (n: number) => String(n).padStart(2, '0');
     const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 
-    const { data } = await supabase
-      .from('events')
-      .select('id, title, poster_url, date, start_time, entry_type, venue_id, venues(name, neighbourhood)')
-      .gte('date', today)
-      .order('created_at', { ascending: false })
-      .limit(10);
+    const [legacyRes, veRes] = await Promise.all([
+      supabase
+        .from('events')
+        .select('id, title, poster_url, date, start_time, entry_type, venue_id, venues(name, neighbourhood)')
+        .gte('date', today)
+        .order('created_at', { ascending: false })
+        .limit(10),
+      supabase
+        .from('venue_events')
+        .select('id, title, poster_url, event_date, event_time, entry_type, venue_id, source, venues(name, neighbourhood)')
+        .gte('event_date', today)
+        .in('source', ['user', 'ticketmaster'])
+        .neq('visibility', 'friends')
+        .order('created_at', { ascending: false })
+        .limit(10),
+    ]);
 
-    if (!data) return;
-    const mapped: FeedEvent[] = (data as any[]).map(e => ({
-      id: e.id,
-      title: e.title,
-      poster_url: e.poster_url || null,
-      event_date: e.date || null,
-      start_time: e.start_time || null,
-      venue_name: e.venues?.name || '',
-      venue_id: e.venue_id || null,
-      neighbourhood: e.venues?.neighbourhood || null,
-      entry_type: e.entry_type || null,
-      going_count: 0,
-      going_avatars: [],
+    const legacy: FeedEvent[] = (legacyRes.data ?? []).map((e: any) => ({
+      id: e.id, title: e.title, poster_url: e.poster_url || null,
+      event_date: e.date || null, start_time: e.start_time || null,
+      venue_name: e.venues?.name || '', venue_id: e.venue_id || null,
+      neighbourhood: e.venues?.neighbourhood || null, entry_type: e.entry_type || null,
+      going_count: 0, going_avatars: [], source: null, creator_is_organizer: false,
     }));
-    setFallbackEvents(mapped);
+
+    const ve: FeedEvent[] = (veRes.data ?? []).map((e: any) => ({
+      id: e.id, title: e.title, poster_url: e.poster_url || null,
+      event_date: e.event_date || null, start_time: e.event_time || null,
+      venue_name: e.venues?.name || '', venue_id: e.venue_id || null,
+      neighbourhood: e.venues?.neighbourhood || null, entry_type: e.entry_type || null,
+      going_count: 0, going_avatars: [], source: e.source || null, creator_is_organizer: false,
+    }));
+
+    const seen = new Set<string>();
+    const merged: FeedEvent[] = [];
+    for (const e of [...legacy, ...ve]) {
+      if (!seen.has(e.id)) { seen.add(e.id); merged.push(e); }
+    }
+    setFallbackEvents(merged);
   };
 
   const loadActivity = async () => {

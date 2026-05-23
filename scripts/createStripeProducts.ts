@@ -64,6 +64,14 @@ const PRODUCTS: ProductSpec[] = [
     recurring: { interval: 'month' },
   },
   {
+    key: 'STRIPE_PRICE_ORGANIZER_MONTHLY',
+    name: 'affiche Organizer',
+    description: 'Post unlimited events, Organizer badge on all your events',
+    amount: 1999,
+    currency: 'cad',
+    recurring: { interval: 'month' },
+  },
+  {
     key: 'STRIPE_PRICE_BOOST_3DAY',
     name: 'Event Boost 3 Days',
     description: 'One-time event boost for 3 days',

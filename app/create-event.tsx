@@ -183,13 +183,19 @@ export default function CreateEventScreen() {
   const [publishing, setPublishing] = useState(false);
 
   useEffect(() => {
+    if (!user) {
+      Alert.alert('Sign in required', 'Sign in to create events.', [
+        { text: 'OK', onPress: () => router.back() },
+      ]);
+      return;
+    }
     supabase
       .from('venues')
       .select('id, name, address, neighbourhood')
       .order('name', { ascending: true })
       .limit(200)
       .then(({ data }) => { if (data) setVenues(data as Venue[]); });
-  }, []);
+  }, [user]);
 
   const filteredVenues = venueSearch.length > 0
     ? venues.filter(v => v.name.toLowerCase().includes(venueSearch.toLowerCase()))
@@ -236,6 +242,36 @@ export default function CreateEventScreen() {
     setPublishing(true);
 
     try {
+      // Rate limit: free users may create 1 event per week; organizers and business users are unlimited
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('is_organizer, is_business, organizer_name')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      const isPrivileged = (prof as any)?.is_organizer || (prof as any)?.is_business;
+
+      if (!isPrivileged) {
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        const { count } = await supabase
+          .from('venue_events')
+          .select('id', { count: 'exact', head: true })
+          .eq('creator_id', user.id)
+          .eq('source', 'user')
+          .gte('created_at', weekAgo.toISOString());
+
+        if ((count ?? 0) >= 1) {
+          Alert.alert(
+            'Weekly limit reached',
+            'Free accounts can create 1 event per week. Upgrade to Organizer for unlimited events.',
+          );
+          setPublishing(false);
+          return;
+        }
+      }
+
+      const organizerName: string | null = (prof as any)?.organizer_name ?? null;
       let posterUrl: string | null = null;
 
       if (coverImageUri) {
@@ -269,6 +305,7 @@ export default function CreateEventScreen() {
         max_attendees: maxAttendees ? parseInt(maxAttendees, 10) : null,
         poster_url: posterUrl,
         source: 'user',
+        organizer_name: organizerName,
       };
 
       if (useCustomLocation) {

@@ -83,6 +83,162 @@ interface WallEvent {
   venue_name: string;
 }
 
+function OrganizerDashboardSection({ colours, fonts }: { colours: any; fonts: any }) {
+  const { user } = useAuth();
+  const router = useRouter();
+  const [events, setEvents] = useState<{ id: string; title: string; rsvp_count: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) { setLoading(false); return; }
+    (async () => {
+      const { data: evRows } = await supabase
+        .from('venue_events')
+        .select('id, title')
+        .eq('creator_id', user.id)
+        .eq('source', 'user')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (!evRows || evRows.length === 0) { setLoading(false); return; }
+
+      const ids = evRows.map((e: any) => e.id);
+      const { data: rsvpRows } = await supabase
+        .from('venue_event_rsvps')
+        .select('event_id')
+        .in('event_id', ids)
+        .eq('status', 'going');
+
+      const counts: Record<string, number> = {};
+      for (const r of (rsvpRows ?? []) as any[]) {
+        counts[r.event_id] = (counts[r.event_id] ?? 0) + 1;
+      }
+
+      setEvents(evRows.map((e: any) => ({ id: e.id, title: e.title, rsvp_count: counts[e.id] ?? 0 })));
+      setLoading(false);
+    })();
+  }, [user]);
+
+  const totalRsvps = events.reduce((s, e) => s + e.rsvp_count, 0);
+
+  if (loading) {
+    return <ActivityIndicator size="small" color={colours.accent} style={{ margin: 16 }} />;
+  }
+
+  return (
+    <View>
+      <View style={{ paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', gap: 20 }}>
+        <View style={{ alignItems: 'center' }}>
+          <Text style={{ fontSize: 22, fontWeight: '800', color: colours.text }}>{events.length}</Text>
+          <Text style={{ fontSize: 11, color: colours.muted, fontWeight: '600', marginTop: 2 }}>EVENTS</Text>
+        </View>
+        <View style={{ alignItems: 'center' }}>
+          <Text style={{ fontSize: 22, fontWeight: '800', color: colours.text }}>{totalRsvps}</Text>
+          <Text style={{ fontSize: 11, color: colours.muted, fontWeight: '600', marginTop: 2 }}>TOTAL RSVPs</Text>
+        </View>
+      </View>
+      {events.length > 0 && <View style={{ height: 1, backgroundColor: colours.border, marginHorizontal: 16 }} />}
+      {events.map((e, i) => (
+        <TouchableOpacity
+          key={e.id}
+          onPress={() => router.push(`/event/${e.id}` as any)}
+          activeOpacity={0.7}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: 16,
+            paddingVertical: 12,
+            borderTopWidth: i === 0 ? 0 : 1,
+            borderTopColor: colours.border,
+          }}
+        >
+          <Text style={{ flex: 1, fontSize: fonts.md, color: colours.text, fontWeight: '500' }} numberOfLines={1}>{e.title}</Text>
+          <Text style={{ fontSize: fonts.sm, color: colours.muted, fontWeight: '600', marginRight: 6 }}>{e.rsvp_count} going</Text>
+          <Ionicons name="chevron-forward" size={16} color={colours.muted} />
+        </TouchableOpacity>
+      ))}
+      {events.length === 0 && (
+        <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
+          <Text style={{ fontSize: fonts.sm, color: colours.muted }}>No events yet. Tap + to create one.</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+function MyEventsSection() {
+  const { colours } = useApp();
+  const { user } = useAuth();
+  const router = useRouter();
+  const [events, setEvents] = useState<{ id: string; title: string; event_date: string | null; rsvp_count: number }[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data: evRows } = await supabase
+        .from('venue_events')
+        .select('id, title, event_date')
+        .eq('creator_id', user.id)
+        .eq('source', 'user')
+        .order('event_date', { ascending: true })
+        .limit(50);
+
+      if (!evRows || evRows.length === 0) return;
+
+      const ids = evRows.map((e: any) => e.id);
+      const { data: rsvpRows } = await supabase
+        .from('venue_event_rsvps')
+        .select('event_id')
+        .in('event_id', ids)
+        .eq('status', 'going');
+
+      const counts: Record<string, number> = {};
+      for (const r of (rsvpRows ?? []) as any[]) {
+        counts[r.event_id] = (counts[r.event_id] ?? 0) + 1;
+      }
+
+      setEvents(evRows.map((e: any) => ({ id: e.id, title: e.title, event_date: e.event_date, rsvp_count: counts[e.id] ?? 0 })));
+    })();
+  }, [user]);
+
+  if (events.length === 0) return null;
+
+  return (
+    <View style={{ paddingHorizontal: 16, marginTop: 16, marginBottom: 8 }}>
+      <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>MY EVENTS</Text>
+      <View style={{ borderRadius: 14, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
+        {events.map((e, i) => (
+          <TouchableOpacity
+            key={e.id}
+            onPress={() => router.push(`/event/${e.id}` as any)}
+            activeOpacity={0.75}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingHorizontal: 14,
+              paddingVertical: 12,
+              borderTopWidth: i === 0 ? 0 : 1,
+              borderTopColor: colours.border,
+              backgroundColor: colours.surface,
+            }}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: colours.text }} numberOfLines={1}>{e.title}</Text>
+              {e.event_date ? (
+                <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>
+                  {new Date(e.event_date + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })}
+                </Text>
+              ) : null}
+            </View>
+            <Text style={{ fontSize: 12, color: colours.muted, fontWeight: '600', marginRight: 8 }}>{e.rsvp_count} going</Text>
+            <Ionicons name="chevron-forward" size={16} color={colours.muted} />
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 function MyWallSection({ onCountChange }: { onCountChange: (n: number) => void }) {
   const { colours } = useApp();
   const { user } = useAuth();
@@ -719,6 +875,9 @@ export default function AccountScreen() {
         {/* MY WALL */}
         <MyWallSection onCountChange={setWallCount} />
 
+        {/* MY EVENTS */}
+        <MyEventsSection />
+
         {/* SAVED EVENTS */}
         <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
           <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Saved Events</Text>
@@ -940,6 +1099,40 @@ export default function AccountScreen() {
                 colours={colours}
                 fonts={fonts}
               />
+            </Card>
+          </View>
+        )}
+
+        {/* ORGANIZER */}
+        {!(profile as any)?.is_organizer && !(profile as any)?.is_business && (
+          <View style={{ marginHorizontal: 20, marginTop: 24, marginBottom: 4 }}>
+            <SectionHeader label="For Organizers" icon="megaphone-outline" colours={colours} fonts={fonts} />
+            <Card>
+              <SettingsRow
+                label="Become an Organizer"
+                icon="ribbon-outline"
+                onPress={() => {
+                  const { STRIPE_LINKS } = require('../../lib/stripeLinks');
+                  const url = STRIPE_LINKS.organizer_monthly || 'https://buy.stripe.com/organizer_placeholder';
+                  Linking.openURL(url).catch(() => {});
+                }}
+                colours={colours}
+                fonts={fonts}
+                right={
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>$19.99/mo</Text>
+                    <Ionicons name="chevron-forward" size={16} color={colours.muted} />
+                  </View>
+                }
+              />
+            </Card>
+          </View>
+        )}
+        {(profile as any)?.is_organizer && (
+          <View style={{ marginHorizontal: 20, marginTop: 24, marginBottom: 4 }}>
+            <SectionHeader label="Organizer" icon="megaphone-outline" colours={colours} fonts={fonts} />
+            <Card>
+              <OrganizerDashboardSection colours={colours} fonts={fonts} />
             </Card>
           </View>
         )}

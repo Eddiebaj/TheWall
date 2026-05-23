@@ -77,41 +77,51 @@ export default function FriendsScreen() {
   }, [user]);
 
   const loadMyHangouts = async () => {
-    const { data } = await supabase
-      .from('hangout_rsvps')
-      .select(`
-        status,
-        hangout:hangouts(id, venue_name, event_name, happening_at,
-          creator:profiles!hangouts_created_by_fkey(username, display_name))
-      `)
-      .eq('user_id', user!.id)
-      .order('created_at', { ascending: false })
-      .limit(10);
-    if (data) setMyHangouts(data.filter(d => d.hangout));
+    try {
+      const { data, error } = await supabase
+        .from('hangout_rsvps')
+        .select(`
+          status,
+          hangout:hangouts(id, venue_name, event_name, happening_at,
+            creator:profiles!hangouts_created_by_fkey(username, display_name))
+        `)
+        .eq('user_id', user!.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (error) return;
+      if (data) setMyHangouts(data.filter(d => d.hangout));
+    } catch {
+      // table may not exist yet
+    }
   };
 
   const loadFriendsPlans = async () => {
     if (!user) return;
-    const { data: friendships } = await supabase
-      .from('friendships')
-      .select('requester_id, addressee_id')
-      .eq('status', 'accepted')
-      .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
+    try {
+      const { data: friendships } = await supabase
+        .from('friendships')
+        .select('requester_id, addressee_id')
+        .eq('status', 'accepted')
+        .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
 
-    if (!friendships?.length) return;
-    const friendIds = friendships.map(f => f.requester_id === user.id ? f.addressee_id : f.requester_id);
+      if (!friendships?.length) return;
+      const friendIds = friendships.map(f => f.requester_id === user.id ? f.addressee_id : f.requester_id);
 
-    const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-    const { data } = await supabase
-      .from('hangout_rsvps')
-      .select('status, created_at, hangouts(event_name, venue_name), profiles!hangout_rsvps_user_id_fkey(username, display_name, avatar_url)')
-      .in('user_id', friendIds)
-      .in('status', ['going', 'interested'])
-      .gte('created_at', since)
-      .order('created_at', { ascending: false })
-      .limit(20);
+      const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await supabase
+        .from('hangout_rsvps')
+        .select('status, created_at, hangouts(event_name, venue_name), profiles!hangout_rsvps_user_id_fkey(username, display_name, avatar_url)')
+        .in('user_id', friendIds)
+        .in('status', ['going', 'interested'])
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(20);
 
-    if (data) setFriendsPlans(data.filter((d: any) => d.hangouts && d.profiles));
+      if (error) return;
+      if (data) setFriendsPlans(data.filter((d: any) => d.hangouts && d.profiles));
+    } catch {
+      // table may not exist yet
+    }
   };
 
   const loadFriendsActivity = async (friendIds: string[]) => {

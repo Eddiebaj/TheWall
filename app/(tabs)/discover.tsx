@@ -148,6 +148,14 @@ function isHappeningNow(event: DiscoverEvent): boolean {
   return nowMins >= startMins && nowMins <= endMins;
 }
 
+function formatTime(timeStr: string | null): string {
+  if (!timeStr) return '';
+  const [h, m] = timeStr.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hh = h % 12 || 12;
+  return `${hh}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '';
   const [year, month, day] = dateStr.split('-').map(Number);
@@ -275,41 +283,58 @@ export default function DiscoverScreen() {
     weekOutDate.setDate(now.getDate() + 7);
     const weekOut = `${weekOutDate.getFullYear()}-${pad(weekOutDate.getMonth() + 1)}-${pad(weekOutDate.getDate())}`;
 
-    let query = supabase
+    let legacyQuery = supabase
       .from('events')
       .select('id, title, poster_url, date, start_time, end_time, entry_type, category, venue_id, venues(name, neighbourhood, latitude, longitude, feature_tier)')
       .order('date', { ascending: true })
       .limit(50);
 
+    let veQuery = supabase
+      .from('venue_events')
+      .select('id, title, poster_url, event_date, event_time, end_time, entry_type, category, venue_id, source, visibility, venues(name, neighbourhood, latitude, longitude, feature_tier)')
+      .in('source', ['user', 'ticketmaster'])
+      .neq('visibility', 'friends')
+      .order('event_date', { ascending: true })
+      .limit(50);
+
     if (activeSort === 'Tonight') {
-      query = query.eq('date', today);
+      legacyQuery = legacyQuery.eq('date', today);
+      veQuery = veQuery.eq('event_date', today);
     } else if (activeSort === 'This Week') {
-      query = query.gte('date', today).lte('date', weekOut);
+      legacyQuery = legacyQuery.gte('date', today).lte('date', weekOut);
+      veQuery = veQuery.gte('event_date', today).lte('event_date', weekOut);
     }
 
-    const { data, error } = await query;
+    const [legacyRes, veRes] = await Promise.all([legacyQuery, veQuery]);
 
-    if (!error && data) {
-      const mapped: DiscoverEvent[] = data.map((e: any) => ({
-        id: e.id,
-        poster_url: e.poster_url || null,
-        title: e.title,
-        venue_id: e.venue_id || null,
-        venue_name: e.venues?.name || '',
-        neighbourhood: e.venues?.neighbourhood || null,
-        cover_charge: e.cover_charge || null,
-        entry_type: e.entry_type || null,
-        category: e.category || null,
-        event_date: e.date || null,
-        start_time: e.start_time || null,
-        end_time: e.end_time || null,
-        venue_lat: e.venues?.latitude ?? null,
-        venue_lng: e.venues?.longitude ?? null,
-        venue_feature_tier: e.venues?.feature_tier ?? null,
-      }));
-      setEvents(mapped);
-      loadAttendees(mapped.map(e => e.id));
+    const legacyMapped: DiscoverEvent[] = (legacyRes.data ?? []).map((e: any) => ({
+      id: e.id, poster_url: e.poster_url || null, title: e.title,
+      venue_id: e.venue_id || null, venue_name: e.venues?.name || '',
+      neighbourhood: e.venues?.neighbourhood || null, cover_charge: null,
+      entry_type: e.entry_type || null, category: e.category || null,
+      event_date: e.date || null, start_time: e.start_time || null,
+      end_time: e.end_time || null, venue_lat: e.venues?.latitude ?? null,
+      venue_lng: e.venues?.longitude ?? null, venue_feature_tier: e.venues?.feature_tier ?? null,
+    }));
+
+    const veMapped: DiscoverEvent[] = (veRes.data ?? []).map((e: any) => ({
+      id: e.id, poster_url: e.poster_url || null, title: e.title,
+      venue_id: e.venue_id || null, venue_name: e.venues?.name || '',
+      neighbourhood: e.venues?.neighbourhood || null, cover_charge: null,
+      entry_type: e.entry_type || null, category: e.category || null,
+      event_date: e.event_date || null, start_time: e.event_time || null,
+      end_time: e.end_time || null, venue_lat: e.venues?.latitude ?? null,
+      venue_lng: e.venues?.longitude ?? null, venue_feature_tier: e.venues?.feature_tier ?? null,
+    }));
+
+    const seen = new Set<string>();
+    const mapped: DiscoverEvent[] = [];
+    for (const e of [...legacyMapped, ...veMapped]) {
+      if (!seen.has(e.id)) { seen.add(e.id); mapped.push(e); }
     }
+
+    setEvents(mapped);
+    loadAttendees(mapped.map(e => e.id));
     setLoading(false);
   };
 
@@ -684,7 +709,7 @@ export default function DiscoverScreen() {
                     <Text style={styles.mapCardVenue} numberOfLines={1}>{selectedEvent.venue_name}</Text>
                     <Text style={styles.mapCardTitle} numberOfLines={1}>{selectedEvent.title}</Text>
                     <Text style={styles.mapCardDate}>
-                      {[formatDate(selectedEvent.event_date), selectedEvent.start_time].filter(Boolean).join(' · ')}
+                      {[formatDate(selectedEvent.event_date), formatTime(selectedEvent.start_time)].filter(Boolean).join(' · ')}
                     </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" style={{ marginLeft: 8 }} />
@@ -837,7 +862,7 @@ export default function DiscoverScreen() {
                     </TouchableOpacity>
                     <Text style={styles.cardEvent} numberOfLines={1}>{item.title}</Text>
                     <Text style={styles.cardDatetime}>
-                      {[formatDate(item.event_date), item.start_time].filter(Boolean).join(' · ')}
+                      {[formatDate(item.event_date), formatTime(item.start_time)].filter(Boolean).join(' · ')}
                     </Text>
                   </View>
                 </LinearGradient>
