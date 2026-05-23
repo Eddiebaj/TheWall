@@ -100,7 +100,7 @@
       [
         "@rnmapbox/maps",
         {
-          "RNMapboxMapsDownloadToken": "$MAPBOX_DOWNLOADS_TOKEN"
+          "RNMapboxMapsDownloadToken": "sk.eyJ1IjoiZWRkaWViYWoiLCJhIjoiY21waGJpNm5yMGhiajJ0cTdranljcnJ5NSJ9.LUZD__xyKTknbQQLHVeH5g"
         }
       ],
       "./plugins/withMapboxNetrc"
