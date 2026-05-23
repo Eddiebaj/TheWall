@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
 import { useAnalytics } from '../../lib/analytics';
+import { sendNotification } from '../../lib/notificationHelpers';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -190,10 +191,79 @@ function EventCard({ item, onPress, userId }: { item: FeedEvent; onPress: () => 
   );
 }
 
-function ActivityRow({ item, onPress }: { item: ActivityItem; onPress: () => void }) {
+function ActivityRow({
+  item,
+  onPress,
+  onPressAvatar,
+  userId,
+  currentUsername,
+}: {
+  item: ActivityItem;
+  onPress: () => void;
+  onPressAvatar: () => void;
+  userId: string | undefined;
+  currentUsername: string | undefined;
+}) {
   const username = item.profile?.username ?? 'Someone';
   const avatarUrl = item.profile?.avatar_url;
   const initial = username.charAt(0).toUpperCase();
+  const [isGoing, setIsGoing] = React.useState(false);
+  const rsvpRef = React.useRef(false);
+
+  const showJoinBtn = item.type === 'rsvp' && !!item.event_id;
+
+  React.useEffect(() => {
+    if (!userId || !item.event_id || !showJoinBtn) return;
+    supabase
+      .from('event_rsvps')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('event_id', item.event_id)
+      .eq('status', 'going')
+      .maybeSingle()
+      .then(({ data: d1 }) => {
+        if (d1) { setIsGoing(true); return; }
+        supabase
+          .from('venue_event_rsvps')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('event_id', item.event_id)
+          .eq('status', 'going')
+          .maybeSingle()
+          .then(({ data: d2 }) => setIsGoing(!!d2));
+      });
+  }, [userId, item.event_id]);
+
+  const handleToggleRsvp = async () => {
+    if (!userId || !item.event_id || rsvpRef.current) return;
+    rsvpRef.current = true;
+    const nowGoing = !isGoing;
+    setIsGoing(nowGoing);
+    if (nowGoing) {
+      const { error } = await supabase
+        .from('event_rsvps')
+        .upsert({ user_id: userId, event_id: item.event_id, status: 'going' });
+      if (error) { setIsGoing(false); rsvpRef.current = false; return; }
+      if (item.user_id && item.user_id !== userId) {
+        const eventTitle = item.event?.title ?? 'an event';
+        await sendNotification(
+          item.user_id,
+          'activity',
+          'You have company',
+          `@${currentUsername ?? 'Someone'} is also going to ${eventTitle}`,
+          { event_id: item.event_id }
+        );
+      }
+    } else {
+      const { error } = await supabase
+        .from('event_rsvps')
+        .delete()
+        .eq('user_id', userId)
+        .eq('event_id', item.event_id);
+      if (error) setIsGoing(true);
+    }
+    rsvpRef.current = false;
+  };
 
   let text = '';
   if (item.type === 'rsvp') {
@@ -208,22 +278,38 @@ function ActivityRow({ item, onPress }: { item: ActivityItem; onPress: () => voi
   }
 
   return (
-    <TouchableOpacity style={styles.activityRow} onPress={onPress} activeOpacity={0.75}>
-      <View style={styles.activityAvatar}>
-        {avatarUrl ? (
-          <Image source={{ uri: avatarUrl }} style={styles.activityAvatarImg} />
-        ) : (
-          <Text style={styles.activityAvatarInitial}>{initial}</Text>
-        )}
-      </View>
-      <View style={styles.activityContent}>
+    <View style={styles.activityRow}>
+      <TouchableOpacity onPress={onPressAvatar} activeOpacity={0.75} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+        <View style={styles.activityAvatar}>
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={styles.activityAvatarImg} />
+          ) : (
+            <Text style={styles.activityAvatarInitial}>{initial}</Text>
+          )}
+        </View>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.activityContent} onPress={onPress} activeOpacity={0.75}>
         <Text style={styles.activityText} numberOfLines={2}>{text}</Text>
         <Text style={styles.activityTime}>{timeAgo(item.created_at)}</Text>
-      </View>
-      {item.event_id && (
+      </TouchableOpacity>
+      {showJoinBtn ? (
+        <TouchableOpacity
+          onPress={handleToggleRsvp}
+          style={[
+            styles.joinBtn,
+            isGoing && styles.joinBtnGoing,
+          ]}
+          activeOpacity={0.75}
+        >
+          {isGoing && <Ionicons name="checkmark" size={13} color="#4CD964" style={{ marginRight: 3 }} />}
+          <Text style={[styles.joinBtnText, isGoing && styles.joinBtnTextGoing]}>
+            {isGoing ? 'Going' : 'Join'}
+          </Text>
+        </TouchableOpacity>
+      ) : item.event_id ? (
         <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.3)" />
-      )}
-    </TouchableOpacity>
+      ) : null}
+    </View>
   );
 }
 
@@ -777,6 +863,9 @@ export default function FeedScreen() {
                     onPress={() => {
                       if (item.event_id) router.push(`/event/${item.event_id}` as any);
                     }}
+                    onPressAvatar={() => router.push(`/profile/${item.user_id}` as any)}
+                    userId={user?.id}
+                    currentUsername={profile?.username}
                   />
                 )}
                 contentContainerStyle={[styles.activityList, { paddingTop: insets.top + 56 }]}
@@ -1005,5 +1094,27 @@ const styles = StyleSheet.create({
   activityTime: {
     color: 'rgba(255,255,255,0.35)',
     fontSize: 12,
+  },
+  joinBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FF3B5C',
+    borderRadius: 14,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    flexShrink: 0,
+  },
+  joinBtnGoing: {
+    backgroundColor: '#1a1a1a',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  joinBtnText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  joinBtnTextGoing: {
+    color: 'rgba(255,255,255,0.7)',
   },
 });
