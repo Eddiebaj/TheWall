@@ -255,6 +255,7 @@ function RootNav() {
       <Stack.Screen name="admin" options={{ headerShown: false }} />
       <Stack.Screen name="business" options={{ headerShown: false }} />
       <Stack.Screen name="business-signup" options={{ headerShown: false }} />
+      <Stack.Screen name="business-setup" options={{ headerShown: false }} />
       <Stack.Screen name="business-dashboard" options={{ headerShown: false }} />
       <Stack.Screen name="qr-scan" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
       <Stack.Screen name="invite/[id]" options={{ headerShown: false }} />

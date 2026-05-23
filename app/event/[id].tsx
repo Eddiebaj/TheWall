@@ -20,6 +20,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
 import { useAnalytics } from '../../lib/analytics';
+import { sendNotification } from '../../lib/notificationHelpers';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 const POSTER_HEIGHT = SCREEN_HEIGHT * 0.42;
@@ -222,7 +223,38 @@ export default function EventDetailScreen() {
       if (status === 'going') {
         setEvent(e => e ? { ...e, isGoing: true, goingCount: e.goingCount + (e.isGoing ? 0 : 1) } : e);
         const { error } = await supabase.from('event_rsvps').upsert({ event_id: event.id, user_id: user.id, status: 'going' }, { onConflict: 'event_id,user_id' });
-        if (error) setEvent(e => e ? { ...e, isGoing: false, goingCount: Math.max(0, e.goingCount - 1) } : e);
+        if (error) {
+          setEvent(e => e ? { ...e, isGoing: false, goingCount: Math.max(0, e.goingCount - 1) } : e);
+        } else {
+          // Notify friends that user is going
+          supabase
+            .from('friendships')
+            .select('requester_id, addressee_id')
+            .eq('status', 'accepted')
+            .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`)
+            .then(({ data: friendRows }) => {
+              if (!friendRows) return;
+              const { data: prof } = supabase.auth.getSession ? { data: null } : { data: null };
+              supabase
+                .from('profiles')
+                .select('username, display_name')
+                .eq('id', user.id)
+                .single()
+                .then(({ data: myProfile }) => {
+                  const myName = myProfile?.display_name || myProfile?.username || 'Someone';
+                  for (const row of friendRows) {
+                    const friendId = row.requester_id === user.id ? row.addressee_id : row.requester_id;
+                    sendNotification(
+                      friendId,
+                      'friend_going',
+                      'Your friend is going out',
+                      `${myName} is going to ${event.title}`,
+                      { type: 'friend_going', eventId: String(event.id) }
+                    );
+                  }
+                });
+            });
+        }
       } else {
         setEvent(e => e ? { ...e, isInterested: true } : e);
         const { error } = await supabase.from('event_interests').insert({ event_id: event.id, user_id: user.id });

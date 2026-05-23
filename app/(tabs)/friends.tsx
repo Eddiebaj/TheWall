@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { sendNotification } from '../../lib/notificationHelpers';
 
 const DOWN_TONIGHT_KEY = 'down_tonight_date';
 
@@ -246,11 +247,25 @@ export default function FriendsScreen() {
       Alert.alert('Request sent!', 'They\'ll get a notification when they accept.');
       setSearchResults([]);
       setSearchQuery('');
+      sendNotification(
+        addresseeId,
+        'friend_request',
+        'New friend request',
+        `${profile?.username} sent you a friend request`,
+        { type: 'friend_request' }
+      );
     }
   };
 
-  const acceptRequest = async (friendshipId: string) => {
+  const acceptRequest = async (friendshipId: string, requesterId: string) => {
     await supabase.from('friendships').update({ status: 'accepted' }).eq('id', friendshipId);
+    sendNotification(
+      requesterId,
+      'friend_accepted',
+      'Friend request accepted',
+      `${profile?.username} accepted your friend request`,
+      { type: 'friend_request' }
+    );
     loadFriendsData();
   };
 
@@ -634,7 +649,7 @@ export default function FriendsScreen() {
                   <TouchableOpacity onPress={() => declineRequest(req.id)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: colours.border }}>
                     <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted }}>Decline</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => acceptRequest(req.id)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: colours.accent }}>
+                  <TouchableOpacity onPress={() => acceptRequest(req.id, req.requester?.id)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: colours.accent }}>
                     <Text style={{ fontSize: 12, fontWeight: '700', color: 'white' }}>Accept</Text>
                   </TouchableOpacity>
                 </View>

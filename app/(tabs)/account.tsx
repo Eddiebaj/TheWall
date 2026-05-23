@@ -914,6 +914,36 @@ export default function AccountScreen() {
           />
         </Card>
 
+        {/* VENUE OWNER */}
+        {!(profile as any)?.is_business && (
+          <View style={{ marginHorizontal: 20, marginTop: 24, marginBottom: 4 }}>
+            <SectionHeader label="For Venue Owners" icon="business-outline" colours={colours} fonts={fonts} />
+            <Card>
+              <SettingsRow
+                label="Set up business account"
+                icon="storefront-outline"
+                onPress={() => router.push('/business-setup' as any)}
+                colours={colours}
+                fonts={fonts}
+              />
+            </Card>
+          </View>
+        )}
+        {(profile as any)?.is_business && (
+          <View style={{ marginHorizontal: 20, marginTop: 24, marginBottom: 4 }}>
+            <SectionHeader label="Business" icon="business-outline" colours={colours} fonts={fonts} />
+            <Card>
+              <SettingsRow
+                label="Business Dashboard"
+                icon="stats-chart-outline"
+                onPress={() => router.push('/business-dashboard' as any)}
+                colours={colours}
+                fonts={fonts}
+              />
+            </Card>
+          </View>
+        )}
+
         <TouchableOpacity
           onPress={signOut}
           style={{ marginHorizontal: 20, marginTop: 16, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: '#cc3b2a40', backgroundColor: '#cc3b2a12', alignItems: 'center' }}

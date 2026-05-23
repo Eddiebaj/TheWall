@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { sendNotification } from '../../lib/notificationHelpers';
 
 function getMidpoint(locs: { lat: number, lng: number }[]) {
   if (locs.length === 0) return { lat: 45.4215, lng: -75.6972 };
@@ -460,18 +461,17 @@ export default function ChatScreen() {
     });
     setReplyTo(null);
 
-    // Notify group members
-    supabase.functions.invoke('notify-social', {
-      body: {
-        type: 'message',
-        payload: {
-          conversation_id: id,
-          sender_id: user.id,
-          content: content,
-          event_name: null,
-        }
-      }
-    });
+    const senderName = profile?.display_name || profile?.username || 'Someone';
+    const otherMembers = members.filter(m => m.id !== user.id);
+    for (const member of otherMembers) {
+      sendNotification(
+        member.id,
+        'new_message',
+        groupName,
+        `${senderName}: ${content}`,
+        { type: 'new_message', conversationId: String(id) }
+      );
+    }
 
     setSending(false);
   };
