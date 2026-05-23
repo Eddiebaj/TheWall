@@ -10,9 +10,6 @@
     },
     "preview": {
       "distribution": "internal",
-      "hooks": {
-        "pre_install": "eas-hooks/eas-build-pre-install.sh"
-      },
       "env": {
         "EXPO_USE_METRO_WORKSPACE_ROOT": "1",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true",
