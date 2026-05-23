@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated,
+  ActivityIndicator,
   Dimensions,
   FlatList,
   Image,
@@ -11,7 +11,6 @@ import {
   StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -25,39 +24,31 @@ import { useAuth } from '../../context/AuthContext';
 import { useAnalytics } from '../../lib/analytics';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CARD_MARGIN = 8;
-const CARD_WIDTH = (SCREEN_WIDTH - CARD_MARGIN * 3) / 2;
-const CARD_HEIGHT = CARD_WIDTH * 1.35;
-const AVATAR_SIZE = 20;
-const AVATAR_OVERLAP = 6;
 
-const SORT_OPTIONS = ['Tonight', 'This Week', 'Near Me'] as const;
-type SortOption = typeof SORT_OPTIONS[number];
+const CARD_W = 160;
+const CARD_H = 220;
 
-const CATEGORY_FILTERS = ['All', 'Concerts', 'Nightlife', 'Comedy', 'Art', 'Sports', 'Food', 'Outdoor'] as const;
-type CategoryFilter = typeof CATEGORY_FILTERS[number];
+const HH_CARD_W = 200;
 
-const CATEGORY_MAP: Record<string, string> = {
-  Concerts: 'Concerts',
-  Nightlife: 'Nightlife',
-  Comedy: 'Comedy',
-  Art: 'Art & Culture',
-  Sports: 'Sports',
-  Food: 'Food & Drinks',
-  Outdoor: 'Outdoor',
-};
+const CATEGORIES: { key: string; emoji: string; label: string }[] = [
+  { key: 'Concerts',     emoji: '🎵', label: 'Concerts' },
+  { key: 'Nightlife',    emoji: '🍸', label: 'Nightlife' },
+  { key: 'Comedy',       emoji: '😂', label: 'Comedy' },
+  { key: 'Art & Culture',emoji: '🎨', label: 'Art & Culture' },
+  { key: 'Sports',       emoji: '🏟️', label: 'Sports' },
+  { key: 'Food & Drinks',emoji: '🍔', label: 'Food & Drinks' },
+  { key: 'Outdoor',      emoji: '🌿', label: 'Outdoor' },
+  { key: 'Networking',   emoji: '🤝', label: 'Networking' },
+  { key: 'Social',       emoji: '🎉', label: 'Social' },
+];
 
-const NEIGHBOURHOODS = [
-  'All', 'King West', 'Queen West', 'Entertainment District',
-  'Dundas West', 'Kensington', 'Bloor', 'College', 'West Queen West',
-] as const;
-
-const ENTRY_FILTERS = ['All', 'Free', 'Guestlist', 'Tickets', 'Bottle Service'] as const;
-type EntryFilter = typeof ENTRY_FILTERS[number];
-
-interface AttendeeInfo {
-  count: number;
-  avatars: { id: string; username: string; avatar_url: string | null }[];
+interface HappyHourDeal {
+  id: string;
+  venue_id: string;
+  venue_name: string;
+  title: string;
+  deal_details: string | null;
+  end_time: string; // HH:MM:SS
 }
 
 interface DiscoverEvent {
@@ -78,14 +69,35 @@ interface DiscoverEvent {
   venue_feature_tier: 'basic' | 'pro' | 'featured' | null;
 }
 
-function getFeatureMultiplier(tier: DiscoverEvent['venue_feature_tier']): number {
-  if (tier === 'featured') return 3;
-  if (tier === 'pro') return 2;
-  if (tier === 'basic') return 1.5;
-  return 1;
+function timeToMinutes(t: string): number {
+  const parts = t.split(':').map(Number);
+  return parts[0] * 60 + (parts[1] ?? 0);
 }
 
-const TORONTO = { lat: 43.6532, lng: -79.3832 };
+function formatCountdown(endTime: string, nowMins: number): string {
+  const endMins = timeToMinutes(endTime);
+  const diff = endMins - nowMins;
+  if (diff <= 0) return 'ending soon';
+  const h = Math.floor(diff / 60);
+  const m = diff % 60;
+  if (h > 0) return `ends in ${h}h ${m}m`;
+  return `ends in ${m}m`;
+}
+
+function formatTimeTo12(t: string): string {
+  const [h, m] = t.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hh = h % 12 || 12;
+  return `${hh}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return '';
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString('en-CA', {
+    weekday: 'short', month: 'short', day: 'numeric',
+  });
+}
 
 function VenuePin({
   event,
@@ -131,65 +143,107 @@ function VenuePin({
   );
 }
 
-function timeToMinutes(t: string): number {
-  const [h, m] = t.split(':').map(Number);
-  return h * 60 + m;
-}
-
-function isHappeningNow(event: DiscoverEvent): boolean {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  if (event.event_date !== today) return false;
-  if (!event.start_time) return false;
-  const nowMins = now.getHours() * 60 + now.getMinutes();
-  const startMins = timeToMinutes(event.start_time);
-  const endMins = event.end_time ? timeToMinutes(event.end_time) : startMins + 180;
-  return nowMins >= startMins && nowMins <= endMins;
-}
-
-function formatTime(timeStr: string | null): string {
-  if (!timeStr) return '';
-  const [h, m] = timeStr.split(':').map(Number);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  const hh = h % 12 || 12;
-  return `${hh}:${String(m).padStart(2, '0')} ${ampm}`;
-}
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '';
-  const [year, month, day] = dateStr.split('-').map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' });
-}
-
-const SKELETON_COLOR = '#1E2230';
-
-function SkeletonGrid() {
-  const opacity = useRef(new Animated.Value(0.3)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 0.7, duration: 800, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0.3, duration: 800, useNativeDriver: true }),
-      ])
-    ).start();
-  }, []);
+function EventCard({ event, onPress }: { event: DiscoverEvent; onPress: () => void }) {
+  const isFeatured = event.venue_feature_tier === 'featured';
+  const catDef = CATEGORIES.find(c => c.key === event.category);
+  const emoji = catDef?.emoji ?? '📅';
 
   return (
-    <Animated.View style={[styles.skeletonGrid, { opacity }]}>
-      {Array.from({ length: 2 }).map((_, row) => (
-        <View key={row} style={styles.row}>
-          {Array.from({ length: 2 }).map((__, col) => (
-            <View key={col} style={styles.skeletonCard}>
-              <View style={styles.skeletonImage} />
-              <View style={styles.skeletonTextWide} />
-              <View style={styles.skeletonTextNarrow} />
-            </View>
-          ))}
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.85}
+      style={styles.card}
+    >
+      {event.poster_url ? (
+        <Image source={{ uri: event.poster_url }} style={styles.cardImage} />
+      ) : (
+        <View style={styles.cardImagePlaceholder}>
+          <Text style={{ fontSize: 36 }}>{emoji}</Text>
         </View>
-      ))}
-    </Animated.View>
+      )}
+      <LinearGradient
+        colors={['transparent', 'rgba(0,0,0,0.85)']}
+        style={styles.cardGradient}
+      />
+      {/* Venue name top */}
+      <View style={styles.cardVenueRow}>
+        {isFeatured && <View style={styles.featuredDot} />}
+        <Text style={styles.cardVenueName} numberOfLines={1}>
+          {event.venue_name}
+        </Text>
+      </View>
+      {/* Title + date bottom */}
+      <View style={styles.cardBottom}>
+        <Text style={styles.cardTitle} numberOfLines={2}>{event.title}</Text>
+        {event.event_date ? (
+          <Text style={styles.cardDate}>{formatDate(event.event_date)}</Text>
+        ) : null}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function HappyHourCard({
+  deal,
+  nowMins,
+  onPress,
+}: {
+  deal: HappyHourDeal;
+  nowMins: number;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.hhCard}>
+      <LinearGradient
+        colors={['#1a0a00', '#2d1500']}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={styles.hhCardInner}>
+        <Text style={styles.hhCardVenue} numberOfLines={1}>{deal.venue_name}</Text>
+        <Text style={styles.hhCardTitle} numberOfLines={2}>{deal.title}</Text>
+        {deal.deal_details ? (
+          <Text style={styles.hhCardDetails} numberOfLines={2}>{deal.deal_details}</Text>
+        ) : null}
+        <View style={styles.hhCardFooter}>
+          <Ionicons name="time-outline" size={11} color="#f97316" />
+          <Text style={styles.hhCardCountdown}>{formatCountdown(deal.end_time, nowMins)}</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function CategoryRow({
+  category,
+  events,
+  onCardPress,
+  onSeeAll,
+}: {
+  category: typeof CATEGORIES[0];
+  events: DiscoverEvent[];
+  onCardPress: (e: DiscoverEvent) => void;
+  onSeeAll: () => void;
+}) {
+  return (
+    <View style={styles.categorySection}>
+      <View style={styles.categoryHeader}>
+        <Text style={styles.categoryTitle}>
+          {category.emoji}  {category.label}
+        </Text>
+        <TouchableOpacity onPress={onSeeAll} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Text style={styles.seeAll}>See all →</Text>
+        </TouchableOpacity>
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.cardRow}
+      >
+        {events.map(e => (
+          <EventCard key={e.id} event={e} onPress={() => onCardPress(e)} />
+        ))}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -198,114 +252,57 @@ export default function DiscoverScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { capture } = useAnalytics();
-  const [sort, setSort] = useState<SortOption>('This Week');
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('All');
-  const [neighbourhoods, setNeighbourhoods] = useState<Set<string>>(new Set());
-  const [entryFilters, setEntryFilters] = useState<Set<string>>(new Set());
+
   const [events, setEvents] = useState<DiscoverEvent[]>([]);
-  const [attendees, setAttendees] = useState<Record<string, AttendeeInfo>>({});
-  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [mapMode, setMapMode] = useState(false);
-  const [gridSort, setGridSort] = useState<'date' | 'popular'>('date');
+  const [mapVisible, setMapVisible] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<DiscoverEvent | null>(null);
-  const [showFilterSheet, setShowFilterSheet] = useState(false);
-  const [searchVisible, setSearchVisible] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const searchHeightAnim = useRef(new Animated.Value(0)).current;
-  const searchInputRef = useRef<any>(null);
-  const slideAnim = useRef(new Animated.Value(300)).current;
+  const [happyHourDeals, setHappyHourDeals] = useState<HappyHourDeal[]>([]);
+  const [nowMins, setNowMins] = useState(0);
+
+  // Determine if happy hour window (3pm-8pm weekdays)
+  const isHappyHourWindow = (() => {
+    const now = new Date();
+    const dow = now.getDay(); // 0=Sun, 6=Sat
+    const mins = now.getHours() * 60 + now.getMinutes();
+    return dow >= 1 && dow <= 5 && mins >= 15 * 60 && mins < 20 * 60;
+  })();
 
   useEffect(() => {
-    if (selectedEvent) {
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 65,
-        friction: 11,
-      }).start();
-    } else {
-      Animated.timing(slideAnim, {
-        toValue: 300,
-        duration: 220,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [selectedEvent]);
+    const now = new Date();
+    setNowMins(now.getHours() * 60 + now.getMinutes());
+    loadEvents();
+    if (isHappyHourWindow) loadHappyHour();
+  }, []);
 
-  useEffect(() => {
-    loadEvents(sort);
-  }, [sort]);
-
-  useEffect(() => {
-    if (user) loadSavedIds();
-  }, [user]);
-
-  const loadSavedIds = async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .from('saved_events')
-      .select('event_id')
-      .eq('user_id', user.id);
-    if (data) setSavedIds(new Set((data as any[]).map(r => r.event_id)));
-  };
-
-  const toggleSave = async (eventId: string) => {
-    if (!user) return;
-    const isSaved = savedIds.has(eventId);
-    // Optimistic update
-    setSavedIds(prev => {
-      const next = new Set(prev);
-      isSaved ? next.delete(eventId) : next.add(eventId);
-      return next;
-    });
-    if (isSaved) {
-      await supabase.from('saved_events').delete().eq('user_id', user.id).eq('event_id', eventId);
-    } else {
-      capture('event_saved', { event_id: eventId });
-      await supabase.from('saved_events').upsert({ user_id: user.id, event_id: eventId });
-    }
-  };
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await loadEvents(sort);
-    setRefreshing(false);
-  };
-
-  const loadEvents = async (activeSort: SortOption) => {
+  const loadEvents = async () => {
     setLoading(true);
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
     const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-    const weekOutDate = new Date(now);
-    weekOutDate.setDate(now.getDate() + 7);
-    const weekOut = `${weekOutDate.getFullYear()}-${pad(weekOutDate.getMonth() + 1)}-${pad(weekOutDate.getDate())}`;
+    const futureDate = new Date(now);
+    futureDate.setDate(now.getDate() + 30);
+    const future = `${futureDate.getFullYear()}-${pad(futureDate.getMonth() + 1)}-${pad(futureDate.getDate())}`;
 
-    let legacyQuery = supabase
-      .from('events')
-      .select('id, title, poster_url, date, start_time, end_time, entry_type, category, venue_id, venues(name, neighbourhood, latitude, longitude, feature_tier)')
-      .order('date', { ascending: true })
-      .limit(50);
-
-    let veQuery = supabase
-      .from('venue_events')
-      .select('id, title, poster_url, event_date, event_time, end_time, entry_type, category, venue_id, source, visibility, venues(name, neighbourhood, latitude, longitude, feature_tier)')
-      .in('source', ['user', 'ticketmaster'])
-      .neq('visibility', 'friends')
-      .order('event_date', { ascending: true })
-      .limit(50);
-
-    if (activeSort === 'Tonight') {
-      legacyQuery = legacyQuery.eq('date', today);
-      veQuery = veQuery.eq('event_date', today);
-    } else if (activeSort === 'This Week') {
-      legacyQuery = legacyQuery.gte('date', today).lte('date', weekOut);
-      veQuery = veQuery.gte('event_date', today).lte('event_date', weekOut);
-    }
-
-    const [legacyRes, veRes] = await Promise.all([legacyQuery, veQuery]);
+    const [legacyRes, veRes] = await Promise.all([
+      supabase
+        .from('events')
+        .select('id, title, poster_url, date, start_time, end_time, entry_type, category, venue_id, venues(name, neighbourhood, latitude, longitude, feature_tier)')
+        .gte('date', today)
+        .lte('date', future)
+        .order('date', { ascending: true })
+        .limit(200),
+      supabase
+        .from('venue_events')
+        .select('id, title, poster_url, event_date, event_time, end_time, entry_type, category, venue_id, source, visibility, venues(name, neighbourhood, latitude, longitude, feature_tier)')
+        .in('source', ['user', 'ticketmaster'])
+        .neq('visibility', 'friends')
+        .gte('event_date', today)
+        .lte('event_date', future)
+        .order('event_date', { ascending: true })
+        .limit(200),
+    ]);
 
     const legacyMapped: DiscoverEvent[] = (legacyRes.data ?? []).map((e: any) => ({
       id: e.id, poster_url: e.poster_url || null, title: e.title,
@@ -328,569 +325,194 @@ export default function DiscoverScreen() {
     }));
 
     const seen = new Set<string>();
-    const mapped: DiscoverEvent[] = [];
+    const merged: DiscoverEvent[] = [];
     for (const e of [...legacyMapped, ...veMapped]) {
-      if (!seen.has(e.id)) { seen.add(e.id); mapped.push(e); }
+      if (!seen.has(e.id)) { seen.add(e.id); merged.push(e); }
     }
 
-    setEvents(mapped);
-    loadAttendees(mapped.map(e => e.id));
+    setEvents(merged);
     setLoading(false);
   };
 
-  const loadAttendees = async (eventIds: string[]) => {
-    if (eventIds.length === 0) return;
+  const loadHappyHour = async () => {
+    const now = new Date();
+    const dow = now.getDay();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const currentTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:00`;
 
     const { data } = await supabase
-      .from('event_rsvps')
-      .select('event_id, profiles(id, username, avatar_url)')
-      .in('event_id', eventIds)
-      .eq('status', 'going');
+      .from('happy_hours')
+      .select('id, venue_id, title, deal_details, end_time, venues(name)')
+      .eq('day_of_week', dow)
+      .lte('start_time', currentTime)
+      .gte('end_time', currentTime);
 
-    if (!data) return;
-
-    const map: Record<string, AttendeeInfo> = {};
-    for (const row of data as any[]) {
-      const eid = row.event_id;
-      if (!map[eid]) map[eid] = { count: 0, avatars: [] };
-      map[eid].count += 1;
-      if (map[eid].avatars.length < 3 && row.profiles) {
-        map[eid].avatars.push(row.profiles);
-      }
-    }
-    setAttendees(map);
-  };
-
-  const happeningNow = events.filter(isHappeningNow);
-
-  const toggleSearch = () => {
-    if (searchVisible) {
-      setSearchQuery('');
-      Animated.timing(searchHeightAnim, { toValue: 0, duration: 200, useNativeDriver: false }).start(() => setSearchVisible(false));
-    } else {
-      setSearchVisible(true);
-      Animated.timing(searchHeightAnim, { toValue: 52, duration: 200, useNativeDriver: false }).start(() => {
-        searchInputRef.current?.focus();
-      });
-    }
-  };
-
-  const clearSearch = () => {
-    setSearchQuery('');
-    Animated.timing(searchHeightAnim, { toValue: 0, duration: 200, useNativeDriver: false }).start(() => setSearchVisible(false));
-  };
-
-  const filteredEvents = (() => {
-    let base = neighbourhoods.size === 0 ? events : events.filter(e => e.neighbourhood != null && neighbourhoods.has(e.neighbourhood));
-    if (categoryFilter !== 'All') {
-      const target = CATEGORY_MAP[categoryFilter];
-      base = base.filter(e => e.category === target);
-    }
-    if (entryFilters.size > 0) {
-      base = base.filter(e => e.entry_type != null && entryFilters.has(e.entry_type));
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      base = base.filter(e =>
-        e.title.toLowerCase().includes(q) ||
-        e.venue_name.toLowerCase().includes(q) ||
-        (e.neighbourhood ?? '').toLowerCase().includes(q)
+    if (data) {
+      setHappyHourDeals(
+        (data as any[]).map(d => ({
+          id: d.id,
+          venue_id: d.venue_id,
+          venue_name: d.venues?.name ?? '',
+          title: d.title,
+          deal_details: d.deal_details ?? null,
+          end_time: d.end_time,
+        }))
       );
     }
-    if (gridSort === 'popular') {
-      return [...base].sort((a, b) => {
-        const scoreA = (attendees[a.id]?.count ?? 0) * getFeatureMultiplier(a.venue_feature_tier);
-        const scoreB = (attendees[b.id]?.count ?? 0) * getFeatureMultiplier(b.venue_feature_tier);
-        return scoreB - scoreA;
-      });
-    }
-    // Date sort: apply feature multiplier as a recency score boost
-    const now = Date.now();
-    return [...base].sort((a, b) => {
-      const daysA = a.event_date ? (new Date(a.event_date).getTime() - now) / 86400000 : 999;
-      const daysB = b.event_date ? (new Date(b.event_date).getTime() - now) / 86400000 : 999;
-      const scoreA = getFeatureMultiplier(a.venue_feature_tier) / (Math.max(daysA, 0) + 1);
-      const scoreB = getFeatureMultiplier(b.venue_feature_tier) / (Math.max(daysB, 0) + 1);
-      return scoreB - scoreA;
-    });
-  })();
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadEvents();
+    setRefreshing(false);
+  };
+
+  const visibleCategories = CATEGORIES.filter(cat =>
+    events.some(e => e.category === cat.key)
+  );
+
+  const eventsByCategory = (key: string) =>
+    events.filter(e => e.category === key);
+
+  const mapEvents = events.filter(e => e.venue_lat && e.venue_lng);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" />
 
+      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.titleRow}>
-          <Text style={styles.title}>Discover</Text>
-          <View style={styles.headerActions}>
-            <TouchableOpacity
-              onPress={toggleSearch}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons name={searchVisible ? 'search' : 'search'} size={22} color={searchVisible ? '#fff' : 'rgba(255,255,255,0.8)'} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => { setMapMode(m => !m); setSelectedEvent(null); }}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={{ marginLeft: 16 }}
-            >
-              <Ionicons
-                name={mapMode ? 'grid-outline' : 'map-outline'}
-                size={22}
-                color="rgba(255,255,255,0.8)"
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-        <View style={styles.sortRow}>
-          {SORT_OPTIONS.map((opt) => (
-            <TouchableOpacity
-              key={opt}
-              onPress={() => setSort(opt)}
-              style={[styles.sortBtn, sort === opt && styles.sortBtnActive]}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.sortBtnText, sort === opt && styles.sortBtnTextActive]}>
-                {opt}
-              </Text>
-            </TouchableOpacity>
-          ))}
-          <TouchableOpacity
-            onPress={() => setShowFilterSheet(true)}
-            style={[styles.sortBtn, styles.filterBtn, (neighbourhoods.size > 0 || entryFilters.size > 0) && styles.filterBtnActive]}
-            activeOpacity={0.8}
-          >
-            <Ionicons
-              name="options-outline"
-              size={15}
-              color={(neighbourhoods.size > 0 || entryFilters.size > 0) ? '#FF3B5C' : 'rgba(255,255,255,0.6)'}
-            />
-            {(neighbourhoods.size > 0 || entryFilters.size > 0) && (
-              <View style={styles.filterBadge} />
-            )}
-          </TouchableOpacity>
-        </View>
+        <Text style={styles.headerTitle}>Discover</Text>
       </View>
 
-      {/* Category filter pills */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.categoryRow}
-        style={styles.categoryScroll}
-      >
-        {CATEGORY_FILTERS.map(cat => (
-          <TouchableOpacity
-            key={cat}
-            onPress={() => setCategoryFilter(cat)}
-            style={[styles.categoryPill, categoryFilter === cat && styles.categoryPillActive]}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.categoryPillText, categoryFilter === cat && styles.categoryPillTextActive]}>
-              {cat}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Inline search bar */}
-      <Animated.View style={{ height: searchHeightAnim, overflow: 'hidden', paddingHorizontal: 16 }}>
-        {searchVisible && (
-          <View style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            backgroundColor: '#1a1a1a',
-            borderRadius: 12,
-            paddingHorizontal: 12,
-            height: 44,
-            gap: 8,
-          }}>
-            <Ionicons name="search-outline" size={16} color="rgba(255,255,255,0.4)" />
-            <TextInput
-              ref={searchInputRef}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Search events, venues..."
-              placeholderTextColor="rgba(255,255,255,0.3)"
-              style={{ flex: 1, fontSize: 15, color: '#fff', paddingVertical: 0 }}
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="search"
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="close-circle" size={18} color="rgba(255,255,255,0.4)" />
-              </TouchableOpacity>
-            )}
-            {searchQuery.length === 0 && (
-              <TouchableOpacity onPress={clearSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="close" size={18} color="rgba(255,255,255,0.4)" />
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-      </Animated.View>
-
-      <Modal
-        visible={showFilterSheet}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowFilterSheet(false)}
-      >
-        <TouchableOpacity
-          style={styles.filterOverlay}
-          activeOpacity={1}
-          onPress={() => setShowFilterSheet(false)}
-        />
-        <View style={[styles.filterSheet, { paddingBottom: insets.bottom + 24 }]}>
-          <View style={styles.filterSheetHandle} />
-
-          <View style={styles.filterSheetHeader}>
-            <Text style={styles.filterSheetTitle}>Filters</Text>
-            {(neighbourhoods.size > 0 || entryFilters.size > 0) && (
-              <TouchableOpacity
-                onPress={() => { setNeighbourhoods(new Set()); setEntryFilters(new Set()); }}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Text style={styles.filterClearText}>Clear all</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <Text style={styles.filterSectionLabel}>NEIGHBOURHOOD</Text>
-          <View style={styles.filterPillWrap}>
-            {NEIGHBOURHOODS.map((n) => {
-              const isAll = n === 'All';
-              const isActive = isAll ? neighbourhoods.size === 0 : neighbourhoods.has(n);
-              return (
-                <TouchableOpacity
-                  key={n}
-                  onPress={() => {
-                    if (isAll) {
-                      setNeighbourhoods(new Set());
-                    } else {
-                      setNeighbourhoods(prev => {
-                        const next = new Set(prev);
-                        next.has(n) ? next.delete(n) : next.add(n);
-                        return next;
-                      });
-                    }
-                  }}
-                  style={[styles.nbBtn, isActive && styles.nbBtnActive]}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.nbBtnText, isActive && styles.nbBtnTextActive]}>{n}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <Text style={[styles.filterSectionLabel, { marginTop: 20 }]}>TYPE</Text>
-          <View style={styles.filterPillWrap}>
-            {ENTRY_FILTERS.map((f) => {
-              const isAll = f === 'All';
-              const isBottle = f === 'Bottle Service';
-              const isActive = isAll ? entryFilters.size === 0 : entryFilters.has(f);
-              return (
-                <TouchableOpacity
-                  key={f}
-                  onPress={() => {
-                    if (isAll) {
-                      setEntryFilters(new Set());
-                    } else {
-                      setEntryFilters(prev => {
-                        const next = new Set(prev);
-                        next.has(f) ? next.delete(f) : next.add(f);
-                        return next;
-                      });
-                    }
-                  }}
-                  style={[
-                    styles.nbBtn,
-                    isActive && (isBottle ? styles.entryBtnBottleActive : styles.nbBtnActive),
-                  ]}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[
-                    styles.nbBtnText,
-                    isActive && (isBottle ? styles.entryBtnBottleText : styles.nbBtnTextActive),
-                    !isActive && isBottle && styles.entryBtnBottleInactive,
-                  ]}>
-                    {f}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <TouchableOpacity
-            onPress={() => setShowFilterSheet(false)}
-            style={styles.filterDoneBtn}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.filterDoneBtnText}>Done</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
-
       {loading ? (
-        <SkeletonGrid />
-      ) : mapMode ? (
-        <View style={{ flex: 1 }}>
-          {Platform.OS !== 'web' ? (
-            <Mapbox.MapView
-              style={{ flex: 1 }}
-              styleURL="mapbox://styles/mapbox/dark-v11"
-              onPress={() => setSelectedEvent(null)}
-              logoEnabled={false}
-              attributionEnabled={false}
-              compassEnabled={false}
-            >
-              <Mapbox.Camera
-                defaultSettings={{
-                  centerCoordinate: [TORONTO.lng, TORONTO.lat],
-                  zoomLevel: 12,
-                }}
-              />
-              {filteredEvents
-                .filter(e => e.venue_lat != null && e.venue_lng != null)
-                .map(event => (
-                  <Mapbox.MarkerView
-                    key={event.id}
-                    coordinate={[event.venue_lng!, event.venue_lat!]}
-                    allowOverlap
-                  >
-                    <VenuePin
-                      event={event}
-                      selected={selectedEvent?.id === event.id}
-                      onPress={() => setSelectedEvent(event)}
-                    />
-                  </Mapbox.MarkerView>
-                ))}
-            </Mapbox.MapView>
-          ) : (
-            <View style={{ flex: 1, backgroundColor: '#0a0a0a', alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: '#666', fontSize: 14 }}>Map view not available on web</Text>
-            </View>
-          )}
-          <Animated.View
-            style={[
-              styles.mapCard,
-              { paddingBottom: insets.bottom + 16, transform: [{ translateY: slideAnim }] },
-            ]}
-            pointerEvents={selectedEvent ? 'box-none' : 'none'}
-          >
-            {selectedEvent && (
-              <>
-                {/* Drag handle */}
-                <View style={styles.mapCardHandle} />
-
-                {/* Close button */}
-                <TouchableOpacity
-                  style={styles.mapCardClose}
-                  onPress={() => setSelectedEvent(null)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Ionicons name="close" size={18} color="rgba(255,255,255,0.7)" />
-                </TouchableOpacity>
-
-                {/* Content row */}
-                <TouchableOpacity
-                  style={styles.mapCardBody}
-                  activeOpacity={0.9}
-                  onPress={() => router.push(`/event/${selectedEvent.id}` as any)}
-                >
-                  <Image
-                    source={{ uri: selectedEvent.poster_url || 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&q=80' }}
-                    style={styles.mapCardImage}
-                    resizeMode="cover"
-                  />
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text style={styles.mapCardVenue} numberOfLines={1}>{selectedEvent.venue_name}</Text>
-                    <Text style={styles.mapCardTitle} numberOfLines={1}>{selectedEvent.title}</Text>
-                    <Text style={styles.mapCardDate}>
-                      {[formatDate(selectedEvent.event_date), formatTime(selectedEvent.start_time)].filter(Boolean).join(' · ')}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" style={{ marginLeft: 8 }} />
-                </TouchableOpacity>
-
-                {/* I'm Going button */}
-                <TouchableOpacity style={styles.mapCardRsvp} activeOpacity={0.85}>
-                  <Text style={styles.mapCardRsvpText}>I'm Going</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </Animated.View>
-        </View>
-      ) : filteredEvents.length === 0 ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 15, fontWeight: '600' }}>
-            {searchQuery.trim() ? 'No events found' : `No events ${sort === 'Tonight' ? 'tonight' : 'this week'}`}
-          </Text>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator color="#fff" size="large" />
         </View>
       ) : (
-        <FlatList
-          data={filteredEvents}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          contentContainerStyle={[styles.grid, { paddingBottom: insets.bottom + 100 }]}
-          columnWrapperStyle={styles.row}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FF3B5C" />}
-          ListHeaderComponent={
-            <>
-              {happeningNow.length > 0 && (
-                <View style={styles.nowSection}>
-                  <Text style={styles.nowHeader}>HAPPENING NOW</Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{ gap: 10, paddingRight: 4 }}
-                  >
-                    {happeningNow.map((item) => (
-                      <TouchableOpacity
-                        key={item.id}
-                        style={styles.nowCard}
-                        activeOpacity={0.85}
-                        onPress={() => router.push(`/event/${item.id}` as any)}
-                      >
-                        <Image
-                          source={{ uri: item.poster_url || 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&q=80' }}
-                          style={styles.nowCardImage}
-                          resizeMode="cover"
-                        />
-                        <View style={styles.nowBadge}>
-                          <View style={styles.nowDot} />
-                          <Text style={styles.nowBadgeText}>Now</Text>
-                        </View>
-                        <LinearGradient
-                          colors={['transparent', 'rgba(0,0,0,0.8)']}
-                          style={styles.nowCardGradient}
-                        >
-                          <Text style={styles.nowCardVenue} numberOfLines={1}>{item.venue_name}</Text>
-                          <Text style={styles.nowCardTitle} numberOfLines={1}>{item.title}</Text>
-                        </LinearGradient>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
-              <View style={styles.gridSortRow}>
-                <TouchableOpacity
-                  onPress={() => setGridSort('date')}
-                  style={[styles.gridSortBtn, gridSort === 'date' && styles.gridSortBtnActive]}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="calendar-outline" size={12} color={gridSort === 'date' ? '#fff' : 'rgba(255,255,255,0.5)'} />
-                  <Text style={[styles.gridSortBtnText, gridSort === 'date' && styles.gridSortBtnTextActive]}>Date</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setGridSort('popular')}
-                  style={[styles.gridSortBtn, gridSort === 'popular' && styles.gridSortBtnActive]}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="flame-outline" size={12} color={gridSort === 'popular' ? '#fff' : 'rgba(255,255,255,0.5)'} />
-                  <Text style={[styles.gridSortBtnText, gridSort === 'popular' && styles.gridSortBtnTextActive]}>Popular</Text>
-                </TouchableOpacity>
-              </View>
-            </>
+        <ScrollView
+          style={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#fff" />
           }
-          renderItem={({ item }) => {
-            const info = attendees[item.id];
-            const isSaved = savedIds.has(item.id);
-            return (
-              <TouchableOpacity
-                style={styles.card}
-                activeOpacity={0.85}
-                onPress={() => router.push(`/event/${item.id}` as any)}
+        >
+          {/* Happy Hour Now */}
+          {isHappyHourWindow && happyHourDeals.length > 0 && (
+            <View style={styles.categorySection}>
+              <View style={styles.categoryHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={styles.categoryTitle}>🍺 Happy Hour</Text>
+                  <View style={styles.hhLivePill}>
+                    <Text style={styles.hhLiveText}>NOW</Text>
+                  </View>
+                </View>
+                <Text style={styles.hhTime}>{formatTimeTo12(`${new Date().getHours()}:${String(new Date().getMinutes()).padStart(2, '0')}`)}
+                </Text>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.cardRow}
               >
-                <Image
-                  source={{ uri: item.poster_url || 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&q=80' }}
-                  style={styles.cardImage}
-                  resizeMode="cover"
-                  onError={(e) => {
-                    (e.target as any).setNativeProps({
-                      src: [{ uri: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&q=80' }],
-                    });
-                  }}
-                />
-                <LinearGradient
-                  colors={['transparent', 'rgba(0,0,0,0.85)']}
-                  style={styles.cardGradient}
-                >
-                  <View style={styles.cardTopRow}>
-                    {item.neighbourhood && (
-                      <View style={styles.pill}>
-                        <Text style={styles.pillText}>{item.neighbourhood}</Text>
-                      </View>
-                    )}
-                    {item.cover_charge && (
-                      <View style={styles.pill}>
-                        <Text style={styles.pillText}>{item.cover_charge}</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  <View style={styles.cardBottom}>
-                    {info && info.count > 0 && (
-                      <View style={styles.attendeeRow}>
-                        <View style={{ flexDirection: 'row', height: AVATAR_SIZE, width: info.avatars.length * (AVATAR_SIZE - AVATAR_OVERLAP) + AVATAR_OVERLAP }}>
-                          {info.avatars.map((a, i) => (
-                            <View
-                              key={a.id}
-                              style={[styles.avatar, {
-                                left: i * (AVATAR_SIZE - AVATAR_OVERLAP),
-                                zIndex: info.avatars.length - i,
-                              }]}
-                            >
-                              {a.avatar_url ? (
-                                <Image source={{ uri: a.avatar_url }} style={styles.avatarImage} />
-                              ) : (
-                                <Text style={styles.avatarInitial}>{a.username[0].toUpperCase()}</Text>
-                              )}
-                            </View>
-                          ))}
-                        </View>
-                        <Text style={styles.goingText}>{info.count} going</Text>
-                      </View>
-                    )}
-                    <TouchableOpacity
-                      onPress={() => item.venue_id && router.push(`/venue/${item.venue_id}` as any)}
-                      activeOpacity={item.venue_id ? 0.7 : 1}
-                    >
-                      <Text style={styles.cardVenue} numberOfLines={1}>{item.venue_name}</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.cardEvent} numberOfLines={1}>{item.title}</Text>
-                    <Text style={styles.cardDatetime}>
-                      {[formatDate(item.event_date), formatTime(item.start_time)].filter(Boolean).join(' · ')}
-                    </Text>
-                  </View>
-                </LinearGradient>
-
-                {/* Heart / save button */}
-                <TouchableOpacity
-                  style={styles.heartBtn}
-                  onPress={() => toggleSave(item.id)}
-                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                >
-                  <Ionicons
-                    name={isSaved ? 'heart' : 'heart-outline'}
-                    size={18}
-                    color={isSaved ? '#FF3B5C' : 'rgba(255,255,255,0.85)'}
+                {happyHourDeals.map(deal => (
+                  <HappyHourCard
+                    key={deal.id}
+                    deal={deal}
+                    nowMins={nowMins}
+                    onPress={() => router.push(`/venue/${deal.venue_id}`)}
                   />
-                </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
 
-                {/* Featured badge */}
-                {item.venue_feature_tier != null && (
-                  <View style={styles.featuredBadge}>
-                    <Ionicons name="star" size={9} color="#FFD700" />
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          }}
-        />
+          {visibleCategories.map(cat => (
+            <CategoryRow
+              key={cat.key}
+              category={cat}
+              events={eventsByCategory(cat.key)}
+              onCardPress={e => {
+                capture('event_viewed', { event_id: e.id, source: 'discover' });
+                router.push(`/event/${e.id}`);
+              }}
+              onSeeAll={() => router.push(`/category/${encodeURIComponent(cat.key)}` as any)}
+            />
+          ))}
+          {visibleCategories.length === 0 && (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>No events found</Text>
+            </View>
+          )}
+          <View style={{ height: 100 }} />
+        </ScrollView>
       )}
+
+      {/* Floating map button */}
+      <TouchableOpacity
+        style={[styles.mapFab, { bottom: insets.bottom + 90 }]}
+        onPress={() => setMapVisible(true)}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="map" size={22} color="#fff" />
+      </TouchableOpacity>
+
+      {/* Map modal */}
+      <Modal
+        visible={mapVisible}
+        animationType="slide"
+        onRequestClose={() => setMapVisible(false)}
+      >
+        <View style={styles.mapModal}>
+          <TouchableOpacity
+            style={[styles.mapCloseBtn, { top: insets.top + 12 }]}
+            onPress={() => setMapVisible(false)}
+          >
+            <Ionicons name="close" size={20} color="#fff" />
+          </TouchableOpacity>
+
+          <Mapbox.MapView
+            style={styles.map}
+            styleURL="mapbox://styles/mapbox/dark-v11"
+          >
+            <Mapbox.Camera
+              centerCoordinate={[-79.3832, 43.6532]}
+              zoomLevel={12}
+              animationMode="none"
+            />
+            {mapEvents.map(e => (
+              <Mapbox.MarkerView
+                key={e.id}
+                coordinate={[e.venue_lng!, e.venue_lat!]}
+              >
+                <VenuePin
+                  event={e}
+                  selected={selectedEvent?.id === e.id}
+                  onPress={() => setSelectedEvent(prev => prev?.id === e.id ? null : e)}
+                />
+              </Mapbox.MarkerView>
+            ))}
+          </Mapbox.MapView>
+
+          {selectedEvent && (
+            <TouchableOpacity
+              style={styles.mapEventCard}
+              onPress={() => {
+                setMapVisible(false);
+                setSelectedEvent(null);
+                router.push(`/event/${selectedEvent.id}`);
+              }}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.mapEventTitle} numberOfLines={2}>{selectedEvent.title}</Text>
+              <Text style={styles.mapEventVenue}>{selectedEvent.venue_name}</Text>
+              {selectedEvent.event_date && (
+                <Text style={styles.mapEventDate}>{formatDate(selectedEvent.event_date)}</Text>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -902,500 +524,236 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
+    paddingVertical: 12,
   },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  title: {
+  headerTitle: {
     color: '#fff',
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '800',
+    letterSpacing: -0.5,
   },
-  sortRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  categoryScroll: {
-    marginBottom: 2,
-  },
-  categoryRow: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 8,
-  },
-  categoryPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: '#1a1a1a',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  categoryPillActive: {
-    backgroundColor: '#FF3B5C',
-    borderColor: '#FF3B5C',
-  },
-  categoryPillText: {
-    color: 'rgba(255,255,255,0.55)',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  categoryPillTextActive: {
-    color: '#fff',
-  },
-  sortBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    backgroundColor: 'transparent',
-  },
-  sortBtnActive: {
-    backgroundColor: '#FF3B5C',
-    borderColor: '#FF3B5C',
-  },
-  sortBtnText: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  sortBtnTextActive: {
-    color: '#fff',
-  },
-  featuredBadge: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: 'rgba(0,0,0,0.75)',
-    borderWidth: 1.5,
-    borderColor: '#FFD700',
+  loadingContainer: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  nbBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-    backgroundColor: 'transparent',
-  },
-  nbBtnActive: {
-    backgroundColor: 'rgba(255,59,92,0.15)',
-    borderColor: '#FF3B5C',
-  },
-  nbBtnText: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  nbBtnTextActive: {
-    color: '#FF3B5C',
-  },
-  filterBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-  },
-  filterBtnActive: {
-    borderColor: 'rgba(255,59,92,0.4)',
-    backgroundColor: 'rgba(255,59,92,0.08)',
-  },
-  filterBadge: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: '#FF3B5C',
-    borderWidth: 1.5,
-    borderColor: '#0a0a0a',
-  },
-  filterOverlay: {
+  scroll: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  filterSheet: {
-    backgroundColor: '#161A22',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingTop: 14,
+  categorySection: {
+    marginBottom: 28,
   },
-  filterSheetHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignSelf: 'center',
-    marginBottom: 20,
-  },
-  filterSheetHeader: {
+  categoryHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    paddingHorizontal: 16,
+    marginBottom: 12,
   },
-  filterSheetTitle: {
+  categoryTitle: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: '800',
-  },
-  filterClearText: {
-    color: '#FF3B5C',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  filterSectionLabel: {
-    color: 'rgba(255,255,255,0.4)',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1,
-    marginBottom: 10,
-  },
-  filterPillWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  filterDoneBtn: {
-    marginTop: 28,
-    backgroundColor: '#FF3B5C',
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  filterDoneBtnText: {
-    color: '#fff',
-    fontSize: 15,
     fontWeight: '700',
   },
-  entryBtnBottleInactive: {
-    color: '#D4A017',
-  },
-  entryBtnBottleActive: {
-    backgroundColor: 'rgba(212,160,23,0.15)',
-    borderColor: '#D4A017',
-  },
-  entryBtnBottleText: {
-    color: '#D4A017',
-  },
-  nowSection: {
-    marginBottom: 16,
-  },
-  nowHeader: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1,
-    marginBottom: 10,
-  },
-  nowCard: {
-    width: 140,
-    height: 180,
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#1a1a1a',
-  },
-  nowCardImage: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-  },
-  nowCardGradient: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 8,
-    paddingBottom: 8,
-    paddingTop: 24,
-  },
-  nowCardVenue: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  nowCardTitle: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 10,
+  seeAll: {
+    color: '#aaa',
+    fontSize: 13,
     fontWeight: '500',
-    marginTop: 1,
   },
-  nowBadge: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    borderRadius: 20,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderWidth: 1,
-    borderColor: '#00C07A',
-  },
-  nowDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#00C07A',
-  },
-  nowBadgeText: {
-    color: '#00C07A',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  gridSortRow: {
-    flexDirection: 'row',
-    gap: 6,
-    marginBottom: 10,
-  },
-  gridSortBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-    backgroundColor: 'transparent',
-  },
-  gridSortBtnActive: {
-    backgroundColor: '#FF3B5C',
-    borderColor: '#FF3B5C',
-  },
-  gridSortBtnText: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  gridSortBtnTextActive: {
-    color: '#fff',
-  },
-  grid: {
-    paddingHorizontal: CARD_MARGIN,
-    paddingBottom: 24,
-  },
-  row: {
-    gap: CARD_MARGIN,
-    marginBottom: CARD_MARGIN,
+  cardRow: {
+    paddingLeft: 16,
+    paddingRight: 8,
+    gap: 10,
   },
   card: {
-    width: CARD_WIDTH,
-    height: CARD_HEIGHT,
+    width: CARD_W,
+    height: CARD_H,
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#1a1a1a',
   },
   cardImage: {
-    width: '100%',
-    height: '100%',
-    position: 'absolute',
+    width: CARD_W,
+    height: CARD_H,
+    resizeMode: 'cover',
+  },
+  cardImagePlaceholder: {
+    width: CARD_W,
+    height: CARD_H,
+    backgroundColor: '#1e1e2e',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardGradient: {
     position: 'absolute',
-    top: 0,
     bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 8,
-    paddingTop: 8,
-    paddingBottom: 8,
-    justifyContent: 'space-between',
+    height: CARD_H * 0.65,
   },
-  cardTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  pill: {
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    borderRadius: 20,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    maxWidth: '55%',
-  },
-  pillText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  cardBottom: {
-    gap: 1,
-  },
-  attendeeRow: {
+  cardVenueRow: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    right: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    marginBottom: 4,
   },
-  avatar: {
-    position: 'absolute',
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
-    backgroundColor: '#FF3B5C',
-    borderWidth: 1.5,
-    borderColor: 'rgba(0,0,0,0.6)',
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
+  featuredDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#e53935',
   },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
-  },
-  avatarInitial: {
-    color: '#fff',
-    fontSize: 8,
-    fontWeight: '700',
-  },
-  goingText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '800',
-    marginLeft: 4,
-  },
-  cardVenue: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  cardEvent: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  cardDatetime: {
-    color: 'rgba(255,255,255,0.55)',
+  cardVenueName: {
+    color: 'rgba(255,255,255,0.75)',
     fontSize: 10,
-    marginTop: 2,
+    fontWeight: '600',
+    flex: 1,
   },
-  heartBtn: {
+  cardBottom: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    bottom: 10,
+    left: 10,
+    right: 10,
   },
-  skeletonGrid: {
-    paddingHorizontal: CARD_MARGIN,
-    paddingTop: CARD_MARGIN,
-    gap: CARD_MARGIN,
-  },
-  skeletonCard: {
-    width: CARD_WIDTH,
-    gap: 8,
-  },
-  skeletonImage: {
-    width: CARD_WIDTH,
-    height: CARD_HEIGHT,
-    borderRadius: 12,
-    backgroundColor: SKELETON_COLOR,
-  },
-  skeletonTextWide: {
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: SKELETON_COLOR,
-    width: '75%',
-  },
-  skeletonTextNarrow: {
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: SKELETON_COLOR,
-    width: '50%',
-  },
-  mapCard: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#1A1A2E',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-  },
-  mapCardHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  mapCardClose: {
-    position: 'absolute',
-    top: 14,
-    right: 16,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mapCardBody: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  mapCardImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
-  },
-  mapCardVenue: {
+  cardTitle: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: '800',
-    marginBottom: 3,
-  },
-  mapCardTitle: {
-    color: 'rgba(255,255,255,0.7)',
     fontSize: 13,
-    fontWeight: '500',
-    marginBottom: 5,
-  },
-  mapCardDate: {
-    color: 'rgba(255,255,255,0.4)',
-    fontSize: 11,
-  },
-  mapCardRsvp: {
-    backgroundColor: '#FF3B5C',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
+    fontWeight: '700',
+    lineHeight: 17,
     marginBottom: 4,
   },
-  mapCardRsvpText: {
+  cardDate: {
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 11,
+    fontWeight: '400',
+  },
+  hhCard: {
+    width: HH_CARD_W,
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#3d1f00',
+  },
+  hhCardInner: {
+    padding: 14,
+    gap: 4,
+  },
+  hhCardVenue: {
+    color: '#f97316',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  hhCardTitle: {
     color: '#fff',
     fontSize: 15,
     fontWeight: '700',
+    lineHeight: 20,
+  },
+  hhCardDetails: {
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  hhCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 8,
+  },
+  hhCardCountdown: {
+    color: '#f97316',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  hhLivePill: {
+    backgroundColor: '#f97316',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  hhLiveText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  hhTime: {
+    color: '#666',
+    fontSize: 12,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingTop: 80,
+  },
+  emptyText: {
+    color: '#555',
+    fontSize: 16,
+  },
+  mapFab: {
+    position: 'absolute',
+    right: 20,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#222',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  mapModal: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  map: {
+    flex: 1,
+  },
+  mapCloseBtn: {
+    position: 'absolute',
+    left: 16,
+    zIndex: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mapEventCard: {
+    position: 'absolute',
+    bottom: 40,
+    left: 20,
+    right: 20,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  mapEventTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  mapEventVenue: {
+    color: '#aaa',
+    fontSize: 13,
+    marginBottom: 2,
+  },
+  mapEventDate: {
+    color: '#777',
+    fontSize: 12,
   },
 });

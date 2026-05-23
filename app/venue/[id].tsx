@@ -40,6 +40,24 @@ interface Moment {
   thumbnail_url: string | null;
 }
 
+interface HappyHour {
+  id: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  title: string;
+  deal_details: string | null;
+}
+
+const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function fmt12(t: string): string {
+  const [h, m] = t.split(':').map(Number);
+  const ampm = h >= 12 ? 'pm' : 'am';
+  const hh = h % 12 || 12;
+  return m === 0 ? `${hh}${ampm}` : `${hh}:${String(m).padStart(2, '0')}${ampm}`;
+}
+
 function formatDate(dateStr: string): string {
   const [year, month, day] = dateStr.split('-').map(Number);
   return new Date(year, month - 1, day).toLocaleDateString('en-CA', {
@@ -57,6 +75,7 @@ export default function VenueScreen() {
   const [venue, setVenue] = useState<Venue | null>(null);
   const [events, setEvents] = useState<VenueEvent[]>([]);
   const [moments, setMoments] = useState<Moment[]>([]);
+  const [happyHours, setHappyHours] = useState<HappyHour[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -70,7 +89,7 @@ export default function VenueScreen() {
     const pad = (n: number) => String(n).padStart(2, '0');
     const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 
-    const [venueRes, eventsRes] = await Promise.all([
+    const [venueRes, eventsRes, hhRes] = await Promise.all([
       supabase
         .from('venues')
         .select('id, name, neighbourhood, address, poster_url')
@@ -83,9 +102,15 @@ export default function VenueScreen() {
         .gte('date', today)
         .order('date', { ascending: true })
         .limit(20),
+      supabase
+        .from('happy_hours')
+        .select('id, day_of_week, start_time, end_time, title, deal_details')
+        .eq('venue_id', id)
+        .order('day_of_week', { ascending: true }),
     ]);
 
     if (venueRes.data) setVenue(venueRes.data as Venue);
+    setHappyHours((hhRes.data ?? []) as HappyHour[]);
 
     const eventList: VenueEvent[] = ((eventsRes.data || []) as any[]).map((e: any) => ({
       id: e.id,
@@ -260,6 +285,37 @@ export default function VenueScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+          )}
+
+          {/* Happy Hour */}
+          {happyHours.length > 0 && (
+            <>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: 'rgba(255,255,255,0.45)', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 12 }}>
+                Happy Hour
+              </Text>
+              <View style={{ marginBottom: 28, gap: 8 }}>
+                {happyHours.map(hh => (
+                  <View
+                    key={hh.id}
+                    style={{ backgroundColor: '#1a0d00', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#3d1f00' }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#f97316' }}>
+                        {DAY_ABBR[hh.day_of_week]}  {fmt12(hh.start_time)} - {fmt12(hh.end_time)}
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff', marginBottom: hh.deal_details ? 4 : 0 }}>
+                      {hh.title}
+                    </Text>
+                    {hh.deal_details ? (
+                      <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 18 }}>
+                        {hh.deal_details}
+                      </Text>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+            </>
           )}
 
           {/* Moments */}

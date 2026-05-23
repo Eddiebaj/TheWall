@@ -31,6 +31,18 @@ type VenueEvent = {
   rsvp_count: number;
 };
 
+type HappyHourDeal = {
+  id: string;
+  title: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  deal_details: string | null;
+  description: string | null;
+};
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
 type Analytics = {
   rsvps: number;
   views: number;
@@ -77,6 +89,17 @@ export default function BusinessDashboardScreen() {
   const [newDesc, setNewDesc] = useState('');
   const [newEntry, setNewEntry] = useState<'Free' | 'Paid'>('Free');
   const [saving, setSaving] = useState(false);
+
+  // Happy hour deals
+  const [deals, setDeals] = useState<HappyHourDeal[]>([]);
+  const [showAddDeal, setShowAddDeal] = useState(false);
+  const [editingDeal, setEditingDeal] = useState<HappyHourDeal | null>(null);
+  const [dealTitle, setDealTitle] = useState('');
+  const [dealDays, setDealDays] = useState<Set<number>>(new Set([1, 2, 3, 4, 5]));
+  const [dealStart, setDealStart] = useState('16:00');
+  const [dealEnd, setDealEnd] = useState('19:00');
+  const [dealDetails, setDealDetails] = useState('');
+  const [savingDeal, setSavingDeal] = useState(false);
 
   const monthStart = new Date();
   monthStart.setDate(1);
@@ -168,6 +191,14 @@ export default function BusinessDashboardScreen() {
         const { data: bpRow } = await supabase.from('business_profiles').select('id').eq('user_id', user.id).maybeSingle();
         setBusinessProfileId(bpRow?.id ?? null);
 
+        // Load happy hour deals
+        const { data: dealRows } = await supabase
+          .from('happy_hours')
+          .select('id, title, day_of_week, start_time, end_time, deal_details, description')
+          .eq('venue_id', vid)
+          .order('day_of_week', { ascending: true });
+        setDeals((dealRows ?? []) as HappyHourDeal[]);
+
         // Load events
         if (bpRow) {
           const { data: evRows } = await supabase
@@ -223,6 +254,75 @@ export default function BusinessDashboardScreen() {
     setShowAddEvent(false);
     setNewTitle(''); setNewDate(''); setNewTime(''); setNewDesc(''); setNewEntry('Free');
     loadData();
+  };
+
+  const openAddDeal = () => {
+    setEditingDeal(null);
+    setDealTitle('');
+    setDealDays(new Set([1, 2, 3, 4, 5]));
+    setDealStart('16:00');
+    setDealEnd('19:00');
+    setDealDetails('');
+    setShowAddDeal(true);
+  };
+
+  const openEditDeal = (deal: HappyHourDeal) => {
+    setEditingDeal(deal);
+    setDealTitle(deal.title);
+    setDealDays(new Set([deal.day_of_week]));
+    setDealStart(deal.start_time.slice(0, 5));
+    setDealEnd(deal.end_time.slice(0, 5));
+    setDealDetails(deal.deal_details ?? '');
+    setShowAddDeal(true);
+  };
+
+  const handleSaveDeal = async () => {
+    if (!dealTitle.trim() || dealDays.size === 0) {
+      Alert.alert('Missing fields', 'Title and at least one day are required.');
+      return;
+    }
+    if (!venueId) return;
+    setSavingDeal(true);
+    if (editingDeal) {
+      // Update single deal (day_of_week is fixed when editing)
+      const { error } = await supabase
+        .from('happy_hours')
+        .update({
+          title: dealTitle.trim(),
+          start_time: dealStart,
+          end_time: dealEnd,
+          deal_details: dealDetails.trim() || null,
+        })
+        .eq('id', editingDeal.id);
+      if (error) { Alert.alert('Error', error.message); setSavingDeal(false); return; }
+    } else {
+      // Insert one row per selected day
+      const rows = Array.from(dealDays).map(dow => ({
+        venue_id: venueId,
+        title: dealTitle.trim(),
+        day_of_week: dow,
+        start_time: dealStart,
+        end_time: dealEnd,
+        deal_details: dealDetails.trim() || null,
+      }));
+      const { error } = await supabase.from('happy_hours').insert(rows);
+      if (error) { Alert.alert('Error', error.message); setSavingDeal(false); return; }
+    }
+    setSavingDeal(false);
+    setShowAddDeal(false);
+    loadData();
+  };
+
+  const handleDeleteDeal = (deal: HappyHourDeal) => {
+    Alert.alert('Delete deal', `Remove "${deal.title}" on ${DAY_NAMES[deal.day_of_week]}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          await supabase.from('happy_hours').delete().eq('id', deal.id);
+          loadData();
+        },
+      },
+    ]);
   };
 
   const tierColour = TIER_COLOURS[sub.plan ?? 'basic'];
@@ -392,6 +492,57 @@ export default function BusinessDashboardScreen() {
 
         <View style={{ height: 1, backgroundColor: colours.border, marginHorizontal: 20, marginBottom: 24 }} />
 
+        {/* Happy Hour Deals */}
+        <View style={{ paddingHorizontal: 20, marginBottom: 28 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>
+              Happy Hour Deals
+            </Text>
+            <TouchableOpacity
+              onPress={openAddDeal}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#f97316' + '22', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#f97316' + '44' }}
+            >
+              <Ionicons name="add" size={16} color="#f97316" />
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#f97316' }}>Add Deal</Text>
+            </TouchableOpacity>
+          </View>
+
+          {deals.length === 0 ? (
+            <View style={{ borderRadius: 14, borderWidth: 1, borderColor: colours.border, borderStyle: 'dashed', padding: 24, alignItems: 'center' }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text, marginBottom: 4 }}>No deals yet</Text>
+              <Text style={{ fontSize: 13, color: colours.muted, textAlign: 'center' }}>Add happy hour deals to attract more guests.</Text>
+            </View>
+          ) : (
+            <View style={{ gap: 8 }}>
+              {deals.map(deal => (
+                <View key={deal.id} style={{ backgroundColor: colours.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colours.border }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text, marginBottom: 3 }}>{deal.title}</Text>
+                      <Text style={{ fontSize: 12, color: colours.muted }}>
+                        {DAY_NAMES[deal.day_of_week]}  {deal.start_time.slice(0, 5)} - {deal.end_time.slice(0, 5)}
+                      </Text>
+                      {deal.deal_details ? (
+                        <Text style={{ fontSize: 12, color: colours.muted, marginTop: 4 }}>{deal.deal_details}</Text>
+                      ) : null}
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 8, marginLeft: 10 }}>
+                      <TouchableOpacity onPress={() => openEditDeal(deal)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Ionicons name="pencil-outline" size={17} color={colours.muted} />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleDeleteDeal(deal)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Ionicons name="trash-outline" size={17} color="#e53935" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        <View style={{ height: 1, backgroundColor: colours.border, marginHorizontal: 20, marginBottom: 24 }} />
+
         {/* Boosts */}
         <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
           <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>
@@ -419,6 +570,102 @@ export default function BusinessDashboardScreen() {
         </View>
 
       </ScrollView>
+
+      {/* Add / Edit Deal Modal */}
+      <Modal visible={showAddDeal} animationType="slide" transparent onRequestClose={() => setShowAddDeal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: insets.bottom + 24 }}>
+            <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginBottom: 20 }} />
+            <Text style={{ fontSize: 20, fontWeight: '800', color: colours.text, marginBottom: 20 }}>
+              {editingDeal ? 'Edit Deal' : 'Add Happy Hour Deal'}
+            </Text>
+
+            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Deal Title</Text>
+            <TextInput
+              style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colours.text, marginBottom: 14 }}
+              placeholder="e.g. Happy Hour Specials"
+              placeholderTextColor={colours.muted}
+              value={dealTitle}
+              onChangeText={setDealTitle}
+            />
+
+            {!editingDeal && (
+              <>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Days</Text>
+                <View style={{ flexDirection: 'row', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+                  {DAY_NAMES.map((name, i) => {
+                    const selected = dealDays.has(i);
+                    return (
+                      <TouchableOpacity
+                        key={i}
+                        onPress={() => {
+                          setDealDays(prev => {
+                            const next = new Set(prev);
+                            selected ? next.delete(i) : next.add(i);
+                            return next;
+                          });
+                        }}
+                        style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1, borderColor: selected ? '#f97316' : colours.border, backgroundColor: selected ? '#f97316' + '22' : colours.surface }}
+                      >
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: selected ? '#f97316' : colours.muted }}>{name}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </>
+            )}
+
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Start Time</Text>
+                <TextInput
+                  style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colours.text }}
+                  placeholder="16:00"
+                  placeholderTextColor={colours.muted}
+                  value={dealStart}
+                  onChangeText={setDealStart}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>End Time</Text>
+                <TextInput
+                  style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colours.text }}
+                  placeholder="19:00"
+                  placeholderTextColor={colours.muted}
+                  value={dealEnd}
+                  onChangeText={setDealEnd}
+                />
+              </View>
+            </View>
+
+            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Deal Details</Text>
+            <TextInput
+              style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colours.text, marginBottom: 20, minHeight: 64, textAlignVertical: 'top' }}
+              placeholder="e.g. 2-for-1 draft beers, $8 house wine"
+              placeholderTextColor={colours.muted}
+              value={dealDetails}
+              onChangeText={setDealDetails}
+              multiline
+            />
+
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity
+                onPress={() => setShowAddDeal(false)}
+                style={{ flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: '600', color: colours.muted }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSaveDeal}
+                disabled={savingDeal}
+                style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: '#f97316', alignItems: 'center', opacity: savingDeal ? 0.7 : 1 }}
+              >
+                {savingDeal ? <ActivityIndicator color="white" /> : <Text style={{ fontSize: 15, fontWeight: '700', color: 'white' }}>{editingDeal ? 'Save' : 'Add Deal'}</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* Add Event Modal */}
       <Modal visible={showAddEvent} animationType="slide" transparent onRequestClose={() => setShowAddEvent(false)}>
