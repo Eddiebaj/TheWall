@@ -442,7 +442,7 @@
               <svg width="12" height="9" viewBox="0 0 12 9" fill="none"><path d="M1 4l3.5 3.5L11 1" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </div>
             <div class="boost-info">
-              <p class="boost-name">Event Boost — 3 Days</p>
+              <p class="boost-name">Event Boost - 3 Days</p>
               <p class="boost-desc">Boost a specific event to the top of the feed for 3 days</p>
             </div>
             <p class="boost-price">$9.99</p>
@@ -454,7 +454,7 @@
               <svg width="12" height="9" viewBox="0 0 12 9" fill="none"><path d="M1 4l3.5 3.5L11 1" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </div>
             <div class="boost-info">
-              <p class="boost-name">Event Boost — 7 Days</p>
+              <p class="boost-name">Event Boost - 7 Days</p>
               <p class="boost-desc">Boost a specific event to the top of the feed for 7 days</p>
             </div>
             <p class="boost-price">$19.99</p>
@@ -564,36 +564,22 @@
         return;
       }
 
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Loading...';
+      var planLinks = {
+        basic:    'https://buy.stripe.com/test_aFaaEY8KMcYkdytejD04806',
+        pro:      'https://buy.stripe.com/test_fZu8wQ4uw1fC0LH6Rb04807',
+        featured: 'https://buy.stripe.com/test_aFacN65yAcYkbqlb7r04808'
+      };
+      var boostLinks = {
+        event_boost_3d:   'https://buy.stripe.com/test_aFa6oI5yAe2o9id0sN0480a',
+        event_boost_7d:   'https://buy.stripe.com/test_3cI6oIgde6zW51X8Zj0480b',
+        weekend_spotlight: 'https://buy.stripe.com/test_00weVe7GI6zWdytejD04809'
+      };
 
-      fetch('/api/business-create-checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          business_name: businessName,
-          contact_name: contactName,
-          email: email,
-          venue_name: venueName,
-          plan: plan,
-          boosts: boosts
-        })
-      })
-      .then(function(res) {
-        return res.json().then(function(data) {
-          return { ok: res.ok, data: data };
-        });
-      })
-      .then(function(result) {
-        if (!result.ok || !result.data.checkout_url) {
-          showError(result.data.error || 'Something went wrong. Please try again.');
-          return;
-        }
-        window.location.href = result.data.checkout_url;
-      })
-      .catch(function() {
-        showError('Network error. Please check your connection and try again.');
+      boosts.forEach(function(boost) {
+        if (boostLinks[boost]) window.open(boostLinks[boost], '_blank');
       });
+
+      window.location.href = planLinks[plan];
     });
   </script>
 
