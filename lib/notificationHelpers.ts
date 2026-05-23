@@ -5,9 +5,11 @@ export async function sendNotification(
   type: string,
   title: string,
   body: string,
-  data?: Record<string, string>
+  data?: Record<string, string>,
+  sound?: boolean,
+  priority?: string
 ): Promise<void> {
   await supabase.functions.invoke('send-notification', {
-    body: { user_id: userId, type, title, body, data },
+    body: { user_id: userId, type, title, body, data, sound, priority },
   });
 }

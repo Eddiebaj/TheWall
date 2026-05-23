@@ -250,8 +250,8 @@ export default function FriendsScreen() {
       sendNotification(
         addresseeId,
         'friend_request',
-        'New friend request',
-        `${profile?.username} sent you a friend request`,
+        'New request',
+        `@${profile?.username} wants to connect`,
         { type: 'friend_request' }
       );
     }
@@ -262,8 +262,8 @@ export default function FriendsScreen() {
     sendNotification(
       requesterId,
       'friend_accepted',
-      'Friend request accepted',
-      `${profile?.username} accepted your friend request`,
+      "You're connected",
+      `@${profile?.username} accepted your request`,
       { type: 'friend_request' }
     );
     loadFriendsData();

@@ -12,6 +12,9 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { sendNotification } from '../../lib/notificationHelpers';
 
+// Debounce message notifications: track last notified timestamp per conversation
+const lastMessageNotifiedAt: Map<string, number> = new Map();
+
 function getMidpoint(locs: { lat: number, lng: number }[]) {
   if (locs.length === 0) return { lat: 45.4215, lng: -75.6972 };
   const lat = locs.reduce((s, l) => s + l.lat, 0) / locs.length;
@@ -463,14 +466,23 @@ export default function ChatScreen() {
 
     const senderName = profile?.display_name || profile?.username || 'Someone';
     const otherMembers = members.filter(m => m.id !== user.id);
-    for (const member of otherMembers) {
-      sendNotification(
-        member.id,
-        'new_message',
-        groupName,
-        `${senderName}: ${content}`,
-        { type: 'new_message', conversationId: String(id) }
-      );
+    const convKey = String(id);
+    const now = Date.now();
+    const lastNotified = lastMessageNotifiedAt.get(convKey) ?? 0;
+    if (now - lastNotified > 60000) {
+      lastMessageNotifiedAt.set(convKey, now);
+      const preview = content.length > 50 ? content.slice(0, 50) : content;
+      for (const member of otherMembers) {
+        sendNotification(
+          member.id,
+          'new_message',
+          groupName,
+          `@${senderName}: ${preview}`,
+          { type: 'new_message', conversationId: convKey },
+          true,
+          'high'
+        );
+      }
     }
 
     setSending(false);

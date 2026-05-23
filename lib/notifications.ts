@@ -68,10 +68,10 @@ export async function savePushToken(userId: string, token: string): Promise<void
 /**
  * Schedule an immediate local notification.
  */
-export async function sendLocalNotification(title: string, body: string): Promise<void> {
+export async function sendLocalNotification(title: string, body: string, sound = false): Promise<void> {
   if (!Notifications) return;
   await Notifications.scheduleNotificationAsync({
-    content: { title, body, sound: true },
+    content: { title, body, sound },
     trigger: null,
   });
 }

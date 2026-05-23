@@ -241,15 +241,18 @@ export default function EventDetailScreen() {
                 .eq('id', user.id)
                 .single()
                 .then(({ data: myProfile }) => {
-                  const myName = myProfile?.display_name || myProfile?.username || 'Someone';
+                  const myHandle = myProfile?.username || myProfile?.display_name || 'Someone';
                   for (const row of friendRows) {
                     const friendId = row.requester_id === user.id ? row.addressee_id : row.requester_id;
+                    if (friendId === user.id) continue;
                     sendNotification(
                       friendId,
                       'friend_going',
-                      'Your friend is going out',
-                      `${myName} is going to ${event.title}`,
-                      { type: 'friend_going', eventId: String(event.id) }
+                      'Tonight',
+                      `@${myHandle} is going to ${event.title}`,
+                      { type: 'friend_going', eventId: String(event.id) },
+                      false,
+                      'normal'
                     );
                   }
                 });
