@@ -20,6 +20,13 @@ import { supabase } from '../../lib/supabase';
 import { useAnalytics } from '../../lib/analytics';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+function getToday(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
 const GRID_PADDING = 16;
 const GRID_GAP = 8;
 const CARD_WIDTH = (SCREEN_WIDTH - GRID_PADDING * 2 - GRID_GAP) / 2;
@@ -41,7 +48,6 @@ interface FeedEvent {
   going_count: number;
   going_avatars: { id: string; username: string; avatar_url: string | null }[];
   source?: string | null;
-  creator_is_organizer?: boolean;
 }
 
 interface ActivityItem {
@@ -132,11 +138,11 @@ function EventCard({ item, onPress }: { item: FeedEvent; onPress: () => void }) 
           <Text style={styles.neighbourhoodText}>{item.neighbourhood}</Text>
         </View>
       )}
-      {item.source === 'user' && item.creator_is_organizer ? (
+      {item.source === 'user' ? (
         <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: '#FF3B5C', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
           <Text style={{ fontSize: 9, fontWeight: '800', color: '#fff', letterSpacing: 0.4 }}>ORGANIZER</Text>
         </View>
-      ) : item.source != null && item.source !== 'user' ? (
+      ) : item.source != null ? (
         <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: '#FF3B5C', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
           <Text style={{ fontSize: 9, fontWeight: '800', color: '#fff', letterSpacing: 0.4 }}>VENUE</Text>
         </View>
@@ -224,31 +230,33 @@ export default function FeedScreen() {
   }, []);
 
   useEffect(() => {
-    loadFeedEvents();
+    loadFeedEvents(getToday());
   }, [user]);
 
   useEffect(() => {
     if (activeTab === 'activity') loadActivity();
   }, [activeTab, user]);
 
-  const loadFeedEvents = async () => {
-    setLoading(true);
+  const loadFeedEvents = async (today: string, showSpinner = true) => {
+    if (showSpinner) setLoading(true);
 
-    const now = new Date();
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-
-    // Build taste profile from RSVPs and saved events
+    // Build taste profile from RSVPs (both event_rsvps and venue_event_rsvps) and saved events
     const preferredNeighbourhoods = new Set<string>();
     const preferredEntryTypes = new Set<string>();
     const preferredVenueIds = new Set<string>();
     const savedEventIds = new Set<string>();
 
     if (user) {
-      const [rsvpRes, savedRes] = await Promise.all([
+      const [rsvpRes, veRsvpRes, savedRes] = await Promise.all([
         supabase
           .from('event_rsvps')
           .select('events(venue_id, entry_type, venues(neighbourhood))')
+          .eq('user_id', user.id)
+          .eq('status', 'going')
+          .limit(30),
+        supabase
+          .from('venue_event_rsvps')
+          .select('venue_events(venue_id, entry_type, venues(neighbourhood))')
           .eq('user_id', user.id)
           .eq('status', 'going')
           .limit(30),
@@ -265,24 +273,30 @@ export default function FeedScreen() {
         if (ev.entry_type) preferredEntryTypes.add(ev.entry_type);
         if (ev.venue_id) preferredVenueIds.add(ev.venue_id);
       }
-
+      for (const r of (veRsvpRes.data ?? []) as any[]) {
+        const ev = r.venue_events;
+        if (!ev) continue;
+        if (ev.venues?.neighbourhood) preferredNeighbourhoods.add(ev.venues.neighbourhood);
+        if (ev.entry_type) preferredEntryTypes.add(ev.entry_type);
+        if (ev.venue_id) preferredVenueIds.add(ev.venue_id);
+      }
       for (const s of (savedRes.data ?? []) as any[]) {
         if (s.event_id) savedEventIds.add(s.event_id);
       }
     }
 
-    // No taste profile yet → load fallback instead of blank screen
+    // No taste profile yet -- load fallback instead of blank screen
     if (preferredNeighbourhoods.size === 0 && preferredEntryTypes.size === 0 && savedEventIds.size === 0) {
       setHasProfile(false);
-      await loadFallbackEvents();
-      setLoading(false);
+      await loadFallbackEvents(today);
+      if (showSpinner) setLoading(false);
       return;
     }
 
     setHasProfile(true);
 
     // Fetch friend IDs so we can include friends-only venue_events from people we follow
-    let friendIdSet = new Set<string>();
+    const friendIdSet = new Set<string>();
     if (user) {
       const { data: fships } = await supabase
         .from('friendships')
@@ -294,7 +308,10 @@ export default function FeedScreen() {
       }
     }
 
-    const [legacyRes, venueEventsRes] = await Promise.all([
+    const friendIds = Array.from(friendIdSet);
+
+    // Fetch events + broad friend RSVPs (for pool expansion) in parallel
+    const [legacyRes, venueEventsRes, frLegacy, frVe] = await Promise.all([
       supabase
         .from('events')
         .select('id, title, poster_url, date, start_time, entry_type, category, venue_id, venues(name, neighbourhood)')
@@ -308,10 +325,31 @@ export default function FeedScreen() {
         .in('source', ['user', 'ticketmaster'])
         .order('event_date', { ascending: true })
         .limit(120),
+      friendIds.length > 0
+        ? supabase
+            .from('event_rsvps')
+            .select('event_id')
+            .in('user_id', friendIds)
+            .eq('status', 'going')
+        : Promise.resolve({ data: [] }),
+      friendIds.length > 0
+        ? supabase
+            .from('venue_event_rsvps')
+            .select('event_id')
+            .in('user_id', friendIds)
+            .eq('status', 'going')
+        : Promise.resolve({ data: [] }),
     ]);
 
-    setLoading(false);
-    if (legacyRes.error && venueEventsRes.error) return;
+    if (legacyRes.error && venueEventsRes.error) {
+      if (showSpinner) setLoading(false);
+      return;
+    }
+
+    // Build friend going set from broad queries -- used for pool expansion and scoring
+    const friendGoingSet = new Set<string>();
+    for (const row of (frLegacy.data ?? []) as any[]) if (row.event_id) friendGoingSet.add(row.event_id);
+    for (const row of (frVe.data ?? []) as any[]) if (row.event_id) friendGoingSet.add(row.event_id);
 
     // Normalise legacy events
     const legacyNorm: any[] = (legacyRes.data ?? []).map((e: any) => ({
@@ -325,7 +363,6 @@ export default function FeedScreen() {
       neighbourhood: e.venues?.neighbourhood || null,
       entry_type: e.entry_type || null,
       source: null,
-      creator_is_organizer: false,
     }));
 
     // Normalise venue_events, filtering friends-only
@@ -347,7 +384,6 @@ export default function FeedScreen() {
         neighbourhood: e.venues?.neighbourhood || null,
         entry_type: e.entry_type || null,
         source: e.source || null,
-        creator_is_organizer: false,
       }));
 
     // Merge, deduplicate by id
@@ -357,9 +393,10 @@ export default function FeedScreen() {
       if (!seen.has(e.id)) { seen.add(e.id); combined.push(e); }
     }
 
-    // Filter to events matching the taste profile or explicitly saved
+    // Filter to taste profile, saved events, OR events where a friend is going
     const relevant = combined.filter(e => {
       if (savedEventIds.has(e.id)) return true;
+      if (friendGoingSet.has(e.id)) return true;
       return (
         (e.neighbourhood && preferredNeighbourhoods.has(e.neighbourhood)) ||
         (e.entry_type && preferredEntryTypes.has(e.entry_type)) ||
@@ -367,52 +404,23 @@ export default function FeedScreen() {
       );
     });
 
-    // Load going counts and friend RSVPs in parallel
+    // Load going counts for relevant events
     const eventIds = relevant.map((e: any) => e.id);
-    const friendIds = Array.from(friendIdSet);
 
-    // Issue 1: fetch venue_event_rsvps in parallel so venue_events get real going counts/avatars
-    // Issue 4: scope friend RSVP queries to current eventIds to avoid unbounded fetches
-    const [rsvpRowsRes, veRsvpRowsRes, friendRsvpLegacyRes, friendRsvpVeRes] = await Promise.all([
-      eventIds.length > 0
-        ? supabase
+    const [rsvpRowsRes, veRsvpRowsRes] = eventIds.length > 0
+      ? await Promise.all([
+          supabase
             .from('event_rsvps')
             .select('event_id, profiles(id, username, avatar_url)')
             .in('event_id', eventIds)
-            .eq('status', 'going')
-        : Promise.resolve({ data: [] }),
-      eventIds.length > 0
-        ? supabase
+            .eq('status', 'going'),
+          supabase
             .from('venue_event_rsvps')
             .select('event_id, profiles(id, username, avatar_url)')
             .in('event_id', eventIds)
-            .eq('status', 'going')
-        : Promise.resolve({ data: [] }),
-      friendIds.length > 0 && eventIds.length > 0
-        ? supabase
-            .from('event_rsvps')
-            .select('event_id')
-            .in('user_id', friendIds)
-            .in('event_id', eventIds)
-            .eq('status', 'going')
-        : Promise.resolve({ data: [] }),
-      friendIds.length > 0 && eventIds.length > 0
-        ? supabase
-            .from('venue_event_rsvps')
-            .select('event_id')
-            .in('user_id', friendIds)
-            .in('event_id', eventIds)
-            .eq('status', 'going')
-        : Promise.resolve({ data: [] }),
-    ]);
-
-    const friendGoingSet = new Set<string>();
-    for (const row of (friendRsvpLegacyRes.data ?? []) as any[]) {
-      if (row.event_id) friendGoingSet.add(row.event_id);
-    }
-    for (const row of (friendRsvpVeRes.data ?? []) as any[]) {
-      if (row.event_id) friendGoingSet.add(row.event_id);
-    }
+            .eq('status', 'going'),
+        ])
+      : [{ data: [] }, { data: [] }];
 
     const attendeeMap: Record<string, { count: number; avatars: any[] }> = {};
     for (const row of ([...(rsvpRowsRes.data ?? []), ...(veRsvpRowsRes.data ?? [])]) as any[]) {
@@ -437,15 +445,9 @@ export default function FeedScreen() {
       going_count: attendeeMap[e.id]?.count ?? 0,
       going_avatars: attendeeMap[e.id]?.avatars ?? [],
       source: e.source,
-      creator_is_organizer: e.creator_is_organizer,
     }));
 
-    // Score events: friend going > tonight > saved > interest match > popular > date
-    // Weight hierarchy (issue 3 + 5):
-    //   friend(6) + tonight(5) = 11  beats  saved(3) + interest(2) + popular(1) = 6
-    //   tonight alone(5) beats saved+interest+popular(6)? No: 5 < 6, so saved+interest+popular still
-    //   wins over tonight alone, which is intentional -- saved events stay highly ranked.
-    //   friend alone(6) always beats any non-friend combo of saved+interest+popular(6) by date tiebreak.
+    // Score: friend going +6, tonight +5, saved +3, interest match +2, has attendees +1
     const interests = new Set(profile?.interests ?? []);
     mapped.sort((a, b) => {
       const aSaved = savedEventIds.has(a.id) ? 3 : 0;
@@ -463,23 +465,20 @@ export default function FeedScreen() {
     });
 
     // If personalised list is thin, also load fallback events
-    if (mapped.length < 3) await loadFallbackEvents();
+    if (mapped.length < 3) await loadFallbackEvents(today);
 
     setFeedEvents(mapped);
+    if (showSpinner) setLoading(false);
   };
 
-  const loadFallbackEvents = async () => {
-    const now = new Date();
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-
+  const loadFallbackEvents = async (today: string) => {
     const [legacyRes, veRes] = await Promise.all([
       supabase
         .from('events')
         .select('id, title, poster_url, date, start_time, entry_type, venue_id, venues(name, neighbourhood)')
         .gte('date', today)
         .order('created_at', { ascending: false })
-        .limit(10),
+        .limit(20),
       supabase
         .from('venue_events')
         .select('id, title, poster_url, event_date, event_time, entry_type, venue_id, source, venues(name, neighbourhood)')
@@ -487,7 +486,7 @@ export default function FeedScreen() {
         .in('source', ['user', 'ticketmaster'])
         .neq('visibility', 'friends')
         .order('created_at', { ascending: false })
-        .limit(10),
+        .limit(20),
     ]);
 
     const legacy: FeedEvent[] = (legacyRes.data ?? []).map((e: any) => ({
@@ -495,7 +494,7 @@ export default function FeedScreen() {
       event_date: e.date || null, start_time: e.start_time || null,
       venue_name: e.venues?.name || '', venue_id: e.venue_id || null,
       neighbourhood: e.venues?.neighbourhood || null, entry_type: e.entry_type || null,
-      going_count: 0, going_avatars: [], source: null, creator_is_organizer: false,
+      going_count: 0, going_avatars: [], source: null,
     }));
 
     const ve: FeedEvent[] = (veRes.data ?? []).map((e: any) => ({
@@ -503,7 +502,7 @@ export default function FeedScreen() {
       event_date: e.event_date || null, start_time: e.event_time || null,
       venue_name: e.venues?.name || '', venue_id: e.venue_id || null,
       neighbourhood: e.venues?.neighbourhood || null, entry_type: e.entry_type || null,
-      going_count: 0, going_avatars: [], source: e.source || null, creator_is_organizer: false,
+      going_count: 0, going_avatars: [], source: e.source || null,
     }));
 
     const seen = new Set<string>();
@@ -550,6 +549,8 @@ export default function FeedScreen() {
   const loadActivity = async () => {
     if (!user) { setHasFriends(false); setActivityItems([]); return; }
 
+    setHasFriends(true);
+
     const { data: friendships } = await supabase
       .from('friendships')
       .select('requester_id, addressee_id')
@@ -561,8 +562,6 @@ export default function FeedScreen() {
       setActivityItems([]);
       return;
     }
-
-    setHasFriends(true);
     const friendIds = friendships.map((f: any) =>
       f.requester_id === user.id ? f.addressee_id : f.requester_id
     );
@@ -643,7 +642,7 @@ export default function FeedScreen() {
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadFeedEvents();
+    await loadFeedEvents(getToday(), false);
     if (activeTab === 'activity') await loadActivity();
     setRefreshing(false);
   }, [activeTab, user]);

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -28,7 +29,16 @@ export default function PreferencesScreen() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
 
+  const scaleRefs = useRef<Record<string, Animated.Value>>(
+    Object.fromEntries(TAGS.map(t => [t.key, new Animated.Value(1)]))
+  );
+
   const toggle = (key: string) => {
+    const scale = scaleRefs.current[key];
+    Animated.sequence([
+      Animated.spring(scale, { toValue: 1.1, useNativeDriver: true, speed: 40, bounciness: 12 }),
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 40, bounciness: 8 }),
+    ]).start();
     setSelected(prev => {
       const next = new Set(prev);
       next.has(key) ? next.delete(key) : next.add(key);
@@ -37,51 +47,62 @@ export default function PreferencesScreen() {
   };
 
   const handleContinue = async () => {
-    if (selected.size === 0 || !user) return;
     setSaving(true);
-    await supabase
-      .from('profiles')
-      .update({ interests: Array.from(selected) })
-      .eq('id', user.id);
+    if (user && selected.size > 0) {
+      await supabase
+        .from('profiles')
+        .update({ interests: Array.from(selected) })
+        .eq('id', user.id);
+    }
     setSaving(false);
+    router.replace('/(tabs)/index' as any);
+  };
+
+  const handleSkip = () => {
     router.replace('/(tabs)/index' as any);
   };
 
   return (
     <SafeAreaView style={styles.safe}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={handleSkip} activeOpacity={0.7}>
+          <Text style={styles.skipText}>Skip for now</Text>
+        </TouchableOpacity>
+      </View>
       <ScrollView contentContainerStyle={styles.scroll} bounces={false}>
-        <Text style={styles.title}>What are you into?</Text>
-        <Text style={styles.subtitle}>We'll personalize your feed</Text>
+        <Text style={styles.title}>What's your vibe?</Text>
+        <Text style={styles.subtitle}>Pick what you're into -- your feed will match</Text>
 
         <View style={styles.grid}>
           {TAGS.map(tag => {
             const isSelected = selected.has(tag.key);
             return (
-              <TouchableOpacity
-                key={tag.key}
-                style={[styles.card, isSelected && styles.cardSelected]}
-                onPress={() => toggle(tag.key)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.cardEmoji}>{tag.emoji}</Text>
-                <Text style={[styles.cardLabel, isSelected && styles.cardLabelSelected]}>
-                  {tag.label}
-                </Text>
-              </TouchableOpacity>
+              <Animated.View key={tag.key} style={{ transform: [{ scale: scaleRefs.current[tag.key] }] }}>
+                <TouchableOpacity
+                  style={[styles.pill, isSelected && styles.pillSelected]}
+                  onPress={() => toggle(tag.key)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.pillEmoji}>{tag.emoji}</Text>
+                  <Text style={[styles.pillLabel, isSelected && styles.pillLabelSelected]}>
+                    {tag.label}
+                  </Text>
+                </TouchableOpacity>
+              </Animated.View>
             );
           })}
         </View>
 
         <TouchableOpacity
-          style={[styles.continueBtn, selected.size === 0 && styles.continueBtnDisabled]}
+          style={styles.continueBtn}
           onPress={handleContinue}
           activeOpacity={0.85}
-          disabled={selected.size === 0 || saving}
+          disabled={saving}
         >
           {saving ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.continueBtnText}>Continue</Text>
+            <Text style={styles.continueBtnText}>Let's go</Text>
           )}
         </TouchableOpacity>
       </ScrollView>
@@ -94,9 +115,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
+  header: {
+    alignItems: 'flex-end',
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  skipText: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   scroll: {
     paddingHorizontal: 24,
-    paddingTop: 60,
+    paddingTop: 32,
     paddingBottom: 40,
   },
   title: {
@@ -110,37 +142,38 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.45)',
     fontSize: 16,
     marginBottom: 40,
+    lineHeight: 22,
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 10,
     marginBottom: 48,
   },
-  card: {
-    width: '47%',
-    backgroundColor: '#111',
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.1)',
-    paddingVertical: 24,
+  pill: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 100,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    paddingVertical: 12,
+    paddingHorizontal: 18,
   },
-  cardSelected: {
+  pillSelected: {
     borderColor: '#FF3B5C',
-    backgroundColor: 'rgba(255,59,92,0.12)',
+    backgroundColor: 'rgba(255,59,92,0.14)',
   },
-  cardEmoji: {
-    fontSize: 30,
+  pillEmoji: {
+    fontSize: 22,
   },
-  cardLabel: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 14,
+  pillLabel: {
+    color: 'rgba(255,255,255,0.65)',
+    fontSize: 15,
     fontWeight: '700',
-    textAlign: 'center',
   },
-  cardLabelSelected: {
+  pillLabelSelected: {
     color: '#FF3B5C',
   },
   continueBtn: {
@@ -148,9 +181,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
-  },
-  continueBtnDisabled: {
-    opacity: 0.4,
   },
   continueBtnText: {
     color: '#fff',

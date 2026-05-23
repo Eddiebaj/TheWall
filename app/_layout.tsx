@@ -233,8 +233,16 @@ function RootNav() {
             const needsPreferences =
               !profile.interests || (profile.interests as string[]).length === 0;
             if (needsPreferences) {
-              if (__DEV__) console.log('[RootNav] No interests set - routing to /onboarding/preferences');
-              router.replace('/onboarding/preferences' as any);
+              // Only show preferences screen for brand-new users (created within the last 5 minutes)
+              const createdAt = session.user.created_at ? new Date(session.user.created_at).getTime() : 0;
+              const isNewUser = createdAt > 0 && Date.now() - createdAt < 5 * 60 * 1000;
+              if (isNewUser) {
+                if (__DEV__) console.log('[RootNav] New user, no interests - routing to /onboarding/preferences');
+                router.replace('/onboarding/preferences' as any);
+              } else {
+                if (__DEV__) console.log('[RootNav] Returning user, no interests - routing to /(tabs)/index');
+                router.replace('/(tabs)/index' as any);
+              }
             } else {
               if (__DEV__) console.log('[RootNav] Routing to /(tabs)/index');
               router.replace('/(tabs)/index' as any);
