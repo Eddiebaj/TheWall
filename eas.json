@@ -10,12 +10,16 @@
     },
     "preview": {
       "distribution": "internal",
+      "hooks": {
+        "pre_install": "eas-hooks/eas-build-pre-install.sh"
+      },
       "env": {
         "EXPO_USE_METRO_WORKSPACE_ROOT": "1",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true",
         "SENTRY_ALLOW_FAILURE": "true",
         "EXPO_PUBLIC_SUPABASE_URL": "https://bzvkadttywgszovbowch.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_UQXeqJ_OE-Zhl51qrHVF3w_UXOxKk2O"
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_UQXeqJ_OE-Zhl51qrHVF3w_UXOxKk2O",
+        "MAPBOX_DOWNLOADS_TOKEN": "$MAPBOX_DOWNLOADS_TOKEN"
       }
     },
     "production": {

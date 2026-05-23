@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "affiche",
-    "slug": "affiche",
+    "slug": "thewall",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -100,7 +100,7 @@
       [
         "@rnmapbox/maps",
         {
-          "RNMapboxMapsDownloadToken": "MAPBOX_DOWNLOADS_TOKEN_PLACEHOLDER"
+          "RNMapboxMapsDownloadToken": "$MAPBOX_DOWNLOADS_TOKEN"
         }
       ]
     ],
