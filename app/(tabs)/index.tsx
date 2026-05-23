@@ -193,7 +193,7 @@ export default function FeedScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const router = useRouter();
   const { capture } = useAnalytics();
 
@@ -261,7 +261,7 @@ export default function FeedScreen() {
 
     const { data, error } = await supabase
       .from('events')
-      .select('id, title, poster_url, date, start_time, entry_type, venue_id, venues(name, neighbourhood)')
+      .select('id, title, poster_url, date, start_time, entry_type, category, venue_id, venues(name, neighbourhood)')
       .gte('date', today)
       .order('date', { ascending: true })
       .limit(120);
@@ -316,12 +316,16 @@ export default function FeedScreen() {
       going_avatars: attendeeMap[e.id]?.avatars ?? [],
     }));
 
-    // Saved events and popular events first, then by date
+    // Score events: saved > interest match > popular > date
+    const interests = new Set(profile?.interests ?? []);
     mapped.sort((a, b) => {
-      const aSaved = savedEventIds.has(a.id) ? 1 : 0;
-      const bSaved = savedEventIds.has(b.id) ? 1 : 0;
-      if (bSaved !== aSaved) return bSaved - aSaved;
-      if (b.going_count !== a.going_count) return b.going_count - a.going_count;
+      const aSaved = savedEventIds.has(a.id) ? 3 : 0;
+      const bSaved = savedEventIds.has(b.id) ? 3 : 0;
+      const aInterest = interests.size > 0 && a.entry_type && interests.has(a.entry_type) ? 2 : 0;
+      const bInterest = interests.size > 0 && b.entry_type && interests.has(b.entry_type) ? 2 : 0;
+      const scoreA = aSaved + aInterest + (a.going_count > 0 ? 1 : 0);
+      const scoreB = bSaved + bInterest + (b.going_count > 0 ? 1 : 0);
+      if (scoreB !== scoreA) return scoreB - scoreA;
       return (a.event_date ?? '').localeCompare(b.event_date ?? '');
     });
 

@@ -129,6 +129,7 @@ function RootNav() {
 
   // Declare ref BEFORE the useEffect that assigns to it
   const animationResolveRef = useRef<(() => void) | null>(null);
+  const navigationDoneRef = useRef(false);
 
   // Notification tap handler
   useEffect(() => {
@@ -210,9 +211,10 @@ function RootNav() {
       setTimeout(() => {
         router.replace('/onboarding');
       }, 0);
-    } else if (!showSplash && destination === 'tabs' && !authLoading) {
+    } else if (!showSplash && destination === 'tabs' && !authLoading && !navigationDoneRef.current) {
       if (!session) {
         if (__DEV__) console.log('[RootNav] No session - routing to /auth');
+        navigationDoneRef.current = true;
         setTimeout(() => {
           router.replace('/auth');
         }, 0);
@@ -221,10 +223,22 @@ function RootNav() {
           const setupDone = await AsyncStorage.getItem('thewall_profile_setup_done');
           if (!setupDone) {
             if (__DEV__) console.log('[RootNav] Profile setup not done - routing to /profile-setup');
+            navigationDoneRef.current = true;
             router.replace('/profile-setup');
+          } else if (profile === null) {
+            // Profile not yet loaded - wait for re-render when profile arrives
+            if (__DEV__) console.log('[RootNav] Profile not loaded yet, waiting...');
           } else {
-            if (__DEV__) console.log('[RootNav] Routing to /(tabs)/index');
-            router.replace('/(tabs)/index');
+            navigationDoneRef.current = true;
+            const needsPreferences =
+              !profile.interests || (profile.interests as string[]).length === 0;
+            if (needsPreferences) {
+              if (__DEV__) console.log('[RootNav] No interests set - routing to /onboarding/preferences');
+              router.replace('/onboarding/preferences' as any);
+            } else {
+              if (__DEV__) console.log('[RootNav] Routing to /(tabs)/index');
+              router.replace('/(tabs)/index' as any);
+            }
             // Request push notification permissions once after login
             Notifications.getPermissionsAsync().then(({ status }) => {
               if (status !== 'granted') {
@@ -237,7 +251,7 @@ function RootNav() {
         })();
       }
     }
-  }, [showSplash, destination, authLoading, session]);
+  }, [showSplash, destination, authLoading, session, profile]);
 
   if (showSplash) {
     return <AnimatedSplash onFinish={handleSplashFinish} />;
@@ -256,6 +270,7 @@ function RootNav() {
       <Stack.Screen name="business" options={{ headerShown: false }} />
       <Stack.Screen name="business-signup" options={{ headerShown: false }} />
       <Stack.Screen name="business-setup" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding/preferences" options={{ headerShown: false, animation: 'fade' }} />
       <Stack.Screen name="business-dashboard" options={{ headerShown: false }} />
       <Stack.Screen name="qr-scan" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
       <Stack.Screen name="invite/[id]" options={{ headerShown: false }} />

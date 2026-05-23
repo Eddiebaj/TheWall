@@ -9,6 +9,7 @@ interface Profile {
   display_name: string | null;
   avatar_url: string | null;
   campus: string | null;
+  interests: string[] | null;
 }
 
 const ADMIN_IDS = ['70682d22-e7c9-4a01-804c-867b647f0538']; // Eddie

@@ -40,6 +40,11 @@ interface TmVenue {
   address?: { line1?: string };
 }
 
+interface TmClassification {
+  segment?: { name?: string };
+  genre?: { name?: string };
+}
+
 interface TmEvent {
   id: string;
   name: string;
@@ -52,6 +57,7 @@ interface TmEvent {
   images?: TmImage[];
   url?: string;
   priceRanges?: { min?: number; max?: number; currency?: string }[];
+  classifications?: TmClassification[];
   _embedded?: { venues?: TmVenue[] };
 }
 
@@ -104,6 +110,25 @@ function matchVenue(tmVenue: TmVenue, dbVenues: DbVenue[]): DbVenue | null {
     if (byAddr) return byAddr;
   }
 
+  return null;
+}
+
+function mapCategory(event: TmEvent): string | null {
+  const cls = event.classifications?.[0];
+  if (!cls) return null;
+  const segment = cls.segment?.name ?? '';
+  const genre = (cls.genre?.name ?? '').toLowerCase();
+  if (segment === 'Music') return 'Concerts';
+  if (segment === 'Sports') return 'Sports';
+  if (segment === 'Arts & Theatre') {
+    if (genre.includes('comedy')) return 'Comedy';
+    return 'Art & Culture';
+  }
+  if (segment === 'Miscellaneous') {
+    if (genre.includes('food') || genre.includes('drink')) return 'Food & Drinks';
+    if (genre.includes('outdoor')) return 'Outdoor';
+    if (genre.includes('community') || genre.includes('networking')) return 'Networking';
+  }
   return null;
 }
 
@@ -206,6 +231,7 @@ async function main() {
         poster_url: event.images ? bestImage(event.images) : null,
         ticket_url: event.url ?? null,
         entry_type: entryType(event),
+        category: mapCategory(event),
         source: 'ticketmaster',
         business_id: null,
       };

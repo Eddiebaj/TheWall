@@ -34,6 +34,19 @@ const AVATAR_OVERLAP = 6;
 const SORT_OPTIONS = ['Tonight', 'This Week', 'Near Me'] as const;
 type SortOption = typeof SORT_OPTIONS[number];
 
+const CATEGORY_FILTERS = ['All', 'Concerts', 'Nightlife', 'Comedy', 'Art', 'Sports', 'Food', 'Outdoor'] as const;
+type CategoryFilter = typeof CATEGORY_FILTERS[number];
+
+const CATEGORY_MAP: Record<string, string> = {
+  Concerts: 'Concerts',
+  Nightlife: 'Nightlife',
+  Comedy: 'Comedy',
+  Art: 'Art & Culture',
+  Sports: 'Sports',
+  Food: 'Food & Drinks',
+  Outdoor: 'Outdoor',
+};
+
 const NEIGHBOURHOODS = [
   'All', 'King West', 'Queen West', 'Entertainment District',
   'Dundas West', 'Kensington', 'Bloor', 'College', 'West Queen West',
@@ -56,6 +69,7 @@ interface DiscoverEvent {
   neighbourhood: string | null;
   cover_charge: string | null;
   entry_type: string | null;
+  category: string | null;
   event_date: string | null;
   start_time: string | null;
   end_time: string | null;
@@ -177,6 +191,7 @@ export default function DiscoverScreen() {
   const { user } = useAuth();
   const { capture } = useAnalytics();
   const [sort, setSort] = useState<SortOption>('This Week');
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('All');
   const [neighbourhoods, setNeighbourhoods] = useState<Set<string>>(new Set());
   const [entryFilters, setEntryFilters] = useState<Set<string>>(new Set());
   const [events, setEvents] = useState<DiscoverEvent[]>([]);
@@ -262,7 +277,7 @@ export default function DiscoverScreen() {
 
     let query = supabase
       .from('events')
-      .select('id, title, poster_url, date, start_time, end_time, entry_type, venue_id, venues(name, neighbourhood, latitude, longitude, feature_tier)')
+      .select('id, title, poster_url, date, start_time, end_time, entry_type, category, venue_id, venues(name, neighbourhood, latitude, longitude, feature_tier)')
       .order('date', { ascending: true })
       .limit(50);
 
@@ -284,6 +299,7 @@ export default function DiscoverScreen() {
         neighbourhood: e.venues?.neighbourhood || null,
         cover_charge: e.cover_charge || null,
         entry_type: e.entry_type || null,
+        category: e.category || null,
         event_date: e.date || null,
         start_time: e.start_time || null,
         end_time: e.end_time || null,
@@ -341,6 +357,10 @@ export default function DiscoverScreen() {
 
   const filteredEvents = (() => {
     let base = neighbourhoods.size === 0 ? events : events.filter(e => e.neighbourhood != null && neighbourhoods.has(e.neighbourhood));
+    if (categoryFilter !== 'All') {
+      const target = CATEGORY_MAP[categoryFilter];
+      base = base.filter(e => e.category === target);
+    }
     if (entryFilters.size > 0) {
       base = base.filter(e => e.entry_type != null && entryFilters.has(e.entry_type));
     }
@@ -426,6 +446,27 @@ export default function DiscoverScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Category filter pills */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.categoryRow}
+        style={styles.categoryScroll}
+      >
+        {CATEGORY_FILTERS.map(cat => (
+          <TouchableOpacity
+            key={cat}
+            onPress={() => setCategoryFilter(cat)}
+            style={[styles.categoryPill, categoryFilter === cat && styles.categoryPillActive]}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.categoryPillText, categoryFilter === cat && styles.categoryPillTextActive]}>
+              {cat}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
       {/* Inline search bar */}
       <Animated.View style={{ height: searchHeightAnim, overflow: 'hidden', paddingHorizontal: 16 }}>
@@ -857,6 +898,34 @@ const styles = StyleSheet.create({
   sortRow: {
     flexDirection: 'row',
     gap: 8,
+  },
+  categoryScroll: {
+    marginBottom: 2,
+  },
+  categoryRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  categoryPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: '#1a1a1a',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  categoryPillActive: {
+    backgroundColor: '#FF3B5C',
+    borderColor: '#FF3B5C',
+  },
+  categoryPillText: {
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  categoryPillTextActive: {
+    color: '#fff',
   },
   sortBtn: {
     paddingHorizontal: 14,
