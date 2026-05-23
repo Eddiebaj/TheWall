@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
 import {
+  ActivityIndicator,
   Dimensions,
   FlatList,
   Image,
@@ -88,7 +89,7 @@ function EventCard({ item, onPress }: { item: FeedEvent; onPress: () => void }) 
         colors={['transparent', 'rgba(0,0,0,0.88)']}
         style={styles.eventGradient}
       >
-        {item.going_count > 0 && (
+        {item.going_avatars.length > 0 && (
           <View style={styles.goingRow}>
             <View style={{ flexDirection: 'row', height: AVATAR_SIZE, width: item.going_avatars.length * (AVATAR_SIZE - AVATAR_OVERLAP) + AVATAR_OVERLAP + 2 }}>
               {item.going_avatars.map((a, i) => (
@@ -427,13 +428,25 @@ export default function FeedScreen() {
     await loadFeedEvents();
     if (activeTab === 'activity') await loadActivity();
     setRefreshing(false);
-  }, [activeTab]);
+  }, [activeTab, user]);
 
   const renderForYou = () => {
-    if (loading || hasProfile === null) return null;
+    if (loading || hasProfile === null) {
+      return (
+        <View style={styles.loadingState}>
+          <ActivityIndicator size="large" color="#FF3B5C" />
+        </View>
+      );
+    }
 
     const showFallback = hasProfile === false || feedEvents.length < 3;
-    const displayEvents = showFallback ? fallbackEvents : feedEvents;
+    let displayEvents: FeedEvent[];
+    if (hasProfile === true && feedEvents.length < 3) {
+      const seen = new Set(feedEvents.map(e => e.id));
+      displayEvents = [...feedEvents, ...fallbackEvents.filter(e => !seen.has(e.id))];
+    } else {
+      displayEvents = showFallback ? fallbackEvents : feedEvents;
+    }
 
     if (showFallback && fallbackEvents.length === 0) {
       return (
@@ -493,7 +506,7 @@ export default function FeedScreen() {
               <View style={styles.emptyState}>
                 <Ionicons name="flash-outline" size={48} color="rgba(255,255,255,0.3)" />
                 <Text style={styles.emptyText}>No activity yet</Text>
-                <Text style={styles.emptyHint}>Add friends to see what they're up to</Text>
+                <Text style={styles.emptyHint}>No recent activity from your friends yet</Text>
               </View>
             )
             : (
@@ -546,6 +559,12 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: '#fff',
     borderRadius: 2,
+  },
+  loadingState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#000',
   },
   emptyState: {
     flex: 1,
