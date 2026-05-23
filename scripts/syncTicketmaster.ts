@@ -231,7 +231,6 @@ async function main() {
         poster_url: event.images ? bestImage(event.images) : null,
         ticket_url: event.url ?? null,
         entry_type: entryType(event),
-        category: mapCategory(event),
         source: 'ticketmaster',
         business_id: null,
       };
