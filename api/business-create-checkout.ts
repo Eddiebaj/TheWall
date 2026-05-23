@@ -27,29 +27,29 @@ async function stripePost(endpoint: string, params: Record<string, string>): Pro
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
-  const { email, business_name, contact_name, venue_id, plan } = req.body ?? {};
-
-  if (!email || !business_name || !contact_name || !venue_id || !plan) {
-    return res.status(400).json({ error: 'Missing required fields' });
-  }
-
-  if (!['basic', 'pro', 'featured'].includes(plan)) {
-    return res.status(400).json({ error: 'Invalid plan' });
-  }
-
-  const priceId = PRICE_IDS[plan as string];
-  if (!priceId) {
-    return res.status(500).json({ error: `Price ID for plan "${plan}" is not configured` });
-  }
-
   try {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+    const { email, business_name, contact_name, venue_id, plan } = req.body ?? {};
+
+    if (!email || !business_name || !contact_name || !venue_id || !plan) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    if (!['basic', 'pro', 'featured'].includes(plan)) {
+      return res.status(400).json({ error: 'Invalid plan' });
+    }
+
+    const priceId = PRICE_IDS[plan as string];
+    if (!priceId) {
+      return res.status(500).json({ error: `Price ID for plan "${plan}" is not configured` });
+    }
+
     // Create Stripe customer
     const customer = await stripePost('/customers', {
       email,
@@ -78,8 +78,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     return res.status(200).json({ url: session.url });
-  } catch (e: any) {
-    console.error('[create-checkout]', e.message);
-    return res.status(500).json({ error: e.message });
+  } catch (error: any) {
+    console.error('[create-checkout]', error);
+    return res.status(500).json({ error: error.message, stack: error.stack });
   }
 }
