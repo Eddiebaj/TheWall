@@ -424,9 +424,11 @@ export default function EventDetailScreen() {
     );
   }
 
-  const formattedDate = event.event_date
-    ? new Date(event.event_date).toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })
-    : null;
+  const formattedDate = (() => {
+    if (!event.event_date) return null;
+    const [y, m, d] = event.event_date.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' });
+  })();
 
   const formattedDateTime = (() => {
     if (!formattedDate) return null;

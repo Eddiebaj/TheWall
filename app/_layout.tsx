@@ -132,9 +132,14 @@ function RootNav() {
   // Deep link handler for thewall://event/:id
   useEffect(() => {
     const handleUrl = (url: string) => {
-      const match = url.match(/^thewall:\/\/event\/([^/?#]+)/);
-      if (match) {
-        router.push(`/event/${match[1]}` as any);
+      const eventMatch = url.match(/^affiche:\/\/event\/([^/?#]+)/);
+      if (eventMatch) {
+        router.push(`/event/${eventMatch[1]}` as any);
+        return;
+      }
+      const inviteMatch = url.match(/^affiche:\/\/invite\/([^/?#]+)/);
+      if (inviteMatch) {
+        router.push(`/invite/${inviteMatch[1]}` as any);
       }
     };
     // Handle cold-start deep link

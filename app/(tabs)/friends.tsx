@@ -146,8 +146,8 @@ export default function FriendsScreen() {
       .from('friendships')
       .select(`
         id, status,
-        requester:profiles!friendships_requester_id_fkey(id, username, display_name),
-        addressee:profiles!friendships_addressee_id_fkey(id, username, display_name)
+        requester:profiles!friendships_requester_id_fkey(id, username, display_name, avatar_url),
+        addressee:profiles!friendships_addressee_id_fkey(id, username, display_name, avatar_url)
       `)
       .eq('status', 'accepted')
       .or(`requester_id.eq.${user!.id},addressee_id.eq.${user!.id}`);

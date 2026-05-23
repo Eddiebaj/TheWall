@@ -244,66 +244,17 @@ function EventShareCard({ item, user, profile, colours }: { item: any; user: any
           )}
         {meta.venue && (
           <TouchableOpacity
-            onPress={() => router.push({
-              pathname: '/(tabs)/planner',
-              params: { toLabel: meta.venue, toName: meta.name }
-            } as any)}
+            onPress={() => {
+              const encoded = encodeURIComponent(meta.venue);
+              const { Linking } = require('react-native');
+              Linking.openURL(`maps://?q=${encoded}`).catch(() =>
+                Linking.openURL(`https://maps.apple.com/?q=${encoded}`)
+              );
+            }}
             style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8, paddingVertical: 10, borderRadius: 10, backgroundColor: colours.accent }}
           >
             <Ionicons name="navigate" size={14} color="white" />
-            <Text style={{ fontSize: 13, fontWeight: '700', color: 'white' }}>Route there</Text>
-          </TouchableOpacity>
-        )}
-        {rsvpCounts.going.length >= 2 && meta.venue && rsvpCounts.going.some(r => r.name === profile?.display_name || r.name === profile?.username) && (
-          <TouchableOpacity
-            onPress={async () => {
-              const hid = hangoutId;
-              if (!hid) return;
-              const { data: rsvps } = await supabase
-                .from('hangout_rsvps')
-                .select('user_id, eta_minutes, profiles(display_name, username)')
-                .eq('hangout_id', hid)
-                .eq('status', 'going');
-
-              const userIds = rsvps?.map((r: any) => r.user_id) || [];
-              const { data: locations } = await supabase
-                .from('user_locations')
-                .select('user_id, lat, lng, profiles(display_name, username)')
-                .in('user_id', userIds);
-
-              if (!locations?.length) {
-                Alert.alert('No locations', 'Friends need to share their location first.');
-                return;
-              }
-
-              const geocodeResp = await fetch(`https://routeo-backend.vercel.app/api/places?action=geocode&input=${encodeURIComponent(meta.venue)}`);
-              const geocodeData = await geocodeResp.json();
-
-              if (!geocodeData?.lat) {
-                Alert.alert('Could not find venue location.');
-                return;
-              }
-
-              router.push({
-                pathname: '/chat/map',
-                params: {
-                  locations: JSON.stringify(locations.map((l: any) => ({
-                    name: l.profiles?.display_name || l.profiles?.username || 'Friend',
-                    lat: l.lat,
-                    lng: l.lng,
-                  }))),
-                  destination: JSON.stringify({
-                    lat: geocodeData.lat,
-                    lng: geocodeData.lng,
-                    name: meta.venue,
-                  }),
-                },
-              } as any);
-            }}
-            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8, paddingVertical: 10, borderRadius: 10, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.accent }}
-          >
-            <Ionicons name="people" size={14} color={colours.accent} />
-            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>Route together</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: 'white' }}>Get directions</Text>
           </TouchableOpacity>
         )}
         </View>
@@ -734,7 +685,32 @@ export default function ChatScreen() {
               <Ionicons name="pencil-outline" size={20} color={colours.accent} />
               <Text style={{ fontSize: 15, fontWeight: '600', color: colours.text }}>Rename group</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, backgroundColor: '#cc3b2a' + '12', borderWidth: 1, borderColor: '#cc3b2a' + '40' }}>
+            <TouchableOpacity
+              onPress={() => {
+                Alert.alert(
+                  'Leave group',
+                  'Are you sure you want to leave this group?',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Leave',
+                      style: 'destructive',
+                      onPress: async () => {
+                        if (!user) return;
+                        await supabase
+                          .from('conversation_members')
+                          .delete()
+                          .eq('conversation_id', id)
+                          .eq('user_id', user.id);
+                        setShowSettings(false);
+                        router.back();
+                      },
+                    },
+                  ]
+                );
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, backgroundColor: '#cc3b2a' + '12', borderWidth: 1, borderColor: '#cc3b2a' + '40' }}
+            >
               <Ionicons name="exit-outline" size={20} color="#cc3b2a" />
               <Text style={{ fontSize: 15, fontWeight: '600', color: '#cc3b2a' }}>Leave group</Text>
             </TouchableOpacity>
