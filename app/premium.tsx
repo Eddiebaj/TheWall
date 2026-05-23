@@ -7,14 +7,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
 
 const FEATURES = [
-  { icon: 'map-outline', title: 'Offline Maps', desc: 'Access maps without internet' },
-  { icon: 'analytics-outline', title: 'Commute Insights', desc: 'Track your commute patterns' },
-  { icon: 'git-branch-outline', title: 'Multi-stop Planner', desc: 'Plan trips with multiple stops' },
-  { icon: 'notifications-outline', title: 'Advanced Notifications', desc: 'Custom alerts and reminders' },
-  { icon: 'color-palette-outline', title: 'Custom Themes', desc: 'Personalize your affiche' },
-  { icon: 'time-outline', title: 'Extended Schedule', desc: 'See arrivals up to 2 hours ahead' },
-  { icon: 'ticket-outline', title: 'Early Access Deals', desc: 'See deals before everyone else' },
-  { icon: 'mic-outline', title: 'AI Trip Assistant', desc: 'Voice-powered trip planning' },
+  { icon: 'flash-outline', title: 'Early Access to Exclusive Events', desc: 'Get tickets before they go public' },
+  { icon: 'notifications-outline', title: 'Featured Venue Notifications', desc: 'Instant alerts from your favourite spots' },
+  { icon: 'options-outline', title: 'Advanced Event Filters', desc: 'Filter by genre, price, neighbourhood and more' },
+  { icon: 'headset-outline', title: 'Priority Customer Support', desc: 'Fast responses from our team' },
+  { icon: 'ban-outline', title: 'Ad-free Experience', desc: 'Browse affiche without any ads' },
 ];
 
 export default function PremiumScreen() {
@@ -37,7 +34,7 @@ export default function PremiumScreen() {
             affiche Premium
           </Text>
           <Text style={{ fontSize: 15, color: colours.muted, textAlign: 'center', lineHeight: 22 }}>
-            The full Toronto experience - offline maps, AI assistant, commute insights and more.
+            Unlock the full affiche experience and never miss what Toronto has to offer.
           </Text>
         </View>
 

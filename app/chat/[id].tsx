@@ -662,13 +662,6 @@ export default function ChatScreen() {
 
           <View style={{ gap: 10, marginTop: 20 }}>
             <TouchableOpacity onPress={() => {
-              setShowSettings(false);
-              Alert.alert('Add members', 'Search for friends by username in the Friends tab and invite them to this group.');
-            }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
-              <Ionicons name="person-add-outline" size={20} color={colours.accent} />
-              <Text style={{ fontSize: 15, fontWeight: '600', color: colours.text }}>Add members</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => {
               Alert.prompt(
                 'Rename group',
                 'Enter a new name',

@@ -1,12 +1,69 @@
+import { useEffect, useState } from 'react';
+import { View } from 'react-native';
 import { Tabs } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
+
+function useFriendsBadge(userId: string | undefined): number {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const load = async () => {
+      const { data: requests } = await supabase
+        .from('friendships')
+        .select('id', { count: 'exact', head: true })
+        .eq('addressee_id', userId)
+        .eq('status', 'pending');
+
+      const pendingCount = (requests as any)?.length ?? 0;
+
+      const { data: convs } = await supabase
+        .from('conversation_members')
+        .select('conversation_id')
+        .eq('user_id', userId);
+
+      let unreadCount = 0;
+      if (convs?.length) {
+        const convIds = convs.map((c: any) => c.conversation_id);
+        const { data: msgs } = await supabase
+          .from('messages')
+          .select('id')
+          .in('conversation_id', convIds)
+          .neq('sender_id', userId);
+
+        if (msgs?.length) {
+          const msgIds = msgs.map((m: any) => m.id);
+          const { data: reads } = await supabase
+            .from('message_reads')
+            .select('message_id')
+            .eq('user_id', userId)
+            .in('message_id', msgIds);
+
+          const readSet = new Set((reads || []).map((r: any) => r.message_id));
+          unreadCount = msgs.filter((m: any) => !readSet.has(m.id)).length;
+        }
+      }
+
+      setCount(pendingCount + unreadCount);
+    };
+
+    load();
+  }, [userId]);
+
+  return count;
+}
 
 function TabLayout() {
   const { colours } = useApp();
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
+  const friendsBadge = useFriendsBadge(user?.id);
 
   return (
     <Tabs
@@ -52,13 +109,32 @@ function TabLayout() {
         name="friends"
         options={{
           tabBarLabel: 'Friends',
+          tabBarBadge: friendsBadge > 0 ? (friendsBadge > 99 ? '99+' : friendsBadge) : undefined,
+          tabBarBadgeStyle: { backgroundColor: '#FF3B5C', fontSize: 10, minWidth: 16, height: 16 },
           tabBarIcon: ({ focused, color }) => (
             <Ionicons name={focused ? 'people' : 'people-outline'} size={22} color={color} />
           ),
         }}
       />
+      <Tabs.Screen
+        name="account"
+        options={{
+          tabBarLabel: 'Account',
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={focused ? 'person-circle' : 'person-circle-outline'} size={22} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="search"
+        options={{
+          tabBarLabel: 'Search',
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={focused ? 'search' : 'search-outline'} size={22} color={color} />
+          ),
+        }}
+      />
       <Tabs.Screen name="profile" options={{ href: null }} />
-      <Tabs.Screen name="account" options={{ href: null }} />
     </Tabs>
   );
 }
