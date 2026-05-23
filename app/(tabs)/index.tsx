@@ -46,7 +46,7 @@ interface FeedEvent {
 
 interface ActivityItem {
   id: string;
-  type: 'rsvp' | 'post';
+  type: 'rsvp' | 'post' | 'created_event';
   created_at: string;
   user_id: string;
   event_id: string | null;
@@ -153,6 +153,9 @@ function ActivityRow({ item, onPress }: { item: ActivityItem; onPress: () => voi
   let text = '';
   if (item.type === 'rsvp') {
     text = `${username} is going to ${item.event?.title ?? 'an event'}`;
+    if (item.event?.venue_name) text += ` at ${item.event.venue_name}`;
+  } else if (item.type === 'created_event') {
+    text = `${username} created an event: ${item.event?.title ?? 'Untitled'}`;
     if (item.event?.venue_name) text += ` at ${item.event.venue_name}`;
   } else {
     text = `${username} posted`;
@@ -364,18 +367,44 @@ export default function FeedScreen() {
       );
     });
 
-    // Load going counts
+    // Load going counts and friend RSVPs in parallel
     const eventIds = relevant.map((e: any) => e.id);
-    const { data: rsvpRows } = eventIds.length > 0
-      ? await supabase
-          .from('event_rsvps')
-          .select('event_id, profiles(id, username, avatar_url)')
-          .in('event_id', eventIds)
-          .eq('status', 'going')
-      : { data: [] };
+    const friendIds = Array.from(friendIdSet);
+
+    const [rsvpRowsRes, friendRsvpLegacyRes, friendRsvpVeRes] = await Promise.all([
+      eventIds.length > 0
+        ? supabase
+            .from('event_rsvps')
+            .select('event_id, profiles(id, username, avatar_url)')
+            .in('event_id', eventIds)
+            .eq('status', 'going')
+        : Promise.resolve({ data: [] }),
+      friendIds.length > 0
+        ? supabase
+            .from('event_rsvps')
+            .select('event_id')
+            .in('user_id', friendIds)
+            .eq('status', 'going')
+        : Promise.resolve({ data: [] }),
+      friendIds.length > 0
+        ? supabase
+            .from('venue_event_rsvps')
+            .select('event_id')
+            .in('user_id', friendIds)
+            .eq('status', 'going')
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const friendGoingSet = new Set<string>();
+    for (const row of (friendRsvpLegacyRes.data ?? []) as any[]) {
+      if (row.event_id) friendGoingSet.add(row.event_id);
+    }
+    for (const row of (friendRsvpVeRes.data ?? []) as any[]) {
+      if (row.event_id) friendGoingSet.add(row.event_id);
+    }
 
     const attendeeMap: Record<string, { count: number; avatars: any[] }> = {};
-    for (const row of (rsvpRows ?? []) as any[]) {
+    for (const row of (rsvpRowsRes.data ?? []) as any[]) {
       const eid = row.event_id;
       if (!attendeeMap[eid]) attendeeMap[eid] = { count: 0, avatars: [] };
       attendeeMap[eid].count += 1;
@@ -400,15 +429,19 @@ export default function FeedScreen() {
       creator_is_organizer: e.creator_is_organizer,
     }));
 
-    // Score events: saved > interest match > popular > date
+    // Score events: friend going > tonight > saved > interest match > popular > date
     const interests = new Set(profile?.interests ?? []);
     mapped.sort((a, b) => {
       const aSaved = savedEventIds.has(a.id) ? 3 : 0;
       const bSaved = savedEventIds.has(b.id) ? 3 : 0;
       const aInterest = interests.size > 0 && a.entry_type && interests.has(a.entry_type) ? 2 : 0;
       const bInterest = interests.size > 0 && b.entry_type && interests.has(b.entry_type) ? 2 : 0;
-      const scoreA = aSaved + aInterest + (a.going_count > 0 ? 1 : 0);
-      const scoreB = bSaved + bInterest + (b.going_count > 0 ? 1 : 0);
+      const aTonight = a.event_date === today ? 4 : 0;
+      const bTonight = b.event_date === today ? 4 : 0;
+      const aFriend = friendGoingSet.has(a.id) ? 5 : 0;
+      const bFriend = friendGoingSet.has(b.id) ? 5 : 0;
+      const scoreA = aFriend + aTonight + aSaved + aInterest + (a.going_count > 0 ? 1 : 0);
+      const scoreB = bFriend + bTonight + bSaved + bInterest + (b.going_count > 0 ? 1 : 0);
       if (scoreB !== scoreA) return scoreB - scoreA;
       return (a.event_date ?? '').localeCompare(b.event_date ?? '');
     });
@@ -462,7 +495,40 @@ export default function FeedScreen() {
     for (const e of [...legacy, ...ve]) {
       if (!seen.has(e.id)) { seen.add(e.id); merged.push(e); }
     }
-    setFallbackEvents(merged);
+
+    const fallbackIds = merged.map(e => e.id);
+    const [fbRsvpLegacy, fbRsvpVe] = fallbackIds.length > 0
+      ? await Promise.all([
+          supabase
+            .from('event_rsvps')
+            .select('event_id, profiles(id, username, avatar_url)')
+            .in('event_id', fallbackIds)
+            .eq('status', 'going'),
+          supabase
+            .from('venue_event_rsvps')
+            .select('event_id, profiles(id, username, avatar_url)')
+            .in('event_id', fallbackIds)
+            .eq('status', 'going'),
+        ])
+      : [{ data: [] }, { data: [] }];
+
+    const fbAttendeeMap: Record<string, { count: number; avatars: any[] }> = {};
+    for (const row of ([...(fbRsvpLegacy.data ?? []), ...(fbRsvpVe.data ?? [])]) as any[]) {
+      const eid = row.event_id;
+      if (!fbAttendeeMap[eid]) fbAttendeeMap[eid] = { count: 0, avatars: [] };
+      fbAttendeeMap[eid].count += 1;
+      if (fbAttendeeMap[eid].avatars.length < 3 && row.profiles) {
+        fbAttendeeMap[eid].avatars.push(row.profiles);
+      }
+    }
+
+    const mergedWithCounts: FeedEvent[] = merged.map(e => ({
+      ...e,
+      going_count: fbAttendeeMap[e.id]?.count ?? 0,
+      going_avatars: fbAttendeeMap[e.id]?.avatars ?? [],
+    }));
+
+    setFallbackEvents(mergedWithCounts);
   };
 
   const loadActivity = async () => {
@@ -485,7 +551,7 @@ export default function FeedScreen() {
       f.requester_id === user.id ? f.addressee_id : f.requester_id
     );
 
-    const [rsvpRes, postRes] = await Promise.all([
+    const [rsvpRes, postRes, createdEventsRes] = await Promise.all([
       supabase
         .from('event_rsvps')
         .select('id, created_at, user_id, event_id, profiles(username, avatar_url), events(id, title, venues(name))')
@@ -499,6 +565,13 @@ export default function FeedScreen() {
         .in('user_id', friendIds)
         .order('created_at', { ascending: false })
         .limit(50),
+      supabase
+        .from('venue_events')
+        .select('id, created_at, creator_id, title, venue_id, venues(name), profiles(username, avatar_url)')
+        .in('creator_id', friendIds)
+        .eq('source', 'user')
+        .order('created_at', { ascending: false })
+        .limit(20),
     ]);
 
     const rsvpItems: ActivityItem[] = (rsvpRes.data ?? []).map((r: any) => ({
@@ -521,7 +594,17 @@ export default function FeedScreen() {
       event: p.events ? { id: p.events.id, title: p.events.title, venue_name: p.events.venues?.name ?? null } : null,
     }));
 
-    const merged = [...rsvpItems, ...postItems]
+    const createdItems: ActivityItem[] = (createdEventsRes.data ?? []).map((e: any) => ({
+      id: `created-${e.id}`,
+      type: 'created_event',
+      created_at: e.created_at,
+      user_id: e.creator_id,
+      event_id: e.id,
+      profile: e.profiles ?? null,
+      event: { id: e.id, title: e.title, venue_name: e.venues?.name ?? null },
+    }));
+
+    const merged = [...rsvpItems, ...postItems, ...createdItems]
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       .slice(0, 50);
 
