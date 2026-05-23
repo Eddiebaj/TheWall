@@ -128,14 +128,15 @@ export default function FriendsScreen() {
 
   const loadFriendsData = async () => {
     setLoading(true);
-    await Promise.all([loadFriends(), loadPendingRequests(), loadConversations()]);
+    await Promise.all([loadFriends(), loadPendingRequests(), loadConversations(), loadMyHangouts()]);
     await loadFriendsPlans();
     setLoading(false);
   };
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadFriends(), loadConversations()]);
+    await Promise.all([loadFriends(), loadPendingRequests(), loadConversations(), loadMyHangouts()]);
+    await loadFriendsPlans();
     setRefreshing(false);
   };
 
@@ -200,6 +201,8 @@ export default function FriendsScreen() {
       .from('friendships')
       .insert({ requester_id: user!.id, addressee_id: addresseeId });
     if (error) {
+      setSearchResults([]);
+      setSearchQuery('');
       if (error.message.includes('unique')) {
         Alert.alert('Already sent', 'You already sent a friend request to this person.');
       } else {
@@ -246,15 +249,15 @@ export default function FriendsScreen() {
   };
 
   const handleShareInvite = async () => {
-    const inviteUrl = `https://thewall.app/invite/${user!.id}`;
+    const inviteUrl = `affiche://invite/${user!.id}`;
     await Share.share({
-      message: `Join me on affiche discover Toronto's best nights out 🎉 ${inviteUrl}`,
+      message: `Join me on affiche — discover Toronto's best nights out 🎉 ${inviteUrl}`,
       url: inviteUrl,
     });
   };
 
   const handleInviteLink = async () => {
-    const inviteUrl = `https://thewall.app/invite/${user!.id}`;
+    const inviteUrl = `affiche://invite/${user!.id}`;
     await Clipboard.setStringAsync(inviteUrl);
     Alert.alert('Link copied!', 'Share the link with your friends when they sign up, you\'ll be connected automatically.');
   };
@@ -392,10 +395,14 @@ export default function FriendsScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, paddingHorizontal: 4 }}>
             <View style={{ flexDirection: 'row' }}>
               {friendsDown.slice(0, 4).map((f: any, i: number) => (
-                <View key={f.user_id} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colours.accent, alignItems: 'center', justifyContent: 'center', marginLeft: i > 0 ? -8 : 0, borderWidth: 2, borderColor: colours.bg }}>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: 'white' }}>
-                    {(f.profiles?.display_name || f.profiles?.username || '?')[0].toUpperCase()}
-                  </Text>
+                <View key={f.user_id} style={{ width: 28, height: 28, borderRadius: 14, overflow: 'hidden', backgroundColor: colours.accent, alignItems: 'center', justifyContent: 'center', marginLeft: i > 0 ? -8 : 0, borderWidth: 2, borderColor: colours.bg }}>
+                  {f.profiles?.avatar_url ? (
+                    <Image source={{ uri: f.profiles.avatar_url }} style={{ width: 28, height: 28, borderRadius: 14 }} />
+                  ) : (
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: 'white' }}>
+                      {(f.profiles?.display_name || f.profiles?.username || '?')[0].toUpperCase()}
+                    </Text>
+                  )}
                 </View>
               ))}
             </View>
@@ -638,7 +645,7 @@ export default function FriendsScreen() {
             </View>
           ) : (
             friends.map(friend => (
-              <View key={friend.id} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, padding: 14, marginBottom: 8 }}>
+              <TouchableOpacity key={friend.id} activeOpacity={0.7} onPress={() => router.push(`/profile/${friend.id}` as any)} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, padding: 14, marginBottom: 8 }}>
                 <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
                   <Text style={{ fontSize: 18, fontWeight: '700', color: colours.accent }}>{friend.username?.[0]?.toUpperCase()}</Text>
                 </View>
@@ -647,7 +654,7 @@ export default function FriendsScreen() {
                   <Text style={{ fontSize: 12, color: colours.muted }}>@{friend.username}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={16} color={colours.muted} />
-              </View>
+              </TouchableOpacity>
             ))
           )}
         </View>
