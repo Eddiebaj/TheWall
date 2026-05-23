@@ -16,7 +16,8 @@
         "SENTRY_ALLOW_FAILURE": "true",
         "EXPO_PUBLIC_SUPABASE_URL": "https://bzvkadttywgszovbowch.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_UQXeqJ_OE-Zhl51qrHVF3w_UXOxKk2O",
-        "MAPBOX_DOWNLOADS_TOKEN": "$MAPBOX_DOWNLOADS_TOKEN"
+        "MAPBOX_DOWNLOADS_TOKEN": "$MAPBOX_DOWNLOADS_TOKEN",
+        "EXPO_PUBLIC_MAPBOX_TOKEN": "pk.eyJ1IjoiZWRkaWViYWoiLCJhIjoiY21waGJleG93MGY1MTJxcHh5aW1wbjdzNiJ9.ld10ZODOGSz3wXepSf3KCA"
       }
     },
     "production": {

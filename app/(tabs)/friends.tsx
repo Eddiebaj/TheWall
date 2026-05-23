@@ -382,7 +382,7 @@ export default function FriendsScreen() {
               <Ionicons name="add" size={16} color={colours.accent} />
               <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>New Group</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/profile' as any)} activeOpacity={0.8}>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/account' as any)} activeOpacity={0.8}>
               <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colours.accent + '60' }}>
                 {profile?.avatar_url ? (
                   <Image source={{ uri: profile.avatar_url }} style={{ width: 36, height: 36, borderRadius: 18 }} />
