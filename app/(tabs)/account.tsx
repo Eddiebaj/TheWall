@@ -231,6 +231,7 @@ export default function AccountScreen() {
 
   const [wallCount, setWallCount] = useState(0);
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
+  const [avatarCacheBust, setAvatarCacheBust] = useState(() => Date.now());
   const [profileStats, setProfileStats] = useState<{ eventsAttended: number; totalPosts: number; memberSince: string | null; mostVisitedVenue: string | null } | null>(null);
   const [savedEvents, setSavedEvents] = useState<{ id: string; title: string; venue_name: string; poster_url: string | null }[]>([]);
 
@@ -290,6 +291,9 @@ export default function AccountScreen() {
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editName, setEditName] = useState('');
   const [editUsername, setEditUsername] = useState('');
+  const [editUsernameStatus, setEditUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [editUsernameError, setEditUsernameError] = useState('');
+  const editUsernameDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Profile setup (shown for new users who have no username yet)
@@ -318,6 +322,24 @@ export default function AccountScreen() {
       setUsernameStatus(data ? 'taken' : 'available');
     }, 500);
   }, [setupUsername]);
+
+  useEffect(() => {
+    if (!editUsername || editUsername === profile?.username) {
+      setEditUsernameStatus('idle');
+      return;
+    }
+    if (editUsername.length < 2) { setEditUsernameStatus('idle'); return; }
+    setEditUsernameStatus('checking');
+    if (editUsernameDebounceRef.current) clearTimeout(editUsernameDebounceRef.current);
+    editUsernameDebounceRef.current = setTimeout(async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', editUsername)
+        .maybeSingle();
+      setEditUsernameStatus(data ? 'taken' : 'available');
+    }, 500);
+  }, [editUsername]);
 
   const handleSetupProfile = async () => {
     setSetupError('');
@@ -449,7 +471,8 @@ export default function AccountScreen() {
 
       const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
       await updateProfile({ avatar_url: data.publicUrl });
-      // Profile refetch will update global state; local override no longer needed
+      // Refresh cache-bust timestamp so the new avatar is fetched
+      setAvatarCacheBust(Date.now());
       setLocalAvatarUrl(null);
     } catch (err: any) {
       setLocalAvatarUrl(null);
@@ -655,7 +678,7 @@ export default function AccountScreen() {
             {/* Avatar */}
             <TouchableOpacity onPress={handleAvatarPress} style={{ position: 'relative' }}>
               {(localAvatarUrl || profile?.avatar_url) ? (
-                <Image source={{ uri: localAvatarUrl ?? (profile!.avatar_url + '?t=' + Date.now()) }} style={{ width: 56, height: 56, borderRadius: 14 }} />
+                <Image source={{ uri: localAvatarUrl ?? (profile!.avatar_url + '?t=' + avatarCacheBust) }} style={{ width: 56, height: 56, borderRadius: 14 }} />
               ) : (
                 <View style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center' }}>
                   <Text style={{ fontSize: 22, fontWeight: '800', color: colours.accent }}>
@@ -676,6 +699,8 @@ export default function AccountScreen() {
                 <TouchableOpacity onPress={() => {
                   setEditName(profile?.display_name || '');
                   setEditUsername(profile?.username || '');
+                  setEditUsernameStatus('idle');
+                  setEditUsernameError('');
                   setShowEditProfile(true);
                 }}>
                   <Ionicons name="pencil-outline" size={16} color={colours.muted} />
@@ -733,7 +758,7 @@ export default function AccountScreen() {
                 { value: String(profileStats.totalPosts), label: 'Posts' },
                 { value: profileStats.memberSince ? new Date(profileStats.memberSince).toLocaleDateString('en-CA', { month: 'short', year: 'numeric' }) : '', label: 'Member Since' },
                 { value: profileStats.mostVisitedVenue ?? '', label: 'Most Visited' },
-              ].map((stat) => (
+              ].filter((stat) => stat.value !== '' && stat.value !== 'null').map((stat) => (
                 <View
                   key={stat.label}
                   style={{ width: '47%', backgroundColor: colours.card, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 10, alignItems: 'center', borderWidth: 1, borderColor: colours.border }}
@@ -982,12 +1007,12 @@ export default function AccountScreen() {
                         setBugSent(true);
                         const subject = encodeURIComponent('affiche Bug Report');
                         const body = encodeURIComponent(`${bugMessage.trim()}\n\n---\nScreen: ${bugScreen || 'N/A'}\nDevice: ${Platform.OS} ${Platform.Version}\nDate: ${new Date().toLocaleDateString('en-CA')}\n`);
-                        Linking.openURL(`mailto:support@routeo.ca?subject=${subject}&body=${body}`).catch(() => {});
+                        Linking.openURL(`mailto:support@affiche.app?subject=${subject}&body=${body}`).catch(() => {});
                       } catch (e) {
                         if (__DEV__) console.warn('bug report failed:', e);
                         const subject = encodeURIComponent('affiche Bug Report');
                         const body = encodeURIComponent(`${bugMessage.trim()}\n\n---\nScreen: ${bugScreen || 'N/A'}\nDevice: ${Platform.OS} ${Platform.Version}\nDate: ${new Date().toLocaleDateString('en-CA')}\n`);
-                        Linking.openURL(`mailto:support@routeo.ca?subject=${subject}&body=${body}`).catch(() => Alert.alert(t('Could not send report', 'Impossible d\'envoyer le rapport')));
+                        Linking.openURL(`mailto:support@affiche.app?subject=${subject}&body=${body}`).catch(() => Alert.alert(t('Could not send report', 'Impossible d\'envoyer le rapport')));
                         setBugSent(true);
                       }
                       setBugSending(false);
@@ -1015,9 +1040,10 @@ export default function AccountScreen() {
       </Modal>
 
       <Modal visible={showEditProfile} transparent animationType="slide" onRequestClose={() => setShowEditProfile(false)}>
-        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} activeOpacity={1} onPress={() => setShowEditProfile(false)} />
-        <KeyboardAvoidingView behavior="padding">
-          <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
+        <View style={{ flex: 1 }}>
+          <TouchableOpacity style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)' }} activeOpacity={1} onPress={() => setShowEditProfile(false)} />
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: insets.bottom + 24 }}>
             <Text style={{ fontSize: 20, fontWeight: '800', color: colours.text, marginBottom: 24 }}>Edit Profile</Text>
 
             <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Display Name</Text>
@@ -1030,28 +1056,44 @@ export default function AccountScreen() {
             />
 
             <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Username</Text>
-            <TextInput
-              style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colours.text, marginBottom: 16 }}
-              value={editUsername}
-              onChangeText={t => setEditUsername(t.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-              placeholder="username"
-              placeholderTextColor={colours.muted}
-              autoCapitalize="none"
-            />
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderWidth: 1, borderColor: editUsernameStatus === 'taken' ? '#FF3B5C' : editUsernameStatus === 'available' ? '#00C07A' : colours.border, borderRadius: 12, paddingHorizontal: 14, marginBottom: 4 }}>
+              <Text style={{ fontSize: 15, color: colours.muted, marginRight: 2 }}>@</Text>
+              <TextInput
+                style={{ flex: 1, paddingVertical: 12, fontSize: 15, color: colours.text }}
+                value={editUsername}
+                onChangeText={v => { setEditUsernameError(''); setEditUsername(v.toLowerCase().replace(/[^a-z0-9_.]/g, '')); }}
+                placeholder="username"
+                placeholderTextColor={colours.muted}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {editUsernameStatus === 'checking' && <ActivityIndicator size="small" color={colours.muted} />}
+              {editUsernameStatus === 'available' && editUsername !== profile?.username && <Text style={{ fontSize: 13, color: '#00C07A', fontWeight: '700' }}>✓</Text>}
+              {editUsernameStatus === 'taken' && <Text style={{ fontSize: 13, color: '#FF3B5C', fontWeight: '700' }}>✗ taken</Text>}
+            </View>
+            {editUsernameError ? (
+              <Text style={{ fontSize: 12, color: '#FF3B5C', fontWeight: '600', marginBottom: 12 }}>{editUsernameError}</Text>
+            ) : (
+              <View style={{ marginBottom: 16 }} />
+            )}
 
             <TouchableOpacity
               onPress={async () => {
+                if (editUsernameStatus === 'taken') { setEditUsernameError('That username is already taken.'); return; }
+                if (editUsernameStatus === 'checking') { setEditUsernameError('Still checking username…'); return; }
                 setSaving(true);
                 await updateProfile({ display_name: editName.trim(), username: editUsername.trim() });
                 setSaving(false);
                 setShowEditProfile(false);
               }}
-              style={{ backgroundColor: colours.accent, borderRadius: 14, paddingVertical: 16, alignItems: 'center' }}
+              disabled={saving || editUsernameStatus === 'taken' || editUsernameStatus === 'checking'}
+              style={{ backgroundColor: colours.accent, borderRadius: 14, paddingVertical: 16, alignItems: 'center', opacity: (editUsernameStatus === 'taken' || editUsernameStatus === 'checking') ? 0.6 : 1 }}
             >
               {saving ? <ActivityIndicator color="white" /> : <Text style={{ fontSize: 16, fontWeight: '700', color: 'white' }}>Save</Text>}
             </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
 
     </View>
