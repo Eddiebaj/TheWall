@@ -569,7 +569,7 @@ const HTML = `<!DOCTYPE html>
       submitBtn.disabled = true;
       submitBtn.textContent = 'Loading...';
 
-      fetch('/api/business/create-checkout', {
+      fetch('/api/business-create-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
