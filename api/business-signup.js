@@ -1,5 +1,3 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-
 const HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -602,7 +600,7 @@ const HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
-export default function handler(_req: VercelRequest, res: VercelResponse) {
+module.exports = function handler(req, res) {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.status(200).send(HTML);
-}
+};
