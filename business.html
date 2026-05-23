@@ -249,6 +249,58 @@
     }
     .faq-contact a:hover { color: #fff; }
 
+    /* ── Boosts ── */
+    .boosts {
+      padding: 0 0 48px;
+    }
+    .boosts-heading {
+      font-size: 14px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.5);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 16px;
+    }
+    .boosts-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .boost-card {
+      background: #1a1a1a;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+    }
+    .boost-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+    .boost-price {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      line-height: 1;
+      margin-bottom: 20px;
+    }
+    .boost-cta {
+      display: block;
+      text-align: center;
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      background: rgba(255,255,255,0.07);
+      color: #fff;
+      transition: opacity 0.15s;
+      margin-top: auto;
+    }
+    .boost-cta:hover { opacity: 0.85; }
+
     /* ── Social proof ── */
     .venues {
       padding: 0 0 48px;
@@ -280,6 +332,7 @@
     .footer-inner a:hover { color: rgba(255,255,255,0.6); }
 
     @media (max-width: 680px) {
+      .boosts-row { grid-template-columns: 1fr; }
       .pricing-row { grid-template-columns: 1fr; }
       .hero { padding: 48px 0 40px; }
       .pricing { padding: 32px 0 40px; }
@@ -330,7 +383,6 @@
         <img src="assets/discover.png" alt="Discover view" class="screenshot" />
         <img src="assets/map.png" alt="Map view" class="screenshot" />
       </div>
-      <p class="screenshots-caption">How your venue appears on affiche.</p>
     </div>
   </section>
 
@@ -344,8 +396,9 @@
           <div class="plan-price">$49</div>
           <div class="plan-period">per month</div>
           <div class="feature-list">
-            <div class="feature-row">Featured badge on map</div>
-            <div class="feature-row">Algorithm priority boost</div>
+            <div class="feature-row">Featured pin on the map so users spot your venue first</div>
+            <div class="feature-row">Priority placement in Discover: you rank above unlisted venues</div>
+            <div class="feature-row">Verified badge that builds trust with new customers</div>
           </div>
           <a href="https://eddiebaj.github.io/thewall-business/signup.html" class="plan-cta secondary">Get Started</a>
         </div>
@@ -356,8 +409,8 @@
           <div class="plan-period">per month</div>
           <div class="feature-list">
             <div class="feature-row">Everything in Basic</div>
-            <div class="feature-row">Analytics dashboard</div>
-            <div class="feature-row">RSVP, saves &amp; views data</div>
+            <div class="feature-row">Full analytics dashboard: see RSVPs, saves, profile views, and which events drove the most traffic</div>
+            <div class="feature-row">Weekly performance summary so you know what's working</div>
           </div>
           <a href="https://eddiebaj.github.io/thewall-business/signup.html" class="plan-cta primary">Get Started</a>
         </div>
@@ -368,8 +421,9 @@
           <div class="plan-period">per month</div>
           <div class="feature-list">
             <div class="feature-row">Everything in Pro</div>
-            <div class="feature-row">Strongest algorithm boost</div>
-            <div class="feature-row">Featured badge on event cards</div>
+            <div class="feature-row">Maximum algorithm boost: highest possible ranking in Discover and the Feed</div>
+            <div class="feature-row">Featured badge on every event card so your brand stays visible all night</div>
+            <div class="feature-row">Priority support</div>
           </div>
           <a href="https://eddiebaj.github.io/thewall-business/signup.html" class="plan-cta secondary">Get Started</a>
         </div>
@@ -394,7 +448,30 @@
           <p class="faq-a">Immediately after payment. Your venue badge and algorithm boost activate the same day.</p>
         </div>
       </div>
-      <p class="faq-contact">Questions? Email us at <a href="mailto:hello@affiche.app">hello@affiche.app</a> or <a href="https://calendly.com/thewall" target="_blank" rel="noopener">book a quick call</a>.</p>
+      <p class="faq-contact">Questions? Email us at <a href="mailto:hello@affiche.app">hello@affiche.app</a> or <a href="https://calendly.com/affiche" target="_blank" rel="noopener">book a quick call</a>.</p>
+    </div>
+  </section>
+
+  <section class="boosts">
+    <div class="container">
+      <p class="boosts-heading">One-time Boosts</p>
+      <div class="boosts-row">
+        <div class="boost-card">
+          <div class="boost-name">Event Boost 3 Days</div>
+          <div class="boost-price">$9.99</div>
+          <a href="https://eddiebaj.github.io/thewall-business/signup.html" class="boost-cta">Get Started</a>
+        </div>
+        <div class="boost-card">
+          <div class="boost-name">Event Boost 7 Days</div>
+          <div class="boost-price">$19.99</div>
+          <a href="https://eddiebaj.github.io/thewall-business/signup.html" class="boost-cta">Get Started</a>
+        </div>
+        <div class="boost-card">
+          <div class="boost-name">Weekend Spotlight</div>
+          <div class="boost-price">$29.99</div>
+          <a href="https://eddiebaj.github.io/thewall-business/signup.html" class="boost-cta">Get Started</a>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -403,13 +480,13 @@
       <p class="venues-line">
         Venues on affiche:
         <span>Rebel</span>,
-        <span>Coda</span>,
-        <span>Toybox</span>,
-        <span>Nest</span>,
-        <span>Orchid</span>,
-        <span>Bar None</span>,
-        <span>Bisha Rooftop</span>,
-        <span>Wildflower</span>
+        <span>CODA</span>,
+        <span>Adelaide Hall</span>,
+        <span>Horseshoe Tavern</span>,
+        <span>The Drake Hotel</span>,
+        <span>Lavelle</span>,
+        <span>Bar Hop</span>,
+        <span>Sneaky Dee's</span>
       </p>
     </div>
   </section>
