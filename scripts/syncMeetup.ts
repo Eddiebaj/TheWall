@@ -26,6 +26,9 @@ const supabase = createClient(supabaseUrl, serviceRoleKey);
 interface MeetupVenue {
   name?: string;
   address?: string;
+  lat?: number;
+  lon?: number;
+  city?: string;
 }
 
 interface MeetupEvent {
@@ -34,7 +37,6 @@ interface MeetupEvent {
   dateTime?: string;
   description?: string;
   eventUrl?: string;
-  going?: { totalCount?: number };
   venue?: MeetupVenue;
 }
 
@@ -83,15 +85,22 @@ function matchVenue(meetupVenue: MeetupVenue, dbVenues: DbVenue[]): DbVenue | nu
 
 async function fetchMeetupEvents(): Promise<MeetupEvent[]> {
   const now = new Date();
-  const startDateRange = now.toISOString();
-  const seriesStartDate = now.toISOString().split('T')[0];
+  // Format: 2026-05-23T00:00:00-04:00[Canada/Eastern]
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const year = now.getFullYear();
+  const month = pad(now.getMonth() + 1);
+  const day = pad(now.getDate());
+  const startDateRange = `${year}-${month}-${day}T00:00:00-04:00[Canada/Eastern]`;
+  const seriesStartDate = `${year}-${month}-${day}`;
+
+  const gqlQuery = `query recommendedEventsWithSeries($first: Int, $lat: Float, $lon: Float, $startDateRange: ZonedDateTime, $eventType: EventType, $numberOfEventsForSeries: Int, $seriesStartDate: Date, $sortField: KeywordSortField, $doConsolidateEvents: Boolean, $doPromotePaypalEvents: Boolean, $dataConfiguration: String, $after: String) { recommendedEventsWithSeries(filter: {lat: $lat, lon: $lon, startDateRange: $startDateRange, eventType: $eventType}, input: {first: $first, after: $after, sortField: $sortField, doConsolidateEvents: $doConsolidateEvents, doPromotePaypalEvents: $doPromotePaypalEvents, dataConfiguration: $dataConfiguration}) { edges { node { id title dateTime endTime description eventUrl venue { name address city } } } } }`;
 
   const payload = {
     operationName: 'recommendedEventsWithSeries',
     variables: {
-      first: 200,
-      lat: 43.6532,
-      lon: -79.3832,
+      first: 20,
+      lat: 43.7400016784668,
+      lon: -79.36000061035156,
       startDateRange,
       eventType: 'PHYSICAL',
       numberOfEventsForSeries: 5,
@@ -99,36 +108,54 @@ async function fetchMeetupEvents(): Promise<MeetupEvent[]> {
       sortField: 'DATETIME',
       doConsolidateEvents: true,
       doPromotePaypalEvents: false,
-      dataConfiguration: '{"isSimplifiedSearchEnabled": true}',
+      dataConfiguration: '{"isSimplifiedSearchEnabled": true, "include_events_from_user_chapters": true}',
+      after: 'NjA=',
     },
-    extensions: {
-      persistedQuery: {
-        version: 1,
-        sha256Hash: 'cf6348a7edb376af58158519e78130eb8beced0aaaed60ab379e82f25fd52eea',
-      },
-    },
+    query: gqlQuery,
   };
 
-  const res = await fetch('https://www.meetup.com/gql2', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'user-agent': 'Mozilla/5.0',
-    },
-    body: JSON.stringify(payload),
-  });
+  const url = 'https://www.meetup.com/gql2';
+  console.log(`Trying endpoint: ${url}`);
+  console.log('Payload:', JSON.stringify(payload, null, 2));
 
-  if (!res.ok) {
-    console.error(`Meetup API error: ${res.status} ${res.statusText}`);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'user-agent': 'Mozilla/5.0',
+        'cookie': 'MEETUP_CSRF=c2b838e1-2067-42de-b216-3f072da19caf; memberId=479699176; MEETUP_MEMBER_LOCATION=city=Toronto&country=ca&localized_country_name=ca&state=ON&name_string=Toronto%252C+Ontario%252C+Canada&zip=M3B+0A3&lat=43.7400016784668&lon=-79.36000061035156&timeZone=Canada%252FEastern',
+        'x-csrf-token': 'c2b838e1-2067-42de-b216-3f072da19caf',
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    console.error(`Fetch error for ${url}:`, err);
     return [];
   }
 
-  const data = await res.json();
-  const edges: { node?: { result?: MeetupEvent } }[] =
-    data?.data?.keywordSearch?.edges ?? [];
+  console.log(`HTTP status: ${res.status} ${res.statusText}`);
+
+  const rawText = await res.text();
+  console.log('Full raw response:');
+  console.log(rawText);
+
+  let data: any;
+  try {
+    data = JSON.parse(rawText);
+  } catch {
+    console.error('Failed to parse JSON response');
+    return [];
+  }
+
+  const edges: { node?: MeetupEvent }[] =
+    data?.data?.recommendedEventsWithSeries?.edges ?? [];
+
+  console.log(`Edges found: ${edges.length}`);
 
   return edges
-    .map((e) => e?.node?.result)
+    .map((e) => e?.node)
     .filter((e): e is MeetupEvent => !!e && !!e.id);
 }
 

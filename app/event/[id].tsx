@@ -61,6 +61,9 @@ interface EventDetail {
   goingCount: number;
   isGoing: boolean;
   isInterested: boolean;
+  source?: string | null;
+  creator_username?: string | null;
+  recurrence?: string | null;
 }
 
 function getEventTags(title: string): string[] {
@@ -124,28 +127,60 @@ export default function EventDetailScreen() {
   const loadEvent = async () => {
     setLoading(true);
 
-    const { data, error } = await supabase
-      .from('events')
-      .select('id, title, poster_url, date, start_time, end_time, cover_charge, venue_id, venues(name, neighbourhood, address)')
-      .eq('id', id)
-      .single();
+    // Try legacy events table first, then venue_events
+    let eventData: any = null;
+    let isVenueEvent = false;
 
-    if (error || !data) {
+    const { data: legacyData } = await supabase
+      .from('events')
+      .select('id, title, poster_url, date, start_time, end_time, cover_charge, description, venue_id, venues(name, neighbourhood, address)')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (legacyData) {
+      eventData = legacyData;
+    } else {
+      const { data: veData } = await supabase
+        .from('venue_events')
+        .select('id, title, poster_url, event_date, event_time, end_time, cover_charge, entry_type, description, venue_id, source, creator_id, recurrence, venues(name, neighbourhood, address)')
+        .eq('id', id)
+        .maybeSingle();
+      if (veData) {
+        eventData = veData;
+        isVenueEvent = true;
+      }
+    }
+
+    if (!eventData) {
       setLoading(false);
       return;
     }
 
+    // Resolve creator username for user-created events
+    let creatorUsername: string | null = null;
+    if (isVenueEvent && eventData.source === 'user' && eventData.creator_id) {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', eventData.creator_id)
+        .maybeSingle();
+      creatorUsername = (prof as any)?.username ?? null;
+    }
+
+    const rsvpTable = isVenueEvent ? 'venue_event_rsvps' : 'event_rsvps';
+    const eventIdField = 'event_id';
+
     const { count: goingCount } = await supabase
-      .from('event_rsvps')
+      .from(rsvpTable)
       .select('*', { count: 'exact', head: true })
-      .eq('event_id', id)
+      .eq(eventIdField, id)
       .eq('status', 'going');
 
     let isGoing = false;
     let isInterested = false;
     if (user) {
       const [{ data: rsvp }, { data: interest }, { data: saved }] = await Promise.all([
-        supabase.from('event_rsvps').select('status').eq('event_id', id).eq('user_id', user.id).maybeSingle(),
+        supabase.from(rsvpTable).select('status').eq(eventIdField, id).eq('user_id', user.id).maybeSingle(),
         supabase.from('event_interests').select('id').eq('event_id', id).eq('user_id', user.id).maybeSingle(),
         supabase.from('saved_events').select('id').eq('event_id', id).eq('user_id', user.id).maybeSingle(),
       ]);
@@ -156,9 +191,9 @@ export default function EventDetailScreen() {
 
     const [{ data: rsvpRows }, { data: friendRows }] = await Promise.all([
       supabase
-        .from('event_rsvps')
+        .from(rsvpTable)
         .select('profiles(id, username, avatar_url)')
-        .eq('event_id', id)
+        .eq(eventIdField, id)
         .eq('status', 'going')
         .limit(20),
       user
@@ -182,20 +217,27 @@ export default function EventDetailScreen() {
     );
     setFriendIds(ids);
 
+    const startTime = isVenueEvent
+      ? (eventData.event_time || null)
+      : (eventData.start_time || null);
+
     setEvent({
-      id: data.id,
-      title: data.title,
-      poster_url: data.poster_url || null,
-      event_date: data.date || null,
-      start_time: (data as any).start_time || null,
-      end_time: (data as any).end_time || null,
-      cover_charge: (data as any).cover_charge || null,
-      description: (data as any).description || null,
-      venue_id: (data as any).venue_id || null,
-      venue: (data as any).venues || null,
+      id: eventData.id,
+      title: eventData.title,
+      poster_url: eventData.poster_url || null,
+      event_date: (isVenueEvent ? eventData.event_date : eventData.date) || null,
+      start_time: startTime,
+      end_time: eventData.end_time || null,
+      cover_charge: eventData.cover_charge || eventData.entry_type || null,
+      description: eventData.description || null,
+      venue_id: eventData.venue_id || null,
+      venue: eventData.venues || null,
       goingCount: goingCount || 0,
       isGoing,
       isInterested,
+      source: isVenueEvent ? (eventData.source || null) : null,
+      creator_username: creatorUsername,
+      recurrence: isVenueEvent ? (eventData.recurrence || null) : null,
     });
     setLoading(false);
   };
@@ -568,9 +610,40 @@ export default function EventDetailScreen() {
           </View>
         )}
 
-        <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text, marginBottom: 16 }}>
+        <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text, marginBottom: event.creator_username || event.recurrence ? 6 : 16 }}>
           {event.title}
         </Text>
+
+        {event.source === 'user' && event.creator_username && (
+          <Text style={{ fontSize: 13, color: colours.muted, fontWeight: '500', marginBottom: 10 }}>
+            by @{event.creator_username}
+          </Text>
+        )}
+
+        {event.recurrence && event.recurrence !== 'once' && (() => {
+          const labels: Record<string, string> = {
+            weekly: 'Weekly', biweekly: 'Biweekly', monthly: 'Monthly',
+          };
+          const label = labels[event.recurrence] ?? event.recurrence;
+          return (
+            <View style={{
+              alignSelf: 'flex-start',
+              backgroundColor: 'rgba(255,59,92,0.12)',
+              borderRadius: 20,
+              paddingHorizontal: 12,
+              paddingVertical: 4,
+              marginBottom: 12,
+              borderWidth: 1,
+              borderColor: 'rgba(255,59,92,0.3)',
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 5,
+            }}>
+              <Ionicons name="repeat-outline" size={13} color={colours.accent} />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accent }}>{label}</Text>
+            </View>
+          );
+        })()}
 
         <View style={{ flexDirection: 'row', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
           {formattedDateTime && (

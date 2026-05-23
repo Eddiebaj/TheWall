@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
-import { Tabs } from 'expo-router';
+import { TouchableOpacity, View } from 'react-native';
+import { Tabs, useRouter } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -63,6 +63,7 @@ function TabLayout() {
   const { colours } = useApp();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const friendsBadge = useFriendsBadge(user?.id);
 
   return (
@@ -102,6 +103,41 @@ function TabLayout() {
           tabBarLabel: 'Discover',
           tabBarIcon: ({ focused, color }) => (
             <Ionicons name={focused ? 'grid' : 'grid-outline'} size={22} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="create"
+        options={{
+          href: null,
+          tabBarLabel: '',
+          tabBarButton: () => (
+            <TouchableOpacity
+              onPress={() => router.push('/create-event' as any)}
+              activeOpacity={0.85}
+              style={{
+                flex: 1,
+                alignItems: 'center',
+                justifyContent: 'center',
+                paddingBottom: insets.bottom > 0 ? 0 : 4,
+              }}
+            >
+              <View style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor: '#FF3B5C',
+                alignItems: 'center',
+                justifyContent: 'center',
+                shadowColor: '#FF3B5C',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.4,
+                shadowRadius: 8,
+                elevation: 6,
+              }}>
+                <Ionicons name="add" size={26} color="#fff" />
+              </View>
+            </TouchableOpacity>
           ),
         }}
       />
