@@ -1,18 +1,19 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+/** @typedef {{ query: Record<string, string>, body: any, method: string }} VercelRequest */
+/** @typedef {{ status: (code: number) => any, json: (body: any) => any, setHeader: (k: string, v: string) => void, end: () => void }} VercelResponse */
 
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY!;
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const STRIPE_API = 'https://api.stripe.com/v1';
 
-const PRICE_IDS: Record<string, string> = {
-  basic:    process.env.STRIPE_PRICE_BASIC_MONTHLY!,
-  pro:      process.env.STRIPE_PRICE_PRO_MONTHLY!,
-  featured: process.env.STRIPE_PRICE_FEATURED_MONTHLY!,
+const PRICE_IDS = {
+  basic:    process.env.STRIPE_PRICE_BASIC_MONTHLY,
+  pro:      process.env.STRIPE_PRICE_PRO_MONTHLY,
+  featured: process.env.STRIPE_PRICE_FEATURED_MONTHLY,
 };
 
 const SUCCESS_URL = process.env.BUSINESS_SUCCESS_URL ?? 'https://thewall.app/business/success';
 const CANCEL_URL  = process.env.BUSINESS_CANCEL_URL  ?? 'https://thewall.app/business/signup';
 
-async function stripePost(endpoint: string, params: Record<string, string>): Promise<any> {
+async function stripePost(endpoint, params) {
   const res = await fetch(`${STRIPE_API}${endpoint}`, {
     method: 'POST',
     headers: {
@@ -21,12 +22,12 @@ async function stripePost(endpoint: string, params: Record<string, string>): Pro
     },
     body: new URLSearchParams(params).toString(),
   });
-  const json = await res.json() as any;
+  const json = await res.json();
   if (!res.ok) throw new Error(json.error?.message ?? 'Stripe error');
   return json;
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+module.exports = async function handler(req, res) {
   try {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -45,7 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Invalid plan' });
     }
 
-    const priceId = PRICE_IDS[plan as string];
+    const priceId = PRICE_IDS[plan];
     if (!priceId) {
       return res.status(500).json({ error: `Price ID for plan "${plan}" is not configured` });
     }
@@ -78,8 +79,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     return res.status(200).json({ url: session.url });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[create-checkout]', error);
     return res.status(500).json({ error: error.message, stack: error.stack });
   }
-}
+};
