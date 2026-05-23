@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
 import {
@@ -86,9 +86,39 @@ function formatTime(timeStr: string | null): string {
   return `${hh}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
-function EventCard({ item, onPress }: { item: FeedEvent; onPress: () => void }) {
+function EventCard({ item, onPress, userId }: { item: FeedEvent; onPress: () => void; userId: string | undefined }) {
   const [imgError, setImgError] = React.useState(false);
+  const [isSaved, setIsSaved] = React.useState(false);
+  const savingRef = useRef(false);
   const showImage = item.poster_url && !imgError;
+
+  React.useEffect(() => {
+    if (!userId) return;
+    supabase
+      .from('saved_events')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('event_id', item.id)
+      .maybeSingle()
+      .then(({ data }) => setIsSaved(!!data));
+  }, [userId, item.id]);
+
+  const handleToggleSave = async (e: any) => {
+    e.stopPropagation();
+    if (!userId || savingRef.current) return;
+    savingRef.current = true;
+    const nowSaved = !isSaved;
+    setIsSaved(nowSaved);
+    if (nowSaved) {
+      const { error } = await supabase.from('saved_events').upsert({ user_id: userId, event_id: item.id });
+      if (error) setIsSaved(false);
+    } else {
+      const { error } = await supabase.from('saved_events').delete().eq('user_id', userId).eq('event_id', item.id);
+      if (error) setIsSaved(true);
+    }
+    savingRef.current = false;
+  };
+
   return (
     <TouchableOpacity style={styles.eventCard} activeOpacity={0.87} onPress={onPress}>
       {showImage ? (
@@ -147,6 +177,15 @@ function EventCard({ item, onPress }: { item: FeedEvent; onPress: () => void }) 
           <Text style={{ fontSize: 9, fontWeight: '800', color: '#fff', letterSpacing: 0.4 }}>VENUE</Text>
         </View>
       ) : null}
+      {userId && (
+        <TouchableOpacity
+          onPress={handleToggleSave}
+          style={{ position: 'absolute', top: 6, right: 6, padding: 4 }}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+        >
+          <Ionicons name={isSaved ? 'bookmark' : 'bookmark-outline'} size={16} color="rgba(255,255,255,0.85)" />
+        </TouchableOpacity>
+      )}
     </TouchableOpacity>
   );
 }
@@ -695,6 +734,7 @@ export default function FeedScreen() {
           <EventCard
             item={item}
             onPress={() => router.push(`/event/${item.id}` as any)}
+            userId={user?.id}
           />
         )}
         contentContainerStyle={[styles.feedList, { paddingTop: insets.top + 56 }]}

@@ -399,17 +399,37 @@ export default function AccountScreen() {
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(20)
-      .then(({ data }) => {
-        if (data) {
-          setSavedEvents(
-            (data as any[]).map((r) => ({
-              id: r.events?.id ?? r.event_id,
-              title: r.events?.title ?? '',
-              venue_name: r.events?.venues?.name ?? '',
-              poster_url: r.events?.poster_url ?? null,
-            }))
-          );
+      .then(async ({ data }) => {
+        if (!data) return;
+        const resolved: { id: string; title: string; venue_name: string; poster_url: string | null }[] = [];
+        const unresolvedIds: string[] = [];
+        for (const r of data as any[]) {
+          if (r.events) {
+            resolved.push({
+              id: r.events.id,
+              title: r.events.title ?? '',
+              venue_name: r.events.venues?.name ?? '',
+              poster_url: r.events.poster_url ?? null,
+            });
+          } else {
+            unresolvedIds.push(r.event_id);
+          }
         }
+        if (unresolvedIds.length > 0) {
+          const { data: veData } = await supabase
+            .from('venue_events')
+            .select('id, title, poster_url, venues(name)')
+            .in('id', unresolvedIds);
+          for (const ve of (veData ?? []) as any[]) {
+            resolved.push({
+              id: ve.id,
+              title: ve.title ?? '',
+              venue_name: ve.venues?.name ?? '',
+              poster_url: ve.poster_url ?? null,
+            });
+          }
+        }
+        setSavedEvents(resolved);
       });
   }, [user]);
 

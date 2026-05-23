@@ -21,6 +21,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
 import { useAnalytics } from '../../lib/analytics';
 import { sendNotification } from '../../lib/notificationHelpers';
+import { hapticLight } from '../../lib/haptics';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 const POSTER_HEIGHT = SCREEN_HEIGHT * 0.42;
@@ -322,6 +323,7 @@ export default function EventDetailScreen() {
     if (!event) return;
     const nowSaved = !isSaved;
     setIsSaved(nowSaved);
+    hapticLight();
     if (nowSaved) {
       capture('event_saved', { event_id: event.id });
       const { error } = await supabase.from('saved_events').upsert({ user_id: user.id, event_id: event.id });
@@ -568,7 +570,7 @@ export default function EventDetailScreen() {
             justifyContent: 'center',
           }}
         >
-          <Ionicons name={isSaved ? 'bookmark' : 'bookmark-outline'} size={20} color="#fff" />
+          <Ionicons name={isSaved ? 'bookmark' : 'bookmark-outline'} size={20} color={isSaved ? '#FF3B5C' : '#fff'} />
         </TouchableOpacity>
         <TouchableOpacity
           onPress={handleShareExternal}
