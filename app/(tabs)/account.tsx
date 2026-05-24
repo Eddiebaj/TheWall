@@ -1066,22 +1066,17 @@ export default function AccountScreen() {
             colours={colours}
             fonts={fonts}
           />
-          {/* TODO: Uncomment when real App Store / Play Store IDs are available
           <Divider colours={colours} />
           <SettingsRow
             label={t('Rate affiche', 'Evaluer affiche')}
             icon="star"
             onPress={() => {
-              const storeUrl = Platform.OS === 'ios'
-                ? 'https://apps.apple.com/app/routeo/id000000000'
-                : 'https://play.google.com/store/apps/details?id=ca.routeo.app';
-              Linking.openURL(storeUrl).catch(() => {});
+              Linking.openURL('https://apps.apple.com/app/id6741357152?action=write-review').catch(() => {});
             }}
             colours={colours}
             fonts={fonts}
             right={<Ionicons name="open-outline" size={16} color={colours.muted} />}
           />
-          */}
           <Divider colours={colours} />
           <SettingsRow
             label={t('Privacy Policy', 'Politique de confidentialite')}
