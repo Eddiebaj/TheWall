@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import ViewShot from 'react-native-view-shot';
 import {
   ActivityIndicator,
   Alert,
@@ -116,6 +117,7 @@ export default function EventDetailScreen() {
 
   // Share sheet
   const [shareSheetVisible, setShareSheetVisible] = useState(false);
+  const posterRef = useRef<ViewShot>(null);
 
   // Friends/groups picker
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -355,13 +357,22 @@ export default function EventDetailScreen() {
     }
   };
 
-  const handleShareExternal = () => {
+  const handleShareExternal = async () => {
     if (!event) return;
     setShareSheetVisible(false);
     const venueName = event.venue?.name || 'a venue';
     const dateStr = event.event_date
       ? new Date(event.event_date).toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })
       : 'an upcoming date';
+    try {
+      const uri = await (posterRef.current as any)?.capture();
+      if (uri) {
+        await Share.share({ url: uri, message: '' });
+        return;
+      }
+    } catch (_) {
+      // fall through to text share
+    }
     Share.share({
       message: `Check out ${event.title} at ${venueName} on ${dateStr} - open in affiche: affiche://event/${event.id}`,
     });
@@ -982,6 +993,47 @@ export default function EventDetailScreen() {
           )}
         </View>
       </View>
+
+      {/* Hidden share poster */}
+      <ViewShot
+        ref={posterRef}
+        options={{ format: 'png', quality: 1 }}
+        style={{ position: 'absolute', top: -9999, left: -9999, width: 1080, height: 1920 }}
+      >
+        <View style={{ flex: 1, backgroundColor: '#0a0a0a', width: 1080, height: 1920 }}>
+          {event.poster_url ? (
+            <Image
+              source={{ uri: event.poster_url }}
+              style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 960 }}
+              resizeMode="cover"
+            />
+          ) : null}
+          {/* Bottom gradient overlay */}
+          <View style={{
+            position: 'absolute',
+            left: 0, right: 0, bottom: 0, height: 960,
+            backgroundColor: 'rgba(10,10,10,0.85)',
+          }} />
+          {/* affiche wordmark */}
+          <Text style={{ position: 'absolute', top: 80, left: 80, fontSize: 48, fontWeight: '800', color: '#fff', letterSpacing: -1 }}>
+            affiche
+          </Text>
+          {/* Red accent line */}
+          <View style={{ position: 'absolute', top: 840, left: 80, width: 120, height: 5, backgroundColor: '#FF3B5C', borderRadius: 3 }} />
+          {/* Event title */}
+          <Text style={{ position: 'absolute', top: 880, left: 80, right: 80, fontSize: 96, fontWeight: '800', color: '#fff', lineHeight: 104 }} numberOfLines={3}>
+            {event.title}
+          </Text>
+          {/* Venue and date */}
+          <Text style={{ position: 'absolute', top: 1280, left: 80, right: 80, fontSize: 44, color: 'rgba(255,255,255,0.7)', fontWeight: '500' }}>
+            {event.venue?.name || ''}{event.venue?.name && event.event_date ? '  \u00B7  ' : ''}{event.event_date ? new Date(event.event_date).toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' }) : ''}
+          </Text>
+          {/* Watermark */}
+          <Text style={{ position: 'absolute', bottom: 80, right: 80, fontSize: 36, color: 'rgba(255,255,255,0.3)', fontWeight: '600' }}>
+            affiche.app
+          </Text>
+        </View>
+      </ViewShot>
 
       {/* Share options sheet */}
       <Modal
