@@ -1127,9 +1127,7 @@ export default function AccountScreen() {
                 label="Become an Organizer"
                 icon="ribbon-outline"
                 onPress={() => {
-                  const { STRIPE_LINKS } = require('../../lib/stripeLinks');
-                  const url = STRIPE_LINKS.organizer_monthly || 'https://buy.stripe.com/organizer_placeholder';
-                  Linking.openURL(url).catch(() => {});
+                  Linking.openURL('https://buy.stripe.com/test_8x23cwf9agaw7a5fnH0480c').catch(() => {});
                 }}
                 colours={colours}
                 fonts={fonts}
