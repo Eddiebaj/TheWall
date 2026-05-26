@@ -167,27 +167,33 @@ function EventCard({ item, onPress, userId }: { item: FeedEvent; onPress: () => 
           {[formatDate(item.event_date), formatTime(item.start_time)].filter(Boolean).join(' · ')}
         </Text>
       </LinearGradient>
-      {item.neighbourhood && (
-        <View style={styles.neighbourhoodPill}>
-          <Text style={styles.neighbourhoodText}>{item.neighbourhood}</Text>
-        </View>
-      )}
-      {item.source === 'user' ? (
-        <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: '#FF3B5C', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
-          <Text style={{ fontSize: 9, fontWeight: '800', color: '#fff', letterSpacing: 0.4 }}>ORGANIZER</Text>
-        </View>
-      ) : item.source != null ? (
-        <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: '#FF3B5C', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
-          <Text style={{ fontSize: 9, fontWeight: '800', color: '#fff', letterSpacing: 0.4 }}>VENUE</Text>
-        </View>
-      ) : null}
+      <View style={{ position: 'absolute', top: 8, left: 8, flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+        {item.source === 'user' ? (
+          <View style={{ backgroundColor: '#FF3B5C', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
+            <Text style={{ fontSize: 9, fontWeight: '800', color: '#fff', letterSpacing: 0.4 }}>ORGANIZER</Text>
+          </View>
+        ) : item.source != null ? (
+          <View style={{ backgroundColor: '#FF3B5C', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
+            <Text style={{ fontSize: 9, fontWeight: '800', color: '#fff', letterSpacing: 0.4 }}>VENUE</Text>
+          </View>
+        ) : null}
+        {item.neighbourhood && (
+          <View style={styles.neighbourhoodPill}>
+            <Text style={styles.neighbourhoodText}>{item.neighbourhood}</Text>
+          </View>
+        )}
+      </View>
       {userId && (
         <TouchableOpacity
           onPress={handleToggleSave}
-          style={{ position: 'absolute', top: 6, right: 6, padding: 4 }}
+          style={{
+            position: 'absolute', top: 6, right: 6, padding: 4,
+            shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.8, shadowRadius: 3,
+          }}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
         >
-          <Ionicons name={isSaved ? 'bookmark' : 'bookmark-outline'} size={16} color="rgba(255,255,255,0.85)" />
+          <Ionicons name={isSaved ? 'bookmark' : 'bookmark-outline'} size={16} color="rgba(255,255,255,0.9)" strokeWidth={2} />
         </TouchableOpacity>
       )}
     </TouchableOpacity>
@@ -1233,9 +1239,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   neighbourhoodPill: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
     backgroundColor: 'rgba(0,0,0,0.55)',
     borderRadius: 20,
     paddingHorizontal: 8,

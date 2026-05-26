@@ -15,17 +15,17 @@ const SLIDES = [
   {
     headline: 'affiche',
     subtext: 'Discover what\'s happening tonight in Toronto. Real venues, real events, updated daily.',
-    icon: 'flame' as const,
+    icon: 'sparkles' as const,
   },
   {
     headline: 'See Who\'s Going',
     subtext: 'RSVP to events and see which of your friends are going out tonight. No more group chat spam.',
-    icon: 'people' as const,
+    icon: 'add-circle-outline' as const,
   },
   {
     headline: 'Your City Tonight',
     subtext: 'From rooftop bars to underground shows, find your scene and never miss a night worth going to.',
-    icon: 'location' as const,
+    icon: 'apps-outline' as const,
   },
 ];
 
@@ -122,7 +122,7 @@ export default function OnboardingScreen() {
               justifyContent: 'center',
               marginBottom: 44,
             }}>
-              <Ionicons name={item.icon} size={44} color="#fff" />
+              <Ionicons name={item.icon} size={32} color="#fff" />
             </View>
 
             <Text style={{

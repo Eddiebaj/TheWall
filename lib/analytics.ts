@@ -34,7 +34,7 @@ export function useAnalytics() {
   const posthog = usePostHog();
 
   function capture(event: string, properties?: object) {
-    posthog.capture(event, properties);
+    posthog?.capture(event, properties);
   }
 
   return { capture };

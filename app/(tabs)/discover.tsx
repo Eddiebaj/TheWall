@@ -26,6 +26,19 @@ const CARD_H = 220;
 
 const HH_CARD_W = 200;
 
+function deriveCategory(title: string, venueName: string): string | null {
+  const text = `${title} ${venueName}`.toLowerCase();
+  if (/concert|tour|music|band|festival|live music/.test(text)) return 'Concerts';
+  if (/comedy|stand.?up|laugh/.test(text)) return 'Comedy';
+  if (/sport|jays|leafs|raptors|argonauts|\bfc\b|\bvs\.?\b|hockey|baseball|basketball|football/.test(text)) return 'Sports';
+  if (/theatre|theater|musical|dance|ballet|opera|art|gallery|exhibit/.test(text)) return 'Art & Culture';
+  if (/nightlife|club|dj\b|rave|lounge|bar crawl/.test(text)) return 'Nightlife';
+  if (/food|drink|wine|beer|tasting|brunch|dinner|restaurant/.test(text)) return 'Food & Drinks';
+  if (/outdoor|hike|run|walk|park|trail/.test(text)) return 'Outdoor';
+  if (/network|meetup|conference|summit|workshop|talk/.test(text)) return 'Networking';
+  return null;
+}
+
 const CATEGORIES: { key: string; emoji: string; label: string }[] = [
   { key: 'Concerts',     emoji: '🎵', label: 'Concerts' },
   { key: 'Nightlife',    emoji: '🍸', label: 'Nightlife' },
@@ -180,19 +193,24 @@ function CategoryRow({
   onCardPress,
   onSeeAll,
   activeCheckinVenueIds,
+  ionIcon,
 }: {
   category: typeof CATEGORIES[0];
   events: DiscoverEvent[];
   onCardPress: (e: DiscoverEvent) => void;
   onSeeAll: () => void;
   activeCheckinVenueIds: Set<string>;
+  ionIcon?: keyof typeof Ionicons.glyphMap;
 }) {
   return (
     <View style={styles.categorySection}>
       <View style={styles.categoryHeader}>
-        <Text style={styles.categoryTitle}>
-          {category.emoji}  {category.label}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {ionIcon
+            ? <Ionicons name={ionIcon} size={18} color="#fff" />
+            : <Text style={{ fontSize: 18 }}>{category.emoji}</Text>}
+          <Text style={styles.categoryTitle}>{category.label}</Text>
+        </View>
         <TouchableOpacity onPress={onSeeAll} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Text style={styles.seeAll}>See all →</Text>
         </TouchableOpacity>
@@ -268,7 +286,7 @@ export default function DiscoverScreen() {
     const [legacyRes, veRes] = await Promise.all([
       supabase
         .from('events')
-        .select('id, title, poster_url, date, start_time, end_time, entry_type, category, venue_id, venues(name, neighbourhood, latitude, longitude, feature_tier)')
+        .select('id, title, poster_url, date, start_time, end_time, entry_type, venue_id, venues(name, neighbourhood, latitude, longitude, feature_tier)')
         .gte('date', today)
         .lte('date', future)
         .order('date', { ascending: true })
@@ -288,7 +306,7 @@ export default function DiscoverScreen() {
       id: e.id, poster_url: e.poster_url || null, title: e.title,
       venue_id: e.venue_id || null, venue_name: e.venues?.name || '',
       neighbourhood: e.venues?.neighbourhood || null, cover_charge: null,
-      entry_type: e.entry_type || null, category: e.category || null,
+      entry_type: e.entry_type || null, category: deriveCategory(e.title, e.venues?.name || ''),
       event_date: e.date || null, start_time: e.start_time || null,
       end_time: e.end_time || null, venue_lat: e.venues?.latitude ?? null,
       venue_lng: e.venues?.longitude ?? null, venue_feature_tier: e.venues?.feature_tier ?? null,
@@ -298,7 +316,7 @@ export default function DiscoverScreen() {
       id: e.id, poster_url: e.poster_url || null, title: e.title,
       venue_id: e.venue_id || null, venue_name: e.venues?.name || '',
       neighbourhood: e.venues?.neighbourhood || null, cover_charge: null,
-      entry_type: e.entry_type || null, category: e.category || null,
+      entry_type: e.entry_type || null, category: e.category || deriveCategory(e.title, e.venues?.name || ''),
       event_date: e.event_date || null, start_time: e.event_time || null,
       end_time: e.end_time || null, venue_lat: e.venues?.latitude ?? null,
       venue_lng: e.venues?.longitude ?? null, venue_feature_tier: e.venues?.feature_tier ?? null,
@@ -312,6 +330,17 @@ export default function DiscoverScreen() {
 
     setEvents(merged);
     setLoading(false);
+
+    if (__DEV__) {
+      const categoryCounts: Record<string, number> = {};
+      for (const e of merged) {
+        const k = e.category ?? '(none)';
+        categoryCounts[k] = (categoryCounts[k] ?? 0) + 1;
+      }
+      console.log('[Discover] loaded', merged.length, 'events. Categories:', categoryCounts);
+      if (legacyRes.error) console.warn('[Discover] legacyRes error:', legacyRes.error);
+      if (veRes.error) console.warn('[Discover] veRes error:', veRes.error);
+    }
   };
 
   const loadHappyHour = async () => {
@@ -405,6 +434,20 @@ export default function DiscoverScreen() {
             </View>
           )}
 
+          {events.length > 0 && (
+            <CategoryRow
+              key="__all__"
+              category={{ key: '__all__', emoji: '', label: 'All Events' }}
+              ionIcon="sparkles"
+              events={events}
+              onCardPress={e => {
+                capture('event_viewed', { event_id: e.id, source: 'discover' });
+                router.push(`/event/${e.id}`);
+              }}
+              onSeeAll={() => {}}
+              activeCheckinVenueIds={activeCheckinVenueIds}
+            />
+          )}
           {visibleCategories.map(cat => (
             <CategoryRow
               key={cat.key}
@@ -418,7 +461,7 @@ export default function DiscoverScreen() {
               activeCheckinVenueIds={activeCheckinVenueIds}
             />
           ))}
-          {visibleCategories.length === 0 && (
+          {events.length === 0 && (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>No events found</Text>
             </View>
