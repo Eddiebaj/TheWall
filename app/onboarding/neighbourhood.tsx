@@ -9,39 +9,58 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { SK_ONBOARDING_COMPLETE } from '../../lib/storageKeys';
 
-const TAGS = [
-  { key: 'Concerts',     emoji: '🎵', label: 'Concerts' },
-  { key: 'Nightlife',    emoji: '🍸', label: 'Nightlife' },
-  { key: 'Comedy',       emoji: '😂', label: 'Comedy' },
-  { key: 'Art & Culture',emoji: '🎨', label: 'Art & Culture' },
-  { key: 'Sports',       emoji: '🏟️', label: 'Sports' },
-  { key: 'Food & Drinks',emoji: '🍔', label: 'Food & Drinks' },
-  { key: 'Outdoor',      emoji: '🌿', label: 'Outdoor' },
-  { key: 'Networking',   emoji: '🤝', label: 'Networking' },
+const NEIGHBOURHOODS = [
+  'Queen West',
+  'Kensington Market',
+  'Distillery District',
+  'King West',
+  'Leslieville',
+  'The Annex',
+  'Yorkville',
+  'Liberty Village',
+  'Waterfront',
+  'Bloor West Village',
+  'Roncesvalles',
+  'Little Italy',
+  'Chinatown',
+  'Danforth / Greektown',
+  'Little Portugal',
+  'Parkdale',
+  'Junction',
+  'Ossington',
+  'Cabbagetown',
+  'Lawrence Park',
 ] as const;
 
-export default function PreferencesScreen() {
+const finishOnboarding = async () => {
+  await AsyncStorage.setItem(SK_ONBOARDING_COMPLETE, 'true');
+  router.replace('/(tabs)/index' as any);
+};
+
+export default function NeighbourhoodScreen() {
   const { user } = useAuth();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
 
   const scaleRefs = useRef<Record<string, Animated.Value>>(
-    Object.fromEntries(TAGS.map(t => [t.key, new Animated.Value(1)]))
+    Object.fromEntries(NEIGHBOURHOODS.map(n => [n, new Animated.Value(1)]))
   );
 
-  const toggle = (key: string) => {
-    const scale = scaleRefs.current[key];
+  const toggle = (name: string) => {
+    const scale = scaleRefs.current[name];
     Animated.sequence([
       Animated.spring(scale, { toValue: 1.1, useNativeDriver: true, speed: 40, bounciness: 12 }),
       Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 40, bounciness: 8 }),
     ]).start();
     setSelected(prev => {
       const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
+      next.has(name) ? next.delete(name) : next.add(name);
       return next;
     });
   };
@@ -51,15 +70,15 @@ export default function PreferencesScreen() {
     if (user && selected.size > 0) {
       await supabase
         .from('profiles')
-        .update({ interests: Array.from(selected) })
+        .update({ neighbourhood: Array.from(selected) })
         .eq('id', user.id);
     }
     setSaving(false);
-    router.replace('/onboarding/neighbourhood' as any);
+    await finishOnboarding();
   };
 
-  const handleSkip = () => {
-    router.replace('/onboarding/neighbourhood' as any);
+  const handleSkip = async () => {
+    await finishOnboarding();
   };
 
   return (
@@ -70,22 +89,21 @@ export default function PreferencesScreen() {
         </TouchableOpacity>
       </View>
       <ScrollView contentContainerStyle={styles.scroll} bounces={false}>
-        <Text style={styles.title}>What's your vibe?</Text>
-        <Text style={styles.subtitle}>Pick what you're into -- your feed will match</Text>
+        <Text style={styles.title}>Your neighbourhood?</Text>
+        <Text style={styles.subtitle}>We'll show you events closest to where you're at.</Text>
 
         <View style={styles.grid}>
-          {TAGS.map(tag => {
-            const isSelected = selected.has(tag.key);
+          {NEIGHBOURHOODS.map(name => {
+            const isSelected = selected.has(name);
             return (
-              <Animated.View key={tag.key} style={{ transform: [{ scale: scaleRefs.current[tag.key] }] }}>
+              <Animated.View key={name} style={{ transform: [{ scale: scaleRefs.current[name] }] }}>
                 <TouchableOpacity
                   style={[styles.pill, isSelected && styles.pillSelected]}
-                  onPress={() => toggle(tag.key)}
+                  onPress={() => toggle(name)}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.pillEmoji}>{tag.emoji}</Text>
                   <Text style={[styles.pillLabel, isSelected && styles.pillLabelSelected]}>
-                    {tag.label}
+                    {name}
                   </Text>
                 </TouchableOpacity>
               </Animated.View>
@@ -151,9 +169,6 @@ const styles = StyleSheet.create({
     marginBottom: 48,
   },
   pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: 100,
     borderWidth: 1,
@@ -164,9 +179,6 @@ const styles = StyleSheet.create({
   pillSelected: {
     borderColor: '#FF3B5C',
     backgroundColor: 'rgba(255,59,92,0.14)',
-  },
-  pillEmoji: {
-    fontSize: 22,
   },
   pillLabel: {
     color: 'rgba(255,255,255,0.65)',

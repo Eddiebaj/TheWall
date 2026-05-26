@@ -79,3 +79,8 @@ export const SK_COMMUTE_DEALS_LAST_PUSH = 'thewall_commute_deals_last_push';
 // ── Invite / referral ──
 export const SK_INVITED_BY = 'thewall_invited_by';
 export const SK_PROFILE_SETUP_DONE = 'thewall_profile_setup_done';
+
+// ── Onboarding completion ──
+// Set only after the full post-auth flow (profile-setup → interests → neighbourhood) completes.
+// SK_PROFILE_SETUP_DONE is checked as a legacy fallback for users who onboarded before this key existed.
+export const SK_ONBOARDING_COMPLETE = 'thewall_onboarding_complete';

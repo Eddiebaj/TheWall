@@ -10,7 +10,7 @@ import { AppProvider } from '../context/AppContext';
 import { BoardProvider } from '../context/BoardContext';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import NetworkBanner from '../components/NetworkBanner';
-import { SK_ONBOARDED, SK_CRASH_LOG } from '../lib/storageKeys';
+import { SK_ONBOARDED, SK_CRASH_LOG, SK_ONBOARDING_COMPLETE, SK_PROFILE_SETUP_DONE } from '../lib/storageKeys';
 import { initSentry, captureException } from '../lib/sentry';
 import { incrementSessionCount } from '../lib/onboardingPrompts';
 import { routeForNotification, NotificationType } from '../lib/notificationTypes';
@@ -122,7 +122,7 @@ function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
 function RootNav() {
   const [showSplash, setShowSplash] = useState(true);
   const [destination, setDestination] = useState<'onboarding' | 'tabs' | null>(null);
-  const { session, profile, loading: authLoading } = useAuth();
+  const { session, loading: authLoading } = useAuth();
 
   // Declare ref BEFORE the useEffect that assigns to it
   const animationResolveRef = useRef<(() => void) | null>(null);
@@ -217,46 +217,33 @@ function RootNav() {
         }, 0);
       } else {
         (async () => {
-          const setupDone = await AsyncStorage.getItem('thewall_profile_setup_done');
-          if (!setupDone) {
-            if (__DEV__) console.log('[RootNav] Profile setup not done - routing to /profile-setup');
-            navigationDoneRef.current = true;
+          // Check new completion key first; fall back to legacy SK_PROFILE_SETUP_DONE so
+          // existing users who onboarded before SK_ONBOARDING_COMPLETE existed go straight to feed.
+          const [[, onboardingComplete], [, setupDone]] = await AsyncStorage.multiGet([
+            SK_ONBOARDING_COMPLETE,
+            SK_PROFILE_SETUP_DONE,
+          ]);
+          const isDone = onboardingComplete === 'true' || setupDone === 'true';
+          navigationDoneRef.current = true;
+          if (!isDone) {
+            if (__DEV__) console.log('[RootNav] Onboarding not complete - routing to /profile-setup');
             router.replace('/profile-setup');
-          } else if (profile === null) {
-            // Profile not yet loaded - wait for re-render when profile arrives
-            if (__DEV__) console.log('[RootNav] Profile not loaded yet, waiting...');
           } else {
-            navigationDoneRef.current = true;
-            const needsPreferences =
-              !profile.interests || (profile.interests as string[]).length === 0;
-            if (needsPreferences) {
-              // Only show preferences screen for brand-new users (created within the last 5 minutes)
-              const createdAt = session.user.created_at ? new Date(session.user.created_at).getTime() : 0;
-              const isNewUser = createdAt > 0 && Date.now() - createdAt < 5 * 60 * 1000;
-              if (isNewUser) {
-                if (__DEV__) console.log('[RootNav] New user, no interests - routing to /onboarding/preferences');
-                router.replace('/onboarding/preferences' as any);
-              } else {
-                if (__DEV__) console.log('[RootNav] Returning user, no interests - routing to /(tabs)/index');
-                router.replace('/(tabs)/index' as any);
-              }
-            } else {
-              if (__DEV__) console.log('[RootNav] Routing to /(tabs)/index');
-              router.replace('/(tabs)/index' as any);
-            }
-            // Request push notification permissions once after login
-            Notifications.getPermissionsAsync().then(({ status }) => {
-              if (status !== 'granted') {
-                Notifications.requestPermissionsAsync().then(({ status: newStatus }) => {
-                  AsyncStorage.setItem('thewall_notif_permission', newStatus).catch(() => {});
-                });
-              }
-            }).catch(() => {});
+            if (__DEV__) console.log('[RootNav] Onboarding complete - routing to /(tabs)/index');
+            router.replace('/(tabs)/index' as any);
           }
+          // Request push notification permissions once after login
+          Notifications.getPermissionsAsync().then(({ status }) => {
+            if (status !== 'granted') {
+              Notifications.requestPermissionsAsync().then(({ status: newStatus }) => {
+                AsyncStorage.setItem('thewall_notif_permission', newStatus).catch(() => {});
+              });
+            }
+          }).catch(() => {});
         })();
       }
     }
-  }, [showSplash, destination, authLoading, session, profile]);
+  }, [showSplash, destination, authLoading, session]);
 
   if (showSplash) {
     return <AnimatedSplash onFinish={handleSplashFinish} />;
@@ -276,6 +263,7 @@ function RootNav() {
       <Stack.Screen name="business-signup" options={{ headerShown: false }} />
       <Stack.Screen name="business-setup" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding/preferences" options={{ headerShown: false, animation: 'fade' }} />
+      <Stack.Screen name="onboarding/neighbourhood" options={{ headerShown: false, animation: 'fade' }} />
       <Stack.Screen name="business-dashboard" options={{ headerShown: false }} />
       <Stack.Screen name="qr-scan" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
       <Stack.Screen name="invite/[id]" options={{ headerShown: false }} />

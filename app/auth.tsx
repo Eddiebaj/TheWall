@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView,
-  Platform, ActivityIndicator, Alert
+  Platform, ActivityIndicator, Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
@@ -9,6 +9,8 @@ import { supabase } from '../lib/supabase';
 import { useAnalytics } from '../lib/analytics';
 
 type Tab = 'email' | 'phone';
+type EmailMethod = 'link' | 'password';
+type AuthMode = 'signin' | 'signup';
 
 export default function AuthScreen() {
   const { signInWithEmail } = useAuth();
@@ -17,12 +19,21 @@ export default function AuthScreen() {
 
   const [tab, setTab] = useState<Tab>('email');
 
-  // Email state
+  // Email — shared
   const [email, setEmail] = useState('');
+
+  // Email — magic link
   const [emailLoading, setEmailLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [emailOtp, setEmailOtp] = useState('');
   const [emailVerifying, setEmailVerifying] = useState(false);
+
+  // Email — password
+  const [emailMethod, setEmailMethod] = useState<EmailMethod>('link');
+  const [authMode, setAuthMode] = useState<AuthMode>('signin');
+  const [password, setPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Phone state
   const [countryCode] = useState('+1');
@@ -32,9 +43,11 @@ export default function AuthScreen() {
   const [phoneOtp, setPhoneOtp] = useState('');
   const [phoneVerifying, setPhoneVerifying] = useState(false);
 
-  // ── Email handlers ──────────────────────────────────────────────
+  const passwordRef = useRef<TextInput>(null);
 
-  const handleEmailSignIn = async () => {
+  // ── Email magic link handlers ───────────────────────────────────
+
+  const handleSendLink = async () => {
     if (!email.trim()) return;
     setEmailLoading(true);
     const { error } = await signInWithEmail(email.trim().toLowerCase());
@@ -62,6 +75,50 @@ export default function AuthScreen() {
       const createdAt = data.user?.created_at;
       const isNew = createdAt && (Date.now() - new Date(createdAt).getTime()) < 30000;
       capture(isNew ? 'account_created' : 'login');
+    }
+  };
+
+  // ── Email password handlers ─────────────────────────────────────
+
+  const handlePasswordSignIn = async () => {
+    if (!email.trim() || !password) return;
+    setPasswordLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    });
+    setPasswordLoading(false);
+    if (error) {
+      Alert.alert('Sign in failed', error.message);
+    } else {
+      capture('login');
+      // AuthContext onAuthStateChange will handle navigation
+    }
+  };
+
+  const handlePasswordSignUp = async () => {
+    if (!email.trim() || !password) return;
+    if (password.length < 6) {
+      Alert.alert('Weak password', 'Password must be at least 6 characters.');
+      return;
+    }
+    setPasswordLoading(true);
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim().toLowerCase(),
+      password,
+    });
+    setPasswordLoading(false);
+    if (error) {
+      Alert.alert('Sign up failed', error.message);
+    } else if (data.session) {
+      // Email confirmation disabled — user is signed in immediately
+      capture('account_created');
+    } else {
+      // Email confirmation required
+      Alert.alert(
+        'Check your email',
+        `We sent a confirmation link to ${email.trim().toLowerCase()}. Click it to activate your account.`,
+      );
     }
   };
 
@@ -163,7 +220,7 @@ export default function AuthScreen() {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleEmailSignIn} disabled={emailLoading}>
+          <TouchableOpacity onPress={handleSendLink} disabled={emailLoading}>
             <Text style={{ fontSize: 14, color: '#999', fontWeight: '600' }}>
               {emailLoading ? 'Sending…' : 'Resend email'}
             </Text>
@@ -260,6 +317,9 @@ export default function AuthScreen() {
 
   // ── Main input screen ───────────────────────────────────────────
 
+  const emailReady = !!email.trim();
+  const passwordReady = emailReady && password.length >= 1;
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: '#0a0a0a' }}
@@ -275,15 +335,21 @@ export default function AuthScreen() {
         </Text>
 
         <Text style={{ fontSize: 22, fontWeight: '800', color: '#fff', marginBottom: 8, textAlign: 'center' }}>
-          Join your friends on affiche
+          {tab === 'email' && emailMethod === 'password' && authMode === 'signup'
+            ? 'Create your account'
+            : 'Join your friends on affiche'}
         </Text>
         <Text style={{ fontSize: 15, color: '#999', textAlign: 'center', marginBottom: 28, lineHeight: 22 }}>
-          {tab === 'email'
+          {tab === 'phone'
+            ? "Enter your phone number and we'll text you a 6-digit code."
+            : emailMethod === 'link'
             ? "Enter your email and we'll send you a 6-digit code to sign in."
-            : "Enter your phone number and we'll text you a 6-digit code."}
+            : authMode === 'signup'
+            ? 'Pick an email and password to get started.'
+            : 'Enter your email and password to sign in.'}
         </Text>
 
-        {/* Tab switcher */}
+        {/* Tab switcher: Email / Phone */}
         <View style={{
           flexDirection: 'row',
           backgroundColor: '#1a1a1a',
@@ -304,11 +370,7 @@ export default function AuthScreen() {
                 backgroundColor: tab === t ? '#fff' : 'transparent',
               }}
             >
-              <Text style={{
-                fontSize: 14,
-                fontWeight: '700',
-                color: tab === t ? '#000' : '#666',
-              }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: tab === t ? '#000' : '#666' }}>
                 {t === 'email' ? 'Email' : 'Phone'}
               </Text>
             </TouchableOpacity>
@@ -317,6 +379,7 @@ export default function AuthScreen() {
 
         {tab === 'email' ? (
           <>
+            {/* Email input */}
             <TextInput
               style={{
                 width: '100%',
@@ -337,38 +400,156 @@ export default function AuthScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
-              onSubmitEditing={handleEmailSignIn}
-              returnKeyType="go"
+              returnKeyType={emailMethod === 'password' ? 'next' : 'go'}
+              onSubmitEditing={() => {
+                if (emailMethod === 'password') {
+                  passwordRef.current?.focus();
+                } else {
+                  handleSendLink();
+                }
+              }}
             />
 
-            <TouchableOpacity
-              onPress={handleEmailSignIn}
-              disabled={emailLoading || !email.trim()}
-              style={{
-                width: '100%',
-                backgroundColor: '#fff',
-                borderRadius: 14,
-                paddingVertical: 17,
-                alignItems: 'center',
-                marginBottom: 24,
-                opacity: emailLoading || !email.trim() ? 0.5 : 1,
-              }}
-            >
-              {emailLoading ? (
-                <ActivityIndicator color="#000" />
-              ) : (
-                <Text style={{ fontSize: 16, fontWeight: '700', color: '#000' }}>Send Code</Text>
-              )}
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
+            {/* Method toggle: Magic link / Password */}
             <View style={{
               flexDirection: 'row',
+              backgroundColor: '#141414',
+              borderRadius: 10,
+              padding: 3,
               width: '100%',
-              marginBottom: 12,
-              gap: 8,
+              marginBottom: 16,
             }}>
+              {(['link', 'password'] as EmailMethod[]).map(m => (
+                <TouchableOpacity
+                  key={m}
+                  onPress={() => setEmailMethod(m)}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 8,
+                    alignItems: 'center',
+                    borderRadius: 8,
+                    backgroundColor: emailMethod === m ? '#2a2a2a' : 'transparent',
+                  }}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: emailMethod === m ? '#fff' : '#555' }}>
+                    {m === 'link' ? 'Magic link' : 'Password'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {emailMethod === 'link' ? (
+              /* ── Magic link button ── */
+              <TouchableOpacity
+                onPress={handleSendLink}
+                disabled={emailLoading || !emailReady}
+                style={{
+                  width: '100%',
+                  backgroundColor: '#fff',
+                  borderRadius: 14,
+                  paddingVertical: 17,
+                  alignItems: 'center',
+                  marginBottom: 24,
+                  opacity: emailLoading || !emailReady ? 0.5 : 1,
+                }}
+              >
+                {emailLoading ? (
+                  <ActivityIndicator color="#000" />
+                ) : (
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: '#000' }}>Send Code</Text>
+                )}
+              </TouchableOpacity>
+            ) : (
+              /* ── Password flow ── */
+              <>
+                {/* Password input */}
+                <View style={{ width: '100%', marginBottom: 12 }}>
+                  <TextInput
+                    ref={passwordRef}
+                    style={{
+                      width: '100%',
+                      backgroundColor: '#1a1a1a',
+                      borderWidth: 1,
+                      borderColor: '#2a2a2a',
+                      borderRadius: 14,
+                      paddingHorizontal: 16,
+                      paddingRight: 52,
+                      paddingVertical: 14,
+                      fontSize: 16,
+                      color: '#fff',
+                    }}
+                    placeholder="Password"
+                    placeholderTextColor="#555"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType="go"
+                    onSubmitEditing={authMode === 'signin' ? handlePasswordSignIn : handlePasswordSignUp}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(v => !v)}
+                    style={{
+                      position: 'absolute',
+                      right: 16,
+                      top: 0,
+                      bottom: 0,
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, color: '#666', fontWeight: '600' }}>
+                      {showPassword ? 'Hide' : 'Show'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Primary action button */}
+                <TouchableOpacity
+                  onPress={authMode === 'signin' ? handlePasswordSignIn : handlePasswordSignUp}
+                  disabled={passwordLoading || !passwordReady}
+                  style={{
+                    width: '100%',
+                    backgroundColor: '#fff',
+                    borderRadius: 14,
+                    paddingVertical: 17,
+                    alignItems: 'center',
+                    marginBottom: 16,
+                    opacity: passwordLoading || !passwordReady ? 0.5 : 1,
+                  }}
+                >
+                  {passwordLoading ? (
+                    <ActivityIndicator color="#000" />
+                  ) : (
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: '#000' }}>
+                      {authMode === 'signin' ? 'Sign In' : 'Create Account'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+
+                {/* Sign-in / Sign-up toggle */}
+                <TouchableOpacity
+                  onPress={() => {
+                    setAuthMode(m => m === 'signin' ? 'signup' : 'signin');
+                    setPassword('');
+                  }}
+                  style={{ marginBottom: 24 }}
+                >
+                  <Text style={{ fontSize: 14, color: '#666', textAlign: 'center' }}>
+                    {authMode === 'signin' ? (
+                      <>New here?{'  '}<Text style={{ color: '#fff', fontWeight: '700' }}>Create account</Text></>
+                    ) : (
+                      <>Already have an account?{'  '}<Text style={{ color: '#fff', fontWeight: '700' }}>Sign in</Text></>
+                    )}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </>
+        ) : (
+          /* ── Phone tab ── */
+          <>
+            <View style={{ flexDirection: 'row', width: '100%', marginBottom: 12, gap: 8 }}>
               <View style={{
                 backgroundColor: '#1a1a1a',
                 borderWidth: 1,
@@ -398,8 +579,8 @@ export default function AuthScreen() {
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
                 autoCorrect={false}
-                onSubmitEditing={handlePhoneSignIn}
                 returnKeyType="go"
+                onSubmitEditing={handlePhoneSignIn}
               />
             </View>
 
@@ -426,9 +607,7 @@ export default function AuthScreen() {
         )}
 
         <TouchableOpacity onPress={() => router.replace('/(tabs)/index' as any)}>
-          <Text style={{ fontSize: 13, color: '#555' }}>
-            Continue without account
-          </Text>
+          <Text style={{ fontSize: 13, color: '#555' }}>Continue without account</Text>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>

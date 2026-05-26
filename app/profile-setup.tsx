@@ -56,7 +56,7 @@ export default function ProfileSetupScreen() {
       } catch {
         // Non-fatal: ignore errors silently
       }
-      router.replace('/(tabs)/' as any);
+      router.replace('/onboarding/preferences' as any);
     }
   };
 
