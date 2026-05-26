@@ -8,6 +8,7 @@ import {
   Image,
   Linking,
   Modal,
+  ScrollView,
   Share,
   Text,
   TextInput,
@@ -60,6 +61,8 @@ interface EventDetail {
     neighbourhood: string | null;
     address: string | null;
   } | null;
+  venue_name: string | null;
+  location: string | null;
   goingCount: number;
   isGoing: boolean;
   isInterested: boolean;
@@ -167,7 +170,7 @@ export default function EventDetailScreen() {
       eventData = legacyData;
     } else {
       if (__DEV__) console.log('[EventDetail] looking up venue_event id:', id);
-      const veSelect = 'id, title, poster_url, event_date, event_time, end_time, cover_charge, entry_type, description, venue_id, source, creator_id, recurrence, venues(name, neighbourhood, address)';
+      const veSelect = 'id, title, poster_url, event_date, event_time, end_time, cover_charge, entry_type, description, venue_id, venue_name, location, source, creator_id, recurrence, venues(name, neighbourhood, address)';
       const { data: veById, error: veByIdErr } = await supabase
         .from('venue_events')
         .select(veSelect)
@@ -275,6 +278,8 @@ export default function EventDetailScreen() {
       description: eventData.description || null,
       venue_id: eventData.venue_id || null,
       venue: eventData.venues || null,
+      venue_name: eventData.venue_name || null,
+      location: eventData.location || null,
       goingCount: goingCount || 0,
       isGoing,
       isInterested,
@@ -556,6 +561,14 @@ export default function EventDetailScreen() {
     );
   }
 
+  const formatTime = (time: string | null): string | null => {
+    if (!time) return null;
+    const [h, m] = time.split(':').map(Number);
+    const period = h >= 12 ? 'PM' : 'AM';
+    const hour = h % 12 || 12;
+    return m === 0 ? `${hour} ${period}` : `${hour}:${String(m).padStart(2, '0')} ${period}`;
+  };
+
   const formattedDate = (() => {
     if (!event.event_date) return null;
     const [y, m, d] = event.event_date.split('-').map(Number);
@@ -564,8 +577,10 @@ export default function EventDetailScreen() {
 
   const formattedDateTime = (() => {
     if (!formattedDate) return null;
-    if (event.start_time && event.end_time) return `${formattedDate} · ${event.start_time} – ${event.end_time}`;
-    if (event.start_time) return `${formattedDate} · ${event.start_time}`;
+    const start = formatTime(event.start_time);
+    const end = formatTime(event.end_time);
+    if (start && end) return `${formattedDate} · ${start} – ${end}`;
+    if (start) return `${formattedDate} · ${start}`;
     return formattedDate;
   })();
 
@@ -638,13 +653,13 @@ export default function EventDetailScreen() {
       </View>
 
       {/* Content */}
-      <View style={{ flex: 1, padding: 20, paddingBottom: insets.bottom + 40 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
         <TouchableOpacity
           activeOpacity={event.venue_id ? 0.7 : 1}
           onPress={() => event.venue_id && router.push(`/venue/${event.venue_id}` as any)}
         >
           <Text style={{ fontSize: 26, fontWeight: '800', color: colours.text, marginBottom: 8 }}>
-            {event.venue?.name || 'Unknown Venue'}
+            {event.venue?.name || event.venue_name || event.location || 'Unknown Venue'}
           </Text>
         </TouchableOpacity>
 
@@ -1007,7 +1022,7 @@ export default function EventDetailScreen() {
             </TouchableOpacity>
           )}
         </View>
-      </View>
+      </ScrollView>
 
       {/* Hidden share poster */}
       <ViewShot
