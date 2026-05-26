@@ -167,11 +167,25 @@ export default function EventDetailScreen() {
       eventData = legacyData;
     } else {
       if (__DEV__) console.log('[EventDetail] looking up venue_event id:', id);
-      const { data: veData } = await supabase
+      const veSelect = 'id, title, poster_url, event_date, event_time, end_time, cover_charge, entry_type, description, venue_id, source, creator_id, recurrence, organizer_name, venues(name, neighbourhood, address)';
+      const { data: veById, error: veByIdErr } = await supabase
         .from('venue_events')
-        .select('id, title, poster_url, event_date, event_time, end_time, cover_charge, entry_type, description, venue_id, source, creator_id, recurrence, organizer_name, venues(name, neighbourhood, address)')
-        .or(`id.eq.${id},ticketmaster_id.eq.${id}`)
-        .maybeSingle();
+        .select(veSelect)
+        .eq('id', id)
+        .single();
+      if (__DEV__) console.log('[EventDetail] veById result:', veById, 'error:', veByIdErr);
+
+      let veData = veById;
+      if (!veData) {
+        const { data: veByTm, error: veByTmErr } = await supabase
+          .from('venue_events')
+          .select(veSelect)
+          .eq('ticketmaster_id', id)
+          .single();
+        if (__DEV__) console.log('[EventDetail] veByTicketmaster result:', veByTm, 'error:', veByTmErr);
+        veData = veByTm;
+      }
+
       if (veData) {
         eventData = veData;
         isVenueEvent = true;

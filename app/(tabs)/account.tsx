@@ -1090,7 +1090,7 @@ export default function AccountScreen() {
 
         {/* VENUE OWNER */}
         {!(profile as any)?.is_business && (
-          <View style={{ marginHorizontal: 20, marginTop: 24, marginBottom: 4 }}>
+          <>
             <SectionHeader label="For Venue Owners" icon="business-outline" colours={colours} fonts={fonts} />
             <Card>
               <SettingsRow
@@ -1101,10 +1101,10 @@ export default function AccountScreen() {
                 fonts={fonts}
               />
             </Card>
-          </View>
+          </>
         )}
         {(profile as any)?.is_business && (
-          <View style={{ marginHorizontal: 20, marginTop: 24, marginBottom: 4 }}>
+          <>
             <SectionHeader label="Business" icon="business-outline" colours={colours} fonts={fonts} />
             <Card>
               <SettingsRow
@@ -1115,12 +1115,12 @@ export default function AccountScreen() {
                 fonts={fonts}
               />
             </Card>
-          </View>
+          </>
         )}
 
         {/* ORGANIZER */}
         {!(profile as any)?.is_organizer && !(profile as any)?.is_business && (
-          <View style={{ marginHorizontal: 20, marginTop: 24, marginBottom: 4 }}>
+          <>
             <SectionHeader label="For Organizers" icon="megaphone-outline" colours={colours} fonts={fonts} />
             <Card>
               <SettingsRow
@@ -1139,15 +1139,15 @@ export default function AccountScreen() {
                 }
               />
             </Card>
-          </View>
+          </>
         )}
         {(profile as any)?.is_organizer && (
-          <View style={{ marginHorizontal: 20, marginTop: 24, marginBottom: 4 }}>
+          <>
             <SectionHeader label="Organizer" icon="megaphone-outline" colours={colours} fonts={fonts} />
             <Card>
               <OrganizerDashboardSection colours={colours} fonts={fonts} />
             </Card>
-          </View>
+          </>
         )}
 
         <TouchableOpacity

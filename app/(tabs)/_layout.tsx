@@ -61,7 +61,7 @@ function useFriendsBadge(userId: string | undefined): number {
 
 function TabLayout() {
   const { colours } = useApp();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const friendsBadge = useFriendsBadge(user?.id);
@@ -110,7 +110,9 @@ function TabLayout() {
         name="create"
         options={{
           tabBarLabel: '',
-          tabBarButton: () => (
+          tabBarButton: () => {
+            if (!__DEV__ && !(profile as any)?.is_organizer) return null;
+            return (
             <TouchableOpacity
               onPress={() => router.push('/create-event' as any)}
               activeOpacity={0.85}
@@ -137,7 +139,8 @@ function TabLayout() {
                 <Ionicons name="add" size={26} color="#fff" />
               </View>
             </TouchableOpacity>
-          ),
+            );
+          },
         }}
       />
       <Tabs.Screen

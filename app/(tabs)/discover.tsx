@@ -390,6 +390,16 @@ export default function DiscoverScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Discover</Text>
+        <TouchableOpacity
+          onPress={() => {
+            // Map view requires native build; show placeholder for now
+            if (__DEV__) console.log('[Discover] map button tapped');
+            router.push('/map' as any);
+          }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="map-outline" size={24} color="#fff" />
+        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -484,6 +494,9 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 16,
     paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   headerTitle: {
     color: '#fff',
