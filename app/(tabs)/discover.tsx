@@ -441,6 +441,7 @@ export default function DiscoverScreen() {
               ionIcon="sparkles"
               events={events}
               onCardPress={e => {
+                if (__DEV__) console.log('[Discover] navigating to event id:', e.id, 'title:', e.title);
                 capture('event_viewed', { event_id: e.id, source: 'discover' });
                 router.push(`/event/${e.id}`);
               }}
@@ -454,6 +455,7 @@ export default function DiscoverScreen() {
               category={cat}
               events={eventsByCategory(cat.key)}
               onCardPress={e => {
+                if (__DEV__) console.log('[Discover] navigating to event id:', e.id, 'title:', e.title);
                 capture('event_viewed', { event_id: e.id, source: 'discover' });
                 router.push(`/event/${e.id}`);
               }}
@@ -511,6 +513,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '700',
+    textAlign: 'left',
   },
   seeAll: {
     color: '#aaa',

@@ -10,21 +10,33 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
 
-const CATEGORY_EMOJIS: Record<string, string> = {
-  'Concerts':     '🎵',
-  'Nightlife':    '🍸',
-  'Comedy':       '😂',
-  'Art & Culture':'🎨',
-  'Sports':       '🏟️',
-  'Food & Drinks':'🍔',
-  'Outdoor':      '🌿',
-  'Networking':   '🤝',
-  'Social':       '🎉',
+const CATEGORY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+  'Concerts':      'musical-notes',
+  'Nightlife':     'moon',
+  'Comedy':        'happy',
+  'Art & Culture': 'color-palette',
+  'Sports':        'football',
+  'Food & Drinks': 'restaurant',
+  'Outdoor':       'leaf',
+  'Networking':    'people',
+  'Social':        'sparkles',
 };
+
+function deriveCategory(title: string, venueName: string): string | null {
+  const text = `${title} ${venueName}`.toLowerCase();
+  if (/concert|tour|music|band|festival|live music/.test(text)) return 'Concerts';
+  if (/comedy|stand.?up|laugh/.test(text)) return 'Comedy';
+  if (/sport|jays|leafs|raptors|argonauts|\bfc\b|\bvs\.?\b|hockey|baseball|basketball|football/.test(text)) return 'Sports';
+  if (/theatre|theater|musical|dance|ballet|opera|art|gallery|exhibit/.test(text)) return 'Art & Culture';
+  if (/nightlife|club|dj\b|rave|lounge|bar crawl/.test(text)) return 'Nightlife';
+  if (/food|drink|wine|beer|tasting|brunch|dinner|restaurant/.test(text)) return 'Food & Drinks';
+  if (/outdoor|hike|run|walk|park|trail/.test(text)) return 'Outdoor';
+  if (/network|meetup|conference|summit|workshop|talk/.test(text)) return 'Networking';
+  return null;
+}
 
 interface CategoryEvent {
   id: string;
@@ -53,9 +65,8 @@ function formatTime(t: string | null): string {
   return `${hh}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
-function EventRow({ event, onPress }: { event: CategoryEvent; onPress: () => void }) {
+function EventRow({ event, onPress, categoryIcon }: { event: CategoryEvent; onPress: () => void; categoryIcon: keyof typeof Ionicons.glyphMap }) {
   const isFeatured = event.venue_feature_tier === 'featured';
-  const emoji = CATEGORY_EMOJIS['Unknown'] ?? '📅';
 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.row}>
@@ -64,7 +75,7 @@ function EventRow({ event, onPress }: { event: CategoryEvent; onPress: () => voi
           <Image source={{ uri: event.poster_url }} style={styles.rowImage} />
         ) : (
           <View style={styles.rowImagePlaceholder}>
-            <Text style={{ fontSize: 22 }}>{emoji}</Text>
+            <Ionicons name={categoryIcon} size={24} color="#555" />
           </View>
         )}
       </View>
@@ -93,7 +104,7 @@ export default function CategoryScreen() {
   const insets = useSafeAreaInsets();
 
   const categoryName = decodeURIComponent(name ?? '');
-  const emoji = CATEGORY_EMOJIS[categoryName] ?? '📅';
+  const categoryIcon = CATEGORY_ICONS[categoryName] ?? 'calendar';
 
   const [events, setEvents] = useState<CategoryEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,35 +122,40 @@ export default function CategoryScreen() {
     const [legacyRes, veRes] = await Promise.all([
       supabase
         .from('events')
-        .select('id, title, poster_url, date, start_time, category, venue_id, venues(name, neighbourhood, feature_tier)')
-        .eq('category', categoryName)
+        .select('id, title, poster_url, date, start_time, venue_id, venues(name, neighbourhood, feature_tier)')
         .gte('date', today)
         .order('date', { ascending: true })
-        .limit(100),
+        .limit(400),
       supabase
         .from('venue_events')
         .select('id, title, poster_url, event_date, event_time, category, venue_id, source, visibility, venues(name, neighbourhood, feature_tier)')
-        .eq('category', categoryName)
         .in('source', ['user', 'ticketmaster'])
         .neq('visibility', 'friends')
         .gte('event_date', today)
         .order('event_date', { ascending: true })
-        .limit(100),
+        .limit(400),
     ]);
 
-    const legacy: CategoryEvent[] = (legacyRes.data ?? []).map((e: any) => ({
-      id: e.id, title: e.title, poster_url: e.poster_url || null,
-      event_date: e.date || null, start_time: e.start_time || null,
-      venue_name: e.venues?.name || '', neighbourhood: e.venues?.neighbourhood || null,
-      venue_feature_tier: e.venues?.feature_tier ?? null,
-    }));
+    const legacy: CategoryEvent[] = (legacyRes.data ?? [])
+      .filter((e: any) => deriveCategory(e.title, e.venues?.name || '') === categoryName)
+      .map((e: any) => ({
+        id: e.id, title: e.title, poster_url: e.poster_url || null,
+        event_date: e.date || null, start_time: e.start_time || null,
+        venue_name: e.venues?.name || '', neighbourhood: e.venues?.neighbourhood || null,
+        venue_feature_tier: e.venues?.feature_tier ?? null,
+      }));
 
-    const ve: CategoryEvent[] = (veRes.data ?? []).map((e: any) => ({
-      id: e.id, title: e.title, poster_url: e.poster_url || null,
-      event_date: e.event_date || null, start_time: e.event_time || null,
-      venue_name: e.venues?.name || '', neighbourhood: e.venues?.neighbourhood || null,
-      venue_feature_tier: e.venues?.feature_tier ?? null,
-    }));
+    const ve: CategoryEvent[] = (veRes.data ?? [])
+      .filter((e: any) => {
+        const cat = e.category || deriveCategory(e.title, e.venues?.name || '');
+        return cat === categoryName;
+      })
+      .map((e: any) => ({
+        id: e.id, title: e.title, poster_url: e.poster_url || null,
+        event_date: e.event_date || null, start_time: e.event_time || null,
+        venue_name: e.venues?.name || '', neighbourhood: e.venues?.neighbourhood || null,
+        venue_feature_tier: e.venues?.feature_tier ?? null,
+      }));
 
     const seen = new Set<string>();
     const merged: CategoryEvent[] = [];
@@ -168,7 +184,8 @@ export default function CategoryScreen() {
         >
           <Ionicons name="chevron-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{emoji}  {categoryName}</Text>
+        <Ionicons name={categoryIcon} size={22} color="#fff" />
+        <Text style={styles.headerTitle}>{categoryName}</Text>
       </View>
 
       {loading ? (
@@ -187,6 +204,7 @@ export default function CategoryScreen() {
             <EventRow
               event={item}
               onPress={() => router.push(`/event/${item.id}`)}
+              categoryIcon={categoryIcon}
             />
           )}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
