@@ -471,6 +471,9 @@ export default function AccountScreen() {
   const [editUsernameError, setEditUsernameError] = useState('');
   const editUsernameDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [saving, setSaving] = useState(false);
+  const [editNewPassword, setEditNewPassword] = useState('');
+  const [editConfirmPassword, setEditConfirmPassword] = useState('');
+  const [editPasswordError, setEditPasswordError] = useState('');
 
   // Profile setup (shown for new users who have no username yet)
   const [setupDisplayName, setSetupDisplayName] = useState('');
@@ -877,6 +880,9 @@ export default function AccountScreen() {
                   setEditUsername(profile?.username || '');
                   setEditUsernameStatus('idle');
                   setEditUsernameError('');
+                  setEditNewPassword('');
+                  setEditConfirmPassword('');
+                  setEditPasswordError('');
                   setShowEditProfile(true);
                 }}>
                   <Ionicons name="pencil-outline" size={16} color={colours.muted} />
@@ -927,28 +933,6 @@ export default function AccountScreen() {
           )}
         </View>
 
-        {/* PROFILE STATS */}
-        {profileStats && (
-          <View style={{ paddingHorizontal: 16, marginBottom: 0 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Profile Stats</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {[
-                { value: String(profileStats.eventsAttended), label: 'Events Attended' },
-                { value: String(profileStats.totalPosts), label: 'Posts' },
-                { value: profileStats.memberSince ? new Date(profileStats.memberSince).toLocaleDateString('en-CA', { month: 'short', year: 'numeric' }) : '', label: 'Member Since' },
-                { value: profileStats.mostVisitedVenue ?? '', label: 'Most Visited' },
-              ].filter((stat) => stat.value !== '' && stat.value !== 'null').map((stat) => (
-                <View
-                  key={stat.label}
-                  style={{ width: '47%', backgroundColor: colours.card, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 10, alignItems: 'center', borderWidth: 1, borderColor: colours.border }}
-                >
-                  <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text, marginBottom: 4 }} numberOfLines={1} adjustsFontSizeToFit>{stat.value}</Text>
-                  <Text style={{ fontSize: 11, color: colours.muted, textAlign: 'center' }}>{stat.label}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
 
         <View style={{ paddingHorizontal: 20, marginTop: 12, marginBottom: 4 }}>
           <Text
@@ -1325,13 +1309,50 @@ export default function AccountScreen() {
               <View style={{ marginBottom: 16 }} />
             )}
 
+            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>New Password</Text>
+            <TextInput
+              style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colours.text, marginBottom: 10 }}
+              value={editNewPassword}
+              onChangeText={v => { setEditPasswordError(''); setEditNewPassword(v); }}
+              placeholder="Leave blank to keep current"
+              placeholderTextColor={colours.muted}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+
+            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Confirm Password</Text>
+            <TextInput
+              style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: editPasswordError ? '#FF3B5C' : colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colours.text, marginBottom: 4 }}
+              value={editConfirmPassword}
+              onChangeText={v => { setEditPasswordError(''); setEditConfirmPassword(v); }}
+              placeholder="Confirm new password"
+              placeholderTextColor={colours.muted}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {editPasswordError ? (
+              <Text style={{ fontSize: 12, color: '#FF3B5C', fontWeight: '600', marginBottom: 12 }}>{editPasswordError}</Text>
+            ) : (
+              <View style={{ marginBottom: 16 }} />
+            )}
+
             <TouchableOpacity
               onPress={async () => {
                 if (editUsernameStatus === 'taken') { setEditUsernameError('That username is already taken.'); return; }
                 if (editUsernameStatus === 'checking') { setEditUsernameError('Still checking username…'); return; }
+                if (editNewPassword || editConfirmPassword) {
+                  if (editNewPassword !== editConfirmPassword) { setEditPasswordError("Passwords don't match"); return; }
+                }
                 setSaving(true);
                 await updateProfile({ display_name: editName.trim(), username: editUsername.trim() });
+                if (editNewPassword) {
+                  await supabase.auth.updateUser({ password: editNewPassword });
+                }
                 setSaving(false);
+                setEditNewPassword('');
+                setEditConfirmPassword('');
                 setShowEditProfile(false);
               }}
               disabled={saving || editUsernameStatus === 'taken' || editUsernameStatus === 'checking'}

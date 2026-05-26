@@ -26,7 +26,7 @@ import { sendNotification } from '../../lib/notificationHelpers';
 import { hapticLight } from '../../lib/haptics';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
-const POSTER_HEIGHT = SCREEN_HEIGHT * 0.42;
+const POSTER_HEIGHT = 300;
 
 interface RsvpProfile {
   id: string;
