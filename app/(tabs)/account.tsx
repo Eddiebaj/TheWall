@@ -347,7 +347,7 @@ export default function AccountScreen() {
     setAuthLoading(true);
     const { error } = await supabase.auth.signInWithOtp({
       email: authEmail.trim().toLowerCase(),
-      options: { shouldCreateUser: true },
+      options: { shouldCreateUser: true, emailRedirectTo: 'affiche://auth/callback' },
     });
     setAuthLoading(false);
     if (error) {

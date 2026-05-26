@@ -73,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       options: {
         shouldCreateUser: true,
+        emailRedirectTo: 'affiche://auth/callback',
       },
     });
     return { error };
