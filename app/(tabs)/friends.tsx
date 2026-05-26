@@ -400,14 +400,14 @@ export default function FriendsScreen() {
       <View style={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colours.border, backgroundColor: '#0C0E12' }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <Text style={{ fontSize: 24, fontWeight: '800', color: colours.text }}>Friends</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <TouchableOpacity onPress={handleShareInvite} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#FF3B5C18', borderWidth: 1, borderColor: '#FF3B5C40' }}>
-              <Ionicons name="person-add-outline" size={15} color="#FF3B5C" />
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#FF3B5C' }}>Invite friends</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <TouchableOpacity onPress={handleShareInvite} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, backgroundColor: '#FF3B5C18', borderWidth: 1, borderColor: '#FF3B5C40' }}>
+              <Ionicons name="person-add-outline" size={14} color="#FF3B5C" />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#FF3B5C' }}>Invite</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={createGroup} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: colours.accent + '18', borderWidth: 1, borderColor: colours.accent + '40' }}>
-              <Ionicons name="add" size={16} color={colours.accent} />
-              <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>New Group</Text>
+            <TouchableOpacity onPress={createGroup} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, backgroundColor: colours.accent + '18', borderWidth: 1, borderColor: colours.accent + '40' }}>
+              <Ionicons name="add" size={15} color={colours.accent} />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accent }}>Group</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => router.push('/(tabs)/account' as any)} activeOpacity={0.8}>
               <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colours.accent + '60' }}>

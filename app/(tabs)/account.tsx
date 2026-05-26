@@ -1157,6 +1157,18 @@ export default function AccountScreen() {
           <Text style={{ fontSize: 15, fontWeight: '700', color: '#cc3b2a' }}>Sign out</Text>
         </TouchableOpacity>
 
+        {__DEV__ && (
+          <TouchableOpacity
+            onPress={async () => {
+              await AsyncStorage.clear();
+              await supabase.auth.signOut();
+            }}
+            style={{ marginHorizontal: 20, marginTop: 10, marginBottom: 8, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: '#ff990040', backgroundColor: '#ff990012', alignItems: 'center' }}
+          >
+            <Text style={{ fontSize: 13, fontWeight: '700', color: '#ff9900' }}>⚙ Reset App (Dev)</Text>
+          </TouchableOpacity>
+        )}
+
       </ScrollView>
 
       {/* Bug Report Modal */}
