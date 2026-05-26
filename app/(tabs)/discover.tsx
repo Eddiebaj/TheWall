@@ -444,6 +444,45 @@ export default function DiscoverScreen() {
             </View>
           )}
 
+          {happyHourDeals.length > 0 && (
+            <View style={styles.categorySection}>
+              <View style={styles.categoryHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                  <Text style={{ fontSize: 18 }}>🍺</Text>
+                  <Text style={styles.categoryTitle}>Happy Hours</Text>
+                </View>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.cardRow}
+              >
+                {happyHourDeals.map(deal => (
+                  <HappyHourCard
+                    key={deal.id}
+                    deal={deal}
+                    nowMins={nowMins}
+                    onPress={() => router.push(`/venue/${deal.venue_id}`)}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
+          {eventsByCategory('Food & Drinks').length > 0 && (
+            <CategoryRow
+              category={CATEGORIES.find(c => c.key === 'Food & Drinks')!}
+              events={eventsByCategory('Food & Drinks')}
+              onCardPress={e => {
+                if (__DEV__) console.log('[Discover] navigating to event id:', e.id, 'title:', e.title);
+                capture('event_viewed', { event_id: e.id, source: 'discover' });
+                router.push(`/event/${e.id}`);
+              }}
+              onSeeAll={() => router.push(`/category/${encodeURIComponent('Food & Drinks')}` as any)}
+              activeCheckinVenueIds={activeCheckinVenueIds}
+            />
+          )}
+
           {events.length > 0 && (
             <CategoryRow
               key="__all__"
@@ -459,7 +498,7 @@ export default function DiscoverScreen() {
               activeCheckinVenueIds={activeCheckinVenueIds}
             />
           )}
-          {visibleCategories.map(cat => (
+          {visibleCategories.filter(c => c.key !== 'Food & Drinks').map(cat => (
             <CategoryRow
               key={cat.key}
               category={cat}

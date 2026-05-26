@@ -386,10 +386,75 @@ export default function FriendsScreen() {
 
   if (!user) {
     return (
-      <View style={{ flex: 1, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-        <Text style={{ fontSize: 32, marginBottom: 16 }}>👥</Text>
-        <Text style={{ fontSize: 20, fontWeight: '800', color: colours.text, marginBottom: 8 }}>Friends</Text>
-        <Text style={{ fontSize: 14, color: colours.muted, textAlign: 'center' }}>Sign in to add friends and coordinate nights out.</Text>
+      <View style={{ flex: 1, backgroundColor: colours.bg, paddingTop: insets.top }}>
+        {/* Header */}
+        <View style={{ paddingHorizontal: 20, paddingVertical: 16 }}>
+          <Text style={{ fontSize: 28, fontWeight: '800', color: colours.text }}>Friends</Text>
+        </View>
+
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>
+          {/* Icon cluster */}
+          <View style={{ flexDirection: 'row', marginBottom: 24, gap: -12 }}>
+            {['#FF3B5C', '#f97316', '#8b5cf6'].map((color, i) => (
+              <View
+                key={i}
+                style={{
+                  width: 52, height: 52, borderRadius: 26,
+                  backgroundColor: color + '22',
+                  borderWidth: 2, borderColor: color + '55',
+                  alignItems: 'center', justifyContent: 'center',
+                  marginLeft: i === 0 ? 0 : -10,
+                  zIndex: 3 - i,
+                }}
+              >
+                <Ionicons name="person" size={22} color={color} />
+              </View>
+            ))}
+          </View>
+
+          <Text style={{ fontSize: 22, fontWeight: '800', color: colours.text, textAlign: 'center', marginBottom: 10 }}>
+            Coordinate your night out
+          </Text>
+          <Text style={{ fontSize: 15, color: colours.muted, textAlign: 'center', lineHeight: 22, marginBottom: 36 }}>
+            See which friends are going out, share events, and make plans together.
+          </Text>
+
+          {/* Primary CTA */}
+          <TouchableOpacity
+            onPress={() => router.push('/auth' as any)}
+            style={{
+              width: '100%',
+              backgroundColor: colours.accent,
+              borderRadius: 14,
+              paddingVertical: 16,
+              alignItems: 'center',
+              marginBottom: 14,
+            }}
+            activeOpacity={0.85}
+          >
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>Sign In</Text>
+          </TouchableOpacity>
+
+          {/* Secondary CTA */}
+          <TouchableOpacity
+            onPress={() => router.push('/auth' as any)}
+            style={{
+              width: '100%',
+              borderRadius: 14,
+              paddingVertical: 15,
+              alignItems: 'center',
+              borderWidth: 1,
+              borderColor: colours.border || 'rgba(255,255,255,0.15)',
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={{ color: colours.text, fontSize: 16, fontWeight: '600' }}>Create Account</Text>
+          </TouchableOpacity>
+
+          <Text style={{ color: colours.muted, fontSize: 12, marginTop: 24, textAlign: 'center' }}>
+            Join to see what your friends are up to tonight
+          </Text>
+        </View>
       </View>
     );
   }

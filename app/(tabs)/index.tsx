@@ -8,6 +8,7 @@ import {
   Image,
   Modal,
   RefreshControl,
+  ScrollView,
   Share,
   StatusBar,
   StyleSheet,
@@ -52,6 +53,14 @@ interface FeedEvent {
   going_count: number;
   going_avatars: { id: string; username: string; avatar_url: string | null }[];
   source?: string | null;
+}
+
+interface RsvpEvent {
+  id: string;
+  title: string;
+  poster_url: string | null;
+  event_date: string | null;
+  venue_name: string;
 }
 
 interface ActivityItem {
@@ -322,6 +331,45 @@ function ActivityRow({
   );
 }
 
+const RSVP_CARD_WIDTH = 130;
+const RSVP_CARD_HEIGHT = 170;
+
+function RsvpCard({ item, onPress }: { item: RsvpEvent; onPress: () => void }) {
+  const [imgError, setImgError] = React.useState(false);
+  return (
+    <TouchableOpacity
+      style={{ width: RSVP_CARD_WIDTH, borderRadius: 10, overflow: 'hidden', backgroundColor: '#111', marginRight: 10 }}
+      activeOpacity={0.85}
+      onPress={onPress}
+    >
+      {item.poster_url && !imgError ? (
+        <Image
+          source={{ uri: item.poster_url }}
+          style={{ width: RSVP_CARD_WIDTH, height: RSVP_CARD_HEIGHT }}
+          resizeMode="cover"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <View style={{ width: RSVP_CARD_WIDTH, height: RSVP_CARD_HEIGHT, backgroundColor: '#1a1a1a' }} />
+      )}
+      <LinearGradient
+        colors={['transparent', 'rgba(0,0,0,0.9)']}
+        style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 8, paddingTop: 24 }}
+      >
+        <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 9, fontWeight: '600', marginBottom: 2 }} numberOfLines={1}>
+          {item.venue_name}
+        </Text>
+        <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700', lineHeight: 15, marginBottom: 3 }} numberOfLines={2}>
+          {item.title}
+        </Text>
+        {item.event_date ? (
+          <Text style={{ color: '#FF3B5C', fontSize: 10, fontWeight: '600' }}>{formatDate(item.event_date)}</Text>
+        ) : null}
+      </LinearGradient>
+    </TouchableOpacity>
+  );
+}
+
 function TabToggle({
   active,
   onSelect,
@@ -350,6 +398,8 @@ export default function FeedScreen() {
   const [feedEvents, setFeedEvents] = useState<FeedEvent[]>([]);
   const [fallbackEvents, setFallbackEvents] = useState<FeedEvent[]>([]);
   const [activityItems, setActivityItems] = useState<ActivityItem[]>([]);
+  const [myGoingRsvps, setMyGoingRsvps] = useState<RsvpEvent[]>([]);
+  const [myInterestedRsvps, setMyInterestedRsvps] = useState<RsvpEvent[]>([]);
   const [planInvites, setPlanInvites] = useState<any[]>([]);
   const [hasFriends, setHasFriends] = useState(true);
   const [hasProfile, setHasProfile] = useState<boolean | null>(null); // null = loading
@@ -381,6 +431,7 @@ export default function FeedScreen() {
   useEffect(() => {
     if (activeTab === 'activity') {
       loadActivity();
+      loadMyRsvps();
       if (user) loadPlanInvites();
     }
   }, [activeTab, user]);
@@ -394,6 +445,61 @@ export default function FeedScreen() {
       .order('created_at', { ascending: false })
       .limit(10);
     setPlanInvites((data || []) as any[]);
+  };
+
+  const loadMyRsvps = async () => {
+    if (!user) { setMyGoingRsvps([]); setMyInterestedRsvps([]); return; }
+
+    const [goingLeg, intLeg, goingVe, intVe] = await Promise.all([
+      supabase
+        .from('event_rsvps')
+        .select('event_id, events(id, title, poster_url, date, venues(name))')
+        .eq('user_id', user.id)
+        .eq('status', 'going')
+        .limit(30),
+      supabase
+        .from('event_rsvps')
+        .select('event_id, events(id, title, poster_url, date, venues(name))')
+        .eq('user_id', user.id)
+        .eq('status', 'interested')
+        .limit(30),
+      supabase
+        .from('venue_event_rsvps')
+        .select('event_id, venue_events(id, title, poster_url, event_date, venues(name))')
+        .eq('user_id', user.id)
+        .eq('status', 'going')
+        .limit(30),
+      supabase
+        .from('venue_event_rsvps')
+        .select('event_id, venue_events(id, title, poster_url, event_date, venues(name))')
+        .eq('user_id', user.id)
+        .eq('status', 'interested')
+        .limit(30),
+    ]);
+
+    const normLeg = (r: any, dateKey = 'date'): RsvpEvent => ({
+      id: r.id, title: r.title, poster_url: r.poster_url || null,
+      event_date: r[dateKey] || null, venue_name: r.venues?.name || '',
+    });
+    const normVe = (r: any): RsvpEvent => normLeg(r, 'event_date');
+
+    const mergeDedup = (a: RsvpEvent[], b: RsvpEvent[]) => {
+      const seen = new Set<string>();
+      return [...a, ...b].filter(e => { if (seen.has(e.id)) return false; seen.add(e.id); return true; });
+    };
+
+    const going = mergeDedup(
+      (goingLeg.data ?? []).map((r: any) => r.events).filter(Boolean).map(normLeg),
+      (goingVe.data ?? []).map((r: any) => r.venue_events).filter(Boolean).map(normVe),
+    ).sort((a, b) => (a.event_date ?? '').localeCompare(b.event_date ?? ''));
+
+    const interested = mergeDedup(
+      (intLeg.data ?? []).map((r: any) => r.events).filter(Boolean).map(normLeg),
+      (intVe.data ?? []).map((r: any) => r.venue_events).filter(Boolean).map(normVe),
+    );
+
+    setMyGoingRsvps(going);
+    setMyInterestedRsvps(interested);
   };
 
   const handlePlanResponse = async (planId: string, creatorId: string, response: 'in' | 'maybe' | 'pass', plan: any) => {
@@ -857,8 +963,7 @@ export default function FeedScreen() {
     setRefreshing(true);
     await loadFeedEvents(getToday(), false);
     if (activeTab === 'activity') {
-      await loadActivity();
-      if (user) await loadPlanInvites();
+      await Promise.all([loadActivity(), loadMyRsvps(), user ? loadPlanInvites() : Promise.resolve()]);
     }
     setRefreshing(false);
   }, [activeTab, user]);
@@ -927,34 +1032,58 @@ export default function FeedScreen() {
 
       {activeTab === 'foryou'
         ? renderForYou()
-        : !hasFriends
-          ? (
-            <View style={styles.emptyState}>
-              <Text style={{ fontSize: 52 }}>👋</Text>
-              <Text style={styles.emptyText}>No one's out yet</Text>
-              <Text style={styles.emptyHint}>Invite friends to see what they're up to tonight</Text>
-              <TouchableOpacity
-                style={{ marginTop: 8, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, backgroundColor: '#FF3B5C' }}
-                onPress={() => Share.share({ message: "Join me on affiche \u2014 discover what's happening in Toronto tonight. Download: https://apps.apple.com/app/affiche" })}
-              >
-                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Invite friends</Text>
-              </TouchableOpacity>
-            </View>
-          )
-          : activityItems.length === 0
-            ? (
-              <View style={styles.emptyState}>
-                <Ionicons name="flash-outline" size={48} color="rgba(255,255,255,0.3)" />
-                <Text style={styles.emptyText}>No activity yet</Text>
-                <Text style={styles.emptyHint}>No recent activity from your friends yet</Text>
-              </View>
-            )
-            : (
-              <FlatList
-                key="activity-list"
-                data={activityItems}
-                keyExtractor={item => item.id}
-                ListHeaderComponent={planInvites.length > 0 ? (
+        : (() => {
+            const hasNoRsvps = myGoingRsvps.length === 0 && myInterestedRsvps.length === 0;
+
+            const myPlansSection = (
+              <View style={{ paddingBottom: 8 }}>
+                <Text style={styles.sectionHeader}>My Plans</Text>
+                {!user ? (
+                  <TouchableOpacity
+                    style={{ marginHorizontal: 16, marginTop: 4, padding: 16, borderRadius: 12, backgroundColor: '#141414', alignItems: 'center' }}
+                    onPress={() => router.push('/auth' as any)}
+                  >
+                    <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>Sign in to see your plans</Text>
+                  </TouchableOpacity>
+                ) : hasNoRsvps ? (
+                  <View style={{ marginHorizontal: 16, marginTop: 4, padding: 20, borderRadius: 12, backgroundColor: '#141414', alignItems: 'center', gap: 10 }}>
+                    <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 15, fontWeight: '600' }}>Nothing planned yet</Text>
+                    <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13, textAlign: 'center' }}>Start exploring to find events to attend</Text>
+                    <TouchableOpacity
+                      style={styles.emptyBtn}
+                      onPress={() => setActiveTab('foryou')}
+                    >
+                      <Text style={styles.emptyBtnText}>Go to Feed</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <>
+                    {myGoingRsvps.length > 0 && (
+                      <View style={{ marginBottom: 16 }}>
+                        <Text style={styles.rsvpSubHeader}>I'm Going</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8 }}>
+                          {myGoingRsvps.map(e => (
+                            <RsvpCard key={e.id} item={e} onPress={() => router.push(`/event/${e.id}` as any)} />
+                          ))}
+                        </ScrollView>
+                      </View>
+                    )}
+                    {myInterestedRsvps.length > 0 && (
+                      <View style={{ marginBottom: 16 }}>
+                        <Text style={styles.rsvpSubHeader}>Interested</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8 }}>
+                          {myInterestedRsvps.map(e => (
+                            <RsvpCard key={e.id} item={e} onPress={() => router.push(`/event/${e.id}` as any)} />
+                          ))}
+                        </ScrollView>
+                      </View>
+                    )}
+                  </>
+                )}
+
+                <Text style={[styles.sectionHeader, { marginTop: 8 }]}>Friends' Activity</Text>
+
+                {planInvites.length > 0 && (
                   <View style={{ paddingBottom: 4 }}>
                     {planInvites.map(plan => {
                       const myResponse = plan.responses?.[user?.id ?? ''];
@@ -1022,6 +1151,35 @@ export default function FeedScreen() {
                       );
                     })}
                   </View>
+                )}
+
+                {!hasFriends && (
+                  <View style={{ alignItems: 'center', paddingVertical: 24, paddingHorizontal: 32, gap: 10 }}>
+                    <Text style={{ fontSize: 36 }}>👋</Text>
+                    <Text style={styles.emptyText}>No friends yet</Text>
+                    <Text style={styles.emptyHint}>Invite friends to see what they're up to tonight</Text>
+                    <TouchableOpacity
+                      style={{ marginTop: 4, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, backgroundColor: '#FF3B5C' }}
+                      onPress={() => Share.share({ message: "Join me on affiche \u2014 discover what's happening in Toronto tonight. Download: https://apps.apple.com/app/affiche" })}
+                    >
+                      <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Invite friends</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            );
+
+            return (
+              <FlatList
+                key="activity-list"
+                data={hasFriends ? activityItems : []}
+                keyExtractor={item => item.id}
+                ListHeaderComponent={myPlansSection}
+                ListEmptyComponent={hasFriends ? (
+                  <View style={{ alignItems: 'center', paddingVertical: 24, gap: 8 }}>
+                    <Ionicons name="flash-outline" size={36} color="rgba(255,255,255,0.2)" />
+                    <Text style={styles.emptyHint}>No recent activity from your friends yet</Text>
+                  </View>
                 ) : null}
                 renderItem={({ item }) => (
                   <ActivityRow
@@ -1038,7 +1196,8 @@ export default function FeedScreen() {
                 showsVerticalScrollIndicator={false}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FF3B5C" />}
               />
-            )
+            );
+          })()
       }
 
       <TabToggle active={activeTab} onSelect={setActiveTab} insetTop={insets.top} />
@@ -1248,6 +1407,23 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 10,
     fontWeight: '700',
+  },
+  sectionHeader: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '800',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 4,
+  },
+  rsvpSubHeader: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    paddingHorizontal: 16,
+    marginTop: 8,
   },
   // Activity feed
   activityList: {
