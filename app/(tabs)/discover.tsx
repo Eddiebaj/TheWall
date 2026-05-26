@@ -1,12 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Animated,
   Dimensions,
-  FlatList,
   Image,
-  Modal,
-  Platform,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -19,12 +15,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-let MapboxGL: any = null;
-try {
-  MapboxGL = require('@rnmapbox/maps').default;
-} catch (e) {
-  // Mapbox not available in Expo Go
-}
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useAnalytics } from '../../lib/analytics';
@@ -105,68 +95,6 @@ function formatDate(dateStr: string | null): string {
   });
 }
 
-function VenuePin({
-  event,
-  selected,
-  hasCheckins,
-  pulseAnim,
-  onPress,
-}: {
-  event: DiscoverEvent;
-  selected: boolean;
-  hasCheckins: boolean;
-  pulseAnim: Animated.Value;
-  onPress: () => void;
-}) {
-  const featured = event.venue_feature_tier != null;
-  return (
-    <View style={{ alignItems: 'center' }}>
-      {hasCheckins && (
-        <Animated.View style={{
-          position: 'absolute',
-          top: -4,
-          right: -4,
-          width: 10,
-          height: 10,
-          borderRadius: 5,
-          backgroundColor: '#FF3B5C',
-          transform: [{ scale: pulseAnim }],
-          zIndex: 10,
-        }} />
-      )}
-      <TouchableOpacity
-        onPress={onPress}
-        activeOpacity={0.8}
-        style={{
-          backgroundColor: featured ? '#1f1a00' : '#1a1a1a',
-          borderWidth: featured ? 2 : 1,
-          borderColor: featured ? '#FFD700' : '#444',
-          borderRadius: 20,
-          paddingHorizontal: 10,
-          paddingVertical: 5,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 4,
-          maxWidth: 130,
-          opacity: selected ? 1 : 0.9,
-          transform: [{ scale: selected ? 1.12 : 1 }],
-          shadowColor: featured ? '#FFD700' : '#000',
-          shadowOpacity: featured ? 0.4 : 0.5,
-          shadowRadius: featured ? 8 : 5,
-          shadowOffset: { width: 0, height: 2 },
-          elevation: featured ? 8 : 3,
-        }}
-      >
-        {featured && (
-          <Text style={{ color: '#FFD700', fontSize: 9, lineHeight: 13 }}>★</Text>
-        )}
-        <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }} numberOfLines={1}>
-          {event.venue_name}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
 
 function EventCard({ event, onPress, checkinCount }: { event: DiscoverEvent; onPress: () => void; checkinCount?: number }) {
   const isFeatured = event.venue_feature_tier === 'featured';
@@ -296,13 +224,9 @@ export default function DiscoverScreen() {
   const [events, setEvents] = useState<DiscoverEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [mapVisible, setMapVisible] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<DiscoverEvent | null>(null);
   const [happyHourDeals, setHappyHourDeals] = useState<HappyHourDeal[]>([]);
   const [nowMins, setNowMins] = useState(0);
   const [activeCheckinVenueIds, setActiveCheckinVenueIds] = useState<Set<string>>(new Set());
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-
   // Determine if happy hour window (3pm-8pm weekdays)
   const isHappyHourWindow = (() => {
     const now = new Date();
@@ -318,14 +242,6 @@ export default function DiscoverScreen() {
     loadActiveCheckins();
     if (isHappyHourWindow) loadHappyHour();
 
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.6, duration: 900, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
-      ])
-    );
-    pulse.start();
-    return () => pulse.stop();
   }, []);
 
   const loadActiveCheckins = async () => {
@@ -438,8 +354,6 @@ export default function DiscoverScreen() {
   const eventsByCategory = (key: string) =>
     events.filter(e => e.category === key);
 
-  const mapEvents = events.filter(e => e.venue_lat && e.venue_lng);
-
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" />
@@ -513,79 +427,6 @@ export default function DiscoverScreen() {
         </ScrollView>
       )}
 
-      {/* Floating map button */}
-      <TouchableOpacity
-        style={[styles.mapFab, { bottom: insets.bottom + 90 }]}
-        onPress={() => setMapVisible(true)}
-        activeOpacity={0.85}
-      >
-        <Ionicons name="map" size={22} color="#fff" />
-      </TouchableOpacity>
-
-      {/* Map modal */}
-      <Modal
-        visible={mapVisible}
-        animationType="slide"
-        onRequestClose={() => setMapVisible(false)}
-      >
-        <View style={styles.mapModal}>
-          <TouchableOpacity
-            style={[styles.mapCloseBtn, { top: insets.top + 12 }]}
-            onPress={() => setMapVisible(false)}
-          >
-            <Ionicons name="close" size={20} color="#fff" />
-          </TouchableOpacity>
-
-          {MapboxGL ? (
-            <MapboxGL.MapView
-              style={styles.map}
-              styleURL="mapbox://styles/mapbox/dark-v11"
-            >
-              <MapboxGL.Camera
-                centerCoordinate={[-79.3832, 43.6532]}
-                zoomLevel={12}
-                animationMode="none"
-              />
-              {mapEvents.map(e => (
-                <MapboxGL.MarkerView
-                  key={e.id}
-                  coordinate={[e.venue_lng!, e.venue_lat!]}
-                >
-                  <VenuePin
-                    event={e}
-                    selected={selectedEvent?.id === e.id}
-                    hasCheckins={e.venue_id != null && activeCheckinVenueIds.has(e.venue_id)}
-                    pulseAnim={pulseAnim}
-                    onPress={() => setSelectedEvent(prev => prev?.id === e.id ? null : e)}
-                  />
-                </MapboxGL.MarkerView>
-              ))}
-            </MapboxGL.MapView>
-          ) : (
-            <View style={[styles.map, { alignItems: 'center', justifyContent: 'center' }]}>
-              <Text style={{ color: '#666', fontSize: 14 }}>Map not available in Expo Go</Text>
-            </View>
-          )}
-
-          {selectedEvent && (
-            <TouchableOpacity
-              style={styles.mapEventCard}
-              onPress={() => {
-                setMapVisible(false);
-                setSelectedEvent(null);
-                router.push(`/event/${selectedEvent.id}`);
-              }}
-              activeOpacity={0.9}
-            >
-              <Text style={styles.mapEventTitle} numberOfLines={2}>{selectedEvent.title}</Text>
-              <Text style={styles.mapEventVenue}>{selectedEvent.venue_name}</Text>
-              {selectedEvent.event_date && (
-                <Text style={styles.mapEventDate}>{formatDate(selectedEvent.event_date)}</Text>
-              )}
-            </TouchableOpacity>
-          )}
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -767,66 +608,5 @@ const styles = StyleSheet.create({
   emptyText: {
     color: '#555',
     fontSize: 16,
-  },
-  mapFab: {
-    position: 'absolute',
-    right: 20,
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#222',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 6,
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  mapModal: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  map: {
-    flex: 1,
-  },
-  mapCloseBtn: {
-    position: 'absolute',
-    left: 16,
-    zIndex: 10,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mapEventCard: {
-    position: 'absolute',
-    bottom: 40,
-    left: 20,
-    right: 20,
-    backgroundColor: '#1a1a1a',
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  mapEventTitle: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  mapEventVenue: {
-    color: '#aaa',
-    fontSize: 13,
-    marginBottom: 2,
-  },
-  mapEventDate: {
-    color: '#777',
-    fontSize: 12,
   },
 });
