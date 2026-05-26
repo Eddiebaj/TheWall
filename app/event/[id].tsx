@@ -170,7 +170,7 @@ export default function EventDetailScreen() {
       eventData = legacyData;
     } else {
       if (__DEV__) console.log('[EventDetail] looking up venue_event id:', id);
-      const veSelect = 'id, title, poster_url, event_date, event_time, end_time, cover_charge, entry_type, description, venue_id, venue_name, location, source, creator_id, recurrence, venues(name, neighbourhood, address)';
+      const veSelect = '*, venues(name, neighbourhood, address)';
       const { data: veById, error: veByIdErr } = await supabase
         .from('venue_events')
         .select(veSelect)

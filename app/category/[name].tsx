@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Dimensions,
   FlatList,
   Image,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -12,6 +14,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
+
+const { width: SCREEN_W } = Dimensions.get('window');
+const CARD_GAP = 10;
+const CARD_PADDING = 16;
+const CARD_W = (SCREEN_W - CARD_PADDING * 2 - CARD_GAP) / 2;
+const CARD_H = CARD_W * 1.3;
 
 const CATEGORY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   'Concerts':      'musical-notes',
@@ -24,6 +32,9 @@ const CATEGORY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   'Networking':    'people',
   'Social':        'sparkles',
 };
+
+const FILTERS = ['All', 'Today', 'This Week', 'This Weekend', 'Free'] as const;
+type Filter = typeof FILTERS[number];
 
 function deriveCategory(title: string, venueName: string): string | null {
   const text = `${title} ${venueName}`.toLowerCase();
@@ -47,6 +58,7 @@ interface CategoryEvent {
   venue_name: string;
   neighbourhood: string | null;
   venue_feature_tier: 'basic' | 'pro' | 'featured' | null;
+  entry_type: string | null;
 }
 
 function formatDate(dateStr: string | null): string {
@@ -65,37 +77,64 @@ function formatTime(t: string | null): string {
   return `${hh}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
-function EventRow({ event, onPress, categoryIcon }: { event: CategoryEvent; onPress: () => void; categoryIcon: keyof typeof Ionicons.glyphMap }) {
-  const isFeatured = event.venue_feature_tier === 'featured';
-
+function EventCard({ event, onPress, categoryIcon }: {
+  event: CategoryEvent;
+  onPress: () => void;
+  categoryIcon: keyof typeof Ionicons.glyphMap;
+}) {
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.row}>
-      <View style={styles.rowPoster}>
-        {event.poster_url ? (
-          <Image source={{ uri: event.poster_url }} style={styles.rowImage} />
-        ) : (
-          <View style={styles.rowImagePlaceholder}>
-            <Ionicons name={categoryIcon} size={24} color="#555" />
-          </View>
-        )}
-      </View>
-      <View style={styles.rowInfo}>
-        <Text style={styles.rowTitle} numberOfLines={2}>{event.title}</Text>
-        <Text style={styles.rowVenue} numberOfLines={1}>
-          {isFeatured && <Text style={styles.featuredTag}>Featured  </Text>}
-          {event.venue_name}
-          {event.neighbourhood ? `  ·  ${event.neighbourhood}` : ''}
-        </Text>
-        {event.event_date && (
-          <Text style={styles.rowDate}>
+    <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.card}>
+      {event.poster_url ? (
+        <Image source={{ uri: event.poster_url }} style={styles.cardImage} />
+      ) : (
+        <View style={styles.cardImagePlaceholder}>
+          <Ionicons name={categoryIcon} size={36} color="#555" />
+        </View>
+      )}
+      <View style={styles.cardOverlay} />
+      <View style={styles.cardBottom}>
+        <Text style={styles.cardTitle} numberOfLines={2}>{event.title}</Text>
+        {event.event_date ? (
+          <Text style={styles.cardDate}>
             {formatDate(event.event_date)}
             {event.start_time ? `  ·  ${formatTime(event.start_time)}` : ''}
           </Text>
-        )}
+        ) : null}
       </View>
-      <Ionicons name="chevron-forward" size={16} color="#555" />
     </TouchableOpacity>
   );
+}
+
+function getWeekend(): [string, string] {
+  const now = new Date();
+  const day = now.getDay(); // 0=Sun,6=Sat
+  const daysToSat = (6 - day + 7) % 7 || 7;
+  const sat = new Date(now);
+  sat.setDate(now.getDate() + daysToSat);
+  const sun = new Date(sat);
+  sun.setDate(sat.getDate() + 1);
+  const fmt = (d: Date) => d.toISOString().split('T')[0];
+  return [fmt(sat), fmt(sun)];
+}
+
+function applyFilter(events: CategoryEvent[], filter: Filter): CategoryEvent[] {
+  if (filter === 'All') return events;
+  if (filter === 'Free') return events.filter(e => e.entry_type === 'free' || e.entry_type === 'Free');
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  if (filter === 'Today') return events.filter(e => e.event_date === today);
+  if (filter === 'This Week') {
+    const weekEnd = new Date(now);
+    weekEnd.setDate(now.getDate() + 6);
+    const weekEndStr = `${weekEnd.getFullYear()}-${pad(weekEnd.getMonth() + 1)}-${pad(weekEnd.getDate())}`;
+    return events.filter(e => e.event_date && e.event_date >= today && e.event_date <= weekEndStr);
+  }
+  if (filter === 'This Weekend') {
+    const [sat, sun] = getWeekend();
+    return events.filter(e => e.event_date === sat || e.event_date === sun);
+  }
+  return events;
 }
 
 export default function CategoryScreen() {
@@ -108,6 +147,7 @@ export default function CategoryScreen() {
 
   const [events, setEvents] = useState<CategoryEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState<Filter>('All');
 
   useEffect(() => {
     if (categoryName) loadEvents();
@@ -122,13 +162,13 @@ export default function CategoryScreen() {
     const [legacyRes, veRes] = await Promise.all([
       supabase
         .from('events')
-        .select('id, title, poster_url, date, start_time, venue_id, venues(name, neighbourhood, feature_tier)')
+        .select('id, title, poster_url, date, start_time, entry_type, venue_id, venues(name, neighbourhood, feature_tier)')
         .gte('date', today)
         .order('date', { ascending: true })
         .limit(400),
       supabase
         .from('venue_events')
-        .select('id, title, poster_url, event_date, event_time, category, venue_id, source, visibility, venues(name, neighbourhood, feature_tier)')
+        .select('id, title, poster_url, event_date, event_time, entry_type, category, venue_id, source, visibility, venues(name, neighbourhood, feature_tier)')
         .in('source', ['user', 'ticketmaster'])
         .neq('visibility', 'friends')
         .gte('event_date', today)
@@ -143,6 +183,7 @@ export default function CategoryScreen() {
         event_date: e.date || null, start_time: e.start_time || null,
         venue_name: e.venues?.name || '', neighbourhood: e.venues?.neighbourhood || null,
         venue_feature_tier: e.venues?.feature_tier ?? null,
+        entry_type: e.entry_type || null,
       }));
 
     const ve: CategoryEvent[] = (veRes.data ?? [])
@@ -155,6 +196,7 @@ export default function CategoryScreen() {
         event_date: e.event_date || null, start_time: e.event_time || null,
         venue_name: e.venues?.name || '', neighbourhood: e.venues?.neighbourhood || null,
         venue_feature_tier: e.venues?.feature_tier ?? null,
+        entry_type: e.entry_type || null,
       }));
 
     const seen = new Set<string>();
@@ -173,6 +215,8 @@ export default function CategoryScreen() {
     setLoading(false);
   };
 
+  const filtered = useMemo(() => applyFilter(events, activeFilter), [events, activeFilter]);
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
@@ -188,27 +232,50 @@ export default function CategoryScreen() {
         <Text style={styles.headerTitle}>{categoryName}</Text>
       </View>
 
+      {/* Filter bar */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filterBar}
+      >
+        {FILTERS.map(f => (
+          <TouchableOpacity
+            key={f}
+            onPress={() => setActiveFilter(f)}
+            style={[styles.filterPill, activeFilter === f && styles.filterPillActive]}
+          >
+            <Text style={[styles.filterPillText, activeFilter === f && styles.filterPillTextActive]}>
+              {f}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator color="#fff" size="large" />
         </View>
-      ) : events.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>No upcoming events</Text>
         </View>
       ) : (
         <FlatList
-          data={events}
+          data={filtered}
           keyExtractor={e => e.id}
+          numColumns={2}
+          columnWrapperStyle={styles.columnWrapper}
           renderItem={({ item }) => (
-            <EventRow
+            <EventCard
               event={item}
-              onPress={() => router.push(`/event/${item.id}`)}
+              onPress={() => {
+                if (__DEV__) console.log('[CategoryScreen] navigating to event id:', item.id);
+                router.push(`/event/${item.id}`);
+              }}
               categoryIcon={categoryIcon}
             />
           )}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-          contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+          contentContainerStyle={{ paddingHorizontal: CARD_PADDING, paddingBottom: insets.bottom + 24, paddingTop: 8 }}
           showsVerticalScrollIndicator={false}
         />
       )}
@@ -240,6 +307,32 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     flex: 1,
   },
+  filterBar: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    gap: 8,
+  },
+  filterPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: '#1e1e1e',
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  filterPillActive: {
+    backgroundColor: '#fff',
+    borderColor: '#fff',
+  },
+  filterPillText: {
+    color: '#aaa',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  filterPillTextActive: {
+    color: '#000',
+    fontWeight: '700',
+  },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
@@ -254,57 +347,62 @@ const styles = StyleSheet.create({
     color: '#555',
     fontSize: 16,
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
+  columnWrapper: {
+    gap: CARD_GAP,
+    marginBottom: CARD_GAP,
   },
-  rowPoster: {
-    width: 72,
-    height: 96,
-    borderRadius: 8,
+  card: {
+    width: CARD_W,
+    height: CARD_H,
+    borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: '#1e1e2e',
+    backgroundColor: '#1a1a1a',
   },
-  rowImage: {
-    width: 72,
-    height: 96,
+  cardImage: {
+    width: CARD_W,
+    height: CARD_H,
     resizeMode: 'cover',
+    position: 'absolute',
   },
-  rowImagePlaceholder: {
-    width: 72,
-    height: 96,
+  cardImagePlaceholder: {
+    width: CARD_W,
+    height: CARD_H,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#1e1e2e',
+    position: 'absolute',
   },
-  rowInfo: {
-    flex: 1,
-    gap: 4,
+  cardOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: CARD_H * 0.55,
+    backgroundColor: 'transparent',
+    // gradient-like fade via shadow
   },
-  rowTitle: {
+  cardBottom: {
+    position: 'absolute',
+    bottom: 10,
+    left: 10,
+    right: 10,
+  },
+  cardTitle: {
     color: '#fff',
-    fontSize: 15,
-    fontWeight: '700',
-    lineHeight: 20,
-  },
-  rowVenue: {
-    color: '#888',
     fontSize: 13,
-  },
-  featuredTag: {
-    color: '#e53935',
     fontWeight: '700',
+    lineHeight: 17,
+    marginBottom: 4,
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
-  rowDate: {
-    color: '#666',
-    fontSize: 12,
-  },
-  separator: {
-    height: 1,
-    backgroundColor: '#1a1a1a',
-    marginLeft: 100,
+  cardDate: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 11,
+    fontWeight: '400',
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
 });
