@@ -205,7 +205,7 @@ function CategoryRow({
   return (
     <View style={styles.categorySection}>
       <View style={styles.categoryHeader}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
           {ionIcon
             ? <Ionicons name={ionIcon} size={18} color="#fff" />
             : <Text style={{ fontSize: 18 }}>{category.emoji}</Text>}
