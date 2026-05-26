@@ -19,7 +19,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import Mapbox from '@rnmapbox/maps';
+let MapboxGL: any = null;
+try {
+  MapboxGL = require('@rnmapbox/maps').default;
+} catch (e) {
+  // Mapbox not available in Expo Go
+}
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useAnalytics } from '../../lib/analytics';
@@ -531,30 +536,36 @@ export default function DiscoverScreen() {
             <Ionicons name="close" size={20} color="#fff" />
           </TouchableOpacity>
 
-          <Mapbox.MapView
-            style={styles.map}
-            styleURL="mapbox://styles/mapbox/dark-v11"
-          >
-            <Mapbox.Camera
-              centerCoordinate={[-79.3832, 43.6532]}
-              zoomLevel={12}
-              animationMode="none"
-            />
-            {mapEvents.map(e => (
-              <Mapbox.MarkerView
-                key={e.id}
-                coordinate={[e.venue_lng!, e.venue_lat!]}
-              >
-                <VenuePin
-                  event={e}
-                  selected={selectedEvent?.id === e.id}
-                  hasCheckins={e.venue_id != null && activeCheckinVenueIds.has(e.venue_id)}
-                  pulseAnim={pulseAnim}
-                  onPress={() => setSelectedEvent(prev => prev?.id === e.id ? null : e)}
-                />
-              </Mapbox.MarkerView>
-            ))}
-          </Mapbox.MapView>
+          {MapboxGL ? (
+            <MapboxGL.MapView
+              style={styles.map}
+              styleURL="mapbox://styles/mapbox/dark-v11"
+            >
+              <MapboxGL.Camera
+                centerCoordinate={[-79.3832, 43.6532]}
+                zoomLevel={12}
+                animationMode="none"
+              />
+              {mapEvents.map(e => (
+                <MapboxGL.MarkerView
+                  key={e.id}
+                  coordinate={[e.venue_lng!, e.venue_lat!]}
+                >
+                  <VenuePin
+                    event={e}
+                    selected={selectedEvent?.id === e.id}
+                    hasCheckins={e.venue_id != null && activeCheckinVenueIds.has(e.venue_id)}
+                    pulseAnim={pulseAnim}
+                    onPress={() => setSelectedEvent(prev => prev?.id === e.id ? null : e)}
+                  />
+                </MapboxGL.MarkerView>
+              ))}
+            </MapboxGL.MapView>
+          ) : (
+            <View style={[styles.map, { alignItems: 'center', justifyContent: 'center' }]}>
+              <Text style={{ color: '#666', fontSize: 14 }}>Map not available in Expo Go</Text>
+            </View>
+          )}
 
           {selectedEvent && (
             <TouchableOpacity

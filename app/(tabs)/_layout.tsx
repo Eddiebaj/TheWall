@@ -109,7 +109,6 @@ function TabLayout() {
       <Tabs.Screen
         name="create"
         options={{
-          href: null,
           tabBarLabel: '',
           tabBarButton: () => (
             <TouchableOpacity
