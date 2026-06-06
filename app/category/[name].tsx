@@ -143,11 +143,14 @@ export default function CategoryScreen() {
   const insets = useSafeAreaInsets();
 
   const categoryName = decodeURIComponent(name ?? '');
-  const categoryIcon = CATEGORY_ICONS[categoryName] ?? 'calendar';
+  const categoryIcon: keyof typeof Ionicons.glyphMap = categoryName === 'all' ? 'sparkles' : (CATEGORY_ICONS[categoryName] ?? 'calendar');
+  const displayName = categoryName === 'all' ? 'All Events' : categoryName;
 
   const [events, setEvents] = useState<CategoryEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<Filter>('All');
+
+  const isAll = categoryName === 'all';
 
   useEffect(() => {
     if (categoryName) loadEvents();
@@ -177,7 +180,7 @@ export default function CategoryScreen() {
     ]);
 
     const legacy: CategoryEvent[] = (legacyRes.data ?? [])
-      .filter((e: any) => deriveCategory(e.title, e.venues?.name || '') === categoryName)
+      .filter((e: any) => isAll || deriveCategory(e.title, e.venues?.name || '') === categoryName)
       .map((e: any) => ({
         id: e.id, title: e.title, poster_url: e.poster_url || null,
         event_date: e.date || null, start_time: e.start_time || null,
@@ -188,6 +191,7 @@ export default function CategoryScreen() {
 
     const ve: CategoryEvent[] = (veRes.data ?? [])
       .filter((e: any) => {
+        if (isAll) return true;
         const cat = e.category || deriveCategory(e.title, e.venues?.name || '');
         return cat === categoryName;
       })
@@ -229,7 +233,7 @@ export default function CategoryScreen() {
           <Ionicons name="chevron-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Ionicons name={categoryIcon} size={22} color="#fff" />
-        <Text style={styles.headerTitle}>{categoryName}</Text>
+        <Text style={styles.headerTitle}>{displayName}</Text>
       </View>
 
       {/* Filter bar */}

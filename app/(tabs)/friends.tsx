@@ -13,8 +13,7 @@ import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { sendNotification } from '../../lib/notificationHelpers';
-
-const DOWN_TONIGHT_KEY = 'down_tonight_date';
+import { SK_DOWN_TONIGHT } from '../../lib/storageKeys';
 
 export default function FriendsScreen() {
   const { colours, t, language } = useApp();
@@ -46,13 +45,13 @@ export default function FriendsScreen() {
   useEffect(() => {
     if (!user) return;
     const today = new Date().toISOString().slice(0, 10);
-    AsyncStorage.getItem(DOWN_TONIGHT_KEY).then(async (stored) => {
+    AsyncStorage.getItem(SK_DOWN_TONIGHT).then(async (stored) => {
       if (stored === today) {
         setDownTonight(true);
       } else if (stored && stored !== today) {
         // New day clear stale state
         setDownTonight(false);
-        await AsyncStorage.removeItem(DOWN_TONIGHT_KEY);
+        await AsyncStorage.removeItem(SK_DOWN_TONIGHT);
         await supabase.from('profiles').update({ is_down_tonight: false }).eq('id', user.id);
         await supabase.from('city_board_down_tonight').delete().eq('user_id', user.id);
       }
@@ -78,6 +77,7 @@ export default function FriendsScreen() {
 
   const loadMyHangouts = async () => {
     try {
+      if (!user) return;
       const { data, error } = await supabase
         .from('hangout_rsvps')
         .select(`
@@ -85,13 +85,13 @@ export default function FriendsScreen() {
           hangout:hangouts(id, venue_name, event_name, happening_at,
             creator:profiles!hangouts_created_by_fkey(username, display_name))
         `)
-        .eq('user_id', user!.id)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(10);
       if (error) return;
       if (data) setMyHangouts(data.filter(d => d.hangout));
-    } catch {
-      // table may not exist yet
+    } catch (e) {
+      if (__DEV__) console.error('[friends] loadMyHangouts error:', e);
     }
   };
 
@@ -119,23 +119,40 @@ export default function FriendsScreen() {
 
       if (error) return;
       if (data) setFriendsPlans(data.filter((d: any) => d.hangouts && d.profiles));
-    } catch {
-      // table may not exist yet
+    } catch (e) {
+      if (__DEV__) console.error('[friends] loadFriendsPlans error:', e);
     }
   };
 
   const loadFriendsActivity = async (friendIds: string[]) => {
     if (!friendIds.length) return;
     const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-    const { data } = await supabase
-      .from('event_rsvps')
-      .select('event_id, created_at, profiles(id, username, display_name, avatar_url), events(id, title, date, venues(name))')
-      .in('user_id', friendIds)
-      .eq('status', 'going')
-      .gte('created_at', since)
-      .order('created_at', { ascending: false })
-      .limit(5);
-    if (data) setFriendsActivity(data.filter((d: any) => d.profiles && d.events));
+    const [legacyRes, veRes] = await Promise.all([
+      supabase
+        .from('event_rsvps')
+        .select('event_id, created_at, profiles(id, username, display_name, avatar_url), events(id, title, date, venues(name))')
+        .in('user_id', friendIds)
+        .eq('status', 'going')
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(5),
+      supabase
+        .from('venue_event_rsvps')
+        .select('event_id, created_at, profiles(id, username, display_name, avatar_url), venue_events(id, title, event_date, venues(name))')
+        .in('user_id', friendIds)
+        .eq('status', 'going')
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(5),
+    ]);
+    const legacy = (legacyRes.data ?? []).filter((d: any) => d.profiles && d.events);
+    const ve = (veRes.data ?? [])
+      .filter((d: any) => d.profiles && d.venue_events)
+      .map((d: any) => ({ ...d, events: d.venue_events }));
+    const merged = [...legacy, ...ve].sort((a: any, b: any) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    ).slice(0, 5);
+    setFriendsActivity(merged);
   };
 
   const loadFriendsData = async () => {
@@ -268,7 +285,11 @@ export default function FriendsScreen() {
   };
 
   const acceptRequest = async (friendshipId: string, requesterId: string) => {
-    await supabase.from('friendships').update({ status: 'accepted' }).eq('id', friendshipId);
+    const { error } = await supabase.from('friendships').update({ status: 'accepted' }).eq('id', friendshipId);
+    if (error) {
+      Alert.alert('Error', 'Could not accept request. Please try again.');
+      return;
+    }
     sendNotification(
       requesterId,
       'friend_accepted',
@@ -289,7 +310,7 @@ export default function FriendsScreen() {
     if (newVal) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const today = new Date().toISOString().slice(0, 10);
-      await AsyncStorage.setItem(DOWN_TONIGHT_KEY, today);
+      await AsyncStorage.setItem(SK_DOWN_TONIGHT, today);
       await Promise.all([
         supabase.from('city_board_down_tonight').upsert({
           user_id: user!.id,
@@ -299,7 +320,7 @@ export default function FriendsScreen() {
       ]);
     } else {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await AsyncStorage.removeItem(DOWN_TONIGHT_KEY);
+      await AsyncStorage.removeItem(SK_DOWN_TONIGHT);
       await Promise.all([
         supabase.from('city_board_down_tonight').delete().eq('user_id', user!.id),
         supabase.from('profiles').update({ is_down_tonight: false }).eq('id', user!.id),

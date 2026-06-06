@@ -4,6 +4,7 @@ import {
   Platform, ActivityIndicator, Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useAnalytics } from '../lib/analytics';
@@ -15,6 +16,7 @@ export default function AuthScreen() {
   const { signInWithEmail } = useAuth();
   const router = useRouter();
   const { capture } = useAnalytics();
+  const insets = useSafeAreaInsets();
 
   const [tab, setTab] = useState<Tab>('email');
 
@@ -361,7 +363,7 @@ export default function AuthScreen() {
       style={{ flex: 1, backgroundColor: '#0a0a0a' }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, paddingTop: insets.top + 32, paddingBottom: insets.bottom + 32 }}>
         {/* Logo */}
         <Text style={{ fontSize: 40, fontWeight: '800', color: '#fff', letterSpacing: -1, marginBottom: 8 }}>
           affiche

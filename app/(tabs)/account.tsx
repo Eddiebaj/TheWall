@@ -320,7 +320,7 @@ export default function AccountScreen() {
     highContrast, setHighContrast,
     reducedMotion, setReducedMotion,
   } = useApp();
-  const { profile, user, signOut, isAdmin, isPremium, updateProfile } = useAuth();
+  const { profile, user, signOut, isAdmin, isPremium, updateProfile, loading: userLoading } = useAuth();
   const { savedBoard } = useBoard();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -329,6 +329,10 @@ export default function AccountScreen() {
   useEffect(() => {
     capture('profile_viewed');
   }, []);
+
+  useEffect(() => {
+    if (!userLoading && !user) router.replace('/auth' as any);
+  }, [userLoading, user]);
 
   // Auth state (shown when not signed in)
   const [authEmail, setAuthEmail] = useState('');
@@ -670,102 +674,7 @@ export default function AccountScreen() {
   );
 
   if (!user) {
-    return (
-      <KeyboardAvoidingView
-        style={{ flex: 1, backgroundColor: colours.bg }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingBottom: insets.bottom + 40 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={{ alignItems: 'center', marginBottom: 40 }}>
-            <Text style={{ fontSize: 32, fontWeight: '900', color: colours.text, letterSpacing: -0.5 }}>affiche</Text>
-            <Text style={{ fontSize: 14, color: colours.muted, marginTop: 6 }}>
-              {authCodeSent ? 'Check your email' : 'Sign in or create an account'}
-            </Text>
-          </View>
-
-          {authCodeSent ? (
-            <>
-              <Text style={{ fontSize: 14, color: colours.muted, textAlign: 'center', marginBottom: 24, lineHeight: 20 }}>
-                Enter the 6-digit code sent to {authEmail}
-              </Text>
-              <TextInput
-                style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, fontSize: 28, fontWeight: '700', color: colours.text, textAlign: 'center', letterSpacing: 8, marginBottom: 20 }}
-                placeholder="000000"
-                placeholderTextColor={colours.muted}
-                value={authOtp}
-                onChangeText={t => setAuthOtp(t.replace(/[^0-9]/g, '').slice(0, 6))}
-                keyboardType="number-pad"
-                maxLength={6}
-                autoFocus
-                returnKeyType="go"
-                onSubmitEditing={handleVerifyOtp}
-              />
-
-              {authError ? (
-                <Text style={{ fontSize: 13, color: colours.accent, fontWeight: '600', marginBottom: 14, textAlign: 'center' }}>
-                  {authError}
-                </Text>
-              ) : null}
-
-              <TouchableOpacity
-                onPress={handleVerifyOtp}
-                disabled={authVerifying || authOtp.length !== 6}
-                style={{ backgroundColor: authOtp.length === 6 ? colours.accent : colours.border, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginBottom: 16 }}
-                activeOpacity={0.85}
-              >
-                {authVerifying ? <ActivityIndicator color="#fff" /> : <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Verify</Text>}
-              </TouchableOpacity>
-
-              <TouchableOpacity onPress={handleSendCode} disabled={authLoading} style={{ alignItems: 'center', marginBottom: 12 }}>
-                <Text style={{ fontSize: 14, color: colours.muted, fontWeight: '600' }}>
-                  {authLoading ? 'Sending…' : 'Resend code'}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity onPress={() => { setAuthCodeSent(false); setAuthOtp(''); setAuthError(''); }} style={{ alignItems: 'center' }}>
-                <Text style={{ fontSize: 14, color: colours.muted }}>Use a different email</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Email</Text>
-              <TextInput
-                style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15, color: colours.text, marginBottom: 20 }}
-                placeholder="you@example.com"
-                placeholderTextColor={colours.muted}
-                value={authEmail}
-                onChangeText={setAuthEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                autoCorrect={false}
-                editable={!authLoading}
-                returnKeyType="go"
-                onSubmitEditing={handleSendCode}
-              />
-
-              {authError ? (
-                <Text style={{ fontSize: 13, color: colours.accent, fontWeight: '600', marginBottom: 14, textAlign: 'center' }}>
-                  {authError}
-                </Text>
-              ) : null}
-
-              <TouchableOpacity
-                onPress={handleSendCode}
-                disabled={authLoading || !authEmail.trim()}
-                style={{ backgroundColor: authEmail.trim() ? colours.accent : colours.border, borderRadius: 14, paddingVertical: 16, alignItems: 'center', opacity: authLoading ? 0.7 : 1 }}
-                activeOpacity={0.85}
-              >
-                {authLoading ? <ActivityIndicator color="#fff" /> : <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Send Code</Text>}
-              </TouchableOpacity>
-            </>
-          )}
-        </ScrollView>
-      </KeyboardAvoidingView>
-    );
+    return null;
   }
 
   if (needsProfileSetup) {
@@ -1070,6 +979,15 @@ export default function AccountScreen() {
             fonts={fonts}
             right={<Ionicons name="chevron-forward" size={16} color={colours.muted} />}
           />
+          <Divider colours={colours} />
+          <SettingsRow
+            label={t('Terms of Service', 'Conditions d\'utilisation')}
+            icon="document-text-outline"
+            onPress={() => router.push('/terms-of-service' as any)}
+            colours={colours}
+            fonts={fonts}
+            right={<Ionicons name="chevron-forward" size={16} color={colours.muted} />}
+          />
         </Card>
 
         {/* VENUE OWNER */}
@@ -1111,7 +1029,10 @@ export default function AccountScreen() {
                 label="Become an Organizer"
                 icon="ribbon-outline"
                 onPress={() => {
-                  Linking.openURL('https://buy.stripe.com/test_8x23cwf9agaw7a5fnH0480c').catch(() => {});
+                  if (__DEV__) {
+                    // TODO: Replace with live Stripe organizer payment link before launch
+                    Linking.openURL('https://buy.stripe.com/test_8x23cwf9agaw7a5fnH0480c').catch(() => {});
+                  }
                 }}
                 colours={colours}
                 fonts={fonts}
@@ -1135,8 +1056,52 @@ export default function AccountScreen() {
         )}
 
         <TouchableOpacity
+          onPress={() => {
+            Alert.alert(
+              'Delete your account?',
+              'This will permanently delete your profile, events, RSVPs, messages, and all other data. This cannot be undone.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Continue',
+                  style: 'destructive',
+                  onPress: () => {
+                    Alert.alert(
+                      'Are you absolutely sure?',
+                      'Your account will be permanently deleted immediately.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Delete Account',
+                          style: 'destructive',
+                          onPress: async () => {
+                            try {
+                              const { error } = await supabase.rpc('delete_my_account');
+                              if (error) throw error;
+                              await supabase.auth.signOut();
+                              Alert.alert('Your account has been deleted.', '', [
+                                { text: 'OK', onPress: () => router.replace('/auth' as any) },
+                              ]);
+                            } catch {
+                              Alert.alert('Something went wrong. Please try again or contact support@affiche.app');
+                            }
+                          },
+                        },
+                      ]
+                    );
+                  },
+                },
+              ]
+            );
+          }}
+          style={{ marginHorizontal: 20, marginTop: 16, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: '#FF3B5C40', backgroundColor: '#FF3B5C12', alignItems: 'center' }}
+        >
+          <Text style={{ fontSize: 15, fontWeight: '700', color: '#FF3B5C' }}>Delete Account</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           onPress={signOut}
-          style={{ marginHorizontal: 20, marginTop: 16, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: '#cc3b2a40', backgroundColor: '#cc3b2a12', alignItems: 'center' }}
+          style={{ marginHorizontal: 20, marginTop: 10, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: '#cc3b2a40', backgroundColor: '#cc3b2a12', alignItems: 'center' }}
         >
           <Text style={{ fontSize: 15, fontWeight: '700', color: '#cc3b2a' }}>Sign out</Text>
         </TouchableOpacity>
@@ -1237,9 +1202,7 @@ export default function AccountScreen() {
                         });
                         hapticSuccess();
                         setBugSent(true);
-                        const subject = encodeURIComponent('affiche Bug Report');
-                        const body = encodeURIComponent(`${bugMessage.trim()}\n\n---\nScreen: ${bugScreen || 'N/A'}\nDevice: ${Platform.OS} ${Platform.Version}\nDate: ${new Date().toLocaleDateString('en-CA')}\n`);
-                        Linking.openURL(`mailto:support@affiche.app?subject=${subject}&body=${body}`).catch(() => {});
+                        Alert.alert('Report submitted', "We'll review it shortly.");
                       } catch (e) {
                         if (__DEV__) console.warn('bug report failed:', e);
                         const subject = encodeURIComponent('affiche Bug Report');

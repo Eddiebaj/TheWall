@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
 import { PREMIUM_ENABLED } from '../lib/flags';
 import { useIsPremium } from '../lib/premium';
+import { useRequireAuth } from '../lib/requireAuth';
 import { supabase } from '../lib/supabase';
 import { SK_DEVICE_ID } from '../lib/storageKeys';
 import PaywallSheet from './PaywallSheet';
@@ -39,6 +40,7 @@ export default function RsvpButton({ eventId, eventSource, onGoing }: Props) {
   const { colours, fonts, t } = useApp();
   const isPremium = useIsPremium();
   const insets = useSafeAreaInsets();
+  const { requireAuth, authModal } = useRequireAuth();
 
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [going, setGoing] = useState(false);
@@ -71,6 +73,7 @@ export default function RsvpButton({ eventId, eventSource, onGoing }: Props) {
   }, [eventId]);
 
   const toggle = async () => {
+    if (!requireAuth()) return;
     if (!deviceId || toggling) return;
     setToggling(true);
     try {
@@ -108,7 +111,9 @@ export default function RsvpButton({ eventId, eventSource, onGoing }: Props) {
         .order('created_at', { ascending: true })
         .limit(50);
       setAttendees(data ?? []);
-    } catch {}
+    } catch (e) {
+      if (__DEV__) console.error('[RsvpButton] openAttendees error:', e);
+    }
     setAttendeesLoading(false);
   };
 
@@ -250,6 +255,8 @@ export default function RsvpButton({ eventId, eventSource, onGoing }: Props) {
         onClose={() => setPaywallVisible(false)}
         featureHint={t("See who's going to events  -  Premium only", "Voir qui participe aux evenements  -  Premium uniquement")}
       />
+
+      {authModal}
     </View>
   );
 }

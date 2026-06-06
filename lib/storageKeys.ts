@@ -26,22 +26,15 @@ export const SK_SAVED_PLACES = 'thewall_saved_places';
 export const SK_SAVED_VENUES = 'thewall_saved_venues';
 export const SK_SECTION_ORDER = 'thewall_section_order';
 export const SK_QUICK_ACTIONS = 'thewall_quick_actions';
-export const SK_OTTAWA_LIFE = 'thewall_ottawa_life';
 export const SK_MAP_LAYERS = 'thewall_map_layers';
 
 // ── Transit & trips ──
-export const SK_PLANNER_PREFS = 'thewall_planner_prefs';
-export const SK_TRIP_HISTORY = 'thewall_trip_history';
 export const SK_TRIP_SHARING = 'thewall_trip_sharing';
 export const SK_HOME_ADDRESS = 'thewall_home_address';
-export const SK_LEAVE_REMINDERS = 'thewall_leave_reminders';
-export const SK_LEAVE_NOW_ALERTS = 'thewall_leave_now_alerts';
-export const SK_GHOST_REPORTS = 'thewall_ghost_reports';
-export const SK_FREQUENT_CARD_DISMISSED = 'thewall_frequent_card_dismissed';
-export const SK_FREQUENT_ARRIVALS_CACHE = 'thewall_frequent_arrivals_cache';
 
 // ── Notifications ──
 export const SK_NOTIF_SETTINGS = 'thewall_notif_settings';
+export const SK_NOTIF_PERMISSION = 'thewall_notif_permission';
 export const SK_PUSH_TOKEN = 'thewall_push_token';
 export const SK_DEVICE_ID = 'thewall_device_id';
 export const SK_SEEN_ALERT_IDS = 'thewall_seen_alert_ids';
@@ -73,8 +66,13 @@ export const SK_WORK_PLACE = 'thewall_work_place';
 export const SK_DISMISSED_ALERT_IDS = 'thewall_dismissed_alert_ids';
 export const SK_SESSION_COUNT = 'thewall_session_count';
 export const SK_SHOWN_PROMPTS = 'thewall_shown_prompts';
-export const SK_WATCHED_BUSES = 'thewall_watched_buses';
 export const SK_COMMUTE_DEALS_LAST_PUSH = 'thewall_commute_deals_last_push';
+
+// ── UI state ──
+export const SK_TOOLTIP_SHOWN = 'affiche_tooltip_shown';
+
+// ── Friends / social ──
+export const SK_DOWN_TONIGHT = 'down_tonight_date';
 
 // ── Invite / referral ──
 export const SK_INVITED_BY = 'thewall_invited_by';

@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Dimensions,
   Image,
+  Modal,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -245,6 +246,7 @@ export default function DiscoverScreen() {
   const [happyHourDeals, setHappyHourDeals] = useState<HappyHourDeal[]>([]);
   const [nowMins, setNowMins] = useState(0);
   const [activeCheckinVenueIds, setActiveCheckinVenueIds] = useState<Set<string>>(new Set());
+  const [mapModalVisible, setMapModalVisible] = useState(false);
   // Determine if happy hour window (3pm-8pm weekdays)
   const isHappyHourWindow = (() => {
     const now = new Date();
@@ -391,11 +393,7 @@ export default function DiscoverScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Discover</Text>
         <TouchableOpacity
-          onPress={() => {
-            // Map view requires native build; show placeholder for now
-            if (__DEV__) console.log('[Discover] map button tapped');
-            router.push('/map' as any);
-          }}
+          onPress={() => setMapModalVisible(true)}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <Ionicons name="map-outline" size={24} color="#fff" />
@@ -444,7 +442,7 @@ export default function DiscoverScreen() {
             </View>
           )}
 
-          {happyHourDeals.length > 0 && (
+          {!isHappyHourWindow && happyHourDeals.length > 0 && (
             <View style={styles.categorySection}>
               <View style={styles.categoryHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
@@ -494,7 +492,7 @@ export default function DiscoverScreen() {
                 capture('event_viewed', { event_id: e.id, source: 'discover' });
                 router.push(`/event/${e.id}`);
               }}
-              onSeeAll={() => {}}
+              onSeeAll={() => router.push('/category/all' as any)}
               activeCheckinVenueIds={activeCheckinVenueIds}
             />
           )}
@@ -520,6 +518,29 @@ export default function DiscoverScreen() {
           <View style={{ height: 100 }} />
         </ScrollView>
       )}
+
+      <Modal
+        visible={mapModalVisible}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setMapModalVisible(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
+          <View style={{ paddingTop: 56, paddingHorizontal: 16, paddingBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <TouchableOpacity onPress={() => setMapModalVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="close" size={26} color="#fff" />
+            </TouchableOpacity>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: '#fff' }}>Event Map</Text>
+          </View>
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 32 }}>
+            <Ionicons name="map-outline" size={64} color="#333" />
+            <Text style={{ fontSize: 18, fontWeight: '700', color: '#fff' }}>Map coming soon</Text>
+            <Text style={{ fontSize: 14, color: '#666', textAlign: 'center', lineHeight: 20 }}>
+              The interactive map requires a native build. Use the event list below to explore what's happening tonight.
+            </Text>
+          </View>
+        </View>
+      </Modal>
 
     </View>
   );

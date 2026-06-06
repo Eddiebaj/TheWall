@@ -15,13 +15,11 @@ function useFriendsBadge(userId: string | undefined): number {
     if (!userId) return;
 
     const load = async () => {
-      const { data: requests } = await supabase
+      const { count: pendingCount } = await supabase
         .from('friendships')
-        .select('id', { count: 'exact', head: true })
+        .select('*', { count: 'exact', head: true })
         .eq('addressee_id', userId)
         .eq('status', 'pending');
-
-      const pendingCount = (requests as any)?.length ?? 0;
 
       const { data: convs } = await supabase
         .from('conversation_members')
@@ -50,10 +48,18 @@ function useFriendsBadge(userId: string | undefined): number {
         }
       }
 
-      setCount(pendingCount + unreadCount);
+      setCount((pendingCount ?? 0) + unreadCount);
     };
 
     load();
+
+    const channel = supabase
+      .channel(`badge_${userId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships', filter: `addressee_id=eq.${userId}` }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => load())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [userId]);
 
   return count;
@@ -111,10 +117,10 @@ function TabLayout() {
         options={{
           tabBarLabel: '',
           tabBarButton: () => {
-            if (!__DEV__ && !(profile as any)?.is_organizer) return null;
+            const dest = (profile as any)?.is_organizer ? '/create-event' : '/create';
             return (
             <TouchableOpacity
-              onPress={() => router.push('/create-event' as any)}
+              onPress={() => router.push(dest as any)}
               activeOpacity={0.85}
               style={{
                 flex: 1,
@@ -154,8 +160,13 @@ function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen name="search" options={{
+        tabBarLabel: 'Search',
+        tabBarIcon: ({ focused, color }) => (
+          <Ionicons name={focused ? 'search' : 'search-outline'} size={22} color={color} />
+        ),
+      }} />
       <Tabs.Screen name="account" options={{ href: null }} />
-      <Tabs.Screen name="search" options={{ href: null }} />
       <Tabs.Screen name="profile" options={{ href: null }} />
     </Tabs>
   );

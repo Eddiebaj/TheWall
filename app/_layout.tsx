@@ -10,7 +10,7 @@ import { AppProvider } from '../context/AppContext';
 import { BoardProvider } from '../context/BoardContext';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import NetworkBanner from '../components/NetworkBanner';
-import { SK_ONBOARDED, SK_CRASH_LOG, SK_ONBOARDING_COMPLETE, SK_PROFILE_SETUP_DONE } from '../lib/storageKeys';
+import { SK_ONBOARDED, SK_CRASH_LOG, SK_ONBOARDING_COMPLETE, SK_PROFILE_SETUP_DONE, SK_NOTIF_PERMISSION } from '../lib/storageKeys';
 import { initSentry, captureException } from '../lib/sentry';
 import { incrementSessionCount } from '../lib/onboardingPrompts';
 import { routeForNotification, NotificationType } from '../lib/notificationTypes';
@@ -201,6 +201,13 @@ function RootNav() {
     }
   };
 
+  // Reset navigation gate on sign-out so re-login navigates correctly
+  useEffect(() => {
+    if (!session && !authLoading) {
+      navigationDoneRef.current = false;
+    }
+  }, [session, authLoading]);
+
   useEffect(() => {
     if (__DEV__) console.log('[RootNav] showSplash/destination changed - showSplash=', showSplash, 'destination=', destination, 'authLoading=', authLoading);
     if (!showSplash && destination === 'onboarding') {
@@ -236,7 +243,7 @@ function RootNav() {
           Notifications.getPermissionsAsync().then(({ status }) => {
             if (status !== 'granted') {
               Notifications.requestPermissionsAsync().then(({ status: newStatus }) => {
-                AsyncStorage.setItem('thewall_notif_permission', newStatus).catch(() => {});
+                AsyncStorage.setItem(SK_NOTIF_PERMISSION, newStatus).catch(() => {});
               });
             }
           }).catch(() => {});
@@ -259,7 +266,7 @@ function RootNav() {
       <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="premium" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="admin" options={{ headerShown: false }} />
-      <Stack.Screen name="business" options={{ headerShown: false }} />
+      <Stack.Screen name="business/index" options={{ headerShown: false }} />
       <Stack.Screen name="business-signup" options={{ headerShown: false }} />
       <Stack.Screen name="business-setup" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding/preferences" options={{ headerShown: false, animation: 'fade' }} />
@@ -269,6 +276,15 @@ function RootNav() {
       <Stack.Screen name="invite/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="profile/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="create-event" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="privacy-policy" options={{ headerShown: false }} />
+      <Stack.Screen name="terms-of-service" options={{ headerShown: false }} />
+      <Stack.Screen name="notifications" options={{ headerShown: false }} />
+      <Stack.Screen name="event/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="venue/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="lets-go" options={{ headerShown: false }} />
+      <Stack.Screen name="category/[name]" options={{ headerShown: false }} />
+      <Stack.Screen name="auth/reset-password" options={{ headerShown: false }} />
+      <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
     </Stack>
   );
 }

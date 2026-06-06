@@ -136,60 +136,62 @@ export default function BusinessDashboardScreen() {
           setSub({ plan: subRow.plan, status: subRow.status, stripe_customer_id: subRow.stripe_customer_id });
         }
 
+        // Load business profile id (needed for analytics and event inserts)
+        const { data: bpRow } = await supabase.from('business_profiles').select('id').eq('user_id', user.id).maybeSingle();
+        setBusinessProfileId(bpRow?.id ?? null);
+
         // Load analytics (Pro+)
         const isPro = subRow?.plan === 'pro' || subRow?.plan === 'featured';
-        if (isPro) {
+        if (isPro && bpRow) {
+          const { data: eventIdRows } = await supabase
+            .from('venue_events')
+            .select('id')
+            .eq('business_id', bpRow.id);
+          const eventIds = (eventIdRows ?? []).map((r: any) => r.id);
+
           const [rsvpRes, viewRes, saveRes] = await Promise.all([
-            supabase
-              .from('venue_event_rsvps')
-              .select('event_id', { count: 'exact', head: true })
-              .gte('created_at', monthStartISO)
-              .in('event_id', supabase.from('venue_events').select('id').eq('business_id',
-                supabase.from('business_profiles').select('id').eq('user_id', user.id)
-              ) as any),
+            eventIds.length > 0
+              ? supabase
+                  .from('venue_event_rsvps')
+                  .select('event_id', { count: 'exact', head: true })
+                  .gte('created_at', monthStartISO)
+                  .in('event_id', eventIds)
+              : Promise.resolve({ count: 0 }),
             supabase
               .from('venue_views')
               .select('id', { count: 'exact', head: true })
               .eq('venue_id', vid)
               .gte('viewed_at', monthStartISO),
-            supabase
-              .from('saved_events')
-              .select('event_id', { count: 'exact', head: true })
-              .gte('created_at', monthStartISO)
-              .in('event_id', supabase.from('venue_events').select('id').eq('business_id',
-                supabase.from('business_profiles').select('id').eq('user_id', user.id)
-              ) as any),
+            eventIds.length > 0
+              ? supabase
+                  .from('saved_events')
+                  .select('event_id', { count: 'exact', head: true })
+                  .gte('created_at', monthStartISO)
+                  .in('event_id', eventIds)
+              : Promise.resolve({ count: 0 }),
           ]);
 
-          // Top event by rsvp count
-          const { data: bpRow } = await supabase.from('business_profiles').select('id').eq('user_id', user.id).maybeSingle();
           let topEvent: string | null = null;
-          if (bpRow) {
-            const { data: topData } = await supabase
-              .from('venue_events')
-              .select('title, venue_event_rsvps(count)')
-              .eq('business_id', bpRow.id)
-              .order('created_at', { ascending: false })
-              .limit(10);
-            if (topData && topData.length > 0) {
-              const sorted = [...topData].sort((a: any, b: any) =>
-                (b.venue_event_rsvps?.[0]?.count ?? 0) - (a.venue_event_rsvps?.[0]?.count ?? 0)
-              );
-              topEvent = sorted[0]?.title ?? null;
-            }
+          const { data: topData } = await supabase
+            .from('venue_events')
+            .select('title, venue_event_rsvps(count)')
+            .eq('business_id', bpRow.id)
+            .order('created_at', { ascending: false })
+            .limit(10);
+          if (topData && topData.length > 0) {
+            const sorted = [...topData].sort((a: any, b: any) =>
+              (b.venue_event_rsvps?.[0]?.count ?? 0) - (a.venue_event_rsvps?.[0]?.count ?? 0)
+            );
+            topEvent = sorted[0]?.title ?? null;
           }
 
           setAnalytics({
-            rsvps: rsvpRes.count ?? 0,
-            views: viewRes.count ?? 0,
-            saves: saveRes.count ?? 0,
+            rsvps: (rsvpRes as any).count ?? 0,
+            views: (viewRes as any).count ?? 0,
+            saves: (saveRes as any).count ?? 0,
             topEvent,
           });
         }
-
-        // Load business profile id for event inserts
-        const { data: bpRow } = await supabase.from('business_profiles').select('id').eq('user_id', user.id).maybeSingle();
-        setBusinessProfileId(bpRow?.id ?? null);
 
         // Load happy hour deals
         const { data: dealRows } = await supabase
@@ -563,7 +565,7 @@ export default function BusinessDashboardScreen() {
                   <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text }}>{bp.label}</Text>
                   <Text style={{ fontSize: 13, color: colours.muted, marginTop: 2 }}>{bp.price}</Text>
                 </View>
-                <Ionicons name="arrow-forward" size={16} color={colours.muted} />
+                <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted }}>Learn more</Text>
               </TouchableOpacity>
             ))}
           </View>

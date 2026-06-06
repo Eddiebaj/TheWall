@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SK_TRIP_HISTORY, SK_SAVED_BOARD } from './storageKeys';
+import { SK_SAVED_BOARD } from './storageKeys';
+
+const SK_TRIP_HISTORY = 'thewall_trip_history';
 
 export type FrequentRoute = {
   routeId: string;

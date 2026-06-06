@@ -6,8 +6,10 @@ export type NotificationType =
   | 'friend_request'
   | 'friend_accepted'
   | 'new_message'
+  | 'message'
   | 'friend_going'
-  | 'event_reminder';
+  | 'event_reminder'
+  | 'activity';
 
 export interface NotificationPayload {
   type: NotificationType;
@@ -65,10 +67,17 @@ export function routeForNotification(
     case 'friend_accepted':
       return '/(tabs)/friends';
     case 'new_message':
-      return data?.conversation_id ? `/chat/${data.conversation_id}` : null;
+    case 'message':
+      return data?.conversationId
+        ? `/chat/${data.conversationId}`
+        : data?.conversation_id
+        ? `/chat/${data.conversation_id}`
+        : '/(tabs)/friends';
     case 'friend_going':
     case 'event_reminder':
       return data?.event_id ? `/event/${data.event_id}` : null;
+    case 'activity':
+      return '/(tabs)/index';
     default:
       return null;
   }

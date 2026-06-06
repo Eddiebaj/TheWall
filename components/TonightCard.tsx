@@ -112,7 +112,9 @@ function TonightCard({ colours, fonts, cardShadow, sensGame, events, weather, on
           if (score > bestScore) { bestScore = score; bestName = ev.name; }
         });
         if (bestName) setRouteopick(bestName);
-      } catch {}
+      } catch (e) {
+        if (__DEV__) console.error('[TonightCard] taste profile error:', e);
+      }
     })();
   }, [events]);
 

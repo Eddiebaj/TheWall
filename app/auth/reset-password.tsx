@@ -1,18 +1,29 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView,
   Platform, ActivityIndicator, Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
   const confirmRef = useRef<TextInput>(null);
 
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session || session.user.aud !== 'authenticated') {
+        router.replace('/auth' as any);
+      }
+    });
+  }, []);
+
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const canSubmit = password.length >= 6 && confirm.length >= 1 && !loading;
@@ -28,15 +39,25 @@ export default function ResetPasswordScreen() {
     if (error) {
       Alert.alert('Error', error.message);
     } else {
-      router.replace('/(tabs)/index' as any);
+      Alert.alert('Password updated', 'Your password has been changed successfully.');
+      router.replace('/auth' as any);
     }
   };
+
+  const insets = useSafeAreaInsets();
 
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: '#0a0a0a' }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <TouchableOpacity
+        onPress={() => router.back()}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        style={{ position: 'absolute', top: insets.top + 12, left: 16, zIndex: 10 }}
+      >
+        <Ionicons name="chevron-back" size={24} color="#FF3B5C" />
+      </TouchableOpacity>
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
         <Text style={{ fontSize: 24, fontWeight: '800', color: '#fff', marginBottom: 8 }}>
           Reset your password
@@ -81,30 +102,40 @@ export default function ResetPasswordScreen() {
         </View>
 
         {/* Confirm password */}
-        <TextInput
-          ref={confirmRef}
-          style={{
-            width: '100%',
-            backgroundColor: '#1a1a1a',
-            borderWidth: 1,
-            borderColor: '#2a2a2a',
-            borderRadius: 14,
-            paddingHorizontal: 16,
-            paddingVertical: 14,
-            fontSize: 16,
-            color: '#fff',
-            marginBottom: 24,
-          }}
-          placeholder="Confirm new password"
-          placeholderTextColor="#555"
-          value={confirm}
-          onChangeText={setConfirm}
-          secureTextEntry={!showPassword}
-          autoCapitalize="none"
-          autoCorrect={false}
-          returnKeyType="go"
-          onSubmitEditing={handleReset}
-        />
+        <View style={{ width: '100%', marginBottom: 24 }}>
+          <TextInput
+            ref={confirmRef}
+            style={{
+              width: '100%',
+              backgroundColor: '#1a1a1a',
+              borderWidth: 1,
+              borderColor: '#2a2a2a',
+              borderRadius: 14,
+              paddingHorizontal: 16,
+              paddingRight: 52,
+              paddingVertical: 14,
+              fontSize: 16,
+              color: '#fff',
+            }}
+            placeholder="Confirm new password"
+            placeholderTextColor="#555"
+            value={confirm}
+            onChangeText={setConfirm}
+            secureTextEntry={!showConfirmPassword}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="go"
+            onSubmitEditing={handleReset}
+          />
+          <TouchableOpacity
+            onPress={() => setShowConfirmPassword(v => !v)}
+            style={{ position: 'absolute', right: 16, top: 0, bottom: 0, justifyContent: 'center' }}
+          >
+            <Text style={{ fontSize: 13, color: '#666', fontWeight: '600' }}>
+              {showConfirmPassword ? 'Hide' : 'Show'}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity
           onPress={handleReset}

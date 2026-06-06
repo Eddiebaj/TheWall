@@ -23,6 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
 import { useAnalytics } from '../../lib/analytics';
 import { sendNotification } from '../../lib/notificationHelpers';
+import { SK_TOOLTIP_SHOWN } from '../../lib/storageKeys';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -226,6 +227,7 @@ function ActivityRow({
   const avatarUrl = item.profile?.avatar_url;
   const initial = username.charAt(0).toUpperCase();
   const [isGoing, setIsGoing] = React.useState(false);
+  const [rsvpTable, setRsvpTable] = React.useState<'event_rsvps' | 'venue_event_rsvps'>('event_rsvps');
   const rsvpRef = React.useRef(false);
 
   const showJoinBtn = item.type === 'rsvp' && !!item.event_id;
@@ -240,7 +242,7 @@ function ActivityRow({
       .eq('status', 'going')
       .maybeSingle()
       .then(({ data: d1 }) => {
-        if (d1) { setIsGoing(true); return; }
+        if (d1) { setIsGoing(true); setRsvpTable('event_rsvps'); return; }
         supabase
           .from('venue_event_rsvps')
           .select('id')
@@ -248,7 +250,18 @@ function ActivityRow({
           .eq('event_id', item.event_id)
           .eq('status', 'going')
           .maybeSingle()
-          .then(({ data: d2 }) => setIsGoing(!!d2));
+          .then(({ data: d2 }) => {
+            if (d2) { setIsGoing(true); setRsvpTable('venue_event_rsvps'); return; }
+            // No existing RSVP -- check which table this event belongs to
+            supabase
+              .from('venue_events')
+              .select('id')
+              .eq('id', item.event_id!)
+              .maybeSingle()
+              .then(({ data: ve }) => {
+                if (ve) setRsvpTable('venue_event_rsvps');
+              });
+          });
       });
   }, [userId, item.event_id]);
 
@@ -259,7 +272,7 @@ function ActivityRow({
     setIsGoing(nowGoing);
     if (nowGoing) {
       const { error } = await supabase
-        .from('event_rsvps')
+        .from(rsvpTable)
         .upsert({ user_id: userId, event_id: item.event_id, status: 'going' });
       if (error) { setIsGoing(false); rsvpRef.current = false; return; }
       if (item.user_id && item.user_id !== userId) {
@@ -274,7 +287,7 @@ function ActivityRow({
       }
     } else {
       const { error } = await supabase
-        .from('event_rsvps')
+        .from(rsvpTable)
         .delete()
         .eq('user_id', userId)
         .eq('event_id', item.event_id);
@@ -374,20 +387,45 @@ function TabToggle({
   active,
   onSelect,
   insetTop,
+  onSearch,
+  onBell,
+  unreadNotifs,
 }: {
   active: 'foryou' | 'activity';
   onSelect: (t: 'foryou' | 'activity') => void;
   insetTop: number;
+  onSearch: () => void;
+  onBell: () => void;
+  unreadNotifs: number;
 }) {
   return (
-    <View style={[styles.tabBar, { top: insetTop + 12 }]}>
-      <TouchableOpacity onPress={() => onSelect('foryou')} style={styles.tabBtn}>
-        <Text style={[styles.tabText, active === 'foryou' && styles.tabTextActive]}>For You</Text>
-        {active === 'foryou' && <View style={styles.tabUnderline} />}
+    <View style={[styles.tabBar, { top: insetTop + 12, paddingHorizontal: 12, justifyContent: 'space-between' }]}>
+      <TouchableOpacity onPress={onSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Ionicons name="search-outline" size={22} color="rgba(255,255,255,0.7)" />
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => onSelect('activity')} style={styles.tabBtn}>
-        <Text style={[styles.tabText, active === 'activity' && styles.tabTextActive]}>Activity</Text>
-        {active === 'activity' && <View style={styles.tabUnderline} />}
+      <View style={{ flexDirection: 'row', gap: 32 }}>
+        <TouchableOpacity onPress={() => onSelect('foryou')} style={styles.tabBtn}>
+          <Text style={[styles.tabText, active === 'foryou' && styles.tabTextActive]}>For You</Text>
+          {active === 'foryou' && <View style={styles.tabUnderline} />}
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => onSelect('activity')} style={styles.tabBtn}>
+          <Text style={[styles.tabText, active === 'activity' && styles.tabTextActive]}>Activity</Text>
+          {active === 'activity' && <View style={styles.tabUnderline} />}
+        </TouchableOpacity>
+      </View>
+      <TouchableOpacity onPress={onBell} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ position: 'relative' }}>
+        <Ionicons name="notifications-outline" size={22} color="rgba(255,255,255,0.7)" />
+        {unreadNotifs > 0 && (
+          <View style={{
+            position: 'absolute', top: -4, right: -6,
+            backgroundColor: '#FF3B5C', borderRadius: 8,
+            minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
+          }}>
+            <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>
+              {unreadNotifs > 99 ? '99+' : unreadNotifs}
+            </Text>
+          </View>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -407,6 +445,7 @@ export default function FeedScreen() {
   const [tooltipStep, setTooltipStep] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [unreadNotifs, setUnreadNotifs] = useState(0);
   const insets = useSafeAreaInsets();
   const { user, profile } = useAuth();
   const router = useRouter();
@@ -417,8 +456,18 @@ export default function FeedScreen() {
   }, []);
 
   useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .is('read_at', null)
+      .then(({ count }) => setUnreadNotifs(count ?? 0));
+  }, [user]);
+
+  useEffect(() => {
     if (profile) {
-      AsyncStorage.getItem('affiche_tooltip_shown').then(val => {
+      AsyncStorage.getItem(SK_TOOLTIP_SHOWN).then(val => {
         if (!val) setShowTooltip(true);
       });
     }
@@ -1200,7 +1249,14 @@ export default function FeedScreen() {
           })()
       }
 
-      <TabToggle active={activeTab} onSelect={setActiveTab} insetTop={insets.top} />
+      <TabToggle
+        active={activeTab}
+        onSelect={setActiveTab}
+        insetTop={insets.top}
+        onSearch={() => router.push('/(tabs)/search' as any)}
+        onBell={() => router.push('/notifications' as any)}
+        unreadNotifs={unreadNotifs}
+      />
 
       <Modal visible={showTooltip} transparent animationType="fade">
         <TouchableOpacity
@@ -1211,7 +1267,7 @@ export default function FeedScreen() {
               setTooltipStep(s => s + 1);
             } else {
               setShowTooltip(false);
-              AsyncStorage.setItem('affiche_tooltip_shown', 'true');
+              AsyncStorage.setItem(SK_TOOLTIP_SHOWN, 'true');
             }
           }}
         >
@@ -1251,8 +1307,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 32,
+    alignItems: 'center',
     zIndex: 10,
   },
   tabBtn: { alignItems: 'center', paddingVertical: 4 },

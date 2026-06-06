@@ -2,10 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
-import { SK_TRIP_HISTORY } from '../lib/storageKeys';
 import { useIsPremium } from '../lib/premium';
 import { PREMIUM_ENABLED } from '../lib/flags';
 import PaywallSheet from '../components/PaywallSheet';
@@ -53,13 +51,7 @@ export default function InsightsScreen() {
   const isPremium = useIsPremium();
   const [paywallVisible, setPaywallVisible] = useState(false);
 
-  const [trips, setTrips] = useState<Trip[]>([]);
-
-  useEffect(() => {
-    AsyncStorage.getItem(SK_TRIP_HISTORY).then(raw => {
-      if (raw) { try { setTrips(JSON.parse(raw)); } catch {} }
-    }).catch(() => {});
-  }, []);
+  const [trips] = useState<Trip[]>([]);
 
   const now = new Date();
   const thisWeekStart = startOfWeek(now);

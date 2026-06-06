@@ -10,9 +10,8 @@ interface Profile {
   avatar_url: string | null;
   campus: string | null;
   interests: string[] | null;
+  is_admin?: boolean;
 }
-
-const ADMIN_IDS = ['70682d22-e7c9-4a01-804c-867b647f0538']; // Eddie
 
 interface AuthContextType {
   session: Session | null;
@@ -36,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      console.log('[AuthContext] session on load:', session?.user?.id ?? 'none');
+      if (__DEV__) console.log('[AuthContext] session on load:', session?.user?.id ?? 'none');
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) await fetchProfile(session.user.id);
@@ -97,7 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, loading, isAdmin: ADMIN_IDS.includes(user?.id || ''), isPremium: ADMIN_IDS.includes(user?.id || '') || (profile as any)?.membership === 'premium', signInWithEmail, signOut, updateProfile }}>
+    <AuthContext.Provider value={{ session, user, profile, loading, isAdmin: profile?.is_admin === true, isPremium: profile?.is_admin === true || (profile as any)?.membership === 'premium', signInWithEmail, signOut, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );

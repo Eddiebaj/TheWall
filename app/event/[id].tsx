@@ -24,6 +24,41 @@ import { useApp } from '../../context/AppContext';
 import { useAnalytics } from '../../lib/analytics';
 import { sendNotification } from '../../lib/notificationHelpers';
 import { hapticLight } from '../../lib/haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+let Notifications: typeof import('expo-notifications') | null = null;
+try { Notifications = require('expo-notifications'); } catch {}
+
+async function scheduleEventReminder(eventId: string, title: string, venueName: string, eventDate: string | null, startTime: string | null) {
+  if (!Notifications || !eventDate || !startTime) return;
+  try {
+    const [h, m] = startTime.split(':').map(Number);
+    const [year, month, day] = eventDate.split('-').map(Number);
+    const eventStart = new Date(year, month - 1, day, h, m, 0);
+    const triggerTime = new Date(eventStart.getTime() - 60 * 60 * 1000);
+    if (triggerTime.getTime() <= Date.now()) return;
+    const identifier = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "Tonight's the night",
+        body: `${title} starts in 1 hour at ${venueName}`,
+        data: { eventId },
+      },
+      trigger: { type: 'date' as any, date: triggerTime },
+    });
+    await AsyncStorage.setItem(`notif_reminder_${eventId}`, identifier);
+  } catch {}
+}
+
+async function cancelEventReminder(eventId: string) {
+  if (!Notifications) return;
+  try {
+    const identifier = await AsyncStorage.getItem(`notif_reminder_${eventId}`);
+    if (identifier) {
+      await Notifications.cancelScheduledNotificationAsync(identifier);
+      await AsyncStorage.removeItem(`notif_reminder_${eventId}`);
+    }
+  } catch {}
+}
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 const POSTER_HEIGHT = 300;
@@ -114,6 +149,7 @@ export default function EventDetailScreen() {
   const [friendIds, setFriendIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [isSaved, setIsSaved] = useState(false);
+  const [rsvpTableName, setRsvpTableName] = useState<'event_rsvps' | 'venue_event_rsvps'>('event_rsvps');
 
   // Plan status
   const [planStatus, setPlanStatus] = useState<{ inCount: number; totalInvited: number } | null>(null);
@@ -214,6 +250,7 @@ export default function EventDetailScreen() {
     }
 
     const rsvpTable = isVenueEvent ? 'venue_event_rsvps' : 'event_rsvps';
+    setRsvpTableName(rsvpTable as 'event_rsvps' | 'venue_event_rsvps');
     const eventIdField = 'event_id';
 
     const { count: goingCount } = await supabase
@@ -304,8 +341,9 @@ export default function EventDetailScreen() {
     if (isActive) {
       if (status === 'going') {
         setEvent(e => e ? { ...e, isGoing: false, goingCount: Math.max(0, e.goingCount - 1) } : e);
-        const { error } = await supabase.from('event_rsvps').delete().eq('event_id', event.id).eq('user_id', user.id);
+        const { error } = await supabase.from(rsvpTableName).delete().eq('event_id', event.id).eq('user_id', user.id);
         if (error) setEvent(e => e ? { ...e, isGoing: true, goingCount: e.goingCount + 1 } : e);
+        else cancelEventReminder(event.id);
       } else {
         setEvent(e => e ? { ...e, isInterested: false } : e);
         const { error } = await supabase.from('event_interests').delete().eq('event_id', event.id).eq('user_id', user.id);
@@ -314,10 +352,17 @@ export default function EventDetailScreen() {
     } else {
       if (status === 'going') {
         setEvent(e => e ? { ...e, isGoing: true, goingCount: e.goingCount + (e.isGoing ? 0 : 1) } : e);
-        const { error } = await supabase.from('event_rsvps').upsert({ event_id: event.id, user_id: user.id, status: 'going' }, { onConflict: 'event_id,user_id' });
+        const { error } = await supabase.from(rsvpTableName).upsert({ event_id: event.id, user_id: user.id, status: 'going' }, { onConflict: 'event_id,user_id' });
         if (error) {
           setEvent(e => e ? { ...e, isGoing: false, goingCount: Math.max(0, e.goingCount - 1) } : e);
         } else {
+          scheduleEventReminder(
+            event.id,
+            event.title,
+            event.venue?.name ?? event.venue_name ?? '',
+            event.event_date,
+            event.start_time,
+          );
           // Notify friends that user is going
           supabase
             .from('friendships')

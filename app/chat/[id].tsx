@@ -16,7 +16,7 @@ import { sendNotification } from '../../lib/notificationHelpers';
 const lastMessageNotifiedAt: Map<string, number> = new Map();
 
 function getMidpoint(locs: { lat: number, lng: number }[]) {
-  if (locs.length === 0) return { lat: 45.4215, lng: -75.6972 };
+  if (locs.length === 0) return { lat: 43.6532, lng: -79.3832 };
   const lat = locs.reduce((s, l) => s + l.lat, 0) / locs.length;
   const lng = locs.reduce((s, l) => s + l.lng, 0) / locs.length;
   return { lat, lng };
@@ -86,21 +86,21 @@ function EventShareCard({ item, user, profile, colours }: { item: any; user: any
   };
 
   useEffect(() => {
-    if (__DEV__) console.log('[RSVP] mount, meta.name:', meta?.name);
-    if (!meta?.name) return;
-    supabase
-      .from('hangouts')
-      .select('id')
-      .eq('event_name', meta.name)
-      .limit(1)
-      .single()
-      .then(({ data, error }) => {
-        if (__DEV__) console.log('[RSVP] hangout lookup:', data?.id, 'error:', error?.message);
-        if (data?.id) {
-          setHangoutId(data.id);
-          loadRsvps(data.id);
-        }
-      });
+    if (__DEV__) console.log('[RSVP] mount, meta.event_id:', meta?.event_id, 'meta.name:', meta?.name);
+    const eventId = meta?.event_id;
+    const eventName = meta?.name || meta?.title;
+    if (!eventId && !eventName) return;
+    const query = supabase.from('hangouts').select('id');
+    const resolved = eventId
+      ? query.eq('event_id', eventId).limit(1).single()
+      : query.eq('event_name', eventName).limit(1).single();
+    resolved.then(({ data, error }) => {
+      if (__DEV__) console.log('[RSVP] hangout lookup:', data?.id, 'error:', error?.message);
+      if (data?.id) {
+        setHangoutId(data.id);
+        loadRsvps(data.id);
+      }
+    });
   }, []);
 
   const handleRsvp = async (status: string) => {
@@ -109,9 +109,13 @@ function EventShareCard({ item, user, profile, colours }: { item: any; user: any
 
     let hid = hangoutId;
     if (!hid) {
+      const eventName = meta.name || meta.title;
+      const venueName = meta.venue || meta.venue_name || eventName;
+      const row: any = { created_by: user.id, event_name: eventName, venue_name: venueName };
+      if (meta.event_id) row.event_id = meta.event_id;
       const { data: newHangout } = await supabase
         .from('hangouts')
-        .insert({ created_by: user.id, event_name: meta.name, venue_name: meta.venue || meta.name })
+        .insert(row)
         .select('id')
         .single();
       if (newHangout) { hid = newHangout.id; setHangoutId(hid); }
@@ -124,34 +128,37 @@ function EventShareCard({ item, user, profile, colours }: { item: any; user: any
     if (__DEV__) console.log('[RSVP] upsert error:', rsvpError?.message);
     loadRsvps(hid);
 
-    // Calculate and store ETA
-    try {
-      const Location = await import('expo-location');
-      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const { lat, lng } = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    // ETA calculation disabled in production (transit backend is region-specific)
+    if (__DEV__) {
+      try {
+        const Location = await import('expo-location');
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const { lat, lng } = { lat: pos.coords.latitude, lng: pos.coords.longitude };
 
-      const geocodeResp = await fetch(`https://routeo-backend.vercel.app/api/places?action=geocode&input=${encodeURIComponent(meta.venue || meta.name)}`);
-      const geocodeData = await geocodeResp.json();
-      const venueLat = geocodeData?.lat;
-      const venueLng = geocodeData?.lng;
+        const venueLabel = meta.venue || meta.venue_name || meta.name || meta.title || '';
+        const geocodeResp = await fetch(`https://routeo-backend.vercel.app/api/places?action=geocode&input=${encodeURIComponent(venueLabel)}`);
+        const geocodeData = await geocodeResp.json();
+        const venueLat = geocodeData?.lat;
+        const venueLng = geocodeData?.lng;
 
-      if (venueLat && venueLng) {
-        const now = new Date();
-        const timeStr = now.toTimeString().slice(0, 5);
-        const dateStr = now.toISOString().slice(0, 10);
-        const planResp = await fetch(`https://routeo-backend.vercel.app/api/plan?fromLat=${lat}&fromLng=${lng}&fromLabel=My+Location&toLat=${venueLat}&toLng=${venueLng}&toLabel=${encodeURIComponent(meta.venue || meta.name)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=false&mode=transit`);
-        const planData = await planResp.json();
-        const firstItinerary = planData?.plan?.itineraries?.[0];
-        if (firstItinerary) {
-          const etaMinutes = Math.round(firstItinerary.duration / 60);
-          await supabase.from('hangout_rsvps')
-            .update({ eta_minutes: etaMinutes })
-            .eq('hangout_id', hid)
-            .eq('user_id', user.id);
+        if (venueLat && venueLng) {
+          const now = new Date();
+          const timeStr = now.toTimeString().slice(0, 5);
+          const dateStr = now.toISOString().slice(0, 10);
+          const planResp = await fetch(`https://routeo-backend.vercel.app/api/plan?fromLat=${lat}&fromLng=${lng}&fromLabel=My+Location&toLat=${venueLat}&toLng=${venueLng}&toLabel=${encodeURIComponent(venueLabel)}&time=${encodeURIComponent(timeStr)}&date=${encodeURIComponent(dateStr)}&arriveBy=false&mode=transit`);
+          const planData = await planResp.json();
+          const firstItinerary = planData?.plan?.itineraries?.[0];
+          if (firstItinerary) {
+            const etaMinutes = Math.round(firstItinerary.duration / 60);
+            await supabase.from('hangout_rsvps')
+              .update({ eta_minutes: etaMinutes })
+              .eq('hangout_id', hid)
+              .eq('user_id', user.id);
+          }
         }
+      } catch (e) {
+        // ETA calculation is best-effort
       }
-    } catch (e) {
-      // ETA calculation is best-effort, don't block the RSVP
     }
 
     // Notify group members
@@ -162,7 +169,7 @@ function EventShareCard({ item, user, profile, colours }: { item: any; user: any
           hangout_id: hid,
           user_id: user.id,
           status,
-          event_name: meta.name,
+          event_name: meta.name || meta.title,
         }
       }
     });
@@ -173,8 +180,8 @@ function EventShareCard({ item, user, profile, colours }: { item: any; user: any
       {!isMe && <Text style={{ fontSize: 11, color: colours.muted, marginBottom: 4 }}>{item.sender?.display_name || item.sender?.username}</Text>}
       <View style={{ width: 260, borderRadius: 16, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.accent + '40', overflow: 'hidden' }}>
         <View style={{ padding: 12 }}>
-          <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }} numberOfLines={2}>{meta.name}</Text>
-          <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }}>{meta.venue}</Text>
+          <Text style={{ fontSize: 13, fontWeight: '800', color: colours.text }} numberOfLines={2}>{meta.name || meta.title}</Text>
+          <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2 }}>{meta.venue || meta.venue_name}</Text>
           <View style={{ flexDirection: 'row', gap: 6, marginTop: 10 }}>
             {[
               { label: "I'm in", value: 'going', activeColor: '#00A78D' },
@@ -246,10 +253,10 @@ function EventShareCard({ item, user, profile, colours }: { item: any; user: any
               )}
             </View>
           )}
-        {meta.venue && (
+        {(meta.venue || meta.venue_name) && (
           <TouchableOpacity
             onPress={() => {
-              const encoded = encodeURIComponent(meta.venue);
+              const encoded = encodeURIComponent(meta.venue || meta.venue_name);
               const { Linking } = require('react-native');
               Linking.openURL(`maps://?q=${encoded}`).catch(() =>
                 Linking.openURL(`https://maps.apple.com/?q=${encoded}`)
@@ -285,6 +292,8 @@ export default function ChatScreen() {
   const [reactionTarget, setReactionTarget] = useState<any>(null);
   const [replyTo, setReplyTo] = useState<{id: string, content: string, senderName: string} | null>(null);
   const [lastReadBy, setLastReadBy] = useState<string[]>([]);
+  const [renameModalVisible, setRenameModalVisible] = useState(false);
+  const [renameText, setRenameText] = useState('');
 
   const loadMembers = async () => {
     const { data } = await supabase
@@ -368,8 +377,15 @@ export default function ChatScreen() {
     setMessages(prev => prev.filter(m => m.id !== msgId));
   };
 
-  const reportMessage = async (_msgId: string) => {
-    Alert.alert('Reported', 'This message has been reported.');
+  const reportMessage = async (msgId: string) => {
+    if (!user) return;
+    await supabase.from('message_reports').insert({
+      reporter_id: user.id,
+      message_id: msgId,
+      conversation_id: String(id),
+      created_at: new Date().toISOString(),
+    });
+    Alert.alert('Report submitted', 'We will review it shortly.');
   };
 
   const handleLongPress = (item: any) => {
@@ -674,18 +690,8 @@ export default function ChatScreen() {
 
           <View style={{ gap: 10, marginTop: 20 }}>
             <TouchableOpacity onPress={() => {
-              Alert.prompt(
-                'Rename group',
-                'Enter a new name',
-                async (newName) => {
-                  if (!newName?.trim()) return;
-                  await supabase.from('conversations').update({ name: newName.trim() }).eq('id', id);
-                  setGroupName(newName.trim());
-                  setShowSettings(false);
-                },
-                'plain-text',
-                groupName
-              );
+              setRenameText(groupName);
+              setRenameModalVisible(true);
             }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
               <Ionicons name="pencil-outline" size={20} color={colours.accent} />
               <Text style={{ fontSize: 15, fontWeight: '600', color: colours.text }}>Rename group</Text>
@@ -718,6 +724,39 @@ export default function ChatScreen() {
             >
               <Ionicons name="exit-outline" size={20} color="#cc3b2a" />
               <Text style={{ fontSize: 15, fontWeight: '600', color: '#cc3b2a' }}>Leave group</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      <Modal visible={renameModalVisible} transparent animationType="fade" onRequestClose={() => setRenameModalVisible(false)}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} activeOpacity={1} onPress={() => setRenameModalVisible(false)} />
+        <View style={{ backgroundColor: '#0a0a0a', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40, borderTopWidth: 1, borderColor: colours.border }}>
+          <Text style={{ fontSize: 17, fontWeight: '700', color: colours.text, marginBottom: 16 }}>Rename group</Text>
+          <TextInput
+            style={{ backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colours.text, marginBottom: 16 }}
+            value={renameText}
+            onChangeText={setRenameText}
+            autoFocus
+            returnKeyType="done"
+          />
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TouchableOpacity
+              onPress={() => setRenameModalVisible(false)}
+              style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}
+            >
+              <Text style={{ fontSize: 15, fontWeight: '600', color: colours.muted }}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={async () => {
+                if (!renameText.trim()) return;
+                await supabase.from('conversations').update({ name: renameText.trim() }).eq('id', id);
+                setGroupName(renameText.trim());
+                setRenameModalVisible(false);
+                setShowSettings(false);
+              }}
+              style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: colours.accent, alignItems: 'center' }}
+            >
+              <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Save</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -769,7 +808,7 @@ export default function ChatScreen() {
               )}
               {reactionTarget.sender?.id !== user?.id && (
                 <TouchableOpacity
-                  onPress={() => { Alert.alert('Reported', 'Message reported.'); setReactionTarget(null); }}
+                  onPress={() => { reportMessage(reactionTarget.id); setReactionTarget(null); }}
                   style={{ padding: 16, borderRadius: 12, backgroundColor: colours.bg, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}
                 >
                   <Text style={{ fontSize: 15, fontWeight: '600', color: colours.muted }}>Report</Text>

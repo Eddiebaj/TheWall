@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView,
   Platform, ActivityIndicator, Alert, ScrollView
@@ -14,15 +14,56 @@ export default function ProfileSetupScreen() {
   const router = useRouter();
   const [username, setUsername] = useState(profile?.username || '');
   const [displayName, setDisplayName] = useState(profile?.display_name || '');
+  const [usernameError, setUsernameError] = useState('');
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const usernameDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleSave = async () => {
-    if (!username.trim()) {
-      Alert.alert('Username required', 'Please choose a username.');
-      return;
+  const validateUsername = (value: string): string => {
+    if (value.length < 3) return 'Username must be at least 3 characters.';
+    if (value.length > 20) return 'Username must be 20 characters or fewer.';
+    if (!/^[a-z0-9_]+$/.test(value)) return 'Only letters, numbers, and underscores allowed.';
+    return '';
+  };
+
+  const handleUsernameChange = (t: string) => {
+    const cleaned = t.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20);
+    setUsername(cleaned);
+    const err = cleaned.length > 0 ? validateUsername(cleaned) : '';
+    setUsernameError(err);
+    if (!err && cleaned.length >= 3) {
+      setUsernameStatus('checking');
+      if (usernameDebounceRef.current) clearTimeout(usernameDebounceRef.current);
+      usernameDebounceRef.current = setTimeout(async () => {
+        const timeoutId = setTimeout(() => {
+          setUsernameStatus('available');
+          setUsernameError('Could not verify username, proceed anyway');
+        }, 5000);
+        try {
+          const { data } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('username', cleaned)
+            .maybeSingle();
+          clearTimeout(timeoutId);
+          setUsernameStatus(data ? 'taken' : 'available');
+          if (data) setUsernameError('Username already taken.');
+          else setUsernameError('');
+        } catch {
+          clearTimeout(timeoutId);
+          setUsernameStatus('available');
+          setUsernameError('Could not verify username, proceed anyway');
+        }
+      }, 500);
+    } else {
+      setUsernameStatus('idle');
     }
-    if (username.includes(' ')) {
-      Alert.alert('Invalid username', 'Username cannot contain spaces.');
+  };
+
+  const handleSave = async () => {
+    const err = validateUsername(username);
+    if (err) {
+      setUsernameError(err);
       return;
     }
     setLoading(true);
@@ -78,14 +119,22 @@ export default function ProfileSetupScreen() {
           Username
         </Text>
         <TextInput
-          style={{ backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: '#eef2f7', marginBottom: 24 }}
+          style={{ backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: usernameError ? '#e55' : '#2a2a2a', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: '#eef2f7', marginBottom: usernameError ? 6 : 24 }}
           placeholder="e.g. eddie_ott"
           placeholderTextColor="#555"
           value={username}
-          onChangeText={t => setUsername(t.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+          onChangeText={handleUsernameChange}
           autoCapitalize="none"
           autoCorrect={false}
+          maxLength={20}
         />
+        {usernameError ? (
+          <Text style={{ fontSize: 13, color: '#e55', marginBottom: 18 }}>{usernameError}</Text>
+        ) : usernameStatus === 'checking' ? (
+          <Text style={{ fontSize: 13, color: '#999', marginBottom: 18 }}>Checking availability...</Text>
+        ) : usernameStatus === 'available' ? (
+          <Text style={{ fontSize: 13, color: '#4CAF50', marginBottom: 18 }}>Username available</Text>
+        ) : null}
 
         {/* Display name */}
         <Text style={{ fontSize: 13, fontWeight: '700', color: '#666', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
@@ -101,10 +150,10 @@ export default function ProfileSetupScreen() {
 
         <TouchableOpacity
           onPress={handleSave}
-          disabled={loading || !username.trim()}
-          style={{ backgroundColor: username.trim() ? '#fff' : '#2a2a2a', borderRadius: 14, paddingVertical: 16, alignItems: 'center' }}
+          disabled={loading || !username.trim() || !!usernameError || usernameStatus === 'checking' || usernameStatus === 'taken'}
+          style={{ backgroundColor: username.trim() && !usernameError && usernameStatus !== 'taken' ? '#fff' : '#2a2a2a', borderRadius: 14, paddingVertical: 16, alignItems: 'center' }}
         >
-          {loading ? <ActivityIndicator color={username.trim() ? '#000' : '#666'} /> : <Text style={{ fontSize: 16, fontWeight: '700', color: username.trim() ? '#000' : '#555' }}>Let's go</Text>}
+          {loading ? <ActivityIndicator color={username.trim() && !usernameError ? '#000' : '#666'} /> : <Text style={{ fontSize: 16, fontWeight: '700', color: username.trim() && !usernameError ? '#000' : '#555' }}>Let's go</Text>}
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>

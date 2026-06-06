@@ -344,6 +344,7 @@ export default function TonightSection({ events, eventsLoading, colours, t, getS
                         date: shareEvent.date,
                         url: shareEvent.url,
                         image: shareEvent.image,
+                        event_id: shareEvent.id,
                       },
                     });
                     await supabase.functions.invoke('notify-social', {
