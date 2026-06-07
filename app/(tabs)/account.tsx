@@ -498,9 +498,6 @@ export default function AccountScreen() {
   const [editUsernameError, setEditUsernameError] = useState('');
   const editUsernameDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [saving, setSaving] = useState(false);
-  const [editNewPassword, setEditNewPassword] = useState('');
-  const [editConfirmPassword, setEditConfirmPassword] = useState('');
-  const [editPasswordError, setEditPasswordError] = useState('');
 
   const [setupDisplayName, setSetupDisplayName] = useState('');
   const [setupUsername, setSetupUsername] = useState('');
@@ -512,7 +509,7 @@ export default function AccountScreen() {
   const needsProfileSetup = !!user && !profile?.username;
 
   useEffect(() => {
-    if (!setupUsername || setupUsername.length < 2) {
+    if (!setupUsername || setupUsername.length < 3) {
       setUsernameStatus('idle');
       return;
     }
@@ -533,7 +530,7 @@ export default function AccountScreen() {
       setEditUsernameStatus('idle');
       return;
     }
-    if (editUsername.length < 2) { setEditUsernameStatus('idle'); return; }
+    if (editUsername.length < 3) { setEditUsernameStatus('idle'); return; }
     setEditUsernameStatus('checking');
     if (editUsernameDebounceRef.current) clearTimeout(editUsernameDebounceRef.current);
     editUsernameDebounceRef.current = setTimeout(async () => {
@@ -549,6 +546,7 @@ export default function AccountScreen() {
   const handleSetupProfile = async () => {
     setSetupError('');
     if (!setupUsername.trim()) { setSetupError('Username is required.'); return; }
+    if (setupUsername.trim().length < 3) { setSetupError('Username must be at least 3 characters.'); return; }
     if (usernameStatus === 'taken') { setSetupError('That username is taken.'); return; }
     if (usernameStatus === 'checking') { setSetupError('Still checking username...'); return; }
     setSetupSaving(true);
@@ -681,9 +679,6 @@ export default function AccountScreen() {
     setEditUsername(profile?.username || '');
     setEditUsernameStatus('idle');
     setEditUsernameError('');
-    setEditNewPassword('');
-    setEditConfirmPassword('');
-    setEditPasswordError('');
     setShowEditProfile(true);
   };
 
@@ -736,9 +731,10 @@ export default function AccountScreen() {
               placeholder="yourhandle"
               placeholderTextColor="#666"
               value={setupUsername}
-              onChangeText={v => setSetupUsername(v.toLowerCase().replace(/[^a-z0-9_.]/g, ''))}
+              onChangeText={v => setSetupUsername(v.toLowerCase().replace(/[^a-z0-9_.]/g, '').slice(0, 20))}
               autoCapitalize="none"
               autoCorrect={false}
+              maxLength={20}
               returnKeyType="done"
               onSubmitEditing={handleSetupProfile}
             />
@@ -747,7 +743,7 @@ export default function AccountScreen() {
             {usernameStatus === 'taken' && <Text style={{ fontSize: 13, color: '#FF3B5C', fontWeight: '700' }}>taken</Text>}
           </View>
           <Text style={{ fontSize: 12, color: '#666', marginBottom: 24 }}>
-            Lowercase letters, numbers, underscores and dots only.
+            3–20 characters. Letters, numbers, underscores and dots only.
           </Text>
 
           {setupError ? (
@@ -758,9 +754,9 @@ export default function AccountScreen() {
 
           <TouchableOpacity
             onPress={handleSetupProfile}
-            disabled={setupSaving || !setupUsername.trim() || usernameStatus === 'taken' || usernameStatus === 'checking'}
+            disabled={setupSaving || setupUsername.trim().length < 3 || usernameStatus === 'taken' || usernameStatus === 'checking'}
             style={{
-              backgroundColor: (setupUsername.trim() && usernameStatus === 'available') ? '#FF3B5C' : '#222',
+              backgroundColor: (setupUsername.trim().length >= 3 && usernameStatus === 'available') ? '#FF3B5C' : '#222',
               borderRadius: 14, paddingVertical: 16, alignItems: 'center',
             }}
             activeOpacity={0.85}
@@ -934,13 +930,6 @@ export default function AccountScreen() {
 
         {/* Group 2: Account actions */}
         <SettingsGroup>
-          <SettingsRow
-            label="Edit Profile"
-            icon="person"
-            iconBg="#2563EB"
-            onPress={openEditProfile}
-          />
-          <RowDivider />
           <SettingsRow
             label="Business Portal"
             icon="storefront"
@@ -1252,11 +1241,12 @@ export default function AccountScreen() {
                 <TextInput
                   style={{ flex: 1, paddingVertical: 12, fontSize: 15, color: '#fff' }}
                   value={editUsername}
-                  onChangeText={v => { setEditUsernameError(''); setEditUsername(v.toLowerCase().replace(/[^a-z0-9_.]/g, '')); }}
+                  onChangeText={v => { setEditUsernameError(''); setEditUsername(v.toLowerCase().replace(/[^a-z0-9_.]/g, '').slice(0, 20)); }}
                   placeholder="username"
                   placeholderTextColor="#666"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  maxLength={20}
                 />
                 {editUsernameStatus === 'checking' && <ActivityIndicator size="small" color="#888" />}
                 {editUsernameStatus === 'available' && editUsername !== profile?.username && (
@@ -1265,65 +1255,26 @@ export default function AccountScreen() {
                 {editUsernameStatus === 'taken' && <Text style={{ fontSize: 13, color: '#FF3B5C', fontWeight: '700' }}>taken</Text>}
               </View>
               {editUsernameError ? (
-                <Text style={{ fontSize: 12, color: '#FF3B5C', fontWeight: '600', marginBottom: 12 }}>{editUsernameError}</Text>
-              ) : (
-                <View style={{ marginBottom: 16 }} />
-              )}
-
-              <Text style={{ fontSize: 12, fontWeight: '600', color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>New Password</Text>
-              <TextInput
-                style={{ backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: '#fff', marginBottom: 10 }}
-                value={editNewPassword}
-                onChangeText={v => { setEditPasswordError(''); setEditNewPassword(v); }}
-                placeholder="Leave blank to keep current"
-                placeholderTextColor="#666"
-                secureTextEntry
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-
-              <Text style={{ fontSize: 12, fontWeight: '600', color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Confirm Password</Text>
-              <TextInput
-                style={{
-                  backgroundColor: '#1a1a1a', borderWidth: 1,
-                  borderColor: editPasswordError ? '#FF3B5C' : 'rgba(255,255,255,0.08)',
-                  borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: '#fff', marginBottom: 4,
-                }}
-                value={editConfirmPassword}
-                onChangeText={v => { setEditPasswordError(''); setEditConfirmPassword(v); }}
-                placeholder="Confirm new password"
-                placeholderTextColor="#666"
-                secureTextEntry
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              {editPasswordError ? (
-                <Text style={{ fontSize: 12, color: '#FF3B5C', fontWeight: '600', marginBottom: 12 }}>{editPasswordError}</Text>
+                <Text style={{ fontSize: 12, color: '#FF3B5C', fontWeight: '600', marginBottom: 20 }}>{editUsernameError}</Text>
               ) : (
                 <View style={{ marginBottom: 20 }} />
               )}
 
               <TouchableOpacity
                 onPress={async () => {
+                  if (!editUsername.trim()) { setEditUsernameError('Username is required.'); return; }
+                  if (editUsername.trim().length < 3) { setEditUsernameError('Username must be at least 3 characters.'); return; }
                   if (editUsernameStatus === 'taken') { setEditUsernameError('That username is already taken.'); return; }
                   if (editUsernameStatus === 'checking') { setEditUsernameError('Still checking username...'); return; }
-                  if (editNewPassword || editConfirmPassword) {
-                    if (editNewPassword !== editConfirmPassword) { setEditPasswordError("Passwords don't match"); return; }
-                  }
                   setSaving(true);
-                  await updateProfile({ display_name: editName.trim(), username: editUsername.trim() });
-                  if (editNewPassword) {
-                    await supabase.auth.updateUser({ password: editNewPassword });
-                  }
+                  await updateProfile({ display_name: editName.trim() || null, username: editUsername.trim() });
                   setSaving(false);
-                  setEditNewPassword('');
-                  setEditConfirmPassword('');
                   setShowEditProfile(false);
                 }}
-                disabled={saving || editUsernameStatus === 'taken' || editUsernameStatus === 'checking'}
+                disabled={saving || !editUsername.trim() || editUsername.trim().length < 3 || editUsernameStatus === 'taken' || editUsernameStatus === 'checking'}
                 style={{
                   backgroundColor: '#FF3B5C', borderRadius: 14, paddingVertical: 16, alignItems: 'center',
-                  opacity: (editUsernameStatus === 'taken' || editUsernameStatus === 'checking') ? 0.6 : 1,
+                  opacity: (saving || !editUsername.trim() || editUsername.trim().length < 3 || editUsernameStatus === 'taken' || editUsernameStatus === 'checking') ? 0.6 : 1,
                 }}
               >
                 {saving ? <ActivityIndicator color="white" /> : <Text style={{ fontSize: 16, fontWeight: '700', color: 'white' }}>Save</Text>}

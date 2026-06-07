@@ -25,13 +25,14 @@ export default function AuthScreen() {
   // Email — shared
   const [email, setEmail] = useState('');
 
-  // Email — magic link
+  // Email — magic link (primary)
   const [emailLoading, setEmailLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [emailOtp, setEmailOtp] = useState('');
   const [emailVerifying, setEmailVerifying] = useState(false);
 
-  // Email — password
+  // Email — password (secondary, toggled on)
+  const [usePassword, setUsePassword] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('signin');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -407,12 +408,13 @@ export default function AuthScreen() {
 
         {tab === 'email' ? (
           <>
-            {/* Screen heading */}
             <Text style={{ fontSize: 24, fontWeight: '800', color: '#fff', marginBottom: 6, alignSelf: 'flex-start' }}>
-              {authMode === 'signin' ? 'Sign in' : 'Create account'}
+              {usePassword ? (authMode === 'signin' ? 'Sign in' : 'Create account') : 'Sign in or sign up'}
             </Text>
             <Text style={{ fontSize: 15, color: '#666', marginBottom: 24, alignSelf: 'flex-start' }}>
-              {authMode === 'signin' ? 'Welcome back.' : 'Join your friends on affiche.'}
+              {usePassword
+                ? (authMode === 'signin' ? 'Welcome back.' : 'Join your friends on affiche.')
+                : 'Enter your email and we\'ll send you a code.'}
             </Text>
 
             {/* Email */}
@@ -425,157 +427,143 @@ export default function AuthScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
-              returnKeyType="next"
-              onSubmitEditing={() => passwordRef.current?.focus()}
+              returnKeyType={usePassword ? 'next' : 'go'}
+              onSubmitEditing={() => usePassword ? passwordRef.current?.focus() : handleSendLink()}
             />
 
-            {/* Password */}
-            <View style={{ width: '100%', marginBottom: authMode === 'signin' ? 8 : 12 }}>
-              <TextInput
-                ref={passwordRef}
-                style={{ ...inputStyle, paddingRight: 52 }}
-                placeholder="Password"
-                placeholderTextColor="#555"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-                autoCorrect={false}
-                returnKeyType={authMode === 'signup' ? 'next' : 'go'}
-                onSubmitEditing={() => {
-                  if (authMode === 'signup') {
-                    confirmPasswordRef.current?.focus();
-                  } else {
-                    handlePasswordSignIn();
-                  }
-                }}
-              />
-              <TouchableOpacity
-                onPress={() => setShowPassword(v => !v)}
-                style={{ position: 'absolute', right: 16, top: 0, bottom: 0, justifyContent: 'center' }}
-              >
-                <Text style={{ fontSize: 13, color: '#666', fontWeight: '600' }}>
-                  {showPassword ? 'Hide' : 'Show'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+            {/* Password fields — only when usePassword=true */}
+            {usePassword && (
+              <>
+                <View style={{ width: '100%', marginBottom: authMode === 'signin' ? 8 : 12 }}>
+                  <TextInput
+                    ref={passwordRef}
+                    style={{ ...inputStyle, paddingRight: 52 }}
+                    placeholder="Password"
+                    placeholderTextColor="#555"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType={authMode === 'signup' ? 'next' : 'go'}
+                    onSubmitEditing={() => {
+                      if (authMode === 'signup') confirmPasswordRef.current?.focus();
+                      else handlePasswordSignIn();
+                    }}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(v => !v)}
+                    style={{ position: 'absolute', right: 16, top: 0, bottom: 0, justifyContent: 'center' }}
+                  >
+                    <Text style={{ fontSize: 13, color: '#666', fontWeight: '600' }}>
+                      {showPassword ? 'Hide' : 'Show'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
 
-            {/* Forgot password (sign-in only) */}
-            {authMode === 'signin' && (
-              resetSent ? (
-                <Text style={{ fontSize: 13, color: '#4ade80', alignSelf: 'flex-end', marginBottom: 20 }}>
-                  Reset link sent — check your email
-                </Text>
-              ) : (
-                <TouchableOpacity onPress={handleForgotPassword} disabled={forgotLoading} style={{ alignSelf: 'flex-end', marginBottom: 20, opacity: forgotLoading ? 0.5 : 1 }}>
-                  <Text style={{ fontSize: 13, color: '#888', fontWeight: '600' }}>{forgotLoading ? 'Sending…' : 'Forgot password?'}</Text>
-                </TouchableOpacity>
-              )
+                {authMode === 'signin' && (
+                  resetSent ? (
+                    <Text style={{ fontSize: 13, color: '#4ade80', alignSelf: 'flex-end', marginBottom: 20 }}>
+                      Reset link sent — check your email
+                    </Text>
+                  ) : (
+                    <TouchableOpacity onPress={handleForgotPassword} disabled={forgotLoading} style={{ alignSelf: 'flex-end', marginBottom: 20, opacity: forgotLoading ? 0.5 : 1 }}>
+                      <Text style={{ fontSize: 13, color: '#888', fontWeight: '600' }}>{forgotLoading ? 'Sending…' : 'Forgot password?'}</Text>
+                    </TouchableOpacity>
+                  )
+                )}
+
+                {authMode === 'signup' && (
+                  <View style={{ width: '100%', marginBottom: 20 }}>
+                    <TextInput
+                      ref={confirmPasswordRef}
+                      style={{ ...inputStyle, paddingRight: 52 }}
+                      placeholder="Confirm password"
+                      placeholderTextColor="#555"
+                      value={confirmPassword}
+                      onChangeText={setConfirmPassword}
+                      secureTextEntry={!showConfirmPassword}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      returnKeyType="go"
+                      onSubmitEditing={handlePasswordSignUp}
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowConfirmPassword(v => !v)}
+                      style={{ position: 'absolute', right: 16, top: 0, bottom: 0, justifyContent: 'center' }}
+                    >
+                      <Text style={{ fontSize: 13, color: '#666', fontWeight: '600' }}>
+                        {showConfirmPassword ? 'Hide' : 'Show'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
             )}
 
-            {/* Confirm password (sign-up only) */}
-            {authMode === 'signup' && (
-              <View style={{ width: '100%', marginBottom: 20 }}>
-                <TextInput
-                  ref={confirmPasswordRef}
-                  style={{ ...inputStyle, paddingRight: 52 }}
-                  placeholder="Confirm password"
-                  placeholderTextColor="#555"
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry={!showConfirmPassword}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  returnKeyType="go"
-                  onSubmitEditing={handlePasswordSignUp}
-                />
+            {/* Primary CTA */}
+            {usePassword ? (
+              <>
                 <TouchableOpacity
-                  onPress={() => setShowConfirmPassword(v => !v)}
-                  style={{ position: 'absolute', right: 16, top: 0, bottom: 0, justifyContent: 'center' }}
+                  onPress={authMode === 'signin' ? handlePasswordSignIn : handlePasswordSignUp}
+                  disabled={passwordLoading || !passwordReady}
+                  style={{
+                    width: '100%', backgroundColor: '#fff', borderRadius: 14,
+                    paddingVertical: 17, alignItems: 'center', marginBottom: 16,
+                    opacity: passwordLoading || !passwordReady ? 0.5 : 1,
+                  }}
                 >
-                  <Text style={{ fontSize: 13, color: '#666', fontWeight: '600' }}>
-                    {showConfirmPassword ? 'Hide' : 'Show'}
+                  {passwordLoading ? (
+                    <ActivityIndicator color="#000" />
+                  ) : (
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: '#000' }}>
+                      {authMode === 'signin' ? 'Sign In' : 'Create Account'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 28 }}>
+                  <TouchableOpacity onPress={() => { setUsePassword(false); setPassword(''); setConfirmPassword(''); setResetSent(false); }}>
+                    <Text style={{ fontSize: 14, color: '#666' }}>Use email code instead</Text>
+                  </TouchableOpacity>
+                  {authMode === 'signin' ? (
+                    <TouchableOpacity onPress={() => { setAuthMode('signup'); setPassword(''); setConfirmPassword(''); setResetSent(false); }}>
+                      <Text style={{ fontSize: 14, color: '#fff', fontWeight: '700' }}>Create account</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity onPress={() => { setAuthMode('signin'); setPassword(''); setConfirmPassword(''); }}>
+                      <Text style={{ fontSize: 14, color: '#fff', fontWeight: '700' }}>Sign in</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity
+                  onPress={handleSendLink}
+                  disabled={emailLoading || !emailReady}
+                  style={{
+                    width: '100%', backgroundColor: '#fff', borderRadius: 14,
+                    paddingVertical: 17, alignItems: 'center', marginBottom: 16,
+                    opacity: emailLoading || !emailReady ? 0.5 : 1,
+                  }}
+                >
+                  {emailLoading ? (
+                    <ActivityIndicator color="#000" />
+                  ) : (
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: '#000' }}>Continue</Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => { setUsePassword(true); setAuthMode('signin'); }}
+                  style={{ marginBottom: 28 }}
+                >
+                  <Text style={{ fontSize: 14, color: '#666', textAlign: 'center' }}>
+                    Use password instead
                   </Text>
                 </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Primary action button */}
-            <TouchableOpacity
-              onPress={authMode === 'signin' ? handlePasswordSignIn : handlePasswordSignUp}
-              disabled={passwordLoading || !passwordReady}
-              style={{
-                width: '100%',
-                backgroundColor: '#fff',
-                borderRadius: 14,
-                paddingVertical: 17,
-                alignItems: 'center',
-                marginBottom: 16,
-                opacity: passwordLoading || !passwordReady ? 0.5 : 1,
-              }}
-            >
-              {passwordLoading ? (
-                <ActivityIndicator color="#000" />
-              ) : (
-                <Text style={{ fontSize: 16, fontWeight: '700', color: '#000' }}>
-                  {authMode === 'signin' ? 'Sign In' : 'Create Account'}
-                </Text>
-              )}
-            </TouchableOpacity>
-
-            {/* Magic link alternative */}
-            <TouchableOpacity
-              onPress={handleSendLink}
-              disabled={emailLoading || !emailReady}
-              style={{
-                width: '100%',
-                backgroundColor: 'transparent',
-                borderWidth: 1,
-                borderColor: '#2a2a2a',
-                borderRadius: 14,
-                paddingVertical: 15,
-                alignItems: 'center',
-                marginBottom: 28,
-                opacity: emailLoading || !emailReady ? 0.4 : 1,
-              }}
-            >
-              {emailLoading ? (
-                <ActivityIndicator color="#666" />
-              ) : (
-                <Text style={{ fontSize: 15, fontWeight: '600', color: '#aaa' }}>
-                  {authMode === 'signin' ? 'Sign in with magic link' : 'Sign up with magic link'}
-                </Text>
-              )}
-            </TouchableOpacity>
-
-            {/* Switch mode */}
-            {authMode === 'signin' ? (
-              <TouchableOpacity
-                onPress={() => {
-                  setAuthMode('signup');
-                  setPassword('');
-                  setConfirmPassword('');
-                  setResetSent(false);
-                }}
-              >
-                <Text style={{ fontSize: 15, color: '#666', textAlign: 'center' }}>
-                  Don't have an account?{'  '}
-                  <Text style={{ color: '#fff', fontWeight: '700' }}>Create account</Text>
-                </Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                onPress={() => {
-                  setAuthMode('signin');
-                  setPassword('');
-                  setConfirmPassword('');
-                }}
-              >
-                <Text style={{ fontSize: 15, color: '#666', textAlign: 'center' }}>
-                  Already have an account?{'  '}
-                  <Text style={{ color: '#fff', fontWeight: '700' }}>Sign in</Text>
-                </Text>
-              </TouchableOpacity>
+              </>
             )}
           </>
         ) : (
