@@ -75,6 +75,24 @@ export default function FriendsScreen() {
     loadFriendsData();
   }, [user]);
 
+  useEffect(() => {
+    if (!user) return;
+    const sub = supabase
+      .channel('pending-friend-requests')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'friendships',
+          filter: `addressee_id=eq.${user.id}`,
+        },
+        () => loadPendingRequests()
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(sub); };
+  }, [user]);
+
   const loadMyHangouts = async () => {
     try {
       if (!user) return;
@@ -293,7 +311,7 @@ export default function FriendsScreen() {
       'friend_accepted',
       "You're connected",
       `@${profile?.username} accepted your request`,
-      { type: 'friend_request' }
+      { type: 'friend_accepted' }
     );
     loadFriendsData();
   };

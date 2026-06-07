@@ -20,3 +20,17 @@ entrypoint = "./functions/campus-events/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/campus-events/*.html" ]
+
+[functions.friday-saturday-push]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/friday-saturday-push/index.ts"
+# Runs at midnight UTC (8pm EDT / 7pm EST) every day; function self-guards to Fri/Sat Toronto time.
+schedule = "0 0 * * *"
+
+[functions.happy-hour-push]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/happy-hour-push/index.ts"
+# Runs at 8pm UTC (4pm EDT / 3pm EST) Monday–Friday.
+schedule = "0 20 * * 1-5"
