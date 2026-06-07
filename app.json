@@ -97,12 +97,7 @@
       ],
       "@sentry/react-native",
       "expo-speech-recognition",
-      [
-        "@rnmapbox/maps",
-        {
-          "RNMapboxMapsDownloadToken": "sk.eyJ1IjoiZWRkaWViYWoiLCJhIjoiY21waGJpNm5yMGhiajJ0cTdranljcnJ5NSJ9.LUZD__xyKTknbQQLHVeH5g"
-        }
-      ],
+      "@rnmapbox/maps",
       "./plugins/withMapboxNetrc"
     ],
     "experiments": {

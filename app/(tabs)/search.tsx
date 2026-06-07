@@ -69,10 +69,15 @@ export default function SearchScreen() {
   const runSearch = async (q: string) => {
     const pattern = `%${q}%`;
 
-    const [eventsRes, venuesRes] = await Promise.all([
+    const [eventsRes, venueEventsRes, venuesRes] = await Promise.all([
       supabase
         .from('events')
         .select('id, title, date, venues(name)')
+        .ilike('title', pattern)
+        .limit(20),
+      supabase
+        .from('venue_events')
+        .select('id, title, event_date, venues(name)')
         .ilike('title', pattern)
         .limit(20),
       supabase
@@ -82,16 +87,19 @@ export default function SearchScreen() {
         .limit(20),
     ]);
 
-    if (eventsRes.data) {
-      setEvents(
-        eventsRes.data.map((e: any) => ({
-          id: e.id,
-          title: e.title,
-          venue_name: e.venues?.name || '',
-          event_date: e.date || null,
-        }))
-      );
-    }
+    const legacyEvents = (eventsRes.data ?? []).map((e: any) => ({
+      id: e.id,
+      title: e.title,
+      venue_name: e.venues?.name || '',
+      event_date: e.date || null,
+    }));
+    const venueEvents = (venueEventsRes.data ?? []).map((e: any) => ({
+      id: e.id,
+      title: e.title,
+      venue_name: e.venues?.name || '',
+      event_date: e.event_date || null,
+    }));
+    setEvents([...legacyEvents, ...venueEvents]);
 
     if (venuesRes.data) {
       setVenues(

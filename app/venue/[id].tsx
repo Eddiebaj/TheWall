@@ -89,6 +89,11 @@ export default function VenueScreen() {
   const [happyHours, setHappyHours] = useState<HappyHour[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Follow state
+  const [isFollowed, setIsFollowed] = useState(false);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [followLoading, setFollowLoading] = useState(false);
+
   // Check-in state
   const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [checkinId, setCheckinId] = useState<string | null>(null);
@@ -114,8 +119,55 @@ export default function VenueScreen() {
     if (id) {
       load();
       loadCheckins();
+      loadFollows();
     }
   }, [id, user]);
+
+  const loadFollows = async () => {
+    if (!id) return;
+    const { count } = await supabase
+      .from('venue_follows')
+      .select('*', { count: 'exact', head: true })
+      .eq('venue_id', id);
+    setFollowerCount(count || 0);
+
+    if (user) {
+      const { data } = await supabase
+        .from('venue_follows')
+        .select('id')
+        .eq('venue_id', id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      setIsFollowed(!!data);
+    }
+  };
+
+  const handleFollow = async () => {
+    if (!user) {
+      Alert.alert('Sign in required', 'Sign in to follow venues.');
+      return;
+    }
+    if (!id) return;
+
+    const optimisticFollowed = !isFollowed;
+    setIsFollowed(optimisticFollowed);
+    setFollowerCount(c => optimisticFollowed ? c + 1 : Math.max(0, c - 1));
+    setFollowLoading(true);
+
+    try {
+      if (optimisticFollowed) {
+        await supabase.from('venue_follows').insert({ user_id: user.id, venue_id: id });
+      } else {
+        await supabase.from('venue_follows').delete().eq('user_id', user.id).eq('venue_id', id);
+      }
+    } catch {
+      // Roll back on error
+      setIsFollowed(!optimisticFollowed);
+      setFollowerCount(c => optimisticFollowed ? Math.max(0, c - 1) : c + 1);
+    } finally {
+      setFollowLoading(false);
+    }
+  };
 
   const loadCheckins = async () => {
     if (!id) return;
@@ -353,7 +405,7 @@ export default function VenueScreen() {
             {venue.name}
           </Text>
 
-          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
             {venue.neighbourhood && (
               <View style={{
                 backgroundColor: 'rgba(255,59,92,0.15)',
@@ -368,6 +420,38 @@ export default function VenueScreen() {
                 </Text>
               </View>
             )}
+
+            {/* Follower count */}
+            <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontWeight: '500' }}>
+              {followerCount} {followerCount === 1 ? 'follower' : 'followers'}
+            </Text>
+
+            {/* Follow button */}
+            <TouchableOpacity
+              onPress={handleFollow}
+              disabled={followLoading}
+              activeOpacity={0.8}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 5,
+                paddingHorizontal: 14,
+                paddingVertical: 5,
+                borderRadius: 20,
+                backgroundColor: isFollowed ? 'rgba(255,255,255,0.08)' : '#FF3B5C',
+                borderWidth: isFollowed ? 1 : 0,
+                borderColor: 'rgba(255,255,255,0.15)',
+              }}
+            >
+              <Ionicons
+                name={isFollowed ? 'heart' : 'heart-outline'}
+                size={13}
+                color={isFollowed ? '#EC4899' : '#fff'}
+              />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: isFollowed ? '#EC4899' : '#fff' }}>
+                {isFollowed ? 'Following' : 'Follow'}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {venue.address && (

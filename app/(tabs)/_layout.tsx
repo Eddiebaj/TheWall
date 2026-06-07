@@ -160,12 +160,7 @@ function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen name="search" options={{
-        tabBarLabel: 'Search',
-        tabBarIcon: ({ focused, color }) => (
-          <Ionicons name={focused ? 'search' : 'search-outline'} size={22} color={color} />
-        ),
-      }} />
+      <Tabs.Screen name="search" options={{ href: null }} />
       <Tabs.Screen name="account" options={{ href: null }} />
       <Tabs.Screen name="profile" options={{ href: null }} />
     </Tabs>

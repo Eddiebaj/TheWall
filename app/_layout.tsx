@@ -163,17 +163,8 @@ function RootNav() {
   useEffect(() => {
     if (__DEV__) console.log('[RootNav] useEffect start - creating storagePromise and animationPromise');
 
-    // Promise-based coordination: wait for both AsyncStorage check and animation
-    const storagePromise = AsyncStorage.getItem(SK_ONBOARDED)
-      .then(val => {
-        const dest = (val ? 'tabs' : 'onboarding') as 'onboarding' | 'tabs';
-        if (__DEV__) console.log('[RootNav] storagePromise resolved, SK_ONBOARDED=', val, '=> destination=', dest);
-        return dest;
-      })
-      .catch(e => {
-        if (__DEV__) console.log('[RootNav] storagePromise caught error:', e, '- defaulting to onboarding');
-        return 'onboarding' as const;
-      });
+    // After splash always route to auth; onboarding is shown post-auth based on SK_ONBOARDED
+    const storagePromise = Promise.resolve('tabs' as const);
 
     const animationPromise = new Promise<void>(resolve => {
       if (__DEV__) console.log('[RootNav] animationPromise created, setting animationResolveRef.current');
@@ -201,21 +192,17 @@ function RootNav() {
     }
   };
 
-  // Reset navigation gate on sign-out so re-login navigates correctly
+  // Reset navigation gate whenever auth state settles (sign-in or sign-out)
+  // so the routing effect re-evaluates with the new session state.
   useEffect(() => {
-    if (!session && !authLoading) {
+    if (!authLoading) {
       navigationDoneRef.current = false;
     }
   }, [session, authLoading]);
 
   useEffect(() => {
     if (__DEV__) console.log('[RootNav] showSplash/destination changed - showSplash=', showSplash, 'destination=', destination, 'authLoading=', authLoading);
-    if (!showSplash && destination === 'onboarding') {
-      if (__DEV__) console.log('[RootNav] Routing to /onboarding');
-      setTimeout(() => {
-        router.replace('/onboarding');
-      }, 0);
-    } else if (!showSplash && destination === 'tabs' && !authLoading && !navigationDoneRef.current) {
+    if (!showSplash && destination === 'tabs' && !authLoading && !navigationDoneRef.current) {
       if (!session) {
         if (__DEV__) console.log('[RootNav] No session - routing to /auth');
         navigationDoneRef.current = true;
@@ -224,6 +211,14 @@ function RootNav() {
         }, 0);
       } else {
         (async () => {
+          // Show onboarding slides if user hasn't seen them yet
+          const onboarded = await AsyncStorage.getItem(SK_ONBOARDED).catch(() => null);
+          if (!onboarded) {
+            if (__DEV__) console.log('[RootNav] SK_ONBOARDED not set - routing to /onboarding');
+            navigationDoneRef.current = true;
+            router.replace('/onboarding');
+            return;
+          }
           // Check new completion key first; fall back to legacy SK_PROFILE_SETUP_DONE so
           // existing users who onboarded before SK_ONBOARDING_COMPLETE existed go straight to feed.
           const [[, onboardingComplete], [, setupDone]] = await AsyncStorage.multiGet([

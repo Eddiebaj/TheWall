@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Animated, DimensionValue, View, ViewStyle } from 'react-native';
+import { Animated, Dimensions, DimensionValue, View, ViewStyle } from 'react-native';
 
 type ShimmerProps = {
   width: DimensionValue;
@@ -162,6 +162,123 @@ export function FeedCardSkeleton({ colours }: SkeletonCardProps) {
           <ShimmerBlock width="75%" height={13} baseColor={base} />
           <ShimmerBlock width="45%" height={10} baseColor={base} />
         </View>
+      </View>
+    </View>
+  );
+}
+
+// ─── Nightlife app (dark-only) skeletons ─────────────────────────────────────
+
+const DARK_BASE = '#1e2130'; // visible against #0a0a0a bg, darker than surface
+
+/**
+ * Home "For You" feed — 2-column card grid.
+ * Mirrors: GRID_PADDING=16, GRID_GAP=8, CARD_WIDTH=(SW-40)/2, height=width*1.25
+ */
+export function FeedGridSkeleton({ paddingTop = 0, count = 6 }: { paddingTop?: number; count?: number }) {
+  const SW = Dimensions.get('window').width;
+  const GRID_PADDING = 16;
+  const GRID_GAP = 8;
+  const CARD_W = (SW - GRID_PADDING * 2 - GRID_GAP) / 2;
+  const CARD_H = Math.round(CARD_W * 1.25);
+  const pairs = Math.ceil(count / 2);
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#000', paddingTop, paddingHorizontal: GRID_PADDING }}>
+      {Array.from({ length: pairs }).map((_, row) => (
+        <View key={row} style={{ flexDirection: 'row', gap: GRID_GAP, marginBottom: GRID_GAP }}>
+          {[0, 1].map(col => {
+            const idx = row * 2 + col;
+            if (idx >= count) return <View key={col} style={{ width: CARD_W }} />;
+            return (
+              <View key={col} style={{ width: CARD_W, height: CARD_H, borderRadius: 12, overflow: 'hidden', backgroundColor: '#111' }}>
+                <ShimmerBlock width={CARD_W} height={CARD_H} borderRadius={0} baseColor={DARK_BASE} />
+                {/* Mimic gradient+text overlay at the bottom */}
+                <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 10, gap: 5 }}>
+                  <ShimmerBlock width="55%" height={8} borderRadius={3} baseColor="rgba(255,255,255,0.1)" />
+                  <ShimmerBlock width="80%" height={10} borderRadius={3} baseColor="rgba(255,255,255,0.15)" />
+                  <ShimmerBlock width="45%" height={8} borderRadius={3} baseColor="rgba(255,255,255,0.08)" />
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/**
+ * Discover screen — 2 category row placeholders.
+ * Mirrors: section header + horizontal scroll of CARD_W=160 × CARD_H=220 cards.
+ */
+export function DiscoverRowsSkeleton() {
+  const CARD_W = 160;
+  const CARD_H = 220;
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
+      {[0, 1].map(section => (
+        <View key={section} style={{ marginTop: section === 0 ? 8 : 24 }}>
+          {/* Section header */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <ShimmerBlock width={22} height={22} borderRadius={4} baseColor={DARK_BASE} />
+              <ShimmerBlock width={100} height={14} borderRadius={6} baseColor={DARK_BASE} />
+            </View>
+            <ShimmerBlock width={52} height={12} borderRadius={6} baseColor={DARK_BASE} />
+          </View>
+          {/* Horizontal card strip */}
+          <View style={{ flexDirection: 'row', paddingLeft: 16, gap: 10 }}>
+            {[0, 1, 2].map(i => (
+              <View key={i} style={{ width: CARD_W, height: CARD_H, borderRadius: 14, overflow: 'hidden', backgroundColor: '#111' }}>
+                <ShimmerBlock width={CARD_W} height={CARD_H} borderRadius={0} baseColor={DARK_BASE} />
+                <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 10, gap: 5 }}>
+                  <ShimmerBlock width="60%" height={9} borderRadius={3} baseColor="rgba(255,255,255,0.12)" />
+                  <ShimmerBlock width="85%" height={11} borderRadius={3} baseColor="rgba(255,255,255,0.18)" />
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/**
+ * Event detail screen — hero poster + content rows.
+ * Mirrors: POSTER_HEIGHT=300, then scrollable content with paddingHorizontal=20.
+ */
+export function EventDetailSkeleton({ paddingTop = 0, bg = '#0a0a0a' }: { paddingTop?: number; bg?: string }) {
+  const SW = Dimensions.get('window').width;
+  const POSTER_H = 300;
+
+  return (
+    <View style={{ flex: 1, backgroundColor: bg }}>
+      {/* Hero image area */}
+      <ShimmerBlock width={SW} height={POSTER_H} borderRadius={0} baseColor={DARK_BASE} />
+
+      {/* Content */}
+      <View style={{ paddingHorizontal: 20, paddingTop: 16, gap: 10 }}>
+        {/* Title */}
+        <ShimmerBlock width="90%" height={28} borderRadius={6} baseColor={DARK_BASE} />
+        <ShimmerBlock width="60%" height={28} borderRadius={6} baseColor={DARK_BASE} />
+        {/* Venue */}
+        <ShimmerBlock width="45%" height={14} borderRadius={5} baseColor={DARK_BASE} style={{ marginTop: 4 }} />
+        {/* Tags row */}
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+          <ShimmerBlock width={72} height={24} borderRadius={12} baseColor={DARK_BASE} />
+          <ShimmerBlock width={56} height={24} borderRadius={12} baseColor={DARK_BASE} />
+          <ShimmerBlock width={64} height={24} borderRadius={12} baseColor={DARK_BASE} />
+        </View>
+        {/* Info rows */}
+        {[0, 1, 2].map(i => (
+          <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 }}>
+            <ShimmerBlock width={20} height={20} borderRadius={4} baseColor={DARK_BASE} />
+            <ShimmerBlock width={`${55 - i * 8}%`} height={13} borderRadius={5} baseColor={DARK_BASE} />
+          </View>
+        ))}
       </View>
     </View>
   );

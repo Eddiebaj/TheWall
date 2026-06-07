@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  RefreshControl,
   Text,
   TouchableOpacity,
   View,
@@ -58,6 +59,7 @@ export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -84,8 +86,14 @@ export default function NotificationsScreen() {
       .is('read_at', null);
   };
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }, [user]);
+
   const handlePress = (item: Notification) => {
-    const route = routeForNotification(item.type as NotificationType, item.data);
+    const route = routeForNotification(item.type as NotificationType, item.data ?? undefined);
     if (route) router.push(route as any);
   };
 
@@ -111,6 +119,13 @@ export default function NotificationsScreen() {
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 32 }}>
           <Ionicons name="lock-closed-outline" size={48} color={MUTED} />
           <Text style={{ fontSize: 16, color: MUTED, textAlign: 'center' }}>Sign in to see notifications</Text>
+          <TouchableOpacity
+            onPress={() => router.push('/auth' as any)}
+            style={{ backgroundColor: ACCENT, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 32, marginTop: 4 }}
+            activeOpacity={0.85}
+          >
+            <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Sign In</Text>
+          </TouchableOpacity>
         </View>
       ) : loading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -125,10 +140,14 @@ export default function NotificationsScreen() {
         <FlatList
           data={notifications}
           keyExtractor={item => item.id}
-          renderItem={({ item }) => (
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}
+          renderItem={({ item }) => {
+            const route = routeForNotification(item.type as NotificationType, item.data ?? undefined);
+            return (
             <TouchableOpacity
               onPress={() => handlePress(item)}
-              activeOpacity={0.75}
+              disabled={!route}
+              activeOpacity={route ? 0.75 : 1}
               style={{
                 flexDirection: 'row',
                 alignItems: 'flex-start',
@@ -162,7 +181,8 @@ export default function NotificationsScreen() {
                 <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: ACCENT, marginTop: 6, flexShrink: 0 }} />
               )}
             </TouchableOpacity>
-          )}
+            );
+          }}
           contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
           showsVerticalScrollIndicator={false}
         />

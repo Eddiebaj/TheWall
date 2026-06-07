@@ -14,10 +14,10 @@
         "EXPO_USE_METRO_WORKSPACE_ROOT": "1",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true",
         "SENTRY_ALLOW_FAILURE": "true",
-        "EXPO_PUBLIC_SUPABASE_URL": "https://bzvkadttywgszovbowch.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_UQXeqJ_OE-Zhl51qrHVF3w_UXOxKk2O",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://jcdpuduznewvbiqshklg.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_-6Qf8epaWfTiYnPpvhEmyg_E9XYXkHZ",
         "MAPBOX_DOWNLOADS_TOKEN": "$MAPBOX_DOWNLOADS_TOKEN",
-        "EXPO_PUBLIC_MAPBOX_TOKEN": "pk.eyJ1IjoiZWRkaWViYWoiLCJhIjoiY21waGJleG93MGY1MTJxcHh5aW1wbjdzNiJ9.ld10ZODOGSz3wXepSf3KCA"
+        "EXPO_PUBLIC_MAPBOX_TOKEN": "$EXPO_PUBLIC_MAPBOX_TOKEN"
       }
     },
     "production": {

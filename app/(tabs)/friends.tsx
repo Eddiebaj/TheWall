@@ -31,6 +31,7 @@ export default function FriendsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [groupFriendSearch, setGroupFriendSearch] = useState('');
@@ -40,8 +41,8 @@ export default function FriendsScreen() {
   const [friendsDown, setFriendsDown] = useState<any[]>([]);
   const [friendsActivity, setFriendsActivity] = useState<any[]>([]);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [messagingFriendId, setMessagingFriendId] = useState<string | null>(null);
 
-  // Restore downTonight state; auto-reset if stored date isn't today
   useEffect(() => {
     if (!user) return;
     const today = new Date().toISOString().slice(0, 10);
@@ -49,7 +50,6 @@ export default function FriendsScreen() {
       if (stored === today) {
         setDownTonight(true);
       } else if (stored && stored !== today) {
-        // New day clear stale state
         setDownTonight(false);
         await AsyncStorage.removeItem(SK_DOWN_TONIGHT);
         await supabase.from('profiles').update({ is_down_tonight: false }).eq('id', user.id);
@@ -218,7 +218,6 @@ export default function FriendsScreen() {
 
   const loadUnreadCounts = async (convIds: string[]) => {
     if (!convIds.length) return;
-    // Fetch all messages in these convs not sent by me
     const { data: msgs } = await supabase
       .from('messages')
       .select('id, conversation_id')
@@ -228,7 +227,6 @@ export default function FriendsScreen() {
     if (!msgs?.length) return;
 
     const msgIds = msgs.map(m => m.id);
-    // Fetch which of those I have already read
     const { data: reads } = await supabase
       .from('message_reads')
       .select('message_id')
@@ -271,7 +269,7 @@ export default function FriendsScreen() {
         Alert.alert('Error', error.message);
       }
     } else {
-      Alert.alert('Request sent!', 'They\'ll get a notification when they accept.');
+      Alert.alert('Request sent!', "They'll get a notification when they accept.");
       setSearchResults([]);
       setSearchQuery('');
       sendNotification(
@@ -303,6 +301,56 @@ export default function FriendsScreen() {
   const declineRequest = async (friendshipId: string) => {
     await supabase.from('friendships').delete().eq('id', friendshipId);
     loadFriendsData();
+  };
+
+  const handleOpenDM = async (friend: any) => {
+    if (!user) return;
+    setMessagingFriendId(friend.id);
+    try {
+      // Find existing 1-on-1 conversation
+      const { data: myConvs } = await supabase
+        .from('conversation_members')
+        .select('conversation_id')
+        .eq('user_id', user.id);
+      const myConvIds = (myConvs || []).map((c: any) => c.conversation_id);
+
+      let existingConvId: string | null = null;
+      if (myConvIds.length > 0) {
+        const { data: theirConvs } = await supabase
+          .from('conversation_members')
+          .select('conversation_id')
+          .eq('user_id', friend.id)
+          .in('conversation_id', myConvIds);
+        for (const row of theirConvs || []) {
+          const { count } = await supabase
+            .from('conversation_members')
+            .select('*', { count: 'exact', head: true })
+            .eq('conversation_id', row.conversation_id);
+          if (count === 2) { existingConvId = row.conversation_id; break; }
+        }
+      }
+
+      if (existingConvId) {
+        router.push({ pathname: '/chat/[id]', params: { id: existingConvId, name: friend.display_name || friend.username } } as any);
+        return;
+      }
+
+      // Create new DM
+      const dmName = friend.display_name || friend.username;
+      const { data: conv, error } = await supabase
+        .from('conversations')
+        .insert({ name: dmName, created_by: user.id, type: 'direct' })
+        .select()
+        .single();
+      if (error || !conv) { Alert.alert('Error', 'Could not start conversation.'); return; }
+      await supabase.from('conversation_members').insert([
+        { conversation_id: conv.id, user_id: user.id },
+        { conversation_id: conv.id, user_id: friend.id },
+      ]);
+      router.push({ pathname: '/chat/[id]', params: { id: conv.id, name: dmName } } as any);
+    } finally {
+      setMessagingFriendId(null);
+    }
   };
 
   const handleDownToggle = async (newVal: boolean) => {
@@ -337,7 +385,7 @@ export default function FriendsScreen() {
   const handleInviteLink = async () => {
     const inviteUrl = `affiche://invite/${user!.id}`;
     await Clipboard.setStringAsync(inviteUrl);
-    Alert.alert('Link copied!', 'Share the link with your friends when they sign up, you\'ll be connected automatically.');
+    Alert.alert('Link copied!', "Share the link with your friends when they sign up, you'll be connected automatically.");
   };
 
   const createGroup = () => {
@@ -371,7 +419,6 @@ export default function FriendsScreen() {
       return;
     }
 
-    // Insert creator + all selected friends
     const memberRows = [user!.id, ...selectedFriendIds].map(uid => ({
       conversation_id: conv.id,
       user_id: uid,
@@ -386,7 +433,6 @@ export default function FriendsScreen() {
       return;
     }
 
-    // Optimistic update add to list immediately
     setConversations(prev => [conv, ...prev]);
     setNewGroupName('');
     setGroupFriendSearch('');
@@ -407,22 +453,16 @@ export default function FriendsScreen() {
 
   if (!user) {
     return (
-      <View style={{ flex: 1, backgroundColor: colours.bg, paddingTop: insets.top }}>
-        {/* Header */}
-        <View style={{ paddingHorizontal: 20, paddingVertical: 16 }}>
-          <Text style={{ fontSize: 28, fontWeight: '800', color: colours.text }}>Friends</Text>
-        </View>
-
+      <View style={{ flex: 1, backgroundColor: '#0a0a0a', paddingTop: insets.top }}>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>
-          {/* Icon cluster */}
-          <View style={{ flexDirection: 'row', marginBottom: 24, gap: -12 }}>
+          <View style={{ flexDirection: 'row', marginBottom: 24 }}>
             {['#FF3B5C', '#f97316', '#8b5cf6'].map((color, i) => (
               <View
                 key={i}
                 style={{
                   width: 52, height: 52, borderRadius: 26,
                   backgroundColor: color + '22',
-                  borderWidth: 2, borderColor: color + '55',
+                  borderWidth: 2, borderColor: color + '44',
                   alignItems: 'center', justifyContent: 'center',
                   marginLeft: i === 0 ? 0 : -10,
                   zIndex: 3 - i,
@@ -433,46 +473,30 @@ export default function FriendsScreen() {
             ))}
           </View>
 
-          <Text style={{ fontSize: 22, fontWeight: '800', color: colours.text, textAlign: 'center', marginBottom: 10 }}>
+          <Text style={{ fontSize: 22, fontWeight: '800', color: '#fff', textAlign: 'center', marginBottom: 10, letterSpacing: -0.3 }}>
             Coordinate your night out
           </Text>
-          <Text style={{ fontSize: 15, color: colours.muted, textAlign: 'center', lineHeight: 22, marginBottom: 36 }}>
+          <Text style={{ fontSize: 15, color: '#888', textAlign: 'center', lineHeight: 22, marginBottom: 36 }}>
             See which friends are going out, share events, and make plans together.
           </Text>
 
-          {/* Primary CTA */}
           <TouchableOpacity
             onPress={() => router.push('/auth' as any)}
-            style={{
-              width: '100%',
-              backgroundColor: colours.accent,
-              borderRadius: 14,
-              paddingVertical: 16,
-              alignItems: 'center',
-              marginBottom: 14,
-            }}
+            style={{ width: '100%', backgroundColor: '#FF3B5C', borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginBottom: 12 }}
             activeOpacity={0.85}
           >
             <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>Sign In</Text>
           </TouchableOpacity>
 
-          {/* Secondary CTA */}
           <TouchableOpacity
             onPress={() => router.push('/auth' as any)}
-            style={{
-              width: '100%',
-              borderRadius: 14,
-              paddingVertical: 15,
-              alignItems: 'center',
-              borderWidth: 1,
-              borderColor: colours.border || 'rgba(255,255,255,0.15)',
-            }}
+            style={{ width: '100%', borderRadius: 14, paddingVertical: 15, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' }}
             activeOpacity={0.7}
           >
-            <Text style={{ color: colours.text, fontSize: 16, fontWeight: '600' }}>Create Account</Text>
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Create Account</Text>
           </TouchableOpacity>
 
-          <Text style={{ color: colours.muted, fontSize: 12, marginTop: 24, textAlign: 'center' }}>
+          <Text style={{ color: '#555', fontSize: 12, marginTop: 24, textAlign: 'center' }}>
             Join to see what your friends are up to tonight
           </Text>
         </View>
@@ -481,343 +505,248 @@ export default function FriendsScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#0C0E12' }}>
-      {/* Header */}
-      <View style={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colours.border, backgroundColor: '#0C0E12' }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <Text style={{ fontSize: 24, fontWeight: '800', color: colours.text }}>Friends</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <TouchableOpacity onPress={handleShareInvite} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, backgroundColor: '#FF3B5C18', borderWidth: 1, borderColor: '#FF3B5C40' }}>
-              <Ionicons name="person-add-outline" size={14} color="#FF3B5C" />
-              <Text style={{ fontSize: 12, fontWeight: '700', color: '#FF3B5C' }}>Invite</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={createGroup} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, backgroundColor: colours.accent + '18', borderWidth: 1, borderColor: colours.accent + '40' }}>
-              <Ionicons name="add" size={15} color={colours.accent} />
-              <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accent }}>Group</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/account' as any)} activeOpacity={0.8}>
-              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colours.accent + '60' }}>
-                {profile?.avatar_url ? (
-                  <Image source={{ uri: profile.avatar_url }} style={{ width: 36, height: 36, borderRadius: 18 }} />
-                ) : (
-                  <Text style={{ fontSize: 15, fontWeight: '800', color: colours.accent }}>
-                    {(profile?.display_name || profile?.username || '?')[0].toUpperCase()}
-                  </Text>
-                )}
-              </View>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* I'm down tonight toggle */}
-        <View
-          style={{
-            flexDirection: 'row', alignItems: 'center', gap: 10,
-            paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14,
-            borderWidth: 1.5,
-            borderColor: downTonight ? '#00C07A' : 'rgba(255,255,255,0.08)',
-            backgroundColor: downTonight ? '#00C07A12' : '#1E2230',
-            marginBottom: 12,
-          }}
-        >
-          <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: downTonight ? '#00C07A20' : colours.border, alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name={downTonight ? 'moon' : 'moon-outline'} size={20} color={downTonight ? '#00C07A' : colours.muted} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 15, fontWeight: '700', color: downTonight ? '#00C07A' : colours.text }}>
-              {downTonight ? "You're down tonight" : "I'm down tonight"}
-            </Text>
-            <Text style={{ fontSize: 12, color: colours.muted, marginTop: 1 }}>
-              {downTonight ? 'Your friends can see you\'re available' : 'Let friends know you\'re free'}
-            </Text>
-          </View>
-          <Switch
-            value={downTonight}
-            onValueChange={handleDownToggle}
-            trackColor={{ false: '#333', true: '#00C07A' }}
-            thumbColor="#fff"
-          />
-        </View>
-        {friendsDown.length > 0 && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, paddingHorizontal: 4 }}>
-            <View style={{ flexDirection: 'row' }}>
-              {friendsDown.slice(0, 4).map((f: any, i: number) => (
-                <View key={f.user_id} style={{ width: 28, height: 28, borderRadius: 14, overflow: 'hidden', backgroundColor: colours.accent, alignItems: 'center', justifyContent: 'center', marginLeft: i > 0 ? -8 : 0, borderWidth: 2, borderColor: colours.bg }}>
-                  {f.profiles?.avatar_url ? (
-                    <Image source={{ uri: f.profiles.avatar_url }} style={{ width: 28, height: 28, borderRadius: 14 }} />
-                  ) : (
-                    <Text style={{ fontSize: 11, fontWeight: '800', color: 'white' }}>
-                      {(f.profiles?.display_name || f.profiles?.username || '?')[0].toUpperCase()}
-                    </Text>
-                  )}
-                </View>
-              ))}
-            </View>
-            <Text style={{ fontSize: 13, color: colours.muted, fontWeight: '500' }}>
-              {friendsDown.length === 1
-                ? `${friendsDown[0].profiles?.display_name || friendsDown[0].profiles?.username} is down tonight`
-                : `${friendsDown.length} friends are down tonight`}
-            </Text>
-          </View>
-        )}
-        {/* Friends Activity */}
-        {friendsActivity.length > 0 && (
-          <View style={{ marginBottom: 12 }}>
-            <Text style={{ fontSize: 11, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
-              Friends Activity
-            </Text>
-            {friendsActivity.map((item: any, i: number) => {
-              const p = item.profiles as any;
-              const ev = item.events as any;
-              const venue = ev?.venues?.name;
-              const dateLabel = formatActivityDate(ev?.date);
-              const name = p?.display_name || p?.username || 'Someone';
-              const sentence = `${name} is going to ${ev?.title}${venue ? ` at ${venue}` : ''}${dateLabel ? ` ${dateLabel}` : ''}`;
-              return (
-                <TouchableOpacity
-                  key={`${item.event_id}-${i}`}
-                  onPress={() => router.push(`/event/${ev?.id}` as any)}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 }}
-                  activeOpacity={0.7}
-                >
-                  {p?.avatar_url ? (
-                    <Image source={{ uri: p.avatar_url }} style={{ width: 34, height: 34, borderRadius: 17 }} />
-                  ) : (
-                    <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center' }}>
-                      <Text style={{ fontSize: 14, fontWeight: '700', color: colours.accent }}>{name[0].toUpperCase()}</Text>
-                    </View>
-                  )}
-                  <Text style={{ flex: 1, fontSize: 13, color: colours.text, lineHeight: 18 }} numberOfLines={2}>
-                    {sentence}
-                  </Text>
-                  <Ionicons name="chevron-forward" size={14} color={colours.muted} />
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
-
-        {/* Friend discovery methods */}
-        <View style={{ gap: 10 }}>
-          {/* Search by username */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E2230', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 12, paddingVertical: 10, gap: 8 }}>
-            <Ionicons name="search-outline" size={16} color={colours.muted} />
-            <TextInput
-              style={{ flex: 1, fontSize: 15, color: colours.text }}
-              placeholder="Search by username..."
-              placeholderTextColor={colours.muted}
-              value={searchQuery}
-              onChangeText={q => { setSearchQuery(q); searchUsers(q); }}
-              autoCapitalize="none"
-              autoCorrect={false}
+    <View style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
+      {/* Top bar */}
+      <View style={{ backgroundColor: '#0a0a0a', paddingTop: insets.top, borderBottomWidth: showSearch ? 0 : 1, borderBottomColor: 'rgba(255,255,255,0.06)' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingHorizontal: 20, paddingVertical: 13, gap: 16 }}>
+          <TouchableOpacity
+            onPress={() => {
+              setShowSearch(v => !v);
+              if (showSearch) { setSearchQuery(''); setSearchResults([]); }
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons
+              name={showSearch ? 'close-outline' : 'search-outline'}
+              size={24}
+              color="rgba(255,255,255,0.75)"
             />
-            {searching && <ActivityIndicator size="small" color={colours.muted} />}
-          </View>
-
-          {/* Quick action buttons */}
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <TouchableOpacity
-              onPress={handleInviteLink}
-              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, backgroundColor: '#1E2230', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }}
-            >
-              <Ionicons name="link-outline" size={16} color="#fff" />
-              <Text style={{ fontSize: 13, fontWeight: '600', color: '#fff' }}>Copy Link</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={handleShareInvite}
-              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, backgroundColor: '#1E2230', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }}
-            >
-              <Ionicons name="share-outline" size={16} color="#fff" />
-              <Text style={{ fontSize: 13, fontWeight: '600', color: '#fff' }}>Invite</Text>
-            </TouchableOpacity>
-          </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleShareInvite}
+            style={{ backgroundColor: '#FF3B5C', paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20 }}
+            activeOpacity={0.85}
+          >
+            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700', letterSpacing: 0.1 }}>Invite</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Search results */}
-        {searchResults.length > 0 && (
-          <View style={{ backgroundColor: colours.surface, borderRadius: 12, borderWidth: 1, borderColor: colours.border, marginTop: 8, overflow: 'hidden' }}>
-            {searchResults.map((u, i) => (
-              <View key={u.id} style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: i < searchResults.length - 1 ? 1 : 0, borderBottomColor: colours.border }}>
-                <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: colours.accent }}>{u.username[0].toUpperCase()}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{u.display_name || u.username}</Text>
-                  <Text style={{ fontSize: 12, color: colours.muted }}>@{u.username}</Text>
-                </View>
-                <TouchableOpacity onPress={() => sendFriendRequest(u.id)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: colours.accent, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: 'white' }}>Add</Text>
-                </TouchableOpacity>
+        {showSearch && (
+          <View style={{ paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#111', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', paddingHorizontal: 12, paddingVertical: 10, gap: 8 }}>
+              <Ionicons name="search-outline" size={16} color="#888" />
+              <TextInput
+                style={{ flex: 1, fontSize: 15, color: '#fff' }}
+                placeholder="Search by username..."
+                placeholderTextColor="#666"
+                value={searchQuery}
+                onChangeText={q => { setSearchQuery(q); searchUsers(q); }}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoFocus
+              />
+              {searching && <ActivityIndicator size="small" color="#888" />}
+            </View>
+            {searchResults.length > 0 && (
+              <View style={{ backgroundColor: '#111', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', marginTop: 6, overflow: 'hidden' }}>
+                {searchResults.map((u, i) => (
+                  <View key={u.id} style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: 'rgba(255,255,255,0.05)' }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#FF3B5C18', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+                      <Text style={{ fontSize: 15, fontWeight: '700', color: '#FF3B5C' }}>{u.username[0].toUpperCase()}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>{u.display_name || u.username}</Text>
+                      <Text style={{ fontSize: 12, color: '#888' }}>@{u.username}</Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => sendFriendRequest(u.id)}
+                      style={{ paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#FF3B5C' }}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: '#fff' }}>Add</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
               </View>
-            ))}
+            )}
           </View>
         )}
       </View>
 
       <ScrollView
-        style={{ flex: 1, backgroundColor: '#0C0E12' }}
-        contentContainerStyle={{ padding: 20, gap: 20 }}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 100, paddingTop: 16 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FF3B5C" />}
+        showsVerticalScrollIndicator={false}
       >
+        {/* Down tonight toggle */}
+        <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
+          <TouchableOpacity
+            onPress={() => handleDownToggle(!downTonight)}
+            activeOpacity={0.75}
+            style={{
+              flexDirection: 'row', alignItems: 'center', gap: 12,
+              backgroundColor: downTonight ? 'rgba(0,192,122,0.07)' : '#111',
+              borderWidth: 1,
+              borderColor: downTonight ? 'rgba(0,192,122,0.25)' : 'rgba(255,255,255,0.06)',
+              borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14,
+            }}
+          >
+            <View style={{
+              width: 36, height: 36, borderRadius: 18,
+              backgroundColor: downTonight ? 'rgba(0,192,122,0.12)' : 'rgba(255,255,255,0.05)',
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Ionicons name={downTonight ? 'moon' : 'moon-outline'} size={17} color={downTonight ? '#00C07A' : '#888'} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 15, fontWeight: '600', color: downTonight ? '#00C07A' : '#fff', letterSpacing: -0.2 }}>
+                {downTonight ? "You're down tonight" : "I'm down tonight"}
+              </Text>
+              <Text style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
+                {downTonight ? "Friends can see you're available" : "Let friends know you're free"}
+              </Text>
+            </View>
+            <Switch
+              value={downTonight}
+              onValueChange={handleDownToggle}
+              trackColor={{ false: '#2a2a2a', true: '#00C07A' }}
+              thumbColor="#fff"
+            />
+          </TouchableOpacity>
+        </View>
 
-        {/* Your Plans */}
-        {myHangouts.length > 0 && (
-          <View>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-              Your Plans
+        {/* Tonight -- who's down */}
+        {friendsDown.length > 0 && (
+          <View style={{ marginBottom: 28 }}>
+            <Text style={{ fontSize: 11, fontWeight: '600', color: '#666', textTransform: 'uppercase', letterSpacing: 0.8, paddingHorizontal: 20, marginBottom: 14 }}>
+              Tonight
             </Text>
-            {myHangouts.map((rsvp, i) => (
-              <View key={i} style={{ backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: rsvp.status === 'going' ? colours.accent + '40' : colours.border, padding: 14, marginBottom: 8 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: rsvp.status === 'going' ? colours.accent + '20' : colours.border + '40', alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ fontSize: 18 }}>{rsvp.status === 'going' ? '🙋' : '👀'}</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 18 }}>
+              {friendsDown.map((f: any) => (
+                <TouchableOpacity
+                  key={f.user_id}
+                  onPress={() => router.push(`/profile/${f.user_id}` as any)}
+                  activeOpacity={0.75}
+                  style={{ alignItems: 'center', gap: 7 }}
+                >
+                  <View style={{
+                    width: 64, height: 64, borderRadius: 32,
+                    borderWidth: 2.5, borderColor: '#FF3B5C',
+                    padding: 2, overflow: 'hidden',
+                  }}>
+                    {f.profiles?.avatar_url ? (
+                      <Image source={{ uri: f.profiles.avatar_url }} style={{ width: '100%', height: '100%', borderRadius: 29 }} />
+                    ) : (
+                      <View style={{ flex: 1, borderRadius: 29, backgroundColor: '#FF3B5C18', alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ fontSize: 22, fontWeight: '800', color: '#FF3B5C' }}>
+                          {(f.profiles?.display_name || f.profiles?.username || '?')[0].toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }} numberOfLines={1}>
-                      {rsvp.hangout.event_name || rsvp.hangout.venue_name}
-                    </Text>
-                    <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>
-                      {rsvp.status === 'going' ? "You're going" : "You're interested"} · {rsvp.hangout.venue_name}
-                    </Text>
-                  </View>
-                  <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: rsvp.status === 'going' ? colours.accent + '18' : colours.border + '40' }}>
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: rsvp.status === 'going' ? colours.accent : colours.muted }}>
-                      {rsvp.status === 'going' ? "I'm in" : 'Interested'}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* Friends' Plans */}
-        {friendsPlans.length > 0 && (
-          <View>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-              Friends' Plans
-            </Text>
-            {friendsPlans.map((plan, i) => {
-              const profile = plan.profiles as any;
-              const hangout = plan.hangouts as any;
-              return (
-                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: plan.status === 'going' ? colours.accent + '40' : colours.border, padding: 14, marginBottom: 8 }}>
-                  {profile?.avatar_url ? (
-                    <Image source={{ uri: profile.avatar_url }} style={{ width: 40, height: 40, borderRadius: 12 }} />
-                  ) : (
-                    <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center' }}>
-                      <Text style={{ fontSize: 18, fontWeight: '700', color: colours.accent }}>{(profile?.display_name || profile?.username || '?')[0].toUpperCase()}</Text>
-                    </View>
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>
-                      {profile?.display_name || profile?.username} {plan.status === 'going' ? 'is going to' : 'is interested in'}
-                    </Text>
-                    <Text style={{ fontSize: 13, color: colours.muted, marginTop: 2 }} numberOfLines={1}>{hangout?.event_name}</Text>
-                    <Text style={{ fontSize: 11, color: colours.muted, marginTop: 1 }} numberOfLines={1}>{hangout?.venue_name}</Text>
-                  </View>
-                  <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: plan.status === 'going' ? colours.accent + '18' : '#e8a020' + '18' }}>
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: plan.status === 'going' ? colours.accent : '#e8a020' }}>
-                      {plan.status === 'going' ? 'Going' : 'Maybe'}
-                    </Text>
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        )}
-
-        {/* Pending requests */}
-        {pendingRequests.length > 0 && (
-          <View>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-              Friend Requests ({pendingRequests.length})
-            </Text>
-            {pendingRequests.map(req => (
-              <View key={req.id} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, padding: 14, marginBottom: 8 }}>
-                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                  <Text style={{ fontSize: 18, fontWeight: '700', color: colours.accent }}>{req.requester?.username?.[0]?.toUpperCase()}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{req.requester?.display_name || req.requester?.username}</Text>
-                  <Text style={{ fontSize: 12, color: colours.muted }}>@{req.requester?.username}</Text>
-                </View>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TouchableOpacity onPress={() => declineRequest(req.id)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: colours.border }}>
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted }}>Decline</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => acceptRequest(req.id, req.requester?.id)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: colours.accent }}>
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: 'white' }}>Accept</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* Groups */}
-        {conversations.length > 0 && (
-          <View>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-              Groups
-            </Text>
-            {conversations.map(conv => {
-              const unread = unreadCounts[conv.id] || 0;
-              return (
-                <TouchableOpacity key={conv.id} onPress={() => router.push({ pathname: '/chat/[id]', params: { id: conv.id, name: conv.name } } as any)} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: unread > 0 ? colours.accent + '50' : colours.border, padding: 14, marginBottom: 8 }}>
-                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#7b5ea7' + '20', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                    <Ionicons name="people" size={20} color="#7b5ea7" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{conv.name}</Text>
-                    <Text style={{ fontSize: 12, color: colours.muted }}>{unread > 0 ? `${unread} new message${unread > 1 ? 's' : ''}` : 'Tap to open chat'}</Text>
-                  </View>
-                  {unread > 0 ? (
-                    <View style={{ minWidth: 22, height: 22, borderRadius: 11, backgroundColor: colours.accent, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, marginRight: 6 }}>
-                      <Text style={{ fontSize: 12, fontWeight: '800', color: 'white' }}>{unread > 99 ? '99+' : unread}</Text>
-                    </View>
-                  ) : (
-                    <Ionicons name="chevron-forward" size={16} color={colours.muted} />
-                  )}
+                  <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: '600', maxWidth: 64, textAlign: 'center' }} numberOfLines={1}>
+                    {(f.profiles?.display_name || f.profiles?.username || '').split(' ')[0]}
+                  </Text>
                 </TouchableOpacity>
-              );
-            })}
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Friend requests */}
+        {pendingRequests.length > 0 && (
+          <View style={{ paddingHorizontal: 16, marginBottom: 28 }}>
+            <Text style={{ fontSize: 11, fontWeight: '600', color: '#666', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 }}>
+              Requests
+            </Text>
+            <View style={{ backgroundColor: '#111', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+              {pendingRequests.map((req, i) => (
+                <View
+                  key={req.id}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center',
+                    paddingHorizontal: 14, paddingVertical: 12,
+                    borderTopWidth: i > 0 ? 1 : 0, borderTopColor: 'rgba(255,255,255,0.05)',
+                    minHeight: 64,
+                  }}
+                >
+                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#FF3B5C18', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                    <Text style={{ fontSize: 18, fontWeight: '700', color: '#FF3B5C' }}>
+                      {req.requester?.username?.[0]?.toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff', letterSpacing: -0.2 }}>
+                      {req.requester?.display_name || req.requester?.username}
+                    </Text>
+                    <Text style={{ fontSize: 12, color: '#888' }}>wants to connect</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity
+                      onPress={() => declineRequest(req.id)}
+                      style={{
+                        width: 34, height: 34, borderRadius: 17,
+                        borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+                        alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >
+                      <Ionicons name="close" size={18} color="#888" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => acceptRequest(req.id, req.requester?.id)}
+                      style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: '#00C07A', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <Ionicons name="checkmark" size={18} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </View>
           </View>
         )}
 
         {/* Friends list */}
-        <View>
-          <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-            {friends.length > 0 ? `Friends (${friends.length})` : 'Friends'}
-          </Text>
+        <View style={{ paddingHorizontal: 16, marginBottom: 28 }}>
           {loading ? (
-            <ActivityIndicator color={colours.accent} />
+            <ActivityIndicator color="#FF3B5C" style={{ marginTop: 40 }} />
           ) : friends.length === 0 ? (
-            <View style={{ padding: 32, alignItems: 'center', borderRadius: 16, borderWidth: 1, borderColor: '#2a2a2a', backgroundColor: 'transparent' }}>
-              <Ionicons name="people-outline" size={48} color={colours.muted} style={{ marginBottom: 8 }} />
-              <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text, marginBottom: 4 }}>No friends yet</Text>
-              <Text style={{ fontSize: 13, color: colours.muted, textAlign: 'center' }}>Search for friends by username above</Text>
+            <View style={{ alignItems: 'center', paddingVertical: 48, paddingHorizontal: 20 }}>
+              <View style={{
+                width: 56, height: 56, borderRadius: 28,
+                borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.1)',
+                alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+              }}>
+                <Ionicons name="people-outline" size={26} color="rgba(255,255,255,0.2)" />
+              </View>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff', marginBottom: 6, letterSpacing: -0.2 }}>No friends yet</Text>
+              <Text style={{ fontSize: 14, color: '#666', textAlign: 'center', lineHeight: 20, marginBottom: 20 }}>
+                Search for people by username or invite friends.
+              </Text>
+              <TouchableOpacity
+                onPress={handleShareInvite}
+                style={{ paddingHorizontal: 20, paddingVertical: 9, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }}
+              >
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>Invite people</Text>
+              </TouchableOpacity>
             </View>
           ) : (
-            friends.map(friend => (
-              <TouchableOpacity
-                key={friend.id}
-                activeOpacity={0.7}
-                onPress={() => router.push(`/profile/${friend.id}` as any)}
-                onLongPress={() => {
-                  Alert.alert(
-                    friend.display_name || friend.username,
-                    'What would you like to do?',
-                    [
-                      { text: 'View profile', onPress: () => router.push(`/profile/${friend.id}` as any) },
+            <View style={{ backgroundColor: '#111', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+              {friends.map((friend, i) => (
+                <TouchableOpacity
+                  key={friend.id}
+                  activeOpacity={0.7}
+                  onPress={() => router.push(`/profile/${friend.id}` as any)}
+                  onLongPress={() => {
+                    Alert.alert(friend.display_name || friend.username, undefined, [
+                      { text: 'View Profile', onPress: () => router.push(`/profile/${friend.id}` as any) },
+                      { text: 'Message', onPress: () => handleOpenDM(friend) },
                       {
-                        text: 'Remove friend',
+                        text: 'Remove Friend',
                         style: 'destructive',
                         onPress: () => {
                           Alert.alert(
                             'Remove friend',
-                            `Remove ${friend.display_name || friend.username} from your friends?`,
+                            `Remove ${friend.display_name || friend.username}?`,
                             [
                               { text: 'Cancel', style: 'cancel' },
                               {
@@ -833,77 +762,272 @@ export default function FriendsScreen() {
                         },
                       },
                       { text: 'Cancel', style: 'cancel' },
-                    ]
-                  );
-                }}
-                style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderRadius: 14, borderWidth: 1, borderColor: colours.border, padding: 14, marginBottom: 8 }}
-              >
-                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                  <Text style={{ fontSize: 18, fontWeight: '700', color: colours.accent }}>{friend.username?.[0]?.toUpperCase()}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{friend.display_name || friend.username}</Text>
-                  <Text style={{ fontSize: 12, color: colours.muted }}>@{friend.username}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={colours.muted} />
-              </TouchableOpacity>
-            ))
+                    ]);
+                  }}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center',
+                    paddingHorizontal: 14, paddingVertical: 10,
+                    borderTopWidth: i > 0 ? 1 : 0, borderTopColor: 'rgba(255,255,255,0.05)',
+                    minHeight: 64,
+                  }}
+                >
+                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#FF3B5C18', alignItems: 'center', justifyContent: 'center', marginRight: 12, overflow: 'hidden' }}>
+                    {friend.avatar_url ? (
+                      <Image source={{ uri: friend.avatar_url }} style={{ width: 44, height: 44, borderRadius: 22 }} />
+                    ) : (
+                      <Text style={{ fontSize: 18, fontWeight: '700', color: '#FF3B5C' }}>
+                        {friend.username?.[0]?.toUpperCase()}
+                      </Text>
+                    )}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff', letterSpacing: -0.2 }}>
+                      {friend.display_name || friend.username}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: '#888', marginTop: 1 }}>@{friend.username}</Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => handleOpenDM(friend)}
+                    disabled={messagingFriendId === friend.id}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    style={{ padding: 8 }}
+                  >
+                    {messagingFriendId === friend.id
+                      ? <ActivityIndicator size="small" color="rgba(255,255,255,0.4)" />
+                      : <Ionicons name="chatbubble-outline" size={18} color="rgba(255,255,255,0.25)" />}
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              ))}
+            </View>
           )}
         </View>
 
-        {/* Invite friends */}
-        <View style={{ marginTop: 8, padding: 20, borderRadius: 16, backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a' }}>
-          <Text style={{ fontSize: 16, fontWeight: '800', color: '#fff', marginBottom: 4 }}>
-            Invite your friends
-          </Text>
-          <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 16, lineHeight: 18 }}>
-            affiche is better with friends. Share your invite link and coordinate nights out together.
+        {/* Messages / Groups */}
+        <View style={{ paddingHorizontal: 16, marginBottom: 28 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <Text style={{ fontSize: 11, fontWeight: '600', color: '#666', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+              Messages
+            </Text>
+            <TouchableOpacity
+              onPress={createGroup}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+            >
+              <Ionicons name="add-circle-outline" size={16} color="#FF3B5C" />
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#FF3B5C' }}>New group</Text>
+            </TouchableOpacity>
+          </View>
+
+          {conversations.length === 0 ? (
+            <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+              <Text style={{ fontSize: 14, color: '#444' }}>No groups yet</Text>
+            </View>
+          ) : (
+            <View style={{ backgroundColor: '#111', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+              {conversations.map((conv, i) => {
+                const unread = unreadCounts[conv.id] || 0;
+                return (
+                  <TouchableOpacity
+                    key={conv.id}
+                    onPress={() => router.push({ pathname: '/chat/[id]', params: { id: conv.id, name: conv.name } } as any)}
+                    style={{
+                      flexDirection: 'row', alignItems: 'center',
+                      paddingHorizontal: 14, paddingVertical: 12,
+                      borderTopWidth: i > 0 ? 1 : 0, borderTopColor: 'rgba(255,255,255,0.05)',
+                      minHeight: 64,
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(123,94,167,0.12)', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                      <Ionicons name="people" size={20} color="#7b5ea7" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 15, fontWeight: unread > 0 ? '700' : '600', color: '#fff', letterSpacing: -0.2 }}>{conv.name}</Text>
+                      <Text style={{ fontSize: 13, color: '#888', marginTop: 1 }}>
+                        {unread > 0 ? `${unread} new message${unread > 1 ? 's' : ''}` : 'Tap to open'}
+                      </Text>
+                    </View>
+                    {unread > 0 ? (
+                      <View style={{ minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#FF3B5C', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 }}>
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#fff' }}>{unread > 99 ? '99+' : unread}</Text>
+                      </View>
+                    ) : (
+                      <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.2)" />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </View>
+
+        {/* Friends Activity */}
+        {friendsActivity.length > 0 && (
+          <View style={{ paddingHorizontal: 16, marginBottom: 28 }}>
+            <Text style={{ fontSize: 11, fontWeight: '600', color: '#666', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 }}>Activity</Text>
+            <View style={{ backgroundColor: '#111', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+              {friendsActivity.map((item: any, idx: number) => {
+                const p = item.profiles as any;
+                const ev = item.events as any;
+                const venue = ev?.venues?.name;
+                const dateLabel = formatActivityDate(ev?.date);
+                const name = p?.display_name || p?.username || 'Someone';
+                return (
+                  <TouchableOpacity
+                    key={`${item.event_id}-${idx}`}
+                    onPress={() => router.push(`/event/${ev?.id}` as any)}
+                    style={{
+                      flexDirection: 'row', alignItems: 'center',
+                      paddingHorizontal: 14, paddingVertical: 12,
+                      borderTopWidth: idx > 0 ? 1 : 0, borderTopColor: 'rgba(255,255,255,0.05)',
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    {p?.avatar_url ? (
+                      <Image source={{ uri: p.avatar_url }} style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12 }} />
+                    ) : (
+                      <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#FF3B5C18', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: '#FF3B5C' }}>{name[0].toUpperCase()}</Text>
+                      </View>
+                    )}
+                    <Text style={{ flex: 1, fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 18 }} numberOfLines={2}>
+                      <Text style={{ fontWeight: '700', color: '#fff' }}>{name}</Text>
+                      {` is going to ${ev?.title}${venue ? ` at ${venue}` : ''}${dateLabel ? ` ${dateLabel}` : ''}`}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.2)" />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* My Plans */}
+        {myHangouts.length > 0 && (
+          <View style={{ paddingHorizontal: 16, marginBottom: 28 }}>
+            <Text style={{ fontSize: 11, fontWeight: '600', color: '#666', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 }}>Your Plans</Text>
+            <View style={{ backgroundColor: '#111', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+              {myHangouts.map((rsvp, i) => (
+                <View
+                  key={i}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center',
+                    paddingHorizontal: 14, paddingVertical: 12,
+                    borderTopWidth: i > 0 ? 1 : 0, borderTopColor: 'rgba(255,255,255,0.05)',
+                  }}
+                >
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                    <Ionicons name={rsvp.status === 'going' ? 'checkmark-circle' : 'eye-outline'} size={20} color={rsvp.status === 'going' ? '#00C07A' : '#888'} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff', letterSpacing: -0.2 }} numberOfLines={1}>
+                      {rsvp.hangout.event_name || rsvp.hangout.venue_name}
+                    </Text>
+                    <Text style={{ fontSize: 12, color: '#888', marginTop: 1 }}>
+                      {rsvp.status === 'going' ? 'Going' : 'Interested'} · {rsvp.hangout.venue_name}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Friends Plans */}
+        {friendsPlans.length > 0 && (
+          <View style={{ paddingHorizontal: 16, marginBottom: 28 }}>
+            <Text style={{ fontSize: 11, fontWeight: '600', color: '#666', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 }}>Friends' Plans</Text>
+            <View style={{ backgroundColor: '#111', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+              {friendsPlans.map((plan, i) => {
+                const prof = plan.profiles as any;
+                const hangout = plan.hangouts as any;
+                return (
+                  <View
+                    key={i}
+                    style={{
+                      flexDirection: 'row', alignItems: 'center',
+                      paddingHorizontal: 14, paddingVertical: 12,
+                      borderTopWidth: i > 0 ? 1 : 0, borderTopColor: 'rgba(255,255,255,0.05)',
+                    }}
+                  >
+                    <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#FF3B5C18', alignItems: 'center', justifyContent: 'center', marginRight: 12, overflow: 'hidden' }}>
+                      {prof?.avatar_url ? (
+                        <Image source={{ uri: prof.avatar_url }} style={{ width: 40, height: 40 }} />
+                      ) : (
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#FF3B5C' }}>
+                          {(prof?.display_name || prof?.username || '?')[0].toUpperCase()}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff', letterSpacing: -0.2 }}>
+                        {prof?.display_name || prof?.username}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: '#888', marginTop: 1 }} numberOfLines={1}>
+                        {plan.status === 'going' ? 'Going to' : 'Interested in'} {hangout?.event_name}
+                      </Text>
+                    </View>
+                    <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: plan.status === 'going' ? 'rgba(0,192,122,0.12)' : 'rgba(232,160,32,0.12)' }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: plan.status === 'going' ? '#00C07A' : '#e8a020' }}>
+                        {plan.status === 'going' ? 'Going' : 'Maybe'}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* Invite block */}
+        <View style={{ marginHorizontal: 16, marginBottom: 16, borderRadius: 16, backgroundColor: '#111', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', padding: 20 }}>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff', marginBottom: 4, letterSpacing: -0.3 }}>Invite your friends</Text>
+          <Text style={{ fontSize: 13, color: '#666', marginBottom: 16, lineHeight: 18 }}>
+            affiche is better with friends. Share your link and coordinate nights out together.
           </Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <TouchableOpacity
               onPress={handleInviteLink}
-              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: 'transparent', borderWidth: 1, borderColor: '#2a2a2a' }}
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }}
             >
-              <Ionicons name="link-outline" size={16} color="#fff" />
-              <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>Copy link</Text>
+              <Ionicons name="link-outline" size={15} color="#fff" />
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#fff' }}>Copy link</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleShareInvite}
-              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: '#FF3B5C' }}
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 12, backgroundColor: '#FF3B5C' }}
             >
-              <Ionicons name="share-outline" size={16} color="white" />
-              <Text style={{ fontSize: 14, fontWeight: '700', color: 'white' }}>Share</Text>
+              <Ionicons name="share-outline" size={15} color="#fff" />
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#fff' }}>Share</Text>
             </TouchableOpacity>
           </View>
         </View>
-
       </ScrollView>
 
+      {/* New Group Modal */}
       <Modal visible={showNewGroup} transparent animationType="slide" onRequestClose={() => setShowNewGroup(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: '#161A22', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: insets.bottom + 24, maxHeight: '80%' }}>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: colours.text, marginBottom: 16 }}>New Group</Text>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#111', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: insets.bottom + 24, maxHeight: '80%' }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: '#fff', marginBottom: 20, letterSpacing: -0.3 }}>New Group</Text>
 
-            {/* Group name */}
             <TextInput
-              style={{ backgroundColor: colours.bg, borderRadius: 12, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colours.text, marginBottom: 16 }}
+              style={{ backgroundColor: '#1a1a1a', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: '#fff', marginBottom: 20 }}
               placeholder="Group name..."
-              placeholderTextColor={colours.muted}
+              placeholderTextColor="#666"
               value={newGroupName}
               onChangeText={setNewGroupName}
               autoFocus
             />
 
-            {/* Friend search */}
-            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
+            <Text style={{ fontSize: 11, fontWeight: '600', color: '#666', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>
               Add Friends {selectedFriendIds.length > 0 ? `(${selectedFriendIds.length} selected)` : ''}
             </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.bg, borderRadius: 10, borderWidth: 1, borderColor: colours.border, paddingHorizontal: 10, paddingVertical: 8, gap: 6, marginBottom: 10 }}>
-              <Ionicons name="search-outline" size={14} color={colours.muted} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a1a', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 10, paddingVertical: 8, gap: 6, marginBottom: 10 }}>
+              <Ionicons name="search-outline" size={14} color="#666" />
               <TextInput
-                style={{ flex: 1, fontSize: 14, color: colours.text }}
+                style={{ flex: 1, fontSize: 14, color: '#fff' }}
                 placeholder="Filter friends..."
-                placeholderTextColor={colours.muted}
+                placeholderTextColor="#666"
                 value={groupFriendSearch}
                 onChangeText={setGroupFriendSearch}
                 autoCapitalize="none"
@@ -911,10 +1035,9 @@ export default function FriendsScreen() {
               />
             </View>
 
-            {/* Friends list */}
             <ScrollView style={{ maxHeight: 240 }} showsVerticalScrollIndicator={false}>
               {friends.length === 0 ? (
-                <Text style={{ fontSize: 13, color: colours.muted, textAlign: 'center', paddingVertical: 16 }}>
+                <Text style={{ fontSize: 13, color: '#666', textAlign: 'center', paddingVertical: 16 }}>
                   Add friends first to create a group
                 </Text>
               ) : (
@@ -932,19 +1055,23 @@ export default function FriendsScreen() {
                         onPress={() => toggleFriendSelection(friend.id)}
                         style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4, gap: 12 }}
                       >
-                        <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center' }}>
-                          <Text style={{ fontSize: 15, fontWeight: '700', color: colours.accent }}>
-                            {(friend.display_name || friend.username || '?')[0].toUpperCase()}
-                          </Text>
+                        <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#FF3B5C18', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                          {friend.avatar_url ? (
+                            <Image source={{ uri: friend.avatar_url }} style={{ width: 36, height: 36, borderRadius: 18 }} />
+                          ) : (
+                            <Text style={{ fontSize: 15, fontWeight: '700', color: '#FF3B5C' }}>
+                              {(friend.display_name || friend.username || '?')[0].toUpperCase()}
+                            </Text>
+                          )}
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{friend.display_name || friend.username}</Text>
-                          <Text style={{ fontSize: 12, color: colours.muted }}>@{friend.username}</Text>
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>{friend.display_name || friend.username}</Text>
+                          <Text style={{ fontSize: 12, color: '#888' }}>@{friend.username}</Text>
                         </View>
                         <View style={{
                           width: 22, height: 22, borderRadius: 11,
-                          backgroundColor: selected ? colours.accent : 'transparent',
-                          borderWidth: 2, borderColor: selected ? colours.accent : colours.border,
+                          backgroundColor: selected ? '#FF3B5C' : 'transparent',
+                          borderWidth: 2, borderColor: selected ? '#FF3B5C' : 'rgba(255,255,255,0.2)',
                           alignItems: 'center', justifyContent: 'center',
                         }}>
                           {selected && <Ionicons name="checkmark" size={13} color="white" />}
@@ -956,10 +1083,17 @@ export default function FriendsScreen() {
             </ScrollView>
 
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-              <TouchableOpacity onPress={() => setShowNewGroup(false)} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: colours.muted }}>Cancel</Text>
+              <TouchableOpacity
+                onPress={() => setShowNewGroup(false)}
+                style={{ flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', alignItems: 'center' }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: '600', color: '#888' }}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={submitNewGroup} disabled={creatingGroup} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: colours.accent, alignItems: 'center' }}>
+              <TouchableOpacity
+                onPress={submitNewGroup}
+                disabled={creatingGroup}
+                style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: '#FF3B5C', alignItems: 'center' }}
+              >
                 {creatingGroup
                   ? <ActivityIndicator color="white" size="small" />
                   : <Text style={{ fontSize: 15, fontWeight: '700', color: 'white' }}>Create</Text>

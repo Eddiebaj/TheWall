@@ -55,7 +55,7 @@ export default function OnboardingScreen() {
     try {
       capture('onboarding_completed');
       await AsyncStorage.setItem(SK_ONBOARDED, 'true');
-      router.replace('/auth');
+      router.replace('/(tabs)/index' as any);
     } catch (e) {
       if (__DEV__) console.warn('AsyncStorage error:', e);
       setFinishing(false);

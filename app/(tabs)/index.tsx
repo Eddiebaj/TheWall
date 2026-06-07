@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
 import {
-  ActivityIndicator,
   Dimensions,
   FlatList,
   Image,
@@ -24,6 +23,7 @@ import { supabase } from '../../lib/supabase';
 import { useAnalytics } from '../../lib/analytics';
 import { sendNotification } from '../../lib/notificationHelpers';
 import { SK_TOOLTIP_SHOWN } from '../../lib/storageKeys';
+import { FeedGridSkeleton } from '../../components/Shimmer';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -39,7 +39,6 @@ const CARD_WIDTH = (SCREEN_WIDTH - GRID_PADDING * 2 - GRID_GAP) / 2;
 const CARD_IMAGE_HEIGHT = Math.round(CARD_WIDTH * 1.25);
 const AVATAR_SIZE = 18;
 const AVATAR_OVERLAP = 5;
-const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&q=80';
 
 interface FeedEvent {
   id: string;
@@ -1019,11 +1018,7 @@ export default function FeedScreen() {
 
   const renderForYou = () => {
     if (loading || hasProfile === null) {
-      return (
-        <View style={styles.loadingState}>
-          <ActivityIndicator size="large" color="#FF3B5C" />
-        </View>
-      );
+      return <FeedGridSkeleton paddingTop={insets.top + 56} count={6} />;
     }
 
     const showFallback = hasProfile === false || feedEvents.length < 3;

@@ -69,6 +69,20 @@ export default function BusinessSetupScreen() {
 
       if (updateError) throw updateError;
 
+      // Ensure business_profiles row exists (idempotent — upsert on user_id)
+      const { error: bpError } = await supabase
+        .from('business_profiles')
+        .upsert(
+          {
+            user_id: user.id,
+            business_name: venue?.name ?? venueName.trim(),
+            venue_id: venueId,
+          },
+          { onConflict: 'user_id' }
+        );
+
+      if (bpError) throw bpError;
+
       router.replace('/business-dashboard' as any);
     } catch (e: any) {
       setError(e.message || 'Something went wrong. Please try again.');

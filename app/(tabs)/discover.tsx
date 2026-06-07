@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Dimensions,
   Image,
   Modal,
@@ -19,8 +18,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useAnalytics } from '../../lib/analytics';
+import { DiscoverRowsSkeleton } from '../../components/Shimmer';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+let MapboxGL: any = null;
+try {
+  MapboxGL = require('@rnmapbox/maps').default;
+  MapboxGL.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '');
+} catch (_) {
+  MapboxGL = null;
+}
+
+const TORONTO_COORDS: [number, number] = [-79.3832, 43.6532];
 
 const CARD_W = 160;
 const CARD_H = 220;
@@ -40,10 +50,10 @@ function deriveCategory(title: string, venueName: string): string | null {
   return null;
 }
 
-const CATEGORIES: { key: string; emoji: string; label: string }[] = [
-  { key: 'Concerts',     emoji: '🎵', label: 'Concerts' },
+const CATEGORIES: { key: string; emoji: string; label: string; ionIcon?: keyof typeof Ionicons.glyphMap }[] = [
+  { key: 'Concerts',     emoji: '🎵', label: 'Concerts',     ionIcon: 'musical-notes-outline' },
   { key: 'Nightlife',    emoji: '🍸', label: 'Nightlife' },
-  { key: 'Comedy',       emoji: '😂', label: 'Comedy' },
+  { key: 'Comedy',       emoji: '😂', label: 'Comedy',       ionIcon: 'happy-outline' },
   { key: 'Art & Culture',emoji: '🎨', label: 'Art & Culture' },
   { key: 'Sports',       emoji: '🏟️', label: 'Sports' },
   { key: 'Food & Drinks',emoji: '🍔', label: 'Food & Drinks' },
@@ -115,18 +125,28 @@ function EventCard({ event, onPress, checkinCount }: { event: DiscoverEvent; onP
   const catDef = CATEGORIES.find(c => c.key === event.category);
   const emoji = catDef?.emoji ?? '📅';
 
+  const [imgError, setImgError] = React.useState(false);
+  const showImage = event.poster_url && !imgError;
+
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.85}
       style={styles.card}
     >
-      {event.poster_url ? (
-        <Image source={{ uri: event.poster_url }} style={styles.cardImage} />
+      {showImage ? (
+        <Image
+          source={{ uri: event.poster_url! }}
+          style={styles.cardImage}
+          onError={() => setImgError(true)}
+        />
       ) : (
-        <View style={styles.cardImagePlaceholder}>
-          <Text style={{ fontSize: 36 }}>{emoji}</Text>
-        </View>
+        <LinearGradient
+          colors={['#1a0620', '#2d1040', '#0a0a1a']}
+          style={styles.cardImagePlaceholder}
+        >
+          <Text style={{ fontSize: 28 }}>{emoji}</Text>
+        </LinearGradient>
       )}
       <LinearGradient
         colors={['transparent', 'rgba(0,0,0,0.85)']}
@@ -340,6 +360,9 @@ export default function DiscoverScreen() {
         categoryCounts[k] = (categoryCounts[k] ?? 0) + 1;
       }
       console.log('[Discover] loaded', merged.length, 'events. Categories:', categoryCounts);
+      const withCoords = merged.filter(e => e.venue_lat != null && e.venue_lng != null).length;
+      console.log(`[Map] ${withCoords}/${merged.length} events have coordinates — ${merged.length - withCoords} will be hidden on map`);
+      if (withCoords === 0) console.warn('[Map] ⚠️ No events have coordinates — map will appear empty. Check venue latitude/longitude columns.');
       if (legacyRes.error) console.warn('[Discover] legacyRes error:', legacyRes.error);
       if (veRes.error) console.warn('[Discover] veRes error:', veRes.error);
     }
@@ -401,9 +424,7 @@ export default function DiscoverScreen() {
       </View>
 
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator color="#fff" size="large" />
-        </View>
+        <DiscoverRowsSkeleton />
       ) : (
         <ScrollView
           style={styles.scroll}
@@ -500,6 +521,7 @@ export default function DiscoverScreen() {
             <CategoryRow
               key={cat.key}
               category={cat}
+              ionIcon={cat.ionIcon}
               events={eventsByCategory(cat.key)}
               onCardPress={e => {
                 if (__DEV__) console.log('[Discover] navigating to event id:', e.id, 'title:', e.title);
@@ -532,13 +554,100 @@ export default function DiscoverScreen() {
             </TouchableOpacity>
             <Text style={{ fontSize: 18, fontWeight: '700', color: '#fff' }}>Event Map</Text>
           </View>
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 32 }}>
-            <Ionicons name="map-outline" size={64} color="#333" />
-            <Text style={{ fontSize: 18, fontWeight: '700', color: '#fff' }}>Map coming soon</Text>
-            <Text style={{ fontSize: 14, color: '#666', textAlign: 'center', lineHeight: 20 }}>
-              The interactive map requires a native build. Use the event list below to explore what's happening tonight.
-            </Text>
-          </View>
+          {MapboxGL ? (() => {
+            const mappableEvents = events.filter(
+              e => e.venue_lat != null && e.venue_lng != null,
+            );
+            const geojson = {
+              type: 'FeatureCollection',
+              features: mappableEvents.map(e => ({
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [e.venue_lng!, e.venue_lat!] },
+                properties: { id: e.id, title: e.title, venue: e.venue_name },
+              })),
+            };
+            return (
+              <MapboxGL.MapView
+                style={{ flex: 1 }}
+                styleURL="mapbox://styles/mapbox/dark-v11"
+                logoEnabled={false}
+                attributionEnabled={false}
+              >
+                <MapboxGL.Camera
+                  zoomLevel={12}
+                  centerCoordinate={TORONTO_COORDS}
+                  animationMode="none"
+                />
+                <MapboxGL.ShapeSource
+                  id="events-source"
+                  shape={geojson as any}
+                  cluster
+                  clusterRadius={50}
+                  clusterMaxZoom={14}
+                  onPress={(e: any) => {
+                    const feature = e.features?.[0];
+                    if (!feature) return;
+                    if (feature.properties?.cluster) return; // let map zoom in
+                    const eventId = feature.properties?.id;
+                    if (eventId) {
+                      setMapModalVisible(false);
+                      router.push(`/event/${eventId}`);
+                    }
+                  }}
+                >
+                  {/* Cluster background circles */}
+                  <MapboxGL.CircleLayer
+                    id="clusters"
+                    filter={['has', 'point_count']}
+                    style={{
+                      circleColor: '#a855f7',
+                      circleRadius: [
+                        'step', ['get', 'point_count'],
+                        20,  // default radius
+                        10, 28, // >=10 → 28
+                        50, 36, // >=50 → 36
+                      ],
+                      circleOpacity: 0.92,
+                      circleStrokeWidth: 2,
+                      circleStrokeColor: 'rgba(168,85,247,0.35)',
+                    }}
+                  />
+                  {/* Cluster count labels */}
+                  <MapboxGL.SymbolLayer
+                    id="cluster-count"
+                    filter={['has', 'point_count']}
+                    style={{
+                      textField: ['get', 'point_count_abbreviated'],
+                      textSize: 13,
+                      textColor: '#fff',
+                      textFont: ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+                      textAllowOverlap: true,
+                    }}
+                  />
+                  {/* Individual event pins */}
+                  <MapboxGL.CircleLayer
+                    id="unclustered-point"
+                    filter={['!', ['has', 'point_count']]}
+                    style={{
+                      circleColor: '#e53935',
+                      circleRadius: 8,
+                      circleStrokeWidth: 2,
+                      circleStrokeColor: '#fff',
+                      circleOpacity: 0.95,
+                    }}
+                  />
+                </MapboxGL.ShapeSource>
+              </MapboxGL.MapView>
+            );
+          })() : (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 32 }}>
+              <Ionicons name="map-outline" size={64} color="#333" />
+              <Text style={{ fontSize: 18, fontWeight: '700', color: '#fff' }}>Map view available in the full app</Text>
+              <Text style={{ fontSize: 14, color: '#666', textAlign: 'center', lineHeight: 20 }}>
+                The interactive map requires a native build. Use the event list below to explore what's happening tonight.
+              </Text>
+            </View>
+          )}
         </View>
       </Modal>
 

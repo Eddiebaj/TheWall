@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ViewShot from 'react-native-view-shot';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   ActivityIndicator,
   Alert,
@@ -25,6 +26,7 @@ import { useAnalytics } from '../../lib/analytics';
 import { sendNotification } from '../../lib/notificationHelpers';
 import { hapticLight } from '../../lib/haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { EventDetailSkeleton } from '../../components/Shimmer';
 
 let Notifications: typeof import('expo-notifications') | null = null;
 try { Notifications = require('expo-notifications'); } catch {}
@@ -148,6 +150,7 @@ export default function EventDetailScreen() {
   const [rsvpProfiles, setRsvpProfiles] = useState<RsvpProfile[]>([]);
   const [friendIds, setFriendIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [rsvpLoading, setRsvpLoading] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [rsvpTableName, setRsvpTableName] = useState<'event_rsvps' | 'venue_event_rsvps'>('event_rsvps');
 
@@ -335,6 +338,8 @@ export default function EventDetailScreen() {
       return;
     }
     if (!event) return;
+    if (rsvpLoading) return;
+    setRsvpLoading(true);
 
     const isActive = status === 'going' ? event.isGoing : event.isInterested;
 
@@ -401,6 +406,7 @@ export default function EventDetailScreen() {
         if (error) setEvent(e => e ? { ...e, isInterested: false } : e);
       }
     }
+    setRsvpLoading(false);
   };
 
   const handleToggleSave = async () => {
@@ -582,17 +588,19 @@ export default function EventDetailScreen() {
     const address = event?.venue?.address;
     if (!address) return;
     const encoded = encodeURIComponent(address);
-    Linking.openURL(`maps://?q=${encoded}`).catch(() =>
-      Linking.openURL(`https://maps.apple.com/?q=${encoded}`)
-    );
+    if (Platform.OS === 'android') {
+      Linking.openURL(`geo:0,0?q=${encoded}`).catch(() =>
+        Linking.openURL(`https://maps.google.com/maps?q=${encoded}`)
+      );
+    } else {
+      Linking.openURL(`maps://?q=${encoded}`).catch(() =>
+        Linking.openURL(`https://maps.apple.com/?q=${encoded}`)
+      );
+    }
   };
 
   if (loading) {
-    return (
-      <View style={{ flex: 1, backgroundColor: colours.bg, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color={colours.accent} />
-      </View>
-    );
+    return <EventDetailSkeleton paddingTop={insets.top} bg={colours.bg} />;
   }
 
   if (!event) {
@@ -636,9 +644,20 @@ export default function EventDetailScreen() {
 
   const CARD = colours.card || '#1c1c1e';
 
+  // Build unified tag list: neighbourhood + source badge + recurrence + event tags
+  const unifiedTags: { label: string; icon?: string } [] = [];
+  if (event.venue?.neighbourhood) unifiedTags.push({ label: event.venue.neighbourhood });
+  if (event.source === 'user' && event.creator_is_organizer) unifiedTags.push({ label: 'Organizer' });
+  else if (event.source !== 'user' && event.source != null) unifiedTags.push({ label: 'Venue' });
+  if (event.recurrence && event.recurrence !== 'once') {
+    const recurrenceLabels: Record<string, string> = { weekly: 'Weekly', biweekly: 'Biweekly', monthly: 'Monthly' };
+    unifiedTags.push({ label: recurrenceLabels[event.recurrence] ?? event.recurrence, icon: 'repeat-outline' });
+  }
+  getEventTags(event.title).forEach(t => unifiedTags.push({ label: t }));
+
   return (
     <View style={{ flex: 1, backgroundColor: colours.bg }}>
-      {/* Poster */}
+      {/* Hero image with gradient scrim */}
       <View style={{ width: SCREEN_WIDTH, height: POSTER_HEIGHT, backgroundColor: '#1a1a1a' }}>
         {event.poster_url ? (
           <Image source={{ uri: event.poster_url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
@@ -647,6 +666,13 @@ export default function EventDetailScreen() {
             <Ionicons name="image-outline" size={48} color="rgba(255,255,255,0.2)" />
           </View>
         )}
+        {/* Bottom gradient scrim — blends hero into content */}
+        <LinearGradient
+          colors={['transparent', colours.bg]}
+          style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 100 }}
+          pointerEvents="none"
+        />
+        {/* Back button */}
         <TouchableOpacity
           onPress={() => router.back()}
           style={{
@@ -663,6 +689,7 @@ export default function EventDetailScreen() {
         >
           <Ionicons name="chevron-back" size={22} color="#fff" />
         </TouchableOpacity>
+        {/* Bookmark + share */}
         <TouchableOpacity
           onPress={handleToggleSave}
           style={{
@@ -698,97 +725,54 @@ export default function EventDetailScreen() {
       </View>
 
       {/* Content */}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
+
+        {/* Title block: event title primary, venue secondary */}
+        <Text style={{ fontSize: 26, fontWeight: '800', color: colours.text, lineHeight: 32, marginBottom: 6 }}>
+          {event.title}
+        </Text>
         <TouchableOpacity
           activeOpacity={event.venue_id ? 0.7 : 1}
           onPress={() => event.venue_id && router.push(`/venue/${event.venue_id}` as any)}
+          style={{ marginBottom: 4 }}
         >
-          <Text style={{ fontSize: 26, fontWeight: '800', color: colours.text, marginBottom: 8 }}>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: colours.muted }}>
             {event.venue?.name || event.venue_name || event.location || 'Unknown Venue'}
           </Text>
         </TouchableOpacity>
-
-        {event.venue?.neighbourhood && (
-          <View style={{
-            alignSelf: 'flex-start',
-            backgroundColor: colours.accent + '20',
-            borderRadius: 20,
-            paddingHorizontal: 12,
-            paddingVertical: 4,
-            marginBottom: 14,
-            borderWidth: 1,
-            borderColor: colours.accent + '40',
-          }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accent }}>
-              {event.venue.neighbourhood}
-            </Text>
-          </View>
-        )}
-
-        {event.source === 'user' && event.creator_is_organizer ? (
-          <View style={{
-            alignSelf: 'flex-start',
-            backgroundColor: '#FF3B5C18',
-            borderRadius: 20,
-            paddingHorizontal: 10,
-            paddingVertical: 3,
-            marginBottom: 8,
-            borderWidth: 1,
-            borderColor: '#FF3B5C40',
-          }}>
-            <Text style={{ fontSize: 11, fontWeight: '800', color: '#FF3B5C', letterSpacing: 0.5 }}>ORGANIZER</Text>
-          </View>
-        ) : event.source !== 'user' && event.source != null ? (
-          <View style={{
-            alignSelf: 'flex-start',
-            backgroundColor: '#FF3B5C18',
-            borderRadius: 20,
-            paddingHorizontal: 10,
-            paddingVertical: 3,
-            marginBottom: 8,
-            borderWidth: 1,
-            borderColor: '#FF3B5C40',
-          }}>
-            <Text style={{ fontSize: 11, fontWeight: '800', color: '#FF3B5C', letterSpacing: 0.5 }}>VENUE</Text>
-          </View>
-        ) : null}
-
-        <Text style={{ fontSize: 18, fontWeight: '700', color: colours.text, marginBottom: event.creator_username || event.recurrence ? 6 : 16 }}>
-          {event.title}
-        </Text>
-
         {event.source === 'user' && event.creator_username && (
-          <Text style={{ fontSize: 13, color: colours.muted, fontWeight: '500', marginBottom: 10 }}>
+          <Text style={{ fontSize: 13, color: colours.muted, fontWeight: '500', marginBottom: 4 }}>
             by {event.organizer_name ? event.organizer_name : `@${event.creator_username}`}
           </Text>
         )}
 
-        {event.recurrence && event.recurrence !== 'once' && (() => {
-          const labels: Record<string, string> = {
-            weekly: 'Weekly', biweekly: 'Biweekly', monthly: 'Monthly',
-          };
-          const label = labels[event.recurrence] ?? event.recurrence;
-          return (
-            <View style={{
-              alignSelf: 'flex-start',
-              backgroundColor: 'rgba(255,59,92,0.12)',
-              borderRadius: 20,
-              paddingHorizontal: 12,
-              paddingVertical: 4,
-              marginBottom: 12,
-              borderWidth: 1,
-              borderColor: 'rgba(255,59,92,0.3)',
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 5,
-            }}>
-              <Ionicons name="repeat-outline" size={13} color={colours.accent} />
-              <Text style={{ fontSize: 12, fontWeight: '700', color: colours.accent }}>{label}</Text>
-            </View>
-          );
-        })()}
+        {/* Unified tags row */}
+        {unifiedTags.length > 0 && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 14, marginBottom: 20 }}>
+            {unifiedTags.map((tag, i) => (
+              <View
+                key={`${tag.label}-${i}`}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  backgroundColor: 'rgba(255,255,255,0.07)',
+                  borderRadius: 20,
+                  paddingHorizontal: 11,
+                  paddingVertical: 5,
+                  borderWidth: 1,
+                  borderColor: 'rgba(255,255,255,0.12)',
+                }}
+              >
+                {tag.icon && <Ionicons name={tag.icon as any} size={12} color={colours.muted} />}
+                <Text style={{ fontSize: 12, fontWeight: '600', color: colours.text }}>{tag.label}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
-        <View style={{ flexDirection: 'row', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
+        {/* Meta row: date/time + cover charge */}
+        <View style={{ flexDirection: 'row', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
           {formattedDateTime && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Ionicons name="calendar-outline" size={15} color={colours.muted} />
@@ -803,41 +787,32 @@ export default function EventDetailScreen() {
           )}
         </View>
 
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
-          {getEventTags(event.title).map(tag => (
-            <View
-              key={tag}
-              style={{
-                backgroundColor: 'rgba(255,255,255,0.07)',
-                borderRadius: 20,
-                paddingHorizontal: 12,
-                paddingVertical: 5,
-                borderWidth: 1,
-                borderColor: 'rgba(255,255,255,0.12)',
-              }}
-            >
-              <Text style={{ fontSize: 12, fontWeight: '600', color: colours.text }}>{tag}</Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={{ marginBottom: 28 }}>
-          <Text style={{ fontSize: 14, fontWeight: '700', color: colours.muted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 }}>
-            About this event
+        {/* About section */}
+        <View style={{ marginBottom: 24 }}>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 }}>
+            About
           </Text>
-          <Text style={{ fontSize: 15, color: colours.text, lineHeight: 22, opacity: 0.85 }}>
+          <Text style={{ fontSize: 15, color: colours.text, lineHeight: 23, opacity: 0.85 }}>
             {event.description ?? 'Details coming soon. Check back closer to the date for more info.'}
           </Text>
-          {event.venue?.address && (
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 16 }}>
-              <Ionicons name="location-outline" size={16} color={colours.muted} style={{ marginTop: 2 }} />
-              <Text style={{ fontSize: 14, color: colours.muted, fontWeight: '500', flex: 1 }}>
-                {event.venue.address}
-              </Text>
-            </View>
-          )}
         </View>
 
+        {/* Location */}
+        {event.venue?.address && (
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 28 }}>
+            <Ionicons name="location-outline" size={16} color={colours.muted} style={{ marginTop: 2 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, color: colours.muted, fontWeight: '500' }}>
+                {event.venue.address}
+              </Text>
+              <TouchableOpacity onPress={handleGetDirections} style={{ marginTop: 4 }}>
+                <Text style={{ fontSize: 13, color: colours.accent, fontWeight: '600' }}>Get directions</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Friends going */}
         {rsvpProfiles.length > 0 && (() => {
           const friendProfiles = rsvpProfiles.filter(p => friendIds.has(p.id));
           const otherCount = rsvpProfiles.length - friendProfiles.length;
@@ -846,9 +821,9 @@ export default function EventDetailScreen() {
           const OVERLAP = 12;
           const hasFriends = shownFriends.length > 0;
           return (
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24, minHeight: AVATAR_SIZE }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 28, minHeight: AVATAR_SIZE }}>
               {hasFriends && (
-                <View style={{ flexDirection: 'row', width: shownFriends.length * (AVATAR_SIZE - OVERLAP) + OVERLAP, height: AVATAR_SIZE, marginRight: 8 }}>
+                <View style={{ flexDirection: 'row', width: shownFriends.length * (AVATAR_SIZE - OVERLAP) + OVERLAP, height: AVATAR_SIZE, marginRight: 10 }}>
                   {shownFriends.map((p, i) => (
                     <View
                       key={p.id}
@@ -899,93 +874,10 @@ export default function EventDetailScreen() {
           );
         })()}
 
-        <TouchableOpacity
-          onPress={() => {
-            if (!event.isGoing) capture('rsvp_tapped', { event_id: event.id });
-            handleToggleRsvp('going');
-          }}
-          activeOpacity={0.85}
-          style={{
-            backgroundColor: event.isGoing ? '#c0392b' : '#FF3B5C',
-            borderRadius: 14,
-            paddingVertical: 15,
-            alignItems: 'center',
-            marginBottom: 10,
-          }}
-        >
-          <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>
-            {event.isGoing ? "I'm Going \u2713" : "I'm Going"}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={() => handleToggleRsvp('interested')}
-          activeOpacity={0.85}
-          style={{
-            borderRadius: 14,
-            paddingVertical: 15,
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexDirection: 'row',
-            gap: 6,
-            marginBottom: 14,
-            borderWidth: 1.5,
-            borderColor: event.isInterested ? '#444' : colours.border,
-            backgroundColor: event.isInterested ? '#1a1a1a' : 'transparent',
-          }}
-        >
-          {event.isInterested && <Ionicons name="checkmark" size={16} color="#fff" />}
-          <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>
-            Interested
-          </Text>
-        </TouchableOpacity>
-
-        {/* Plan with friends */}
-        <TouchableOpacity
-          onPress={() => {
-            const params = new URLSearchParams({
-              eventId: event.id,
-              eventTitle: event.title,
-              eventVenue: event.venue?.name || '',
-              eventDate: event.event_date || '',
-            });
-            router.push(`/lets-go?${params.toString()}` as any);
-          }}
-          activeOpacity={0.85}
-          style={{
-            borderRadius: 14,
-            paddingVertical: 14,
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexDirection: 'row',
-            gap: 8,
-            marginBottom: 14,
-            borderWidth: 1.5,
-            borderColor: 'rgba(255,59,92,0.35)',
-            backgroundColor: 'rgba(255,59,92,0.08)',
-          }}
-        >
-          <Ionicons name="people-outline" size={18} color={colours.accent} />
-          <Text style={{ fontSize: 15, fontWeight: '700', color: colours.accent }}>
-            Plan with friends
-          </Text>
-        </TouchableOpacity>
-
-        {planStatus && (
-          <View style={{
-            flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16,
-            paddingHorizontal: 2,
-          }}>
-            <Ionicons name="checkmark-circle-outline" size={14} color={colours.accent} />
-            <Text style={{ fontSize: 13, color: colours.accent, fontWeight: '600' }}>
-              {planStatus.inCount} of {planStatus.totalInvited} friends are in
-            </Text>
-          </View>
-        )}
-
+        {/* Who's going avatars */}
         {rsvpProfiles.length > 0 && (
-          <View style={{ marginBottom: 20 }}>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff', marginBottom: 12 }}>
+          <View style={{ marginBottom: 28 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 12 }}>
               Who's going
             </Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1033,40 +925,113 @@ export default function EventDetailScreen() {
           </View>
         )}
 
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <TouchableOpacity
-            onPress={() => setShareSheetVisible(true)}
-            activeOpacity={0.85}
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 10,
-              borderWidth: 1,
-              borderColor: colours.border,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Ionicons name="share-outline" size={20} color={colours.text} />
-          </TouchableOpacity>
-          {event.venue?.address && (
-            <TouchableOpacity
-              onPress={handleGetDirections}
-              activeOpacity={0.85}
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: colours.border,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Ionicons name="navigate-outline" size={20} color={colours.text} />
-            </TouchableOpacity>
-          )}
-        </View>
+        {/* Action buttons */}
+        <TouchableOpacity
+          onPress={() => {
+            if (!event.isGoing) capture('rsvp_tapped', { event_id: event.id });
+            handleToggleRsvp('going');
+          }}
+          disabled={rsvpLoading}
+          activeOpacity={0.85}
+          style={{
+            backgroundColor: event.isGoing ? '#c0392b' : '#FF3B5C',
+            borderRadius: 14,
+            paddingVertical: 15,
+            alignItems: 'center',
+            marginBottom: 10,
+            opacity: rsvpLoading ? 0.6 : 1,
+          }}
+        >
+          <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>
+            {event.isGoing ? "I'm Going \u2713" : "I'm Going"}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => handleToggleRsvp('interested')}
+          disabled={rsvpLoading}
+          activeOpacity={0.85}
+          style={{
+            borderRadius: 14,
+            paddingVertical: 15,
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'row',
+            gap: 6,
+            marginBottom: 10,
+            borderWidth: 1.5,
+            borderColor: event.isInterested ? '#444' : colours.border,
+            backgroundColor: event.isInterested ? '#1a1a1a' : 'transparent',
+            opacity: rsvpLoading ? 0.6 : 1,
+          }}
+        >
+          {event.isInterested && <Ionicons name="checkmark" size={16} color="#fff" />}
+          <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>
+            Interested
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => {
+            const params = new URLSearchParams({
+              eventId: event.id,
+              eventTitle: event.title,
+              eventVenue: event.venue?.name || '',
+              eventDate: event.event_date || '',
+            });
+            router.push(`/lets-go?${params.toString()}` as any);
+          }}
+          activeOpacity={0.85}
+          style={{
+            borderRadius: 14,
+            paddingVertical: 14,
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'row',
+            gap: 8,
+            marginBottom: 10,
+            borderWidth: 1.5,
+            borderColor: 'rgba(255,59,92,0.35)',
+            backgroundColor: 'rgba(255,59,92,0.08)',
+          }}
+        >
+          <Ionicons name="people-outline" size={18} color={colours.accent} />
+          <Text style={{ fontSize: 15, fontWeight: '700', color: colours.accent }}>
+            Plan with friends
+          </Text>
+        </TouchableOpacity>
+
+        {planStatus && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, paddingHorizontal: 2 }}>
+            <Ionicons name="checkmark-circle-outline" size={14} color={colours.accent} />
+            <Text style={{ fontSize: 13, color: colours.accent, fontWeight: '600' }}>
+              {planStatus.inCount} of {planStatus.totalInvited} friends are in
+            </Text>
+          </View>
+        )}
+
+        {/* Share button */}
+        <TouchableOpacity
+          onPress={() => setShareSheetVisible(true)}
+          activeOpacity={0.85}
+          style={{
+            borderRadius: 14,
+            paddingVertical: 13,
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'row',
+            gap: 8,
+            marginTop: 4,
+            borderWidth: 1,
+            borderColor: colours.border,
+            backgroundColor: 'transparent',
+          }}
+        >
+          <Ionicons name="share-outline" size={17} color={colours.muted} />
+          <Text style={{ fontSize: 14, fontWeight: '600', color: colours.muted }}>
+            Share Event
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
 
       {/* Hidden share poster */}

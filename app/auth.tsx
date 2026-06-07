@@ -5,9 +5,11 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useAnalytics } from '../lib/analytics';
+import { SK_ONBOARDED } from '../lib/storageKeys';
 
 type Tab = 'email' | 'phone';
 type AuthMode = 'signin' | 'signup';
@@ -37,6 +39,7 @@ export default function AuthScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
 
   // Phone state
   const [countryCode] = useState('+1');
@@ -138,9 +141,11 @@ export default function AuthScreen() {
       Alert.alert('Enter your email', 'Type your email above first.');
       return;
     }
+    setForgotLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(target, {
       redirectTo: 'affiche://auth/reset-password',
     });
+    setForgotLoading(false);
     if (error) {
       Alert.alert('Error', error.message);
     } else {
@@ -462,8 +467,8 @@ export default function AuthScreen() {
                   Reset link sent — check your email
                 </Text>
               ) : (
-                <TouchableOpacity onPress={handleForgotPassword} style={{ alignSelf: 'flex-end', marginBottom: 20 }}>
-                  <Text style={{ fontSize: 13, color: '#888', fontWeight: '600' }}>Forgot password?</Text>
+                <TouchableOpacity onPress={handleForgotPassword} disabled={forgotLoading} style={{ alignSelf: 'flex-end', marginBottom: 20, opacity: forgotLoading ? 0.5 : 1 }}>
+                  <Text style={{ fontSize: 13, color: '#888', fontWeight: '600' }}>{forgotLoading ? 'Sending…' : 'Forgot password?'}</Text>
                 </TouchableOpacity>
               )
             )}
@@ -640,7 +645,17 @@ export default function AuthScreen() {
           </>
         )}
 
-        <TouchableOpacity onPress={() => router.replace('/(tabs)/index' as any)} style={{ marginTop: 24 }}>
+        <TouchableOpacity
+          onPress={async () => {
+            const onboarded = await AsyncStorage.getItem(SK_ONBOARDED).catch(() => null);
+            if (!onboarded) {
+              router.replace('/onboarding');
+            } else {
+              router.replace('/(tabs)/index' as any);
+            }
+          }}
+          style={{ marginTop: 24 }}
+        >
           <Text style={{ fontSize: 13, color: '#555' }}>Continue without account</Text>
         </TouchableOpacity>
       </View>

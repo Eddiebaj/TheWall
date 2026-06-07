@@ -40,37 +40,6 @@ const MASTER_KEY_MAP: Record<string, (keyof NotifSettings)[]> = {};
 
 const NOTIF_SETTINGS_KEY = SK_NOTIF_SETTINGS;
 
-function SectionHeader({ label, icon, colours, fonts }: { label: string; icon: string; colours: any; fonts: any }) {
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, marginTop: 12, marginBottom: 4 }}>
-      <Ionicons name={icon as any} size={16} color={colours.muted} />
-      <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</Text>
-    </View>
-  );
-}
-
-function Divider({ colours }: { colours: any }) {
-  return <View style={{ height: 1, backgroundColor: colours.border, marginHorizontal: 16 }} />;
-}
-
-function SettingsRow({ label, icon, onPress, colours, fonts, right }: {
-  label: string; icon: string; onPress: () => void; colours: any; fonts: any; right?: React.ReactNode;
-}) {
-  return (
-    <TouchableOpacity
-      onPress={() => { hapticLight(); onPress(); }}
-      activeOpacity={0.7}
-      style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 }}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-    >
-      <Ionicons name={icon as any} size={18} color={colours.accent} />
-      <Text style={{ fontSize: fonts.md, color: colours.text, flex: 1 }}>{label}</Text>
-      {right || <Ionicons name="chevron-forward" size={16} color={colours.muted} />}
-    </TouchableOpacity>
-  );
-}
-
 const WALL_CARD_GAP = 8;
 const WALL_CARD_WIDTH = (Dimensions.get('window').width - 40 - WALL_CARD_GAP) / 2;
 const WALL_CARD_HEIGHT = WALL_CARD_WIDTH * 1.35;
@@ -119,47 +88,43 @@ function OrganizerDashboardSection({ colours, fonts }: { colours: any; fonts: an
     })();
   }, [user]);
 
-  const totalRsvps = events.reduce((s, e) => s + e.rsvp_count, 0);
-
   if (loading) {
-    return <ActivityIndicator size="small" color={colours.accent} style={{ margin: 16 }} />;
+    return <ActivityIndicator size="small" color="#FF3B5C" style={{ margin: 16 }} />;
   }
+
+  const totalRsvps = events.reduce((s, e) => s + e.rsvp_count, 0);
 
   return (
     <View>
       <View style={{ paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', gap: 20 }}>
         <View style={{ alignItems: 'center' }}>
-          <Text style={{ fontSize: 22, fontWeight: '800', color: colours.text }}>{events.length}</Text>
-          <Text style={{ fontSize: 11, color: colours.muted, fontWeight: '600', marginTop: 2 }}>EVENTS</Text>
+          <Text style={{ fontSize: 22, fontWeight: '800', color: '#fff' }}>{events.length}</Text>
+          <Text style={{ fontSize: 11, color: '#888', fontWeight: '600', marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 }}>Events</Text>
         </View>
         <View style={{ alignItems: 'center' }}>
-          <Text style={{ fontSize: 22, fontWeight: '800', color: colours.text }}>{totalRsvps}</Text>
-          <Text style={{ fontSize: 11, color: colours.muted, fontWeight: '600', marginTop: 2 }}>TOTAL RSVPs</Text>
+          <Text style={{ fontSize: 22, fontWeight: '800', color: '#fff' }}>{totalRsvps}</Text>
+          <Text style={{ fontSize: 11, color: '#888', fontWeight: '600', marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 }}>RSVPs</Text>
         </View>
       </View>
-      {events.length > 0 && <View style={{ height: 1, backgroundColor: colours.border, marginHorizontal: 16 }} />}
       {events.map((e, i) => (
         <TouchableOpacity
           key={e.id}
           onPress={() => router.push(`/event/${e.id}` as any)}
           activeOpacity={0.7}
           style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            paddingHorizontal: 16,
-            paddingVertical: 12,
-            borderTopWidth: i === 0 ? 0 : 1,
-            borderTopColor: colours.border,
+            flexDirection: 'row', alignItems: 'center',
+            paddingHorizontal: 16, paddingVertical: 14, minHeight: 52,
+            borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)',
           }}
         >
-          <Text style={{ flex: 1, fontSize: fonts.md, color: colours.text, fontWeight: '500' }} numberOfLines={1}>{e.title}</Text>
-          <Text style={{ fontSize: fonts.sm, color: colours.muted, fontWeight: '600', marginRight: 6 }}>{e.rsvp_count} going</Text>
-          <Ionicons name="chevron-forward" size={16} color={colours.muted} />
+          <Text style={{ flex: 1, fontSize: 15, color: '#fff', fontWeight: '500' }} numberOfLines={1}>{e.title}</Text>
+          <Text style={{ fontSize: 13, color: '#888', fontWeight: '600', marginRight: 6 }}>{e.rsvp_count} going</Text>
+          <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.2)" />
         </TouchableOpacity>
       ))}
       {events.length === 0 && (
         <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
-          <Text style={{ fontSize: fonts.sm, color: colours.muted }}>No events yet. Tap + to create one.</Text>
+          <Text style={{ fontSize: 14, color: '#888' }}>No events yet.</Text>
         </View>
       )}
     </View>
@@ -167,7 +132,6 @@ function OrganizerDashboardSection({ colours, fonts }: { colours: any; fonts: an
 }
 
 function MyEventsSection() {
-  const { colours } = useApp();
   const { user } = useAuth();
   const router = useRouter();
   const [events, setEvents] = useState<{ id: string; title: string; event_date: string | null; rsvp_count: number }[]>([]);
@@ -204,43 +168,36 @@ function MyEventsSection() {
   if (events.length === 0) return null;
 
   return (
-    <View style={{ paddingHorizontal: 16, marginTop: 16, marginBottom: 8 }}>
-      <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>MY EVENTS</Text>
-      <View style={{ borderRadius: 14, borderWidth: 1, borderColor: colours.border, overflow: 'hidden' }}>
-        {events.map((e, i) => (
-          <TouchableOpacity
-            key={e.id}
-            onPress={() => router.push(`/event/${e.id}` as any)}
-            activeOpacity={0.75}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              paddingHorizontal: 14,
-              paddingVertical: 12,
-              borderTopWidth: i === 0 ? 0 : 1,
-              borderTopColor: colours.border,
-              backgroundColor: colours.surface,
-            }}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: colours.text }} numberOfLines={1}>{e.title}</Text>
-              {e.event_date ? (
-                <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>
-                  {new Date(e.event_date + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })}
-                </Text>
-              ) : null}
-            </View>
-            <Text style={{ fontSize: 12, color: colours.muted, fontWeight: '600', marginRight: 8 }}>{e.rsvp_count} going</Text>
-            <Ionicons name="chevron-forward" size={16} color={colours.muted} />
-          </TouchableOpacity>
-        ))}
-      </View>
+    <View style={{ marginBottom: 6 }}>
+      {events.map((e, i) => (
+        <TouchableOpacity
+          key={e.id}
+          onPress={() => router.push(`/event/${e.id}` as any)}
+          activeOpacity={0.75}
+          style={{
+            flexDirection: 'row', alignItems: 'center',
+            paddingHorizontal: 16, paddingVertical: 14,
+            borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)',
+            minHeight: 52,
+          }}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 15, fontWeight: '600', color: '#fff' }} numberOfLines={1}>{e.title}</Text>
+            {e.event_date ? (
+              <Text style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+                {new Date(e.event_date + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })}
+              </Text>
+            ) : null}
+          </View>
+          <Text style={{ fontSize: 12, color: '#888', fontWeight: '600', marginRight: 8 }}>{e.rsvp_count} going</Text>
+          <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.2)" />
+        </TouchableOpacity>
+      ))}
     </View>
   );
 }
 
 function MyWallSection({ onCountChange }: { onCountChange: (n: number) => void }) {
-  const { colours } = useApp();
   const { user } = useAuth();
   const router = useRouter();
   const [events, setEvents] = useState<WallEvent[]>([]);
@@ -269,21 +226,17 @@ function MyWallSection({ onCountChange }: { onCountChange: (n: number) => void }
 
   if (events.length === 0) {
     return (
-      <View style={{ paddingHorizontal: 16, marginTop: 16, marginBottom: 8 }}>
-        <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>MY WALL</Text>
-        <View style={{ borderRadius: 16, borderWidth: 1, borderColor: colours.border, borderStyle: 'dashed', padding: 24, alignItems: 'center' }}>
-          <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text, marginBottom: 4 }}>Your wall starts here</Text>
-          <Text style={{ fontSize: 12, color: colours.muted, textAlign: 'center', lineHeight: 18 }}>
-            RSVP to events to start your collection
-          </Text>
-        </View>
+      <View style={{ marginHorizontal: 16, marginBottom: 24, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', borderStyle: 'dashed', padding: 24, alignItems: 'center' }}>
+        <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff', marginBottom: 4 }}>Your wall starts here</Text>
+        <Text style={{ fontSize: 12, color: '#888', textAlign: 'center', lineHeight: 18 }}>
+          RSVP to events to start your collection
+        </Text>
       </View>
     );
   }
 
   return (
-    <View style={{ paddingHorizontal: 16, marginTop: 16, marginBottom: 8 }}>
-      <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>MY WALL</Text>
+    <View style={{ paddingHorizontal: 16, marginBottom: 24 }}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: WALL_CARD_GAP }}>
         {events.map((item) => (
           <TouchableOpacity
@@ -295,7 +248,7 @@ function MyWallSection({ onCountChange }: { onCountChange: (n: number) => void }
             {item.poster_url ? (
               <Image source={{ uri: item.poster_url }} style={{ width: '100%', height: '100%', position: 'absolute' }} resizeMode="cover" />
             ) : (
-              <View style={{ flex: 1, backgroundColor: '#2a2a2a' }} />
+              <View style={{ flex: 1, backgroundColor: '#1a1a1a' }} />
             )}
             <LinearGradient
               colors={['transparent', 'rgba(0,0,0,0.85)']}
@@ -311,11 +264,58 @@ function MyWallSection({ onCountChange }: { onCountChange: (n: number) => void }
   );
 }
 
+// Colored icon square, iOS-style settings row
+function SettingsRow({
+  label, icon, iconBg, onPress, right, destructive,
+}: {
+  label: string;
+  icon?: string;
+  iconBg?: string;
+  onPress: () => void;
+  right?: React.ReactNode;
+  destructive?: boolean;
+}) {
+  return (
+    <TouchableOpacity
+      onPress={() => { hapticLight(); onPress(); }}
+      activeOpacity={0.7}
+      style={{
+        flexDirection: 'row', alignItems: 'center',
+        paddingHorizontal: 16, paddingVertical: 0,
+        minHeight: 52,
+      }}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      {icon && iconBg && (
+        <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: iconBg, alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
+          <Ionicons name={icon as any} size={16} color="#fff" />
+        </View>
+      )}
+      <Text style={{ flex: 1, fontSize: 16, color: destructive ? '#FF3B5C' : '#fff', fontWeight: '400' }}>{label}</Text>
+      {right !== undefined ? right : (
+        icon ? <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.2)" /> : null
+      )}
+    </TouchableOpacity>
+  );
+}
+
+function RowDivider() {
+  return <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginLeft: 16 + 30 + 14 }} />;
+}
+
+function SettingsGroup({ children }: { children: React.ReactNode }) {
+  return (
+    <View style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: '#111', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+      {children}
+    </View>
+  );
+}
+
 export default function AccountScreen() {
   const {
     theme, setTheme, resolvedTheme, colours, fonts,
     language, setLanguage, t,
-
     largeText, setLargeText,
     highContrast, setHighContrast,
     reducedMotion, setReducedMotion,
@@ -334,7 +334,6 @@ export default function AccountScreen() {
     if (!userLoading && !user) router.replace('/auth' as any);
   }, [userLoading, user]);
 
-  // Auth state (shown when not signed in)
   const [authEmail, setAuthEmail] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
@@ -374,11 +373,9 @@ export default function AccountScreen() {
     if (error) {
       setAuthError(error.message);
     }
-    // On success, onAuthStateChange in AuthContext fires and routes automatically
   };
 
   const isLight = resolvedTheme === 'light';
-  const cardShadow = isLight ? sharedCardShadow : {};
 
   const [notifSettings, setNotifSettings] = useState<NotifSettings>(DEFAULT_NOTIF_SETTINGS);
   const [notifPermission, setNotifPermission] = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
@@ -394,6 +391,25 @@ export default function AccountScreen() {
   const [avatarCacheBust, setAvatarCacheBust] = useState(() => Date.now());
   const [profileStats, setProfileStats] = useState<{ eventsAttended: number; totalPosts: number; memberSince: string | null; mostVisitedVenue: string | null } | null>(null);
   const [savedEvents, setSavedEvents] = useState<{ id: string; title: string; venue_name: string; poster_url: string | null }[]>([]);
+  const [friendCount, setFriendCount] = useState(0);
+  const [eventsCreatedCount, setEventsCreatedCount] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('friendships')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'accepted')
+      .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`)
+      .then(({ count }) => setFriendCount(count ?? 0));
+
+    supabase
+      .from('venue_events')
+      .select('*', { count: 'exact', head: true })
+      .eq('creator_id', user.id)
+      .eq('source', 'user')
+      .then(({ count }) => setEventsCreatedCount(count ?? 0));
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -479,7 +495,6 @@ export default function AccountScreen() {
   const [editConfirmPassword, setEditConfirmPassword] = useState('');
   const [editPasswordError, setEditPasswordError] = useState('');
 
-  // Profile setup (shown for new users who have no username yet)
   const [setupDisplayName, setSetupDisplayName] = useState('');
   const [setupUsername, setSetupUsername] = useState('');
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
@@ -528,7 +543,7 @@ export default function AccountScreen() {
     setSetupError('');
     if (!setupUsername.trim()) { setSetupError('Username is required.'); return; }
     if (usernameStatus === 'taken') { setSetupError('That username is taken.'); return; }
-    if (usernameStatus === 'checking') { setSetupError('Still checking username…'); return; }
+    if (usernameStatus === 'checking') { setSetupError('Still checking username...'); return; }
     setSetupSaving(true);
     const { error } = await supabase.from('profiles').upsert({
       id: user!.id,
@@ -539,11 +554,9 @@ export default function AccountScreen() {
     if (error) {
       setSetupError(error.message);
     } else {
-      // Refresh profile in AuthContext by triggering a reload
       await updateProfile({ display_name: setupDisplayName.trim() || null, username: setupUsername.trim() });
     }
   };
-
 
   useEffect(() => {
     AsyncStorage.getItem(NOTIF_SETTINGS_KEY).then(val => {
@@ -582,10 +595,10 @@ export default function AccountScreen() {
     setNotifPermission(status as 'granted' | 'denied' | 'undetermined');
     if (status !== 'granted') {
       Alert.alert(
-        t('Notifications disabled', 'Notifications d\u00e9sactiv\u00e9es'),
+        t('Notifications disabled', 'Notifications desactivees'),
         t('Enable notifications in Settings.', 'Activez les notifications dans les Parametres.'),
         [
-          { text: t('Settings', 'Param\u00e8tres'), onPress: () => Linking.openSettings() },
+          { text: t('Settings', 'Parametres'), onPress: () => Linking.openSettings() },
           { text: t('Cancel', 'Annuler'), style: 'cancel' },
         ]
       );
@@ -634,27 +647,20 @@ export default function AccountScreen() {
   const uploadAvatar = async (uri: string) => {
     if (!user) return;
     const filePath = `${user.id}/avatar.jpg`;
-
-    // Optimistic update show selected image immediately
     setLocalAvatarUrl(uri);
-
     try {
       const response = await fetch(uri);
       const blob = await response.blob();
-
       const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(filePath, blob, { upsert: true, contentType: 'image/jpeg' });
-
       if (uploadError) {
         setLocalAvatarUrl(null);
         Alert.alert('Upload failed', uploadError.message);
         return;
       }
-
       const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
       await updateProfile({ avatar_url: data.publicUrl });
-      // Refresh cache-bust timestamp so the new avatar is fetched
       setAvatarCacheBust(Date.now());
       setLocalAvatarUrl(null);
     } catch (err: any) {
@@ -663,15 +669,16 @@ export default function AccountScreen() {
     }
   };
 
-  const Card = ({ children, style }: { children: React.ReactNode; style?: any }) => (
-    <View style={[{
-      borderWidth: 1, borderColor: colours.border, borderRadius: 12,
-      marginHorizontal: 20, marginBottom: 0, overflow: 'hidden',
-      backgroundColor: colours.surface,
-    }, cardShadow, style]}>
-      {children}
-    </View>
-  );
+  const openEditProfile = () => {
+    setEditName(profile?.display_name || '');
+    setEditUsername(profile?.username || '');
+    setEditUsernameStatus('idle');
+    setEditUsernameError('');
+    setEditNewPassword('');
+    setEditConfirmPassword('');
+    setEditPasswordError('');
+    setShowEditProfile(true);
+  };
 
   if (!user) {
     return null;
@@ -680,42 +687,47 @@ export default function AccountScreen() {
   if (needsProfileSetup) {
     return (
       <KeyboardAvoidingView
-        style={{ flex: 1, backgroundColor: colours.bg }}
+        style={{ flex: 1, backgroundColor: '#0a0a0a' }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
+        <StatusBar barStyle="light-content" />
         <ScrollView
           contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingBottom: insets.bottom + 40 }}
           keyboardShouldPersistTaps="handled"
         >
           <View style={{ alignItems: 'center', marginBottom: 36 }}>
-            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-              <Ionicons name="person-outline" size={30} color={colours.accent} />
+            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#FF3B5C20', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+              <Ionicons name="person-outline" size={30} color="#FF3B5C" />
             </View>
-            <Text style={{ fontSize: 24, fontWeight: '900', color: colours.text, letterSpacing: -0.5, marginBottom: 6 }}>Set up your profile</Text>
-            <Text style={{ fontSize: 14, color: colours.muted, textAlign: 'center', lineHeight: 20 }}>
+            <Text style={{ fontSize: 24, fontWeight: '900', color: '#fff', letterSpacing: -0.5, marginBottom: 6 }}>Set up your profile</Text>
+            <Text style={{ fontSize: 14, color: '#888', textAlign: 'center', lineHeight: 20 }}>
               Choose a username so your friends can find you.
             </Text>
           </View>
 
-          <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Display Name</Text>
+          <Text style={{ fontSize: 12, fontWeight: '600', color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Display Name</Text>
           <TextInput
-            style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15, color: colours.text, marginBottom: 20 }}
+            style={{ backgroundColor: '#111', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15, color: '#fff', marginBottom: 20 }}
             placeholder="Your name"
-            placeholderTextColor={colours.muted}
+            placeholderTextColor="#666"
             value={setupDisplayName}
             onChangeText={setSetupDisplayName}
             autoCorrect={false}
             returnKeyType="next"
           />
 
-          <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Username</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderWidth: 1, borderColor: usernameStatus === 'taken' ? '#FF3B5C' : usernameStatus === 'available' ? '#00C07A' : colours.border, borderRadius: 12, paddingHorizontal: 14, marginBottom: 8 }}>
-            <Text style={{ fontSize: 15, color: colours.muted, marginRight: 2 }}>@</Text>
+          <Text style={{ fontSize: 12, fontWeight: '600', color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Username</Text>
+          <View style={{
+            flexDirection: 'row', alignItems: 'center',
+            backgroundColor: '#111', borderWidth: 1,
+            borderColor: usernameStatus === 'taken' ? '#FF3B5C' : usernameStatus === 'available' ? '#00C07A' : 'rgba(255,255,255,0.08)',
+            borderRadius: 12, paddingHorizontal: 14, marginBottom: 8,
+          }}>
+            <Text style={{ fontSize: 15, color: '#666', marginRight: 2 }}>@</Text>
             <TextInput
-              style={{ flex: 1, paddingVertical: 13, fontSize: 15, color: colours.text }}
+              style={{ flex: 1, paddingVertical: 13, fontSize: 15, color: '#fff' }}
               placeholder="yourhandle"
-              placeholderTextColor={colours.muted}
+              placeholderTextColor="#666"
               value={setupUsername}
               onChangeText={v => setSetupUsername(v.toLowerCase().replace(/[^a-z0-9_.]/g, ''))}
               autoCapitalize="none"
@@ -723,11 +735,11 @@ export default function AccountScreen() {
               returnKeyType="done"
               onSubmitEditing={handleSetupProfile}
             />
-            {usernameStatus === 'checking' && <ActivityIndicator size="small" color={colours.muted} />}
-            {usernameStatus === 'available' && <Text style={{ fontSize: 13, color: '#00C07A', fontWeight: '700' }}>✓ available</Text>}
-            {usernameStatus === 'taken' && <Text style={{ fontSize: 13, color: '#FF3B5C', fontWeight: '700' }}>✗ taken</Text>}
+            {usernameStatus === 'checking' && <ActivityIndicator size="small" color="#888" />}
+            {usernameStatus === 'available' && <Text style={{ fontSize: 13, color: '#00C07A', fontWeight: '700' }}>available</Text>}
+            {usernameStatus === 'taken' && <Text style={{ fontSize: 13, color: '#FF3B5C', fontWeight: '700' }}>taken</Text>}
           </View>
-          <Text style={{ fontSize: 12, color: colours.muted, marginBottom: 24 }}>
+          <Text style={{ fontSize: 12, color: '#666', marginBottom: 24 }}>
             Lowercase letters, numbers, underscores and dots only.
           </Text>
 
@@ -741,7 +753,7 @@ export default function AccountScreen() {
             onPress={handleSetupProfile}
             disabled={setupSaving || !setupUsername.trim() || usernameStatus === 'taken' || usernameStatus === 'checking'}
             style={{
-              backgroundColor: (setupUsername.trim() && usernameStatus === 'available') ? colours.accent : colours.border,
+              backgroundColor: (setupUsername.trim() && usernameStatus === 'available') ? '#FF3B5C' : '#222',
               borderRadius: 14, paddingVertical: 16, alignItems: 'center',
             }}
             activeOpacity={0.85}
@@ -756,355 +768,313 @@ export default function AccountScreen() {
     );
   }
 
+  const avatarUri = localAvatarUrl ?? (profile?.avatar_url ? profile.avatar_url + '?t=' + avatarCacheBust : null);
+
   return (
-    <View style={{ flex: 1, backgroundColor: colours.bg }}>
-      <StatusBar barStyle={isLight ? 'dark-content' : 'light-content'} />
+    <View style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
+      <StatusBar barStyle="light-content" />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}>
 
-        <View style={{ backgroundColor: colours.bg, paddingTop: insets.top + 16, paddingBottom: 8, paddingHorizontal: 20 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-            {/* Avatar */}
-            <TouchableOpacity onPress={handleAvatarPress} style={{ position: 'relative' }}>
-              {(localAvatarUrl || profile?.avatar_url) ? (
-                <Image source={{ uri: localAvatarUrl ?? (profile!.avatar_url + '?t=' + avatarCacheBust) }} style={{ width: 56, height: 56, borderRadius: 14 }} />
-              ) : (
-                <View style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: colours.accent + '20', alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 22, fontWeight: '800', color: colours.accent }}>
-                    {profile?.display_name?.[0]?.toUpperCase() || profile?.username?.[0]?.toUpperCase() || '?'}
-                  </Text>
+        {/* Profile card */}
+        <View style={{ paddingTop: insets.top + 20, paddingHorizontal: 16, paddingBottom: 24 }}>
+          <View style={{ backgroundColor: '#111', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', padding: 20 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 16 }}>
+              {/* Avatar */}
+              <TouchableOpacity onPress={handleAvatarPress} style={{ position: 'relative' }}>
+                {avatarUri ? (
+                  <Image source={{ uri: avatarUri }} style={{ width: 72, height: 72, borderRadius: 36 }} />
+                ) : (
+                  <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#FF3B5C18', alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 28, fontWeight: '800', color: '#FF3B5C' }}>
+                      {profile?.display_name?.[0]?.toUpperCase() || profile?.username?.[0]?.toUpperCase() || '?'}
+                    </Text>
+                  </View>
+                )}
+                <View style={{
+                  position: 'absolute', bottom: 0, right: 0,
+                  width: 22, height: 22, borderRadius: 11,
+                  backgroundColor: '#333', borderWidth: 2, borderColor: '#111',
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Ionicons name="camera" size={11} color="#fff" />
                 </View>
-              )}
-              <View style={{ position: 'absolute', bottom: -4, right: -4, width: 20, height: 20, borderRadius: 10, backgroundColor: colours.accent, alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="camera" size={11} color="white" />
-              </View>
-            </TouchableOpacity>
-            {/* Info */}
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Text style={{ fontSize: 17, fontWeight: '800', color: colours.text }}>
+              </TouchableOpacity>
+
+              {/* Name + username */}
+              <View style={{ flex: 1, paddingTop: 2 }}>
+                <Text style={{ fontSize: 19, fontWeight: '800', color: '#fff', letterSpacing: -0.4, marginBottom: 3 }}>
                   {profile?.display_name || profile?.username || 'Your Name'}
                 </Text>
-                <TouchableOpacity onPress={() => {
-                  setEditName(profile?.display_name || '');
-                  setEditUsername(profile?.username || '');
-                  setEditUsernameStatus('idle');
-                  setEditUsernameError('');
-                  setEditNewPassword('');
-                  setEditConfirmPassword('');
-                  setEditPasswordError('');
-                  setShowEditProfile(true);
-                }}>
-                  <Ionicons name="pencil-outline" size={16} color={colours.muted} />
+                <Text style={{ fontSize: 14, color: '#888', marginBottom: 12 }}>
+                  @{profile?.username || 'username'}
+                </Text>
+                <TouchableOpacity
+                  onPress={openEditProfile}
+                  style={{ alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.05)' }}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#fff' }}>Edit profile</Text>
                 </TouchableOpacity>
               </View>
-              <Text style={{ fontSize: 13, color: colours.muted }}>@{profile?.username || 'username'}</Text>
-              {wallCount > 0 && (
-                <Text style={{ fontSize: 12, color: colours.accent, fontWeight: '600', marginTop: 2 }}>
-                  {wallCount} {wallCount === 1 ? 'night out' : 'nights out'}
+            </View>
+
+            {/* Stats row */}
+            <View style={{ flexDirection: 'row', marginTop: 20, paddingTop: 20, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)' }}>
+              <View style={{ flex: 1, alignItems: 'center' }}>
+                <Text style={{ fontSize: 22, fontWeight: '800', color: '#fff', letterSpacing: -0.5 }}>
+                  {profileStats?.eventsAttended ?? 0}
                 </Text>
-              )}
+                <Text style={{ fontSize: 11, color: '#888', fontWeight: '500', marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 }}>Going</Text>
+              </View>
+              <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.06)' }} />
+              <View style={{ flex: 1, alignItems: 'center' }}>
+                <Text style={{ fontSize: 22, fontWeight: '800', color: '#fff', letterSpacing: -0.5 }}>{friendCount}</Text>
+                <Text style={{ fontSize: 11, color: '#888', fontWeight: '500', marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 }}>Friends</Text>
+              </View>
+              <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.06)' }} />
+              <View style={{ flex: 1, alignItems: 'center' }}>
+                <Text style={{ fontSize: 22, fontWeight: '800', color: '#fff', letterSpacing: -0.5 }}>{eventsCreatedCount}</Text>
+                <Text style={{ fontSize: 11, color: '#888', fontWeight: '500', marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 }}>Created</Text>
+              </View>
             </View>
           </View>
         </View>
 
-        {/* MY WALL */}
+        {/* My Wall */}
         <MyWallSection onCountChange={setWallCount} />
 
-        {/* MY EVENTS */}
-        <MyEventsSection />
-
-        {/* SAVED EVENTS */}
-        <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
-          <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Saved Events</Text>
-          {savedEvents.length === 0 ? (
-            <Text style={{ fontSize: 13, color: colours.muted }}>No saved events yet</Text>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+        {/* Saved Events */}
+        {savedEvents.length > 0 && (
+          <View style={{ marginBottom: 24 }}>
+            <Text style={{ fontSize: 11, fontWeight: '600', color: '#666', textTransform: 'uppercase', letterSpacing: 0.8, paddingHorizontal: 20, marginBottom: 12 }}>Saved Events</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
               {savedEvents.map((ev) => (
                 <TouchableOpacity
                   key={ev.id}
                   onPress={() => router.push(`/event/${ev.id}` as any)}
                   activeOpacity={0.85}
-                  style={{ width: 120, borderRadius: 12, overflow: 'hidden', backgroundColor: colours.card }}
+                  style={{ width: 120, borderRadius: 12, overflow: 'hidden', backgroundColor: '#111' }}
                 >
                   <Image
                     source={{ uri: ev.poster_url || 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&q=80' }}
                     style={{ width: 120, height: 100 }}
                     resizeMode="cover"
                   />
-                  <View style={{ padding: 7 }}>
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: colours.text }} numberOfLines={1}>{ev.venue_name}</Text>
-                    <Text style={{ fontSize: 10, color: colours.muted, marginTop: 1 }} numberOfLines={1}>{ev.title}</Text>
+                  <View style={{ padding: 8 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#fff' }} numberOfLines={1}>{ev.venue_name}</Text>
+                    <Text style={{ fontSize: 10, color: '#888', marginTop: 1 }} numberOfLines={1}>{ev.title}</Text>
                   </View>
                 </TouchableOpacity>
               ))}
             </ScrollView>
-          )}
-        </View>
+          </View>
+        )}
 
+        {/* My Events */}
+        <SettingsGroup>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, minHeight: 44, paddingVertical: 12 }}>
+            <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: '#2563EB', alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
+              <Ionicons name="calendar" size={16} color="#fff" />
+            </View>
+            <Text style={{ flex: 1, fontSize: 16, color: '#fff', fontWeight: '400' }}>My Events</Text>
+          </View>
+          <MyEventsSection />
+        </SettingsGroup>
 
-        <View style={{ paddingHorizontal: 20, marginTop: 12, marginBottom: 4 }}>
-          <Text
-            style={{ fontSize: fonts.xxl, fontWeight: '700', color: colours.text }}
-            accessibilityRole="header"
-          >
-            {t('Settings', 'Param\u00e8tres')}
-          </Text>
-        </View>
-
-        {/* ── NOTIFICATIONS ── */}
-        <SectionHeader label={t('Notifications', 'Notifications')} icon="notifications-outline" colours={colours} fonts={fonts} />
-        <Card>
+        {/* Notifications section */}
+        <View style={{ marginTop: 24, marginBottom: 8 }}>
           {notifPermission === 'denied' && (
             <TouchableOpacity
               onPress={() => { hapticMedium(); Linking.openSettings().catch(() => {}); }}
               activeOpacity={0.7}
-              style={{ backgroundColor: colours.warnBg, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}
-              accessibilityRole="button"
-              accessibilityLabel={t('Open settings to enable notifications', 'Ouvrir les parametres pour activer les notifications')}
+              style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: 'rgba(255,149,0,0.08)', padding: 14, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: 'rgba(255,149,0,0.2)' }}
             >
-              <Ionicons name="alert-circle" size={18} color={colours.orange} />
-              <Text style={{ flex: 1, fontSize: fonts.sm, fontWeight: '600', color: colours.orange }}>
-                {t('Notifications off - tap to enable', 'Notifications desactivees - appuyez pour activer')}
+              <Ionicons name="alert-circle" size={18} color="#ff9500" />
+              <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: '#ff9500' }}>
+                Notifications off -- tap to enable
               </Text>
-              <Ionicons name="open-outline" size={14} color={colours.orange} />
+              <Ionicons name="open-outline" size={14} color="#ff9500" />
             </TouchableOpacity>
           )}
-          {notifToggles.map((item, i) => (
-            <View key={item.key}>
-              {i > 0 && <Divider colours={colours} />}
-              <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 }}>
-                <Ionicons name={item.icon as any} size={18} color={notifSettings[item.key as keyof NotifSettings] ? colours.accent : colours.muted} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: fonts.md, color: notifSettings[item.key as keyof NotifSettings] ? colours.text : colours.muted }}>
-                    {item.label}
-                  </Text>
-                  <Text style={{ fontSize: fonts.sm, color: colours.muted, marginTop: 1 }}>
-                    {(item as any).description}
-                  </Text>
+          <SettingsGroup>
+            {notifToggles.map((item, i) => (
+              <View key={item.key}>
+                {i > 0 && <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginLeft: 60 }} />}
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 0, minHeight: 52 }}>
+                  <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: '#1C1C1E', alignItems: 'center', justifyContent: 'center', marginRight: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }}>
+                    <Ionicons
+                      name={item.icon as any}
+                      size={16}
+                      color={notifSettings[item.key as keyof NotifSettings] ? '#FF3B5C' : '#888'}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 16, color: '#fff', fontWeight: '400' }}>{item.label}</Text>
+                    <Text style={{ fontSize: 12, color: '#888', marginTop: 1 }}>{(item as any).description}</Text>
+                  </View>
+                  <Switch
+                    value={!!notifSettings[item.key as keyof NotifSettings]}
+                    onValueChange={v => toggleMaster(item.key, v)}
+                    trackColor={{ false: '#2a2a2a', true: '#FF3B5C' }}
+                    thumbColor="white"
+                    ios_backgroundColor="#2a2a2a"
+                  />
                 </View>
-                <Switch
-                  value={!!notifSettings[item.key as keyof NotifSettings]}
-                  onValueChange={v => toggleMaster(item.key, v)}
-                  trackColor={{ false: colours.border, true: colours.accent }}
-                  thumbColor="white"
-                  ios_backgroundColor={colours.border}
-                  accessibilityLabel={item.label}
-                />
               </View>
-            </View>
-          ))}
-        </Card>
-
-        {/* ── APPEARANCE ── */}
-        <SectionHeader label={t('Appearance', 'Apparence')} icon="color-palette-outline" colours={colours} fonts={fonts} />
-
-        {/* Theme picker */}
-        <Card style={{ padding: 16 }}>
-          <Text style={{ fontSize: fonts.sm, fontWeight: '600', color: colours.muted, marginBottom: 12 }}>
-            {t('Theme', 'Theme')}
-          </Text>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            {(['dark', 'light', 'system'] as const).map(th => (
-              <TouchableOpacity
-                key={th}
-                style={{
-                  flex: 1, alignItems: 'center', gap: 6,
-                  borderWidth: 1, borderRadius: 12, paddingVertical: 10,
-                  backgroundColor: theme === th ? colours.tintBg : colours.bg,
-                  borderColor: theme === th ? colours.accent : colours.border,
-                }}
-                onPress={() => { hapticLight(); setTheme(th); }}
-                activeOpacity={0.7}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityRole="button"
-                accessibilityState={{ selected: theme === th }}
-                accessibilityLabel={th === 'dark' ? t('Dark mode', 'Mode sombre') : th === 'light' ? t('Light mode', 'Mode clair') : t('System theme', 'Th\u00e8me syst\u00e8me')}
-              >
-                <Ionicons
-                  name={th === 'dark' ? 'moon' : th === 'light' ? 'sunny' : 'phone-portrait'}
-                  size={18}
-                  color={theme === th ? colours.accent : colours.muted}
-                />
-                <Text style={{ fontSize: fonts.sm, color: theme === th ? colours.accent : colours.muted }}>
-                  {th === 'dark' ? t('Dark', 'Sombre') : th === 'light' ? t('Light', 'Clair') : t('Auto', 'Auto')}
-                </Text>
-              </TouchableOpacity>
             ))}
-          </View>
-        </Card>
+          </SettingsGroup>
+        </View>
 
-        {isAdmin && (
-          <>
-            <SectionHeader label="Admin" icon="shield-checkmark-outline" colours={colours} fonts={fonts} />
-            <Card>
-              <SettingsRow
-                label="Admin Panel"
-                icon="shield-checkmark-outline"
-                onPress={() => router.push('/admin' as any)}
-                colours={colours}
-                fonts={fonts}
-              />
-            </Card>
-          </>
-        )}
-
-        {/* ── SUPPORT ── */}
-        <SectionHeader label={t('Support', 'Soutien')} icon="help-circle-outline" colours={colours} fonts={fonts} />
-        <Card>
+        {/* Group 2: Account actions */}
+        <SettingsGroup>
           <SettingsRow
-            label={t('Report a bug', 'Signaler un bogue')}
-            icon="bug"
-            onPress={() => { setBugModalVisible(true); setBugSent(false); setBugMessage(''); setBugScreen(''); }}
-            colours={colours}
-            fonts={fonts}
+            label="Edit Profile"
+            icon="person"
+            iconBg="#2563EB"
+            onPress={openEditProfile}
           />
-          <Divider colours={colours} />
+          <RowDivider />
           <SettingsRow
-            label={t('Rate affiche', 'Evaluer affiche')}
-            icon="star"
+            label="Business Portal"
+            icon="storefront"
+            iconBg="#7C3AED"
             onPress={() => {
-              Linking.openURL('https://apps.apple.com/app/id6741357152?action=write-review').catch(() => {});
+              if ((profile as any)?.is_business) {
+                router.push('/business-dashboard' as any);
+              } else {
+                router.push('/business-setup' as any);
+              }
             }}
-            colours={colours}
-            fonts={fonts}
-            right={<Ionicons name="open-outline" size={16} color={colours.muted} />}
           />
-          <Divider colours={colours} />
-          <SettingsRow
-            label={t('Privacy Policy', 'Politique de confidentialite')}
-            icon="shield-checkmark"
-            onPress={() => router.push('/privacy-policy')}
-            colours={colours}
-            fonts={fonts}
-            right={<Ionicons name="chevron-forward" size={16} color={colours.muted} />}
-          />
-          <Divider colours={colours} />
-          <SettingsRow
-            label={t('Terms of Service', 'Conditions d\'utilisation')}
-            icon="document-text-outline"
-            onPress={() => router.push('/terms-of-service' as any)}
-            colours={colours}
-            fonts={fonts}
-            right={<Ionicons name="chevron-forward" size={16} color={colours.muted} />}
-          />
-        </Card>
-
-        {/* VENUE OWNER */}
-        {!(profile as any)?.is_business && (
-          <>
-            <SectionHeader label="For Venue Owners" icon="business-outline" colours={colours} fonts={fonts} />
-            <Card>
-              <SettingsRow
-                label="Set up business account"
-                icon="storefront-outline"
-                onPress={() => router.push('/business-setup' as any)}
-                colours={colours}
-                fonts={fonts}
-              />
-            </Card>
-          </>
-        )}
-        {(profile as any)?.is_business && (
-          <>
-            <SectionHeader label="Business" icon="business-outline" colours={colours} fonts={fonts} />
-            <Card>
-              <SettingsRow
-                label="Business Dashboard"
-                icon="stats-chart-outline"
-                onPress={() => router.push('/business-dashboard' as any)}
-                colours={colours}
-                fonts={fonts}
-              />
-            </Card>
-          </>
-        )}
-
-        {/* ORGANIZER */}
-        {!(profile as any)?.is_organizer && !(profile as any)?.is_business && (
-          <>
-            <SectionHeader label="For Organizers" icon="megaphone-outline" colours={colours} fonts={fonts} />
-            <Card>
+          {!(profile as any)?.is_organizer && !(profile as any)?.is_business && (
+            <>
+              <RowDivider />
               <SettingsRow
                 label="Become an Organizer"
-                icon="ribbon-outline"
+                icon="ribbon"
+                iconBg="#059669"
                 onPress={() => {
                   if (__DEV__) {
-                    // TODO: Replace with live Stripe organizer payment link before launch
                     Linking.openURL('https://buy.stripe.com/test_8x23cwf9agaw7a5fnH0480c').catch(() => {});
                   }
                 }}
-                colours={colours}
-                fonts={fonts}
                 right={
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>$19.99/mo</Text>
-                    <Ionicons name="chevron-forward" size={16} color={colours.muted} />
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: '#888' }}>$19.99/mo</Text>
+                    <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.2)" />
                   </View>
                 }
               />
-            </Card>
-          </>
-        )}
-        {(profile as any)?.is_organizer && (
-          <>
-            <SectionHeader label="Organizer" icon="megaphone-outline" colours={colours} fonts={fonts} />
-            <Card>
+            </>
+          )}
+          {(profile as any)?.is_organizer && (
+            <>
+              <RowDivider />
               <OrganizerDashboardSection colours={colours} fonts={fonts} />
-            </Card>
-          </>
+            </>
+          )}
+        </SettingsGroup>
+
+        {/* Admin */}
+        {isAdmin && (
+          <SettingsGroup>
+            <SettingsRow
+              label="Admin Panel"
+              icon="shield-checkmark"
+              iconBg="#DC2626"
+              onPress={() => router.push('/admin' as any)}
+            />
+          </SettingsGroup>
         )}
 
-        <TouchableOpacity
-          onPress={() => {
-            Alert.alert(
-              'Delete your account?',
-              'This will permanently delete your profile, events, RSVPs, messages, and all other data. This cannot be undone.',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Continue',
-                  style: 'destructive',
-                  onPress: () => {
-                    Alert.alert(
-                      'Are you absolutely sure?',
-                      'Your account will be permanently deleted immediately.',
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        {
-                          text: 'Delete Account',
-                          style: 'destructive',
-                          onPress: async () => {
-                            try {
-                              const { error } = await supabase.rpc('delete_my_account');
-                              if (error) throw error;
-                              await supabase.auth.signOut();
-                              Alert.alert('Your account has been deleted.', '', [
-                                { text: 'OK', onPress: () => router.replace('/auth' as any) },
-                              ]);
-                            } catch {
-                              Alert.alert('Something went wrong. Please try again or contact support@affiche.app');
-                            }
-                          },
-                        },
-                      ]
-                    );
-                  },
-                },
-              ]
-            );
-          }}
-          style={{ marginHorizontal: 20, marginTop: 16, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: '#FF3B5C40', backgroundColor: '#FF3B5C12', alignItems: 'center' }}
-        >
-          <Text style={{ fontSize: 15, fontWeight: '700', color: '#FF3B5C' }}>Delete Account</Text>
-        </TouchableOpacity>
+        {/* Group 3: Support */}
+        <SettingsGroup>
+          <SettingsRow
+            label="Rate affiche"
+            icon="star"
+            iconBg="#D97706"
+            onPress={() => {
+              Linking.openURL('https://apps.apple.com/app/id6741357152?action=write-review').catch(() => {});
+            }}
+            right={<Ionicons name="open-outline" size={16} color="rgba(255,255,255,0.2)" />}
+          />
+          <RowDivider />
+          <SettingsRow
+            label="Report a bug"
+            icon="bug"
+            iconBg="#EA580C"
+            onPress={() => { setBugModalVisible(true); setBugSent(false); setBugMessage(''); setBugScreen(''); }}
+          />
+          <RowDivider />
+          <SettingsRow
+            label="Privacy Policy"
+            icon="shield-checkmark"
+            iconBg="#2563EB"
+            onPress={() => router.push('/privacy-policy')}
+          />
+          <RowDivider />
+          <SettingsRow
+            label="Terms of Service"
+            icon="document-text"
+            iconBg="#4B5563"
+            onPress={() => router.push('/terms-of-service' as any)}
+          />
+        </SettingsGroup>
 
-        <TouchableOpacity
-          onPress={signOut}
-          style={{ marginHorizontal: 20, marginTop: 10, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: '#cc3b2a40', backgroundColor: '#cc3b2a12', alignItems: 'center' }}
-        >
-          <Text style={{ fontSize: 15, fontWeight: '700', color: '#cc3b2a' }}>Sign out</Text>
-        </TouchableOpacity>
+        {/* Group 4: Danger zone */}
+        <SettingsGroup>
+          <TouchableOpacity
+            onPress={signOut}
+            activeOpacity={0.7}
+            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, minHeight: 52 }}
+          >
+            <Text style={{ flex: 1, fontSize: 16, color: '#fff', fontWeight: '400' }}>Sign Out</Text>
+          </TouchableOpacity>
+          <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.06)' }} />
+          <TouchableOpacity
+            onPress={() => {
+              Alert.alert(
+                'Delete your account?',
+                'This will permanently delete your profile, events, RSVPs, messages, and all other data. This cannot be undone.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Continue',
+                    style: 'destructive',
+                    onPress: () => {
+                      Alert.alert(
+                        'Are you absolutely sure?',
+                        'Your account will be permanently deleted immediately.',
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Delete Account',
+                            style: 'destructive',
+                            onPress: async () => {
+                              try {
+                                const { error } = await supabase.rpc('delete_my_account');
+                                if (error) throw error;
+                                await supabase.auth.signOut();
+                                Alert.alert('Your account has been deleted.', '', [
+                                  { text: 'OK', onPress: () => router.replace('/auth' as any) },
+                                ]);
+                              } catch {
+                                Alert.alert('Something went wrong. Please try again or contact support@affiche.app');
+                              }
+                            },
+                          },
+                        ]
+                      );
+                    },
+                  },
+                ]
+              );
+            }}
+            activeOpacity={0.7}
+            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, minHeight: 52 }}
+          >
+            <Text style={{ flex: 1, fontSize: 16, color: '#FF3B5C', fontWeight: '400' }}>Delete Account</Text>
+          </TouchableOpacity>
+        </SettingsGroup>
 
         {__DEV__ && (
           <TouchableOpacity
@@ -1112,9 +1082,9 @@ export default function AccountScreen() {
               await AsyncStorage.clear();
               await supabase.auth.signOut();
             }}
-            style={{ marginHorizontal: 20, marginTop: 10, marginBottom: 8, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: '#ff990040', backgroundColor: '#ff990012', alignItems: 'center' }}
+            style={{ marginHorizontal: 16, marginTop: 8, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,153,0,0.3)', backgroundColor: 'rgba(255,153,0,0.06)', alignItems: 'center' }}
           >
-            <Text style={{ fontSize: 13, fontWeight: '700', color: '#ff9900' }}>⚙ Reset App (Dev)</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: '#ff9900' }}>Reset App (Dev)</Text>
           </TouchableOpacity>
         )}
 
@@ -1122,69 +1092,56 @@ export default function AccountScreen() {
 
       {/* Bug Report Modal */}
       <Modal visible={bugModalVisible} animationType="slide" transparent onRequestClose={() => setBugModalVisible(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
-          <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: insets.bottom + 20 }}>
-            <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colours.border, marginTop: 12, marginBottom: 16 }} />
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <View style={{ backgroundColor: '#111', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: insets.bottom + 20 }}>
+            <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.15)', marginTop: 12, marginBottom: 16 }} />
             {bugSent ? (
               <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 }}>
-                <Ionicons name="checkmark-circle" size={40} color={colours.accent} />
-                <Text style={{ fontSize: fonts.xl, fontWeight: '700', color: colours.text, marginTop: 12 }}>{t('Sent', 'Envoye')}</Text>
+                <Ionicons name="checkmark-circle" size={40} color="#FF3B5C" />
+                <Text style={{ fontSize: 18, fontWeight: '700', color: '#fff', marginTop: 12 }}>{t('Sent', 'Envoye')}</Text>
                 <TouchableOpacity
                   onPress={() => setBugModalVisible(false)}
                   activeOpacity={0.7}
-                  style={{ marginTop: 20, backgroundColor: colours.accent, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 40 }}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('Done', 'Fermer')}
+                  style={{ marginTop: 20, backgroundColor: '#FF3B5C', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 40 }}
                 >
-                  <Text style={{ color: 'white', fontWeight: '600', fontSize: fonts.md }}>{t('Done', 'Fermer')}</Text>
+                  <Text style={{ color: 'white', fontWeight: '600', fontSize: 15 }}>{t('Done', 'Fermer')}</Text>
                 </TouchableOpacity>
               </View>
             ) : (
               <View style={{ paddingHorizontal: 20 }}>
-                <Text style={{ fontSize: fonts.xl, fontWeight: '700', color: colours.text, marginBottom: 16 }}>{t('Report a bug', 'Signaler un bogue')}</Text>
-
+                <Text style={{ fontSize: 18, fontWeight: '700', color: '#fff', marginBottom: 16 }}>{t('Report a bug', 'Signaler un bogue')}</Text>
                 <TextInput
-                  style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colours.text, minHeight: 80, textAlignVertical: 'top', marginBottom: 12 }}
-                  placeholder={t('What went wrong?', 'Que s\'est-il passe?')}
-                  placeholderTextColor={colours.muted}
+                  style={{ backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#fff', minHeight: 80, textAlignVertical: 'top', marginBottom: 12 }}
+                  placeholder={t('What went wrong?', "Que s'est-il passe?")}
+                  placeholderTextColor="#666"
                   value={bugMessage}
                   onChangeText={setBugMessage}
                   multiline
-                  accessibilityLabel={t('Bug description', 'Description du bogue')}
                 />
-
-                <Text style={{ fontSize: fonts.sm, color: colours.muted, marginBottom: 4 }}>{t('Screen', 'Ecran')}</Text>
+                <Text style={{ fontSize: 13, color: '#888', marginBottom: 8 }}>{t('Screen', 'Ecran')}</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
                   {['Feed', 'Discover', 'Friends', 'Profile', 'Other'].map(s => (
                     <TouchableOpacity
                       key={s}
                       onPress={() => { hapticLight(); setBugScreen(bugScreen === s ? '' : s); }}
                       activeOpacity={0.7}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       style={{
-                        paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1,
-                        borderColor: bugScreen === s ? colours.red : colours.border,
-                        backgroundColor: bugScreen === s ? colours.errorBg : colours.surface,
+                        paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1,
+                        borderColor: bugScreen === s ? '#FF3B5C' : 'rgba(255,255,255,0.1)',
+                        backgroundColor: bugScreen === s ? 'rgba(255,59,92,0.08)' : 'transparent',
                       }}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: bugScreen === s }}
                     >
-                      <Text style={{ fontSize: fonts.sm, color: bugScreen === s ? colours.red : colours.text }}>
-                        {s}
-                      </Text>
+                      <Text style={{ fontSize: 13, color: bugScreen === s ? '#FF3B5C' : '#888' }}>{s}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
-
                 <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
                   <TouchableOpacity
                     onPress={() => setBugModalVisible(false)}
                     activeOpacity={0.7}
-                    style={{ flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('Cancel', 'Annuler')}
+                    style={{ flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', alignItems: 'center' }}
                   >
-                    <Text style={{ fontSize: fonts.md, fontWeight: '600', color: colours.muted }}>{t('Cancel', 'Annuler')}</Text>
+                    <Text style={{ fontSize: 15, fontWeight: '600', color: '#888' }}>{t('Cancel', 'Annuler')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={async () => {
@@ -1207,7 +1164,7 @@ export default function AccountScreen() {
                         if (__DEV__) console.warn('bug report failed:', e);
                         const subject = encodeURIComponent('affiche Bug Report');
                         const body = encodeURIComponent(`${bugMessage.trim()}\n\n---\nScreen: ${bugScreen || 'N/A'}\nDevice: ${Platform.OS} ${Platform.Version}\nDate: ${new Date().toLocaleDateString('en-CA')}\n`);
-                        Linking.openURL(`mailto:support@affiche.app?subject=${subject}&body=${body}`).catch(() => Alert.alert(t('Could not send report', 'Impossible d\'envoyer le rapport')));
+                        Linking.openURL(`mailto:support@affiche.app?subject=${subject}&body=${body}`).catch(() => Alert.alert(t('Could not send report', "Impossible d'envoyer le rapport")));
                         setBugSent(true);
                       }
                       setBugSending(false);
@@ -1216,15 +1173,12 @@ export default function AccountScreen() {
                     activeOpacity={0.7}
                     style={{
                       flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center',
-                      backgroundColor: bugMessage.trim() ? colours.red : colours.border,
-                      opacity: bugMessage.trim() ? 1 : 0.5,
+                      backgroundColor: bugMessage.trim() ? '#FF3B5C' : '#222',
                     }}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('Send bug report', 'Envoyer le rapport')}
                   >
                     {bugSending
                       ? <ActivityIndicator color="white" size="small" />
-                      : <Text style={{ fontSize: fonts.md, fontWeight: '600', color: bugMessage.trim() ? 'white' : colours.muted }}>{t('Send', 'Envoyer')}</Text>
+                      : <Text style={{ fontSize: 15, fontWeight: '600', color: bugMessage.trim() ? 'white' : '#666' }}>{t('Send', 'Envoyer')}</Text>
                     }
                   </TouchableOpacity>
                 </View>
@@ -1234,100 +1188,119 @@ export default function AccountScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* Edit Profile Modal */}
       <Modal visible={showEditProfile} transparent animationType="slide" onRequestClose={() => setShowEditProfile(false)}>
         <View style={{ flex: 1 }}>
-          <TouchableOpacity style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)' }} activeOpacity={1} onPress={() => setShowEditProfile(false)} />
+          <TouchableOpacity
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.55)' }}
+            activeOpacity={1}
+            onPress={() => setShowEditProfile(false)}
+          />
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: colours.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: insets.bottom + 24 }}>
-            <Text style={{ fontSize: 20, fontWeight: '800', color: colours.text, marginBottom: 24 }}>Edit Profile</Text>
+            <View style={{ backgroundColor: '#111', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: insets.bottom + 24 }}>
+              <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.15)', marginBottom: 20 }} />
+              <Text style={{ fontSize: 20, fontWeight: '800', color: '#fff', marginBottom: 24, letterSpacing: -0.3 }}>Edit Profile</Text>
 
-            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Display Name</Text>
-            <TextInput
-              style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colours.text, marginBottom: 16 }}
-              value={editName}
-              onChangeText={setEditName}
-              placeholder="Your name"
-              placeholderTextColor={colours.muted}
-            />
-
-            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Username</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colours.surface, borderWidth: 1, borderColor: editUsernameStatus === 'taken' ? '#FF3B5C' : editUsernameStatus === 'available' ? '#00C07A' : colours.border, borderRadius: 12, paddingHorizontal: 14, marginBottom: 4 }}>
-              <Text style={{ fontSize: 15, color: colours.muted, marginRight: 2 }}>@</Text>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Display Name</Text>
               <TextInput
-                style={{ flex: 1, paddingVertical: 12, fontSize: 15, color: colours.text }}
-                value={editUsername}
-                onChangeText={v => { setEditUsernameError(''); setEditUsername(v.toLowerCase().replace(/[^a-z0-9_.]/g, '')); }}
-                placeholder="username"
-                placeholderTextColor={colours.muted}
+                style={{ backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: '#fff', marginBottom: 16 }}
+                value={editName}
+                onChangeText={setEditName}
+                placeholder="Your name"
+                placeholderTextColor="#666"
+              />
+
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Username</Text>
+              <View style={{
+                flexDirection: 'row', alignItems: 'center',
+                backgroundColor: '#1a1a1a', borderWidth: 1,
+                borderColor: editUsernameStatus === 'taken' ? '#FF3B5C' : editUsernameStatus === 'available' ? '#00C07A' : 'rgba(255,255,255,0.08)',
+                borderRadius: 12, paddingHorizontal: 14, marginBottom: 4,
+              }}>
+                <Text style={{ fontSize: 15, color: '#666', marginRight: 2 }}>@</Text>
+                <TextInput
+                  style={{ flex: 1, paddingVertical: 12, fontSize: 15, color: '#fff' }}
+                  value={editUsername}
+                  onChangeText={v => { setEditUsernameError(''); setEditUsername(v.toLowerCase().replace(/[^a-z0-9_.]/g, '')); }}
+                  placeholder="username"
+                  placeholderTextColor="#666"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {editUsernameStatus === 'checking' && <ActivityIndicator size="small" color="#888" />}
+                {editUsernameStatus === 'available' && editUsername !== profile?.username && (
+                  <Text style={{ fontSize: 13, color: '#00C07A', fontWeight: '700' }}>available</Text>
+                )}
+                {editUsernameStatus === 'taken' && <Text style={{ fontSize: 13, color: '#FF3B5C', fontWeight: '700' }}>taken</Text>}
+              </View>
+              {editUsernameError ? (
+                <Text style={{ fontSize: 12, color: '#FF3B5C', fontWeight: '600', marginBottom: 12 }}>{editUsernameError}</Text>
+              ) : (
+                <View style={{ marginBottom: 16 }} />
+              )}
+
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>New Password</Text>
+              <TextInput
+                style={{ backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: '#fff', marginBottom: 10 }}
+                value={editNewPassword}
+                onChangeText={v => { setEditPasswordError(''); setEditNewPassword(v); }}
+                placeholder="Leave blank to keep current"
+                placeholderTextColor="#666"
+                secureTextEntry
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              {editUsernameStatus === 'checking' && <ActivityIndicator size="small" color={colours.muted} />}
-              {editUsernameStatus === 'available' && editUsername !== profile?.username && <Text style={{ fontSize: 13, color: '#00C07A', fontWeight: '700' }}>✓</Text>}
-              {editUsernameStatus === 'taken' && <Text style={{ fontSize: 13, color: '#FF3B5C', fontWeight: '700' }}>✗ taken</Text>}
+
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Confirm Password</Text>
+              <TextInput
+                style={{
+                  backgroundColor: '#1a1a1a', borderWidth: 1,
+                  borderColor: editPasswordError ? '#FF3B5C' : 'rgba(255,255,255,0.08)',
+                  borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: '#fff', marginBottom: 4,
+                }}
+                value={editConfirmPassword}
+                onChangeText={v => { setEditPasswordError(''); setEditConfirmPassword(v); }}
+                placeholder="Confirm new password"
+                placeholderTextColor="#666"
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {editPasswordError ? (
+                <Text style={{ fontSize: 12, color: '#FF3B5C', fontWeight: '600', marginBottom: 12 }}>{editPasswordError}</Text>
+              ) : (
+                <View style={{ marginBottom: 20 }} />
+              )}
+
+              <TouchableOpacity
+                onPress={async () => {
+                  if (editUsernameStatus === 'taken') { setEditUsernameError('That username is already taken.'); return; }
+                  if (editUsernameStatus === 'checking') { setEditUsernameError('Still checking username...'); return; }
+                  if (editNewPassword || editConfirmPassword) {
+                    if (editNewPassword !== editConfirmPassword) { setEditPasswordError("Passwords don't match"); return; }
+                  }
+                  setSaving(true);
+                  await updateProfile({ display_name: editName.trim(), username: editUsername.trim() });
+                  if (editNewPassword) {
+                    await supabase.auth.updateUser({ password: editNewPassword });
+                  }
+                  setSaving(false);
+                  setEditNewPassword('');
+                  setEditConfirmPassword('');
+                  setShowEditProfile(false);
+                }}
+                disabled={saving || editUsernameStatus === 'taken' || editUsernameStatus === 'checking'}
+                style={{
+                  backgroundColor: '#FF3B5C', borderRadius: 14, paddingVertical: 16, alignItems: 'center',
+                  opacity: (editUsernameStatus === 'taken' || editUsernameStatus === 'checking') ? 0.6 : 1,
+                }}
+              >
+                {saving ? <ActivityIndicator color="white" /> : <Text style={{ fontSize: 16, fontWeight: '700', color: 'white' }}>Save</Text>}
+              </TouchableOpacity>
             </View>
-            {editUsernameError ? (
-              <Text style={{ fontSize: 12, color: '#FF3B5C', fontWeight: '600', marginBottom: 12 }}>{editUsernameError}</Text>
-            ) : (
-              <View style={{ marginBottom: 16 }} />
-            )}
-
-            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>New Password</Text>
-            <TextInput
-              style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colours.text, marginBottom: 10 }}
-              value={editNewPassword}
-              onChangeText={v => { setEditPasswordError(''); setEditNewPassword(v); }}
-              placeholder="Leave blank to keep current"
-              placeholderTextColor={colours.muted}
-              secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-
-            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Confirm Password</Text>
-            <TextInput
-              style={{ backgroundColor: colours.surface, borderWidth: 1, borderColor: editPasswordError ? '#FF3B5C' : colours.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colours.text, marginBottom: 4 }}
-              value={editConfirmPassword}
-              onChangeText={v => { setEditPasswordError(''); setEditConfirmPassword(v); }}
-              placeholder="Confirm new password"
-              placeholderTextColor={colours.muted}
-              secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {editPasswordError ? (
-              <Text style={{ fontSize: 12, color: '#FF3B5C', fontWeight: '600', marginBottom: 12 }}>{editPasswordError}</Text>
-            ) : (
-              <View style={{ marginBottom: 16 }} />
-            )}
-
-            <TouchableOpacity
-              onPress={async () => {
-                if (editUsernameStatus === 'taken') { setEditUsernameError('That username is already taken.'); return; }
-                if (editUsernameStatus === 'checking') { setEditUsernameError('Still checking username…'); return; }
-                if (editNewPassword || editConfirmPassword) {
-                  if (editNewPassword !== editConfirmPassword) { setEditPasswordError("Passwords don't match"); return; }
-                }
-                setSaving(true);
-                await updateProfile({ display_name: editName.trim(), username: editUsername.trim() });
-                if (editNewPassword) {
-                  await supabase.auth.updateUser({ password: editNewPassword });
-                }
-                setSaving(false);
-                setEditNewPassword('');
-                setEditConfirmPassword('');
-                setShowEditProfile(false);
-              }}
-              disabled={saving || editUsernameStatus === 'taken' || editUsernameStatus === 'checking'}
-              style={{ backgroundColor: colours.accent, borderRadius: 14, paddingVertical: 16, alignItems: 'center', opacity: (editUsernameStatus === 'taken' || editUsernameStatus === 'checking') ? 0.6 : 1 }}
-            >
-              {saving ? <ActivityIndicator color="white" /> : <Text style={{ fontSize: 16, fontWeight: '700', color: 'white' }}>Save</Text>}
-            </TouchableOpacity>
-          </View>
           </KeyboardAvoidingView>
         </View>
       </Modal>
-
     </View>
   );
 }

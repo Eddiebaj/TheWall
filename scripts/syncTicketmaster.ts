@@ -14,7 +14,6 @@ if (fs.existsSync(envPath)) {
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const ticketmasterKey = process.env.EXPO_PUBLIC_TICKETMASTER_API_KEY!;
-
 if (!supabaseUrl || !serviceRoleKey) {
   console.error('Missing EXPO_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
   process.exit(1);
@@ -67,21 +66,59 @@ interface DbVenue {
   address: string | null;
 }
 
+// ── Geocoding ────────────────────────────────────────────────────────────────
+
+async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
+  const url = new URL('https://nominatim.openstreetmap.org/search');
+  url.searchParams.set('format', 'json');
+  url.searchParams.set('q', `${address}, Toronto, Ontario, Canada`);
+  url.searchParams.set('limit', '1');
+
+  try {
+    const res = await fetch(url.toString(), {
+      headers: { 'User-Agent': 'affiche-geocoder/1.0' },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data?.length) return null;
+    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+  } catch {
+    return null;
+  }
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function normalize(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+// URL substrings that indicate a generic/placeholder Ticketmaster image
+const BAD_IMAGE_PATTERNS = [
+  '_SOURCE-',       // low-res source-only variants Ticketmaster uses as placeholders
+  'RETINA_PORTRAIT_3_2', // generic portrait stock used when no real image exists
+  'RETINA_PORTRAIT_16_9', // same family
+  'CUSTOM.jpg',     // Ticketmaster generic fallback filename
+];
+
+function isBadImage(url: string): boolean {
+  return BAD_IMAGE_PATTERNS.some((p) => url.includes(p));
+}
+
 function bestImage(images: TmImage[]): string | null {
   if (!images || images.length === 0) return null;
+  // Filter out known-bad placeholder images
+  const good = images.filter((i) => i.url && !isBadImage(i.url));
+  const candidates = good.length > 0 ? good : images; // fall back to all if everything is filtered
   // Prefer 16_9 ratio, largest width
-  const sorted = [...images].sort((a, b) => {
+  const sorted = [...candidates].sort((a, b) => {
     const ratioScore = (i: TmImage) => (i.ratio === '16_9' ? 1 : 0);
     if (ratioScore(b) !== ratioScore(a)) return ratioScore(b) - ratioScore(a);
     return (b.width ?? 0) - (a.width ?? 0);
   });
-  return sorted[0].url;
+  const best = sorted[0].url;
+  // If even the best available is bad, return null rather than write a placeholder
+  return isBadImage(best) ? null : best;
 }
 
 function matchVenue(tmVenue: TmVenue, dbVenues: DbVenue[]): DbVenue | null {
@@ -197,50 +234,108 @@ async function main() {
   console.log(`Fetched ${tmEvents.length} events`);
 
   let matched = 0;
+  let created = 0;
   let unmatched = 0;
   let upserted = 0;
+  let posterUpdated = 0;
 
-  const rows = tmEvents
-    .map((event) => {
-      const tmVenueRaw = event._embedded?.venues?.[0];
-      let venueId: string | null = null;
+  // poster_url is intentionally excluded from this shape so the main upsert
+  // never overwrites manually fixed poster URLs on conflict.
+  type MainRow = {
+    external_id: string;
+    title: string;
+    venue_id: string | null;
+    event_date: string;
+    event_time: string | null;
+    end_time: string | null;
+    description: string | null;
+    ticket_url: string | null;
+    entry_type: string;
+    source: string;
+    business_id: null;
+  };
+  type PosterRow = { external_id: string; poster_url: string };
 
-      if (tmVenueRaw) {
-        const match = matchVenue(tmVenueRaw, dbVenues!);
-        if (match) {
-          venueId = match.id;
-          matched++;
-        } else {
+  const mainRows: MainRow[] = [];
+  const posterRows: PosterRow[] = [];
+
+  // Cache newly created venues so we can match later events to them within the same run.
+  const createdVenueCache: DbVenue[] = [];
+
+  for (const event of tmEvents) {
+    const tmVenueRaw = event._embedded?.venues?.[0];
+    let venueId: string | null = null;
+
+    if (tmVenueRaw) {
+      const allDbVenues = [...dbVenues!, ...createdVenueCache];
+      const match = matchVenue(tmVenueRaw, allDbVenues);
+      if (match) {
+        venueId = match.id;
+        matched++;
+      } else if (tmVenueRaw.name) {
+        // Create a new venue record for this Ticketmaster venue.
+        const address = tmVenueRaw.address?.line1 ?? null;
+        let lat: number | null = null;
+        let lng: number | null = null;
+
+        if (address) {
+          const coords = await geocodeAddress(address);
+          if (coords) {
+            lat = coords.lat;
+            lng = coords.lng;
+          }
+        }
+
+        const { data: newVenue, error: insertErr } = await supabase
+          .from('venues')
+          .insert({ name: tmVenueRaw.name, address, latitude: lat, longitude: lng })
+          .select('id, name, address')
+          .single();
+
+        if (insertErr) {
+          console.error(`Failed to create venue "${tmVenueRaw.name}":`, insertErr.message);
           unmatched++;
+        } else {
+          venueId = newVenue.id;
+          createdVenueCache.push(newVenue as DbVenue);
+          created++;
+          const coordStr = lat !== null ? `${lat.toFixed(6)}, ${lng!.toFixed(6)}` : 'no coords';
+          console.log(`  Created venue: ${tmVenueRaw.name} (${coordStr})`);
         }
       } else {
         unmatched++;
       }
+    } else {
+      unmatched++;
+    }
 
-      const startDate = event.dates?.start?.localDate ?? null;
-      if (!startDate) return null; // skip events with no date
+    const startDate = event.dates?.start?.localDate ?? null;
+    if (!startDate) continue; // skip events with no date
 
-      return {
-        external_id: event.id,
-        title: event.name,
-        venue_id: venueId,
-        event_date: startDate,
-        event_time: event.dates?.start?.localTime ?? null,
-        end_time: event.dates?.end?.localTime ?? null,
-        description: event.description ?? event.info ?? null,
-        poster_url: event.images ? bestImage(event.images) : null,
-        ticket_url: event.url ?? null,
-        entry_type: entryType(event),
-        source: 'ticketmaster',
-        business_id: null,
-      };
-    })
-    .filter(Boolean) as object[];
+    mainRows.push({
+      external_id: event.id,
+      title: event.name,
+      venue_id: venueId,
+      event_date: startDate,
+      event_time: event.dates?.start?.localTime ?? null,
+      end_time: event.dates?.end?.localTime ?? null,
+      description: event.description ?? event.info ?? null,
+      ticket_url: event.url ?? null,
+      entry_type: entryType(event),
+      source: 'ticketmaster',
+      business_id: null,
+    });
 
-  // Upsert in batches of 100
+    const goodPoster = event.images ? bestImage(event.images) : null;
+    if (goodPoster) {
+      posterRows.push({ external_id: event.id, poster_url: goodPoster });
+    }
+  }
+
+  // ── Pass 1: upsert core fields (poster_url excluded → never overwrites manual fixes) ──
   const BATCH = 100;
-  for (let i = 0; i < rows.length; i += BATCH) {
-    const batch = rows.slice(i, i + BATCH);
+  for (let i = 0; i < mainRows.length; i += BATCH) {
+    const batch = mainRows.slice(i, i + BATCH);
     const { error } = await supabase
       .from('venue_events')
       .upsert(batch, { onConflict: 'external_id', ignoreDuplicates: false });
@@ -252,11 +347,48 @@ async function main() {
     }
   }
 
+  // ── Pass 2: update poster_url only where DB value is null or a known-bad placeholder ──
+  // Fetch current poster_url for all events that have a good candidate image.
+  for (let i = 0; i < posterRows.length; i += BATCH) {
+    const batch = posterRows.slice(i, i + BATCH);
+    const ids = batch.map((r) => r.external_id);
+
+    const { data: existing, error: fetchErr } = await supabase
+      .from('venue_events')
+      .select('external_id, poster_url')
+      .in('external_id', ids);
+
+    if (fetchErr) {
+      console.error('Poster fetch error:', fetchErr.message);
+      continue;
+    }
+
+    const existingMap = new Map((existing ?? []).map((r) => [r.external_id, r.poster_url]));
+
+    for (const row of batch) {
+      const current: string | null = existingMap.get(row.external_id) ?? null;
+      // Only overwrite if the DB has no image or has a known-bad placeholder
+      if (current === null || isBadImage(current)) {
+        const { error: updateErr } = await supabase
+          .from('venue_events')
+          .update({ poster_url: row.poster_url })
+          .eq('external_id', row.external_id);
+        if (updateErr) {
+          console.error(`Poster update error (${row.external_id}):`, updateErr.message);
+        } else {
+          posterUpdated++;
+        }
+      }
+    }
+  }
+
   console.log('');
   console.log(`Events fetched:        ${tmEvents.length}`);
   console.log(`Matched to venues:     ${matched}`);
+  console.log(`Venues created:        ${created}`);
   console.log(`Unmatched (venue=null):${unmatched}`);
   console.log(`Upserted rows:         ${upserted}`);
+  console.log(`Poster URLs updated:   ${posterUpdated}`);
 }
 
 main().catch((err) => {

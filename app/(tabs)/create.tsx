@@ -41,7 +41,7 @@ export default function CreateScreen() {
       </Text>
 
       <TouchableOpacity
-        onPress={() => router.push('/premium' as any)}
+        onPress={() => router.push('/business/signup' as any)}
         style={{
           width: '100%',
           backgroundColor: colours.accent,
