@@ -23,6 +23,9 @@ import { useRouter } from 'expo-router';
 import { cardShadow as sharedCardShadow } from '../../lib/styles';
 import { hapticLight, hapticMedium, hapticSuccess } from '../../lib/haptics';
 import { filterPremiumNotifSubs } from '../../lib/commuteNotifications';
+import { PREMIUM_ENABLED } from '../../lib/flags';
+import { STRIPE_LINKS } from '../../lib/stripeLinks';
+import PaywallSheet from '../../components/PaywallSheet';
 
 type NotifSettings = {
   events: boolean;
@@ -334,6 +337,7 @@ export default function AccountScreen() {
     if (!userLoading && !user) router.replace('/auth' as any);
   }, [userLoading, user]);
 
+  const [insightsPaywallVisible, setInsightsPaywallVisible] = useState(false);
   const [authEmail, setAuthEmail] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
@@ -945,6 +949,19 @@ export default function AccountScreen() {
               }
             }}
           />
+          <RowDivider />
+          <SettingsRow
+            label="Insights"
+            icon="stats-chart"
+            iconBg="#0891B2"
+            onPress={() => {
+              if (PREMIUM_ENABLED && !isPremium) {
+                setInsightsPaywallVisible(true);
+              } else {
+                router.push('/insights' as any);
+              }
+            }}
+          />
           {!(profile as any)?.is_organizer && !(profile as any)?.is_business && (
             <>
               <RowDivider />
@@ -953,8 +970,12 @@ export default function AccountScreen() {
                 icon="ribbon"
                 iconBg="#059669"
                 onPress={() => {
-                  if (__DEV__) {
-                    Linking.openURL('https://buy.stripe.com/test_8x23cwf9agaw7a5fnH0480c').catch(() => {});
+                  if (STRIPE_LINKS.organizer_monthly) {
+                    Linking.openURL(STRIPE_LINKS.organizer_monthly).catch(() =>
+                      Alert.alert('Error', 'Could not open the payment page. Please try again.')
+                    );
+                  } else {
+                    Alert.alert('Coming Soon', 'Organizer plans will be available shortly. Stay tuned!');
                   }
                 }}
                 right={
@@ -1089,6 +1110,12 @@ export default function AccountScreen() {
         )}
 
       </ScrollView>
+
+      <PaywallSheet
+        visible={insightsPaywallVisible}
+        onClose={() => setInsightsPaywallVisible(false)}
+        featureHint="Unlock Insights to see your event history and stats"
+      />
 
       {/* Bug Report Modal */}
       <Modal visible={bugModalVisible} animationType="slide" transparent onRequestClose={() => setBugModalVisible(false)}>

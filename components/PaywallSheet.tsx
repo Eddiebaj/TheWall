@@ -9,6 +9,7 @@ import { useApp } from '../context/AppContext';
 import {
   getOfferings, purchasePackage, restorePurchases,
 } from '../lib/premium';
+import { PREMIUM_ENABLED } from '../lib/flags';
 
 type Props = {
   visible: boolean;
@@ -24,10 +25,11 @@ type Props = {
 };
 
 const FEATURES = [
-  { icon: 'color-palette-outline' as const, en: 'Custom colour palettes', fr: 'Palettes de couleurs personnalisees' },
-  { icon: 'calendar-outline' as const,       en: 'Full schedule look-ahead (up to 20 classes)', fr: 'Vue complete de l\'horaire (jusqu\'a 20 cours)' },
-  { icon: 'pricetag-outline' as const,       en: 'Early-access community deals', fr: 'Offres communautaires en avant-premiere' },
-  { icon: 'star-outline' as const,           en: 'Support ongoing affiche development', fr: 'Soutenir le developpement de affiche' },
+  { icon: 'notifications-outline' as const, en: 'Early access to event announcements', fr: 'Accès anticipé aux annonces d\'événements' },
+  { icon: 'options-outline' as const,       en: 'Exclusive filters: hidden gems, 18+, free events', fr: 'Filtres exclusifs : pépites cachées, 18+, gratuits' },
+  { icon: 'people-outline' as const,        en: 'Priority friend activity in your feed', fr: 'Activité des amis en priorité dans le fil' },
+  { icon: 'bookmark-outline' as const,      en: 'Saved events synced across devices', fr: 'Événements sauvegardés synchronisés sur vos appareils' },
+  { icon: 'ribbon-outline' as const,        en: 'Supporter badge on your profile', fr: 'Badge Supporter sur votre profil' },
 ];
 
 export default function PaywallSheet({ visible, onClose, onDismiss, onSuccess, featureHint, highlightFeature }: Props) {
@@ -58,6 +60,16 @@ export default function PaywallSheet({ visible, onClose, onDismiss, onSuccess, f
   const annualPrice  = annualPkg?.product?.priceString  ?? '$19.99';
 
   async function handlePurchase() {
+    if (!PREMIUM_ENABLED) {
+      Alert.alert(
+        t('Full Access — No Payment Needed', 'Accès complet — aucun paiement requis'),
+        t(
+          'You\'re getting full access during our launch period! Premium features will be available soon.',
+          'Vous bénéficiez d\'un accès complet pendant notre période de lancement ! Les fonctionnalités Premium seront disponibles très prochainement.',
+        ),
+      );
+      return;
+    }
     const pkg = selected === 'annual' ? annualPkg : monthlyPkg;
     if (!pkg) {
       Alert.alert(t('Not available', 'Non disponible'), t('Could not load products. Try again later.', 'Impossible de charger les produits. Reessayez plus tard.'));

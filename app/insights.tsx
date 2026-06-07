@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
+import { supabase } from '../lib/supabase';
 import { useIsPremium } from '../lib/premium';
 import { PREMIUM_ENABLED } from '../lib/flags';
 import PaywallSheet from '../components/PaywallSheet';
@@ -196,7 +197,7 @@ export default function InsightsScreen() {
             <Ionicons name="arrow-back" size={24} color={colours.text} />
           </TouchableOpacity>
           <Text accessibilityRole="header" style={{ fontSize: fonts.xl, fontWeight: '700', color: colours.text, flex: 1 }}>
-            {t('Commute Insights', 'Statistiques de trajet')}
+            {t('Insights', 'Statistiques')}
           </Text>
           <Ionicons name="stats-chart" size={20} color={colours.accent} />
         </View>
@@ -252,7 +253,7 @@ export default function InsightsScreen() {
               onPress={() => setPaywallVisible(true)}
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel={t('Unlock Commute Insights', 'Debloquer les statistiques de trajet')}
+              accessibilityLabel={t('Unlock Insights', 'Debloquer les statistiques')}
               style={{
                 position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
                 alignItems: 'center', justifyContent: 'center', gap: 10,
@@ -266,10 +267,10 @@ export default function InsightsScreen() {
                 <Ionicons name="lock-closed" size={24} color={colours.accent} />
               </View>
               <Text style={{ fontSize: fonts.md, fontWeight: '700', color: colours.text }}>
-                {t('Commute Insights is Premium', 'Les statistiques de trajet sont Premium')}
+                {t('Insights is a Premium feature', 'Les statistiques sont une fonctionnalité Premium')}
               </Text>
               <Text style={{ fontSize: fonts.sm, color: colours.muted, textAlign: 'center', paddingHorizontal: 20 }}>
-                {t('Upgrade to see your top routes, departure times, and weekly trends.', 'Passez a Premium pour voir vos trajets frequents, horaires et tendances hebdomadaires.')}
+                {t('Upgrade to see your event history, favourite venues, and trends.', 'Passez à Premium pour voir votre historique d\'événements, vos lieux favoris et vos tendances.')}
               </Text>
               <View style={{
                 backgroundColor: colours.accent, borderRadius: 12,
@@ -555,7 +556,7 @@ export default function InsightsScreen() {
       <PaywallSheet
         visible={paywallVisible}
         onClose={() => setPaywallVisible(false)}
-        featureHint={t('Unlock Commute Insights to see your top routes and trends', 'Debloquez les statistiques pour voir vos trajets et tendances')}
+        featureHint={t('Unlock Insights to see your event history and favourite venues', 'Débloquez les statistiques pour voir votre historique d\'événements et vos lieux favoris')}
       />
     </View>
   );

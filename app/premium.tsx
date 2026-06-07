@@ -1,17 +1,18 @@
 import React from 'react';
 import { Alert, View, Text, TouchableOpacity, ScrollView, Linking } from 'react-native';
 import { STRIPE_LINKS } from '../lib/stripeLinks';
+import { PREMIUM_ENABLED } from '../lib/flags';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
 
 const FEATURES = [
-  { icon: 'flash-outline', title: 'Early Access to Exclusive Events', desc: 'Get tickets before they go public' },
-  { icon: 'notifications-outline', title: 'Featured Venue Notifications', desc: 'Instant alerts from your favourite spots' },
-  { icon: 'options-outline', title: 'Advanced Event Filters', desc: 'Filter by genre, price, neighbourhood and more' },
-  { icon: 'headset-outline', title: 'Priority Customer Support', desc: 'Fast responses from our team' },
-  { icon: 'ban-outline', title: 'Ad-free Experience', desc: 'Browse affiche without any ads' },
+  { icon: 'notifications-outline', title: 'Early Access to Event Announcements', desc: 'Hear about events before they go public' },
+  { icon: 'options-outline', title: 'Exclusive Event Filters', desc: 'Discover hidden gems, 18+ events, and free nights' },
+  { icon: 'people-outline', title: 'Priority Friend Activity', desc: 'See what your friends are attending first in your feed' },
+  { icon: 'bookmark-outline', title: 'Saved Events Sync', desc: 'Access your saved events on every device' },
+  { icon: 'ribbon-outline', title: 'Supporter Badge', desc: 'Show your support with a badge on your profile' },
 ];
 
 export default function PremiumScreen() {
@@ -59,8 +60,8 @@ export default function PremiumScreen() {
       <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colours.bg, borderTopWidth: 1, borderTopColor: colours.border, padding: 20, paddingBottom: insets.bottom + 16, gap: 10 }}>
         <TouchableOpacity
           onPress={() => {
-            if (!STRIPE_LINKS.premium_annual) {
-              Alert.alert('Coming Soon', 'Annual subscriptions will be available shortly.');
+            if (!PREMIUM_ENABLED || !STRIPE_LINKS.premium_annual) {
+              Alert.alert('Coming Soon', 'You\'re getting full access during our launch period! Premium features will be available soon.');
               return;
             }
             Linking.openURL(STRIPE_LINKS.premium_annual).catch(() =>
@@ -74,8 +75,8 @@ export default function PremiumScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => {
-            if (!STRIPE_LINKS.premium_monthly) {
-              Alert.alert('Coming Soon', 'Monthly subscriptions will be available shortly.');
+            if (!PREMIUM_ENABLED || !STRIPE_LINKS.premium_monthly) {
+              Alert.alert('Coming Soon', 'You\'re getting full access during our launch period! Premium features will be available soon.');
               return;
             }
             Linking.openURL(STRIPE_LINKS.premium_monthly).catch(() =>

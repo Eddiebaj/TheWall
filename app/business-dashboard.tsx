@@ -388,14 +388,28 @@ export default function BusinessDashboardScreen() {
             </Text>
           </View>
 
-          {sub.stripe_customer_id && (
+          {sub.stripe_customer_id ? (
             <TouchableOpacity
-              onPress={() => Linking.openURL('https://billing.stripe.com/p/login/').catch(() => {})}
+              onPress={() => {
+                const portalUrl = (process.env.EXPO_PUBLIC_STRIPE_BILLING_PORTAL ?? '').trim();
+                const url = portalUrl || 'https://billing.stripe.com/p/login/';
+                Linking.openURL(url).catch(() =>
+                  Alert.alert('Error', 'Could not open the billing portal. Email support@affiche.app for help.')
+                );
+              }}
               style={{ marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.surface, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: colours.border, alignSelf: 'flex-start' }}
             >
               <Ionicons name="card-outline" size={16} color={colours.muted} />
               <Text style={{ fontSize: 13, color: colours.muted, fontWeight: '600' }}>Manage subscription</Text>
               <Ionicons name="open-outline" size={13} color={colours.muted} />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              onPress={() => Alert.alert('Contact Support', 'Email support@affiche.app to manage your subscription.')}
+              style={{ marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colours.surface, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: colours.border, alignSelf: 'flex-start' }}
+            >
+              <Ionicons name="mail-outline" size={16} color={colours.muted} />
+              <Text style={{ fontSize: 13, color: colours.muted, fontWeight: '600' }}>Contact support</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -554,7 +568,14 @@ export default function BusinessDashboardScreen() {
             {BOOST_PRODUCTS.map((bp) => (
               <TouchableOpacity
                 key={bp.key}
-                onPress={() => Linking.openURL('https://affiche.app/business').catch(() => {})}
+                onPress={() => Alert.alert(
+                  'Coming Soon',
+                  bp.key === '3day'
+                    ? 'Event Boost 3 Days will promote your event to the top of discovery for 3 days. Available soon!'
+                    : bp.key === '7day'
+                      ? 'Event Boost 7 Days will promote your event to the top of discovery for a full week. Available soon!'
+                      : 'Weekend Spotlight will feature your event prominently every Friday–Sunday. Available soon!'
+                )}
                 activeOpacity={0.8}
                 style={{ backgroundColor: colours.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colours.border, flexDirection: 'row', alignItems: 'center', gap: 14 }}
               >
@@ -565,7 +586,7 @@ export default function BusinessDashboardScreen() {
                   <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text }}>{bp.label}</Text>
                   <Text style={{ fontSize: 13, color: colours.muted, marginTop: 2 }}>{bp.price}</Text>
                 </View>
-                <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted }}>Learn more</Text>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted }}>Coming Soon</Text>
               </TouchableOpacity>
             ))}
           </View>

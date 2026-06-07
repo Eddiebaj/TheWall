@@ -287,7 +287,15 @@ function SingleEventPreview({ event, onView }: { event: DiscoverEvent; onView: (
   );
 }
 
-function MapEventView({ events, onClose }: { events: DiscoverEvent[]; onClose: () => void }) {
+function MapEventView({
+  events,
+  onClose,
+  user,
+}: {
+  events: DiscoverEvent[];
+  onClose: () => void;
+  user: { id: string } | null | undefined;
+}) {
   const router = useRouter();
   const shapeSourceRef = useRef<any>(null);
   const cameraRef = useRef<any>(null);
@@ -529,6 +537,41 @@ function MapEventView({ events, onClose }: { events: DiscoverEvent[]; onClose: (
 }
 
 const mapStyles = StyleSheet.create({
+  filterToolbar: {
+    position: 'absolute',
+    top: 54,
+    alignSelf: 'center',
+    zIndex: 10,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(10,10,20,0.88)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  filterChipActive: {
+    backgroundColor: '#FF3B5C',
+    borderColor: '#FF3B5C',
+  },
+  filterChipFeatured: {
+    backgroundColor: '#f59e0b',
+    borderColor: '#f59e0b',
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#aaa',
+  },
+  filterChipTextActive: {
+    color: '#fff',
+  },
   countBadge: {
     position: 'absolute',
     top: 12,
@@ -689,6 +732,9 @@ export default function DiscoverScreen() {
   const [nowMins, setNowMins] = useState(0);
   const [activeCheckinVenueIds, setActiveCheckinVenueIds] = useState<Set<string>>(new Set());
   const [mapModalVisible, setMapModalVisible] = useState(false);
+  const [activeFilterKey, setActiveFilterKey] = useState<string | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const sectionOffsetsRef = useRef<Record<string, number>>({});
   // Determine if happy hour window (3pm-8pm weekdays)
   const isHappyHourWindow = (() => {
     const now = new Date();
@@ -848,16 +894,61 @@ export default function DiscoverScreen() {
       {loading ? (
         <DiscoverRowsSkeleton />
       ) : (
-        <ScrollView
-          style={styles.scroll}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#fff" />
-          }
-        >
+        <>
+          {/* Category pill filter row */}
+          {visibleCategories.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.pillRow}
+            >
+              {isHappyHourWindow && happyHourDeals.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setActiveFilterKey('__hh__');
+                    const y = sectionOffsetsRef.current['__hh__'] ?? 0;
+                    scrollViewRef.current?.scrollTo({ y, animated: true });
+                  }}
+                  activeOpacity={0.8}
+                  style={[styles.pill, activeFilterKey === '__hh__' && styles.pillActive]}
+                >
+                  <Text style={[styles.pillText, activeFilterKey === '__hh__' && styles.pillTextActive]}>🍺 Happy Hour</Text>
+                </TouchableOpacity>
+              )}
+              {visibleCategories.map(cat => (
+                <TouchableOpacity
+                  key={cat.key}
+                  onPress={() => {
+                    setActiveFilterKey(cat.key);
+                    const y = sectionOffsetsRef.current[cat.key] ?? 0;
+                    scrollViewRef.current?.scrollTo({ y, animated: true });
+                  }}
+                  activeOpacity={0.8}
+                  style={[styles.pill, activeFilterKey === cat.key && styles.pillActive]}
+                >
+                  <Text style={[styles.pillText, activeFilterKey === cat.key && styles.pillTextActive]}>
+                    {cat.emoji ? `${cat.emoji} ` : ''}{cat.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.scroll}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#fff" />
+            }
+            onScrollBeginDrag={() => setActiveFilterKey(null)}
+          >
           {/* Happy Hour Now */}
           {isHappyHourWindow && happyHourDeals.length > 0 && (
-            <View style={styles.categorySection}>
+            <View
+              onLayout={e => { sectionOffsetsRef.current['__hh__'] = e.nativeEvent.layout.y; }}
+              style={styles.categorySection}
+            >
               <View style={styles.categoryHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Text style={styles.categoryTitle}>🍺 Happy Hour</Text>
@@ -885,74 +976,25 @@ export default function DiscoverScreen() {
             </View>
           )}
 
-          {!isHappyHourWindow && happyHourDeals.length > 0 && (
-            <View style={styles.categorySection}>
-              <View style={styles.categoryHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-                  <Text style={{ fontSize: 18 }}>🍺</Text>
-                  <Text style={styles.categoryTitle}>Happy Hours</Text>
-                </View>
-              </View>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.cardRow}
-              >
-                {happyHourDeals.map(deal => (
-                  <HappyHourCard
-                    key={deal.id}
-                    deal={deal}
-                    nowMins={nowMins}
-                    onPress={() => router.push(`/venue/${deal.venue_id}`)}
-                  />
-                ))}
-              </ScrollView>
-            </View>
-          )}
 
-          {eventsByCategory('Food & Drinks').length > 0 && (
-            <CategoryRow
-              category={CATEGORIES.find(c => c.key === 'Food & Drinks')!}
-              events={eventsByCategory('Food & Drinks')}
-              onCardPress={e => {
-                if (__DEV__) console.log('[Discover] navigating to event id:', e.id, 'title:', e.title);
-                capture('event_viewed', { event_id: e.id, source: 'discover' });
-                router.push(`/event/${e.id}`);
-              }}
-              onSeeAll={() => router.push(`/category/${encodeURIComponent('Food & Drinks')}` as any)}
-              activeCheckinVenueIds={activeCheckinVenueIds}
-            />
-          )}
-
-          {events.length > 0 && (
-            <CategoryRow
-              key="__all__"
-              category={{ key: '__all__', emoji: '', label: 'All Events' }}
-              ionIcon="sparkles"
-              events={events}
-              onCardPress={e => {
-                if (__DEV__) console.log('[Discover] navigating to event id:', e.id, 'title:', e.title);
-                capture('event_viewed', { event_id: e.id, source: 'discover' });
-                router.push(`/event/${e.id}`);
-              }}
-              onSeeAll={() => router.push('/category/all' as any)}
-              activeCheckinVenueIds={activeCheckinVenueIds}
-            />
-          )}
-          {visibleCategories.filter(c => c.key !== 'Food & Drinks').map(cat => (
-            <CategoryRow
+          {visibleCategories.map(cat => (
+            <View
               key={cat.key}
-              category={cat}
-              ionIcon={cat.ionIcon}
-              events={eventsByCategory(cat.key)}
-              onCardPress={e => {
-                if (__DEV__) console.log('[Discover] navigating to event id:', e.id, 'title:', e.title);
-                capture('event_viewed', { event_id: e.id, source: 'discover' });
-                router.push(`/event/${e.id}`);
-              }}
-              onSeeAll={() => router.push(`/category/${encodeURIComponent(cat.key)}` as any)}
-              activeCheckinVenueIds={activeCheckinVenueIds}
-            />
+              onLayout={e => { sectionOffsetsRef.current[cat.key] = e.nativeEvent.layout.y; }}
+            >
+              <CategoryRow
+                category={cat}
+                ionIcon={cat.ionIcon}
+                events={eventsByCategory(cat.key)}
+                onCardPress={e => {
+                  if (__DEV__) console.log('[Discover] navigating to event id:', e.id, 'title:', e.title);
+                  capture('event_viewed', { event_id: e.id, source: 'discover' });
+                  router.push(`/event/${e.id}`);
+                }}
+                onSeeAll={() => router.push(`/category/${encodeURIComponent(cat.key)}` as any)}
+                activeCheckinVenueIds={activeCheckinVenueIds}
+              />
+            </View>
           ))}
           {events.length === 0 && (
             <View style={styles.emptyState}>
@@ -960,7 +1002,8 @@ export default function DiscoverScreen() {
             </View>
           )}
           <View style={{ height: 100 }} />
-        </ScrollView>
+          </ScrollView>
+        </>
       )}
 
       <Modal
@@ -979,7 +1022,7 @@ export default function DiscoverScreen() {
           </View>
 
           {MapboxGL ? (
-            <MapEventView events={events} onClose={() => setMapModalVisible(false)} />
+            <MapEventView events={events} onClose={() => setMapModalVisible(false)} user={user} />
           ) : (
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 32 }}>
               <Ionicons name="map-outline" size={64} color="#333" />
@@ -1177,5 +1220,31 @@ const styles = StyleSheet.create({
   emptyText: {
     color: '#555',
     fontSize: 16,
+  },
+  pillRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+    flexDirection: 'row',
+  },
+  pill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  pillActive: {
+    backgroundColor: '#FF3B5C',
+    borderColor: '#FF3B5C',
+  },
+  pillText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.7)',
+  },
+  pillTextActive: {
+    color: '#fff',
   },
 });

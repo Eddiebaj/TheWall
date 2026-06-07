@@ -24,7 +24,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
 import { useAnalytics } from '../../lib/analytics';
 import { sendNotification } from '../../lib/notificationHelpers';
-import { hapticLight } from '../../lib/haptics';
+import { hapticLight, hapticMedium, hapticSuccess } from '../../lib/haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EventDetailSkeleton } from '../../components/Shimmer';
 
@@ -344,6 +344,7 @@ export default function EventDetailScreen() {
     const isActive = status === 'going' ? event.isGoing : event.isInterested;
 
     if (isActive) {
+      hapticLight();
       if (status === 'going') {
         setEvent(e => e ? { ...e, isGoing: false, goingCount: Math.max(0, e.goingCount - 1) } : e);
         const { error } = await supabase.from(rsvpTableName).delete().eq('event_id', event.id).eq('user_id', user.id);
@@ -356,6 +357,7 @@ export default function EventDetailScreen() {
       }
     } else {
       if (status === 'going') {
+        hapticSuccess();
         setEvent(e => e ? { ...e, isGoing: true, goingCount: e.goingCount + (e.isGoing ? 0 : 1) } : e);
         const { error } = await supabase.from(rsvpTableName).upsert({ event_id: event.id, user_id: user.id, status: 'going' }, { onConflict: 'event_id,user_id' });
         if (error) {
@@ -401,6 +403,7 @@ export default function EventDetailScreen() {
             });
         }
       } else {
+        hapticMedium();
         setEvent(e => e ? { ...e, isInterested: true } : e);
         const { error } = await supabase.from('event_interests').insert({ event_id: event.id, user_id: user.id });
         if (error) setEvent(e => e ? { ...e, isInterested: false } : e);
@@ -707,7 +710,7 @@ export default function EventDetailScreen() {
           <Ionicons name={isSaved ? 'bookmark' : 'bookmark-outline'} size={20} color={isSaved ? '#FF3B5C' : '#fff'} />
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={handleShareExternal}
+          onPress={() => setShareSheetVisible(true)}
           style={{
             position: 'absolute',
             top: insets.top + 12,
@@ -734,11 +737,12 @@ export default function EventDetailScreen() {
         <TouchableOpacity
           activeOpacity={event.venue_id ? 0.7 : 1}
           onPress={() => event.venue_id && router.push(`/venue/${event.venue_id}` as any)}
-          style={{ marginBottom: 4 }}
+          style={{ marginBottom: 4, flexDirection: 'row', alignItems: 'center', gap: 3 }}
         >
-          <Text style={{ fontSize: 14, fontWeight: '600', color: colours.muted }}>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: event.venue_id ? colours.accent : colours.muted }}>
             {event.venue?.name || event.venue_name || event.location || 'Unknown Venue'}
           </Text>
+          {event.venue_id && <Ionicons name="chevron-forward" size={13} color={colours.accent} />}
         </TouchableOpacity>
         {event.source === 'user' && event.creator_username && (
           <Text style={{ fontSize: 13, color: colours.muted, fontWeight: '500', marginBottom: 4 }}>
@@ -812,118 +816,76 @@ export default function EventDetailScreen() {
           </View>
         )}
 
-        {/* Friends going */}
+        {/* Who's going */}
         {rsvpProfiles.length > 0 && (() => {
           const friendProfiles = rsvpProfiles.filter(p => friendIds.has(p.id));
           const otherCount = rsvpProfiles.length - friendProfiles.length;
-          const shownFriends = friendProfiles.slice(0, 5);
-          const AVATAR_SIZE = 36;
-          const OVERLAP = 12;
-          const hasFriends = shownFriends.length > 0;
+          const hasFriends = friendProfiles.length > 0;
+          const orderedProfiles = [...friendProfiles, ...rsvpProfiles.filter(p => !friendIds.has(p.id))];
+          const shownProfiles = orderedProfiles.slice(0, 6);
+          const overflow = rsvpProfiles.length - shownProfiles.length;
           return (
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 28, minHeight: AVATAR_SIZE }}>
-              {hasFriends && (
-                <View style={{ flexDirection: 'row', width: shownFriends.length * (AVATAR_SIZE - OVERLAP) + OVERLAP, height: AVATAR_SIZE, marginRight: 10 }}>
-                  {shownFriends.map((p, i) => (
-                    <View
-                      key={p.id}
-                      style={{
-                        position: 'absolute',
-                        left: i * (AVATAR_SIZE - OVERLAP),
-                        width: AVATAR_SIZE,
-                        height: AVATAR_SIZE,
-                        borderRadius: AVATAR_SIZE / 2,
-                        borderWidth: 2,
-                        borderColor: colours.bg,
-                        backgroundColor: colours.accent,
-                        overflow: 'hidden',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: shownFriends.length - i,
-                      }}
-                    >
-                      {p.avatar_url ? (
-                        <Image source={{ uri: p.avatar_url }} style={{ width: '100%', height: '100%' }} />
-                      ) : (
-                        <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>
-                          {p.username[0].toUpperCase()}
-                        </Text>
-                      )}
-                    </View>
-                  ))}
-                </View>
-              )}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                {hasFriends && (
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: colours.accent }}>
-                    {friendProfiles.length} {friendProfiles.length === 1 ? 'friend' : 'friends'} going
+            <View style={{ marginBottom: 28 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, letterSpacing: 0.8, textTransform: 'uppercase' }}>
+                  Who's going
+                </Text>
+                {hasFriends ? (
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: colours.accent }}>
+                    {friendProfiles.length} {friendProfiles.length === 1 ? 'friend' : 'friends'}
+                    {otherCount > 0 ? ` · +${otherCount} others` : ''}
+                  </Text>
+                ) : (
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: colours.muted }}>
+                    {rsvpProfiles.length} {rsvpProfiles.length === 1 ? 'person' : 'people'}
                   </Text>
                 )}
-                {!hasFriends && otherCount > 0 && (
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: colours.muted }}>
-                    {otherCount} {otherCount === 1 ? 'person' : 'people'} going
-                  </Text>
-                )}
-                {hasFriends && otherCount > 0 && (
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: colours.muted }}>
-                    · +{otherCount} others
-                  </Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                {shownProfiles.map((p) => (
+                  <View
+                    key={p.id}
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      backgroundColor: colours.accent,
+                      overflow: 'hidden',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderWidth: 2,
+                      borderColor: colours.bg,
+                    }}
+                  >
+                    {p.avatar_url ? (
+                      <Image source={{ uri: p.avatar_url }} style={{ width: '100%', height: '100%' }} />
+                    ) : (
+                      <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>
+                        {p.username[0].toUpperCase()}
+                      </Text>
+                    )}
+                  </View>
+                ))}
+                {overflow > 0 && (
+                  <View style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderWidth: 2,
+                    borderColor: colours.bg,
+                  }}>
+                    <Text style={{ color: colours.muted, fontSize: 11, fontWeight: '700' }}>
+                      +{overflow}
+                    </Text>
+                  </View>
                 )}
               </View>
             </View>
           );
         })()}
-
-        {/* Who's going avatars */}
-        {rsvpProfiles.length > 0 && (
-          <View style={{ marginBottom: 28 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 12 }}>
-              Who's going
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              {rsvpProfiles.slice(0, 5).map((p) => (
-                <View
-                  key={p.id}
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: colours.accent,
-                    overflow: 'hidden',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderWidth: 2,
-                    borderColor: colours.bg,
-                  }}
-                >
-                  {p.avatar_url ? (
-                    <Image source={{ uri: p.avatar_url }} style={{ width: '100%', height: '100%' }} />
-                  ) : (
-                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>
-                      {p.username[0].toUpperCase()}
-                    </Text>
-                  )}
-                </View>
-              ))}
-              {rsvpProfiles.length > 5 && (
-                <View style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 20,
-                  backgroundColor: 'rgba(255,255,255,0.1)',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderWidth: 2,
-                  borderColor: colours.bg,
-                }}>
-                  <Text style={{ color: colours.muted, fontSize: 11, fontWeight: '700' }}>
-                    +{rsvpProfiles.length - 5}
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-        )}
 
         {/* Action buttons */}
         <TouchableOpacity
@@ -934,16 +896,22 @@ export default function EventDetailScreen() {
           disabled={rsvpLoading}
           activeOpacity={0.85}
           style={{
-            backgroundColor: event.isGoing ? '#c0392b' : '#FF3B5C',
+            backgroundColor: event.isGoing ? 'transparent' : '#FF3B5C',
             borderRadius: 14,
             paddingVertical: 15,
             alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'row',
+            gap: 6,
             marginBottom: 10,
+            borderWidth: event.isGoing ? 1.5 : 0,
+            borderColor: event.isGoing ? 'rgba(74,222,128,0.5)' : 'transparent',
             opacity: rsvpLoading ? 0.6 : 1,
           }}
         >
-          <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>
-            {event.isGoing ? "I'm Going \u2713" : "I'm Going"}
+          {event.isGoing && <Ionicons name="checkmark-circle" size={18} color="#4ade80" />}
+          <Text style={{ fontSize: 16, fontWeight: '700', color: event.isGoing ? '#4ade80' : '#fff' }}>
+            I'm Going
           </Text>
         </TouchableOpacity>
 

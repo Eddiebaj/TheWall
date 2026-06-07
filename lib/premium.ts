@@ -14,8 +14,8 @@ const RC_KEY_ANDROID = (process.env.EXPO_PUBLIC_RC_KEY_ANDROID ?? '').trim();
 const ENTITLEMENT_ID = 'premium';
 
 // Product identifiers (configure in App Store Connect / Play Console)
-export const PRODUCT_MONTHLY = 'routeo_premium_monthly';  // $2.99 / month
-export const PRODUCT_ANNUAL  = 'routeo_premium_annual';   // $19.99 / year
+export const PRODUCT_MONTHLY = 'affiche_premium_monthly';  // $2.99 / month
+export const PRODUCT_ANNUAL  = 'affiche_premium_annual';   // $19.99 / year
 
 export function initPurchases() {
   if (!Purchases || !PREMIUM_ENABLED) return;
@@ -80,19 +80,14 @@ export function useIsPremium(): boolean {
   return isPremium;
 }
 
-// Free-tier limits
-export const FREE_CLASS_LIMIT     = 5;   // class schedule entries
-export const PREMIUM_CLASS_LIMIT  = 20;
-export const FREE_ARRIVAL_LIMIT   = 2;   // departures shown per stop
-export const PREMIUM_ARRIVAL_LIMIT = 20;
-
 // Named feature keys used for paywall gating and badge display
 export const PREMIUM_FEATURES = {
-  MULTI_STOP:      'multi_stop',
-  ISOCHRONE:       'isochrone',
-  CLASS_SCHEDULE:  'class_schedule',
-  ARRIVAL_HISTORY: 'arrival_history',
-  AI_ASSISTANT:    'ai_assistant',
+  EARLY_ACCESS:    'early_access',
+  EXCLUSIVE_FILTERS: 'exclusive_filters',
+  PRIORITY_FEED:   'priority_feed',
+  SAVED_SYNC:      'saved_sync',
+  SUPPORTER_BADGE: 'supporter_badge',
+  INSIGHTS:        'insights',
 } as const;
 
 /** Alias for backwards compatibility with imports that use usePremium */
