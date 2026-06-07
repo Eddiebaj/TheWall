@@ -50,6 +50,7 @@ export default function UserProfileScreen() {
   const [profile, setProfile] = useState<any>(null);
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
   const [friendshipId, setFriendshipId] = useState<string | null>(null);
+  const [friendshipStatus, setFriendshipStatus] = useState<'accepted' | 'pending' | null>(null);
   const [loading, setLoading] = useState(true);
   const [messaging, setMessaging] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
@@ -103,14 +104,27 @@ export default function UserProfileScreen() {
   };
 
   const loadFriendship = async () => {
-    if (!user) { setFriendshipId(null); return; }
+    if (!user) { setFriendshipId(null); setFriendshipStatus(null); return; }
     const { data } = await supabase
       .from('friendships')
-      .select('id')
-      .eq('status', 'accepted')
+      .select('id, status')
       .or(`and(requester_id.eq.${user.id},addressee_id.eq.${id}),and(requester_id.eq.${id},addressee_id.eq.${user.id})`)
       .maybeSingle();
     setFriendshipId(data?.id ?? null);
+    setFriendshipStatus((data?.status as 'accepted' | 'pending') ?? null);
+  };
+
+  const handleAddFriend = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('friendships')
+      .insert({ requester_id: user.id, addressee_id: id, status: 'pending' })
+      .select('id, status')
+      .single();
+    if (data) {
+      setFriendshipId(data.id);
+      setFriendshipStatus('pending');
+    }
   };
 
   const handleRemoveFriend = () => {
@@ -374,15 +388,31 @@ export default function UserProfileScreen() {
               }
             </TouchableOpacity>
 
-            {friendshipId ? (
+            {friendshipStatus === 'accepted' ? (
               <TouchableOpacity
                 onPress={handleRemoveFriend}
                 style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13, borderRadius: 14, backgroundColor: SURFACE, borderWidth: 1, borderColor: BORDER }}
               >
                 <Ionicons name="person-remove-outline" size={16} color={MUTED} />
-                <Text style={{ fontSize: 15, fontWeight: '700', color: MUTED }}>Remove</Text>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: MUTED }}>Remove Friend</Text>
               </TouchableOpacity>
-            ) : null}
+            ) : friendshipStatus === 'pending' ? (
+              <TouchableOpacity
+                disabled
+                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13, borderRadius: 14, backgroundColor: SURFACE, borderWidth: 1, borderColor: BORDER }}
+              >
+                <Ionicons name="time-outline" size={16} color={MUTED} />
+                <Text style={{ fontSize: 15, fontWeight: '700', color: MUTED }}>Pending</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={handleAddFriend}
+                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13, borderRadius: 14, backgroundColor: SURFACE, borderWidth: 1, borderColor: BORDER }}
+              >
+                <Ionicons name="person-add-outline" size={16} color="#fff" />
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Add Friend</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : null}
 

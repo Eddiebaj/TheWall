@@ -529,7 +529,7 @@ export default function VenueScreen() {
                     color={isCheckedIn ? '#4ade80' : '#fff'}
                   />
                   <Text style={{ fontSize: 15, fontWeight: '700', color: isCheckedIn ? '#4ade80' : '#fff' }}>
-                    {isCheckedIn ? "I'm here" : "I'm here"}
+                    {isCheckedIn ? "I'm Here ✓" : "Check In"}
                   </Text>
                 </>
               )}
@@ -571,7 +571,7 @@ export default function VenueScreen() {
                       {ev.title}
                     </Text>
                     <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>
-                      {[formatDate(ev.event_date), ev.start_time].filter(Boolean).join(' · ')}
+                      {[formatDate(ev.event_date), ev.start_time ? fmt12(ev.start_time) : null].filter(Boolean).join(' · ')}
                     </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.25)" />
