@@ -23,7 +23,11 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://jcdpuduznewvbiqshklg.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_-6Qf8epaWfTiYnPpvhEmyg_E9XYXkHZ",
+        "EXPO_PUBLIC_MAPBOX_TOKEN": "$EXPO_PUBLIC_MAPBOX_TOKEN",
+        "MAPBOX_DOWNLOADS_TOKEN": "$MAPBOX_DOWNLOADS_TOKEN"
       }
     }
   },
