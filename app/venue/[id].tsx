@@ -6,11 +6,14 @@ import {
   Dimensions,
   FlatList,
   Image,
+  Modal,
   ScrollView,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -51,6 +54,10 @@ interface HappyHour {
   end_time: string;
   title: string;
   deal_details: string | null;
+  last_verified_at: string | null;
+  status: string;
+  submitted_by: string | null;
+  created_at: string;
 }
 
 const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -102,6 +109,19 @@ export default function VenueScreen() {
   const [checkinLoading, setCheckinLoading] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
+  // Happy hour verification
+  const [verifiedTodayIds, setVerifiedTodayIds] = useState<Set<string>>(new Set());
+  const [verifyToast, setVerifyToast] = useState<string | null>(null);
+
+  // Submit deal modal
+  const [submitModalVisible, setSubmitModalVisible] = useState(false);
+  const [submitDays, setSubmitDays] = useState<number[]>([]);
+  const [submitStart, setSubmitStart] = useState('');
+  const [submitEnd, setSubmitEnd] = useState('');
+  const [submitTitle, setSubmitTitle] = useState('');
+  const [submitDetails, setSubmitDetails] = useState('');
+  const [submitLoading, setSubmitLoading] = useState(false);
+
   // Pulse animation for live dot
   useEffect(() => {
     if (checkinCount === 0) return;
@@ -120,8 +140,95 @@ export default function VenueScreen() {
       load();
       loadCheckins();
       loadFollows();
+      loadVerifiedToday();
     }
   }, [id, user]);
+
+  const loadVerifiedToday = async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const raw = await AsyncStorage.getItem(`hh_verified_${id}_${today}`);
+    if (raw) {
+      try { setVerifiedTodayIds(new Set(JSON.parse(raw))); } catch {}
+    }
+  };
+
+  const handleVerify = async (hhId: string) => {
+    if (!user) {
+      Alert.alert('Sign in required', 'Sign in to verify deals.');
+      return;
+    }
+    if (verifiedTodayIds.has(hhId)) return;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const newSet = new Set(verifiedTodayIds).add(hhId);
+    setVerifiedTodayIds(newSet);
+    await AsyncStorage.setItem(`hh_verified_${id}_${today}`, JSON.stringify([...newSet]));
+
+    await supabase.from('happy_hours').update({ last_verified_at: new Date().toISOString() }).eq('id', hhId);
+    setHappyHours(prev => prev.map(h => h.id === hhId ? { ...h, last_verified_at: new Date().toISOString() } : h));
+
+    setVerifyToast(hhId);
+    setTimeout(() => setVerifyToast(null), 2000);
+  };
+
+  const handleReportDeal = (hhId: string) => {
+    Alert.alert('Report deal', 'Flag this deal as inaccurate?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Report',
+        style: 'destructive',
+        onPress: async () => {
+          await supabase.from('happy_hours').update({ status: 'flagged' }).eq('id', hhId);
+          setHappyHours(prev => prev.filter(h => h.id !== hhId));
+        },
+      },
+    ]);
+  };
+
+  function parseTimeInput(input: string): string | null {
+    const m = input.trim().match(/^(\d{1,2}):?(\d{2})?\s*(am|pm)?$/i);
+    if (!m) return null;
+    let h = parseInt(m[1]);
+    const min = m[2] ? parseInt(m[2]) : 0;
+    const ap = m[3]?.toLowerCase();
+    if (ap === 'pm' && h < 12) h += 12;
+    if (ap === 'am' && h === 12) h = 0;
+    if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+    return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}:00`;
+  }
+
+  const handleSubmitDeal = async () => {
+    if (!user || !id) return;
+    if (submitDays.length === 0) { Alert.alert('Select at least one day'); return; }
+    const parsedStart = parseTimeInput(submitStart);
+    const parsedEnd = parseTimeInput(submitEnd);
+    if (!parsedStart) { Alert.alert('Invalid start time', 'Use a format like "4pm" or "4:30pm"'); return; }
+    if (!parsedEnd) { Alert.alert('Invalid end time', 'Use a format like "7pm" or "7:30pm"'); return; }
+    if (!submitTitle.trim()) { Alert.alert('Enter a deal title'); return; }
+
+    setSubmitLoading(true);
+    const rows = submitDays.map(day => ({
+      venue_id: id,
+      day_of_week: day,
+      start_time: parsedStart,
+      end_time: parsedEnd,
+      title: submitTitle.trim(),
+      deal_details: submitDetails.trim() || null,
+      status: 'pending',
+      submitted_by: user.id,
+    }));
+
+    const { error } = await supabase.from('happy_hours').insert(rows);
+    setSubmitLoading(false);
+
+    if (error) {
+      Alert.alert('Error', error.message);
+    } else {
+      setSubmitModalVisible(false);
+      setSubmitDays([]); setSubmitStart(''); setSubmitEnd(''); setSubmitTitle(''); setSubmitDetails('');
+      Alert.alert('Thanks!', 'Your deal has been submitted and will appear after 24 hours if not flagged.');
+    }
+  };
 
   const loadFollows = async () => {
     if (!id) return;
@@ -290,11 +397,16 @@ export default function VenueScreen() {
         .gte('date', today)
         .order('date', { ascending: true })
         .limit(20),
-      supabase
-        .from('happy_hours')
-        .select('id, day_of_week, start_time, end_time, title, deal_details')
-        .eq('venue_id', id)
-        .order('day_of_week', { ascending: true }),
+      (() => {
+        const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        return supabase
+          .from('happy_hours')
+          .select('id, day_of_week, start_time, end_time, title, deal_details, last_verified_at, status, submitted_by, created_at')
+          .eq('venue_id', id)
+          .or(`submitted_by.is.null,status.eq.active,and(status.eq.pending,created_at.lte.${cutoff24h})`)
+          .neq('status', 'flagged')
+          .order('day_of_week', { ascending: true });
+      })(),
     ]);
 
     if (venueRes.data) setVenue(venueRes.data as Venue);
@@ -581,35 +693,170 @@ export default function VenueScreen() {
           )}
 
           {/* Happy Hour */}
-          {happyHours.length > 0 && (
+          {(happyHours.length > 0 || user) && (
             <>
-              <Text style={{ fontSize: 14, fontWeight: '700', color: 'rgba(255,255,255,0.45)', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 12 }}>
-                Happy Hour
-              </Text>
-              <View style={{ marginBottom: 28, gap: 8 }}>
-                {happyHours.map(hh => (
-                  <View
-                    key={hh.id}
-                    style={{ backgroundColor: '#1a0d00', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#3d1f00' }}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: 'rgba(255,255,255,0.45)', letterSpacing: 0.8, textTransform: 'uppercase' }}>
+                  Happy Hour
+                </Text>
+                {user && (
+                  <TouchableOpacity
+                    onPress={() => setSubmitModalVisible(true)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, backgroundColor: 'rgba(249,115,22,0.12)', borderWidth: 1, borderColor: 'rgba(249,115,22,0.3)' }}
                   >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#f97316' }}>
-                        {DAY_ABBR[hh.day_of_week]}  {fmt12(hh.start_time)} - {fmt12(hh.end_time)}
-                      </Text>
-                    </View>
-                    <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff', marginBottom: hh.deal_details ? 4 : 0 }}>
-                      {hh.title}
-                    </Text>
-                    {hh.deal_details ? (
-                      <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 18 }}>
-                        {hh.deal_details}
-                      </Text>
-                    ) : null}
-                  </View>
-                ))}
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#f97316' }}>+ Submit a deal</Text>
+                  </TouchableOpacity>
+                )}
               </View>
+              {happyHours.length > 0 && (
+                <View style={{ marginBottom: 28, gap: 8 }}>
+                  {happyHours.map(hh => {
+                    const now = Date.now();
+                    const verifiedMs = hh.last_verified_at ? new Date(hh.last_verified_at).getTime() : null;
+                    const daysSinceVerified = verifiedMs ? Math.floor((now - verifiedMs) / 86400000) : null;
+                    const isOutdated = !verifiedMs || daysSinceVerified! > 30;
+                    const alreadyVerifiedToday = verifiedTodayIds.has(hh.id);
+
+                    return (
+                      <View
+                        key={hh.id}
+                        style={{ backgroundColor: '#1a0d00', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#3d1f00' }}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: '#f97316' }}>
+                            {DAY_ABBR[hh.day_of_week]}  {fmt12(hh.start_time)} - {fmt12(hh.end_time)}
+                          </Text>
+                          {isOutdated && (
+                            <View style={{ backgroundColor: 'rgba(245,158,11,0.15)', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: 'rgba(245,158,11,0.35)' }}>
+                              <Text style={{ fontSize: 10, fontWeight: '700', color: '#f59e0b' }}>May be outdated</Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff', marginBottom: hh.deal_details ? 4 : 0 }}>
+                          {hh.title}
+                        </Text>
+                        {hh.deal_details ? (
+                          <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 18 }}>
+                            {hh.deal_details}
+                          </Text>
+                        ) : null}
+                        {/* Footer row: verified info + buttons */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+                          <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
+                            {verifyToast === hh.id
+                              ? 'Thanks for verifying!'
+                              : daysSinceVerified === 0
+                              ? 'Verified today'
+                              : daysSinceVerified === 1
+                              ? 'Verified yesterday'
+                              : daysSinceVerified != null
+                              ? `Verified ${daysSinceVerified}d ago`
+                              : 'Never verified'}
+                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                            {user && !alreadyVerifiedToday && (
+                              <TouchableOpacity onPress={() => handleVerify(hh.id)}>
+                                <Text style={{ fontSize: 12, fontWeight: '600', color: '#4ade80' }}>✓ Still accurate</Text>
+                              </TouchableOpacity>
+                            )}
+                            {user && (
+                              <TouchableOpacity onPress={() => handleReportDeal(hh.id)}>
+                                <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>Report</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
             </>
           )}
+
+          {/* Submit Deal Modal */}
+          <Modal visible={submitModalVisible} animationType="slide" transparent onRequestClose={() => setSubmitModalVisible(false)}>
+            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+              <View style={{ backgroundColor: '#111', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                  <Text style={{ fontSize: 18, fontWeight: '700', color: '#fff' }}>Submit a deal</Text>
+                  <TouchableOpacity onPress={() => setSubmitModalVisible(false)}>
+                    <Text style={{ fontSize: 15, color: '#888' }}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.45)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.6 }}>Days</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                  {DAY_ABBR.map((d, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      onPress={() => setSubmitDays(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])}
+                      style={{
+                        paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
+                        backgroundColor: submitDays.includes(i) ? '#f97316' : 'rgba(255,255,255,0.08)',
+                        borderWidth: 1,
+                        borderColor: submitDays.includes(i) ? '#f97316' : 'rgba(255,255,255,0.12)',
+                      }}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: submitDays.includes(i) ? '#fff' : 'rgba(255,255,255,0.6)' }}>{d}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.45)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.6 }}>Start time</Text>
+                    <TextInput
+                      value={submitStart}
+                      onChangeText={setSubmitStart}
+                      placeholder="e.g. 4pm"
+                      placeholderTextColor="#555"
+                      style={{ backgroundColor: '#1a1a1a', borderRadius: 10, padding: 12, color: '#fff', fontSize: 15, borderWidth: 1, borderColor: '#2a2a2a' }}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.45)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.6 }}>End time</Text>
+                    <TextInput
+                      value={submitEnd}
+                      onChangeText={setSubmitEnd}
+                      placeholder="e.g. 7pm"
+                      placeholderTextColor="#555"
+                      style={{ backgroundColor: '#1a1a1a', borderRadius: 10, padding: 12, color: '#fff', fontSize: 15, borderWidth: 1, borderColor: '#2a2a2a' }}
+                    />
+                  </View>
+                </View>
+
+                <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.45)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.6 }}>Deal title</Text>
+                <TextInput
+                  value={submitTitle}
+                  onChangeText={setSubmitTitle}
+                  placeholder="e.g. $6 house wine"
+                  placeholderTextColor="#555"
+                  maxLength={60}
+                  style={{ backgroundColor: '#1a1a1a', borderRadius: 10, padding: 12, color: '#fff', fontSize: 15, borderWidth: 1, borderColor: '#2a2a2a', marginBottom: 12 }}
+                />
+
+                <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.45)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.6 }}>Details (optional)</Text>
+                <TextInput
+                  value={submitDetails}
+                  onChangeText={setSubmitDetails}
+                  placeholder="Any extra info..."
+                  placeholderTextColor="#555"
+                  maxLength={100}
+                  multiline
+                  style={{ backgroundColor: '#1a1a1a', borderRadius: 10, padding: 12, color: '#fff', fontSize: 15, borderWidth: 1, borderColor: '#2a2a2a', marginBottom: 20, minHeight: 72, textAlignVertical: 'top' }}
+                />
+
+                <TouchableOpacity
+                  onPress={handleSubmitDeal}
+                  disabled={submitLoading}
+                  style={{ backgroundColor: '#f97316', borderRadius: 14, paddingVertical: 14, alignItems: 'center' }}
+                >
+                  {submitLoading ? <ActivityIndicator color="#fff" /> : <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Submit deal</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
 
           {/* Moments */}
           <Text style={{ fontSize: 14, fontWeight: '700', color: 'rgba(255,255,255,0.45)', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 12 }}>

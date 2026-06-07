@@ -80,13 +80,6 @@ export default function NotificationsScreen() {
       .limit(50);
     setNotifications((data ?? []) as Notification[]);
     setLoading(false);
-
-    // Mark all as read
-    await supabase
-      .from('notifications')
-      .update({ read_at: new Date().toISOString() })
-      .eq('user_id', user.id)
-      .is('read_at', null);
   };
 
   const onRefresh = useCallback(async () => {
@@ -95,8 +88,16 @@ export default function NotificationsScreen() {
     setRefreshing(false);
   }, [user]);
 
-  const handlePress = (item: Notification) => {
+  const handlePress = async (item: Notification) => {
     const route = routeForNotification(item.type as NotificationType, item.data ?? undefined);
+    if (!item.read_at) {
+      const now = new Date().toISOString();
+      setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, read_at: now } : n));
+      await supabase
+        .from('notifications')
+        .update({ read_at: now })
+        .eq('id', item.id);
+    }
     if (route) router.push(route as any);
   };
 

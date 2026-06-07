@@ -70,6 +70,7 @@ interface HappyHourDeal {
   title: string;
   deal_details: string | null;
   end_time: string; // HH:MM:SS
+  last_verified_at: string | null;
 }
 
 interface DiscoverEvent {
@@ -188,6 +189,10 @@ function HappyHourCard({
   nowMins: number;
   onPress: () => void;
 }) {
+  const verifiedMs = deal.last_verified_at ? new Date(deal.last_verified_at).getTime() : null;
+  const daysSince = verifiedMs ? Math.floor((Date.now() - verifiedMs) / 86400000) : null;
+  const isOutdated = !verifiedMs || daysSince! > 30;
+
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.hhCard}>
       <LinearGradient
@@ -204,6 +209,11 @@ function HappyHourCard({
           <Ionicons name="time-outline" size={11} color="#f97316" />
           <Text style={styles.hhCardCountdown}>{formatCountdown(deal.end_time, nowMins)}</Text>
         </View>
+        {isOutdated && (
+          <View style={{ marginTop: 6, backgroundColor: 'rgba(245,158,11,0.12)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, alignSelf: 'flex-start', borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)' }}>
+            <Text style={{ fontSize: 10, fontWeight: '700', color: '#f59e0b' }}>May be outdated</Text>
+          </View>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -859,13 +869,16 @@ export default function DiscoverScreen() {
     const dow = now.getDay();
     const pad = (n: number) => String(n).padStart(2, '0');
     const currentTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:00`;
+    const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
     const { data } = await supabase
       .from('happy_hours')
-      .select('id, venue_id, title, deal_details, end_time, venues(name)')
+      .select('id, venue_id, title, deal_details, end_time, last_verified_at, venues(name)')
       .eq('day_of_week', dow)
       .lte('start_time', currentTime)
-      .gte('end_time', currentTime);
+      .gte('end_time', currentTime)
+      .or(`submitted_by.is.null,status.eq.active,and(status.eq.pending,created_at.lte.${cutoff24h})`)
+      .neq('status', 'flagged');
 
     if (data) {
       setHappyHourDeals(
@@ -876,6 +889,7 @@ export default function DiscoverScreen() {
           title: d.title,
           deal_details: d.deal_details ?? null,
           end_time: d.end_time,
+          last_verified_at: d.last_verified_at ?? null,
         }))
       );
     }

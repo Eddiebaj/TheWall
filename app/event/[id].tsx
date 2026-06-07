@@ -108,6 +108,7 @@ interface EventDetail {
   creator_is_organizer?: boolean;
   organizer_name?: string | null;
   recurrence?: string | null;
+  creator_id?: string | null;
 }
 
 function getEventTags(title: string): string[] {
@@ -156,6 +157,14 @@ export default function EventDetailScreen() {
 
   // Plan status
   const [planStatus, setPlanStatus] = useState<{ inCount: number; totalInvited: number } | null>(null);
+
+  // Edit/Delete (creator only)
+  const [editVisible, setEditVisible] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editTime, setEditTime] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
 
   // Share sheet
   const [shareSheetVisible, setShareSheetVisible] = useState(false);
@@ -328,6 +337,7 @@ export default function EventDetailScreen() {
       creator_is_organizer: creatorIsOrganizer,
       organizer_name: isVenueEvent ? (eventData.organizer_name || null) : null,
       recurrence: isVenueEvent ? (eventData.recurrence || null) : null,
+      creator_id: isVenueEvent ? (eventData.creator_id || null) : null,
     });
     setLoading(false);
   };
@@ -585,6 +595,53 @@ export default function EventDetailScreen() {
     } finally {
       setSending(false);
     }
+  };
+
+  const openEditModal = () => {
+    if (!event) return;
+    setEditTitle(event.title);
+    setEditDate(event.event_date || '');
+    setEditTime(event.start_time || '');
+    setEditDescription(event.description || '');
+    setEditVisible(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!event) return;
+    setEditLoading(true);
+    const updates: any = {
+      title: editTitle.trim(),
+      event_date: editDate.trim() || null,
+      event_time: editTime.trim() || null,
+      description: editDescription.trim() || null,
+    };
+    const { error } = await supabase.from('venue_events').update(updates).eq('id', event.id);
+    setEditLoading(false);
+    if (error) {
+      Alert.alert('Error', 'Could not save changes.');
+    } else {
+      setEvent(e => e ? { ...e, title: updates.title, event_date: updates.event_date, start_time: updates.event_time, description: updates.description } : e);
+      setEditVisible(false);
+    }
+  };
+
+  const handleDelete = () => {
+    if (!event) return;
+    Alert.alert('Delete Event', 'Are you sure you want to delete this event? This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          const { error } = await supabase.from('venue_events').delete().eq('id', event.id);
+          if (error) {
+            Alert.alert('Error', 'Could not delete event.');
+          } else {
+            router.back();
+          }
+        },
+      },
+    ]);
   };
 
   const handleGetDirections = () => {
@@ -1000,6 +1057,50 @@ export default function EventDetailScreen() {
             Share Event
           </Text>
         </TouchableOpacity>
+
+        {/* Creator-only: Edit & Delete */}
+        {user && event.creator_id === user.id && (
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+            <TouchableOpacity
+              onPress={openEditModal}
+              activeOpacity={0.85}
+              style={{
+                flex: 1,
+                borderRadius: 14,
+                paddingVertical: 13,
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexDirection: 'row',
+                gap: 6,
+                borderWidth: 1,
+                borderColor: colours.border,
+                backgroundColor: 'transparent',
+              }}
+            >
+              <Ionicons name="pencil-outline" size={16} color={colours.muted} />
+              <Text style={{ fontSize: 14, fontWeight: '600', color: colours.muted }}>Edit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleDelete}
+              activeOpacity={0.85}
+              style={{
+                flex: 1,
+                borderRadius: 14,
+                paddingVertical: 13,
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexDirection: 'row',
+                gap: 6,
+                borderWidth: 1,
+                borderColor: 'rgba(255,59,92,0.4)',
+                backgroundColor: 'rgba(255,59,92,0.08)',
+              }}
+            >
+              <Ionicons name="trash-outline" size={16} color={colours.accent} />
+              <Text style={{ fontSize: 14, fontWeight: '600', color: colours.accent }}>Delete</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
 
       {/* Hidden share poster */}
@@ -1274,6 +1375,99 @@ export default function EventDetailScreen() {
               )}
             </TouchableOpacity>
           </View>
+        </View>
+      </Modal>
+
+      {/* Edit Event Modal */}
+      <Modal
+        visible={editVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setEditVisible(false)}
+      >
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}
+          activeOpacity={1}
+          onPress={() => setEditVisible(false)}
+        />
+        <View style={{
+          backgroundColor: CARD,
+          borderTopLeftRadius: 20,
+          borderTopRightRadius: 20,
+          paddingHorizontal: 20,
+          paddingTop: 16,
+          paddingBottom: insets.bottom + 24,
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+        }}>
+          <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)', alignSelf: 'center', marginBottom: 20 }} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: colours.text, flex: 1 }}>Edit Event</Text>
+            <TouchableOpacity onPress={() => setEditVisible(false)}>
+              <Ionicons name="close" size={22} color={colours.muted} />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 6 }}>TITLE</Text>
+          <TextInput
+            value={editTitle}
+            onChangeText={setEditTitle}
+            placeholder="Event title"
+            placeholderTextColor={colours.muted}
+            style={{ backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: colours.text, marginBottom: 14 }}
+          />
+
+          <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 6 }}>DATE (YYYY-MM-DD)</Text>
+          <TextInput
+            value={editDate}
+            onChangeText={setEditDate}
+            placeholder="e.g. 2025-12-31"
+            placeholderTextColor={colours.muted}
+            style={{ backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: colours.text, marginBottom: 14 }}
+            keyboardType="numbers-and-punctuation"
+          />
+
+          <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 6 }}>TIME (HH:MM)</Text>
+          <TextInput
+            value={editTime}
+            onChangeText={setEditTime}
+            placeholder="e.g. 21:00"
+            placeholderTextColor={colours.muted}
+            style={{ backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: colours.text, marginBottom: 14 }}
+            keyboardType="numbers-and-punctuation"
+          />
+
+          <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 6 }}>DESCRIPTION</Text>
+          <TextInput
+            value={editDescription}
+            onChangeText={setEditDescription}
+            placeholder="Event description"
+            placeholderTextColor={colours.muted}
+            multiline
+            numberOfLines={3}
+            style={{ backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: colours.text, marginBottom: 20, minHeight: 80, textAlignVertical: 'top' }}
+          />
+
+          <TouchableOpacity
+            onPress={handleSaveEdit}
+            disabled={editLoading || !editTitle.trim()}
+            activeOpacity={0.85}
+            style={{
+              backgroundColor: editTitle.trim() ? colours.accent : 'rgba(255,255,255,0.1)',
+              borderRadius: 14,
+              paddingVertical: 15,
+              alignItems: 'center',
+              opacity: editLoading ? 0.6 : 1,
+            }}
+          >
+            {editLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Save Changes</Text>
+            )}
+          </TouchableOpacity>
         </View>
       </Modal>
     </View>
