@@ -742,12 +742,11 @@ export default function DiscoverScreen() {
   const [activeFilterKey, setActiveFilterKey] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const sectionOffsetsRef = useRef<Record<string, number>>({});
-  // Determine if happy hour window (3pm-8pm weekdays)
+  // Determine if happy hour window (3pm-8pm, any day)
   const isHappyHourWindow = (() => {
     const now = new Date();
-    const dow = now.getDay(); // 0=Sun, 6=Sat
     const mins = now.getHours() * 60 + now.getMinutes();
-    return dow >= 1 && dow <= 5 && mins >= 15 * 60 && mins < 20 * 60;
+    return mins >= 15 * 60 && mins < 20 * 60;
   })();
 
   useEffect(() => {
