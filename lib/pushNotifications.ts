@@ -85,8 +85,8 @@ export async function registerPushToken(language: string): Promise<boolean> {
     const { data: { user } } = await supabase.auth.getUser();
     if (user && token) {
       await supabase.from('push_tokens').upsert(
-        { expo_token: token, user_id: user.id, platform: Platform.OS },
-        { onConflict: 'expo_token' }
+        { token: token, user_id: user.id, platform: Platform.OS },
+        { onConflict: 'token' }
       );
     }
 

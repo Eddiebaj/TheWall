@@ -9,7 +9,10 @@ export type NotificationType =
   | 'message'
   | 'friend_going'
   | 'event_reminder'
-  | 'activity';
+  | 'activity'
+  | 'plan_invite'
+  | 'plan_crew_going'
+  | 'friend_checkin';
 
 export interface NotificationPayload {
   type: NotificationType;
@@ -78,6 +81,11 @@ export function routeForNotification(
       return data?.event_id ? `/event/${data.event_id}` : null;
     case 'activity':
       return '/(tabs)/index';
+    case 'plan_invite':
+    case 'plan_crew_going':
+      return '/(tabs)/friends';
+    case 'friend_checkin':
+      return data?.venue_id ? `/venue/${data.venue_id}` : '/(tabs)/index';
     default:
       return null;
   }

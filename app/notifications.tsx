@@ -49,6 +49,9 @@ function iconForType(type: string): string {
     case 'message':
     case 'new_message': return 'chatbubble-outline';
     case 'activity': return 'pulse-outline';
+    case 'plan_invite':
+    case 'plan_crew_going': return 'people-outline';
+    case 'friend_checkin': return 'location-outline';
     default: return 'notifications-outline';
   }
 }
