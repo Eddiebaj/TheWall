@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
 import {
+  Animated,
   Dimensions,
   Image,
   Modal,
@@ -253,6 +254,427 @@ function CategoryRow({
     </View>
   );
 }
+
+// ─── Map Components ───────────────────────────────────────────────────────────
+
+function SingleEventPreview({ event, onView }: { event: DiscoverEvent; onView: () => void }) {
+  const [imgError, setImgError] = useState(false);
+  const catDef = CATEGORIES.find(c => c.key === event.category);
+  return (
+    <View style={{ flexDirection: 'row', gap: 14, paddingTop: 4 }}>
+      {event.poster_url && !imgError ? (
+        <Image
+          source={{ uri: event.poster_url }}
+          style={mapStyles.previewPoster}
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <LinearGradient colors={['#1a0620', '#2d1040']} style={[mapStyles.previewPoster, { alignItems: 'center', justifyContent: 'center' }]}>
+          <Text style={{ fontSize: 28 }}>{catDef?.emoji ?? '📅'}</Text>
+        </LinearGradient>
+      )}
+      <View style={{ flex: 1, justifyContent: 'space-between' }}>
+        <View>
+          <Text style={mapStyles.previewVenue} numberOfLines={1}>{event.venue_name}</Text>
+          <Text style={mapStyles.previewTitle} numberOfLines={3}>{event.title}</Text>
+          {event.event_date && <Text style={mapStyles.previewDate}>{formatDate(event.event_date)}</Text>}
+        </View>
+        <TouchableOpacity style={mapStyles.viewBtn} onPress={onView} activeOpacity={0.85}>
+          <Text style={mapStyles.viewBtnText}>View event →</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+function MapEventView({ events, onClose }: { events: DiscoverEvent[]; onClose: () => void }) {
+  const router = useRouter();
+  const shapeSourceRef = useRef<any>(null);
+  const cameraRef = useRef<any>(null);
+  const [selectedVenueEvents, setSelectedVenueEvents] = useState<DiscoverEvent[]>([]);
+  const [sheetVisible, setSheetVisible] = useState(false);
+  const sheetAnim = useRef(new Animated.Value(340)).current;
+
+  const mappableEvents = events.filter(e => e.venue_lat != null && e.venue_lng != null);
+
+  // Group events by venue so one pin = one venue with N events
+  const venueGroups = useMemo(() => {
+    const map = new Map<string, DiscoverEvent[]>();
+    for (const e of mappableEvents) {
+      const key = e.venue_id ?? `${e.venue_lat},${e.venue_lng}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(e);
+    }
+    return map;
+  }, [mappableEvents.length]);
+
+  const geojson = useMemo(() => ({
+    type: 'FeatureCollection' as const,
+    features: [...venueGroups.entries()].map(([key, evs]) => ({
+      type: 'Feature' as const,
+      geometry: { type: 'Point' as const, coordinates: [evs[0].venue_lng!, evs[0].venue_lat!] },
+      properties: {
+        venueKey: key,
+        venue: evs[0].venue_name,
+        eventCount: evs.length,
+        firstId: evs[0].id,
+      },
+    })),
+  }), [venueGroups]);
+
+  const showSheet = (evs: DiscoverEvent[]) => {
+    setSelectedVenueEvents(evs);
+    setSheetVisible(true);
+    sheetAnim.setValue(340);
+    Animated.spring(sheetAnim, { toValue: 0, damping: 22, mass: 0.85, useNativeDriver: true }).start();
+  };
+
+  const hideSheet = () => {
+    Animated.timing(sheetAnim, { toValue: 340, duration: 180, useNativeDriver: true }).start(() =>
+      setSheetVisible(false)
+    );
+  };
+
+  const handleMapPress = async (e: any) => {
+    const feature = e.features?.[0];
+    if (!feature) return;
+
+    if (feature.properties?.cluster) {
+      // Zoom into cluster until pins separate
+      try {
+        const zoom = await shapeSourceRef.current?.getClusterExpansionZoom(feature);
+        cameraRef.current?.setCamera({
+          centerCoordinate: feature.geometry.coordinates,
+          zoomLevel: (zoom ?? 12) + 0.5,
+          animationDuration: 500,
+          animationMode: 'easeTo',
+        });
+      } catch {}
+      return;
+    }
+
+    // Individual venue pin
+    const venueKey = feature.properties?.venueKey;
+    if (venueKey) {
+      const evs = venueGroups.get(venueKey) ?? [];
+      if (evs.length > 0) showSheet(evs);
+    }
+  };
+
+  const recenter = () => {
+    cameraRef.current?.setCamera({
+      centerCoordinate: TORONTO_COORDS,
+      zoomLevel: 12,
+      animationDuration: 600,
+      animationMode: 'easeTo',
+    });
+  };
+
+  const totalVenues = venueGroups.size;
+
+  return (
+    <View style={{ flex: 1 }}>
+      {/* Event count badge */}
+      <View style={mapStyles.countBadge} pointerEvents="none">
+        <Ionicons name="location" size={13} color="#FF3B5C" />
+        <Text style={mapStyles.countBadgeText}>
+          {mappableEvents.length} event{mappableEvents.length !== 1 ? 's' : ''} across {totalVenues} venue{totalVenues !== 1 ? 's' : ''}
+        </Text>
+      </View>
+
+      <MapboxGL.MapView
+        style={{ flex: 1 }}
+        styleURL="mapbox://styles/mapbox/dark-v11"
+        logoEnabled={false}
+        attributionEnabled={false}
+        onPress={() => sheetVisible && hideSheet()}
+      >
+        <MapboxGL.Camera
+          ref={cameraRef}
+          zoomLevel={12}
+          centerCoordinate={TORONTO_COORDS}
+          animationMode="none"
+        />
+        <MapboxGL.ShapeSource
+          id="events-source"
+          ref={shapeSourceRef}
+          shape={geojson as any}
+          cluster
+          clusterRadius={50}
+          clusterMaxZoom={14}
+          onPress={handleMapPress}
+        >
+          {/* Cluster circles — color and size scale with count */}
+          <MapboxGL.CircleLayer
+            id="clusters"
+            filter={['has', 'point_count']}
+            style={{
+              circleColor: [
+                'step', ['get', 'point_count'],
+                '#C4172D',   // 1–9 (darker accent)
+                10, '#FF3B5C', // 10–29 (accent)
+                30, '#FF7A8A', // 30+ (lighter accent)
+              ],
+              circleRadius: [
+                'step', ['get', 'point_count'],
+                22,
+                10, 30,
+                30, 38,
+              ],
+              circleOpacity: 0.9,
+              circleStrokeWidth: 2.5,
+              circleStrokeColor: 'rgba(255,59,92,0.35)',
+            }}
+          />
+          {/* Cluster count label */}
+          <MapboxGL.SymbolLayer
+            id="cluster-count"
+            filter={['has', 'point_count']}
+            style={{
+              textField: ['get', 'point_count_abbreviated'],
+              textSize: 13,
+              textColor: '#fff',
+              textFont: ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+              textAllowOverlap: true,
+            }}
+          />
+          {/* Individual venue pins — accent=single event, lighter accent=multi-event venue */}
+          <MapboxGL.CircleLayer
+            id="unclustered-point"
+            filter={['!', ['has', 'point_count']]}
+            style={{
+              circleColor: [
+                'case',
+                ['>', ['get', 'eventCount'], 1], '#FF7A8A',
+                '#FF3B5C',
+              ],
+              circleRadius: 9,
+              circleStrokeWidth: 2.5,
+              circleStrokeColor: '#fff',
+              circleOpacity: 1,
+            }}
+          />
+          {/* Count label on multi-event venue pins */}
+          <MapboxGL.SymbolLayer
+            id="unclustered-count"
+            filter={['all', ['!', ['has', 'point_count']], ['>', ['get', 'eventCount'], 1]]}
+            style={{
+              textField: ['to-string', ['get', 'eventCount']],
+              textSize: 9,
+              textColor: '#fff',
+              textFont: ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+              textAllowOverlap: true,
+            }}
+          />
+        </MapboxGL.ShapeSource>
+      </MapboxGL.MapView>
+
+      {/* Recenter button */}
+      <TouchableOpacity style={mapStyles.recenterBtn} onPress={recenter} activeOpacity={0.8}>
+        <Ionicons name="locate" size={20} color="#fff" />
+      </TouchableOpacity>
+
+      {/* Bottom peek sheet */}
+      {sheetVisible && (
+        <Animated.View style={[mapStyles.sheet, { transform: [{ translateY: sheetAnim }] }]}>
+          <View style={mapStyles.sheetHandle} />
+          <TouchableOpacity style={mapStyles.sheetClose} onPress={hideSheet} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Ionicons name="close" size={20} color="#666" />
+          </TouchableOpacity>
+
+          {selectedVenueEvents.length === 1 ? (
+            <SingleEventPreview
+              event={selectedVenueEvents[0]}
+              onView={() => {
+                hideSheet();
+                setTimeout(() => { onClose(); router.push(`/event/${selectedVenueEvents[0].id}`); }, 220);
+              }}
+            />
+          ) : (
+            <View>
+              <Text style={mapStyles.sheetVenueName}>{selectedVenueEvents[0]?.venue_name}</Text>
+              <Text style={mapStyles.sheetSubtitle}>{selectedVenueEvents.length} events at this venue</Text>
+              <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+                {selectedVenueEvents.map(ev => (
+                  <TouchableOpacity
+                    key={ev.id}
+                    style={mapStyles.venueEventRow}
+                    onPress={() => {
+                      hideSheet();
+                      setTimeout(() => { onClose(); router.push(`/event/${ev.id}`); }, 220);
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    {ev.poster_url ? (
+                      <Image source={{ uri: ev.poster_url }} style={mapStyles.venueEventThumb} />
+                    ) : (
+                      <LinearGradient colors={['#1a0620', '#2d1040']} style={[mapStyles.venueEventThumb, { alignItems: 'center', justifyContent: 'center' }]}>
+                        <Text style={{ fontSize: 18 }}>{CATEGORIES.find(c => c.key === ev.category)?.emoji ?? '📅'}</Text>
+                      </LinearGradient>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <Text style={mapStyles.venueEventTitle} numberOfLines={2}>{ev.title}</Text>
+                      {ev.event_date && <Text style={mapStyles.venueEventDate}>{formatDate(ev.event_date)}</Text>}
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color="#555" />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+        </Animated.View>
+      )}
+    </View>
+  );
+}
+
+const mapStyles = StyleSheet.create({
+  countBadge: {
+    position: 'absolute',
+    top: 12,
+    alignSelf: 'center',
+    zIndex: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(10,10,20,0.82)',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,59,92,0.25)',
+  },
+  countBadgeText: {
+    color: '#ddd',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  recenterBtn: {
+    position: 'absolute',
+    bottom: 28,
+    right: 16,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#1a1a2e',
+    borderWidth: 1,
+    borderColor: '#333',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 6,
+  },
+  sheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#111',
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    padding: 20,
+    paddingBottom: 40,
+    borderTopWidth: 1,
+    borderColor: '#222',
+    shadowColor: '#000',
+    shadowOpacity: 0.6,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 20,
+  },
+  sheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#3a3a3a',
+    alignSelf: 'center',
+    marginBottom: 18,
+  },
+  sheetClose: {
+    position: 'absolute',
+    top: 18,
+    right: 18,
+  },
+  sheetVenueName: {
+    color: '#FF3B5C',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.9,
+    marginBottom: 2,
+  },
+  sheetSubtitle: {
+    color: '#666',
+    fontSize: 13,
+    marginBottom: 14,
+  },
+  venueEventRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1e1e1e',
+  },
+  venueEventThumb: {
+    width: 52,
+    height: 52,
+    borderRadius: 8,
+  },
+  venueEventTitle: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 19,
+  },
+  venueEventDate: {
+    color: '#666',
+    fontSize: 12,
+    marginTop: 3,
+  },
+  previewPoster: {
+    width: 88,
+    height: 118,
+    borderRadius: 10,
+  },
+  previewVenue: {
+    color: '#FF3B5C',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 5,
+  },
+  previewTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 22,
+    marginBottom: 6,
+  },
+  previewDate: {
+    color: '#888',
+    fontSize: 13,
+  },
+  viewBtn: {
+    backgroundColor: '#FF3B5C',
+    borderRadius: 14,
+    paddingVertical: 11,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  viewBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+});
+
+// ─── Discover Screen ───────────────────────────────────────────────────────────
 
 export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
@@ -548,98 +970,17 @@ export default function DiscoverScreen() {
         onRequestClose={() => setMapModalVisible(false)}
       >
         <View style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
-          <View style={{ paddingTop: 56, paddingHorizontal: 16, paddingBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          {/* Header */}
+          <View style={{ paddingTop: 56, paddingHorizontal: 16, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: '#1a1a1a' }}>
             <TouchableOpacity onPress={() => setMapModalVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Ionicons name="close" size={26} color="#fff" />
             </TouchableOpacity>
-            <Text style={{ fontSize: 18, fontWeight: '700', color: '#fff' }}>Event Map</Text>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: '#fff', flex: 1 }}>Event Map</Text>
           </View>
-          {MapboxGL ? (() => {
-            const mappableEvents = events.filter(
-              e => e.venue_lat != null && e.venue_lng != null,
-            );
-            const geojson = {
-              type: 'FeatureCollection',
-              features: mappableEvents.map(e => ({
-                type: 'Feature',
-                geometry: { type: 'Point', coordinates: [e.venue_lng!, e.venue_lat!] },
-                properties: { id: e.id, title: e.title, venue: e.venue_name },
-              })),
-            };
-            return (
-              <MapboxGL.MapView
-                style={{ flex: 1 }}
-                styleURL="mapbox://styles/mapbox/dark-v11"
-                logoEnabled={false}
-                attributionEnabled={false}
-              >
-                <MapboxGL.Camera
-                  zoomLevel={12}
-                  centerCoordinate={TORONTO_COORDS}
-                  animationMode="none"
-                />
-                <MapboxGL.ShapeSource
-                  id="events-source"
-                  shape={geojson as any}
-                  cluster
-                  clusterRadius={50}
-                  clusterMaxZoom={14}
-                  onPress={(e: any) => {
-                    const feature = e.features?.[0];
-                    if (!feature) return;
-                    if (feature.properties?.cluster) return; // let map zoom in
-                    const eventId = feature.properties?.id;
-                    if (eventId) {
-                      setMapModalVisible(false);
-                      router.push(`/event/${eventId}`);
-                    }
-                  }}
-                >
-                  {/* Cluster background circles */}
-                  <MapboxGL.CircleLayer
-                    id="clusters"
-                    filter={['has', 'point_count']}
-                    style={{
-                      circleColor: '#a855f7',
-                      circleRadius: [
-                        'step', ['get', 'point_count'],
-                        20,  // default radius
-                        10, 28, // >=10 → 28
-                        50, 36, // >=50 → 36
-                      ],
-                      circleOpacity: 0.92,
-                      circleStrokeWidth: 2,
-                      circleStrokeColor: 'rgba(168,85,247,0.35)',
-                    }}
-                  />
-                  {/* Cluster count labels */}
-                  <MapboxGL.SymbolLayer
-                    id="cluster-count"
-                    filter={['has', 'point_count']}
-                    style={{
-                      textField: ['get', 'point_count_abbreviated'],
-                      textSize: 13,
-                      textColor: '#fff',
-                      textFont: ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
-                      textAllowOverlap: true,
-                    }}
-                  />
-                  {/* Individual event pins */}
-                  <MapboxGL.CircleLayer
-                    id="unclustered-point"
-                    filter={['!', ['has', 'point_count']]}
-                    style={{
-                      circleColor: '#e53935',
-                      circleRadius: 8,
-                      circleStrokeWidth: 2,
-                      circleStrokeColor: '#fff',
-                      circleOpacity: 0.95,
-                    }}
-                  />
-                </MapboxGL.ShapeSource>
-              </MapboxGL.MapView>
-            );
-          })() : (
+
+          {MapboxGL ? (
+            <MapEventView events={events} onClose={() => setMapModalVisible(false)} />
+          ) : (
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 32 }}>
               <Ionicons name="map-outline" size={64} color="#333" />
               <Text style={{ fontSize: 18, fontWeight: '700', color: '#fff' }}>Map view available in the full app</Text>
