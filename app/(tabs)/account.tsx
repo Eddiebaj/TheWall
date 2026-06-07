@@ -24,8 +24,10 @@ import { cardShadow as sharedCardShadow } from '../../lib/styles';
 import { hapticLight, hapticMedium, hapticSuccess } from '../../lib/haptics';
 import { filterPremiumNotifSubs } from '../../lib/commuteNotifications';
 import { PREMIUM_ENABLED } from '../../lib/flags';
+import { useIsPremium } from '../../lib/premium';
 import { STRIPE_LINKS } from '../../lib/stripeLinks';
 import PaywallSheet from '../../components/PaywallSheet';
+import PremiumBadge from '../../components/PremiumBadge';
 
 type NotifSettings = {
   events: boolean;
@@ -323,7 +325,8 @@ export default function AccountScreen() {
     highContrast, setHighContrast,
     reducedMotion, setReducedMotion,
   } = useApp();
-  const { profile, user, signOut, isAdmin, isPremium, updateProfile, loading: userLoading } = useAuth();
+  const { profile, user, signOut, isAdmin, isPremium: _isPremiumAuth, updateProfile, loading: userLoading } = useAuth();
+  const isPremium = useIsPremium();
   const { savedBoard } = useBoard();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -809,9 +812,10 @@ export default function AccountScreen() {
                 <Text style={{ fontSize: 19, fontWeight: '800', color: '#fff', letterSpacing: -0.4, marginBottom: 3 }}>
                   {profile?.display_name || profile?.username || 'Your Name'}
                 </Text>
-                <Text style={{ fontSize: 14, color: '#888', marginBottom: 12 }}>
+                <Text style={{ fontSize: 14, color: '#888', marginBottom: isPremium ? 6 : 12 }}>
                   @{profile?.username || 'username'}
                 </Text>
+                {isPremium && <PremiumBadge size="small" />}
                 <TouchableOpacity
                   onPress={openEditProfile}
                   style={{ alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.05)' }}

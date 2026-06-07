@@ -326,6 +326,7 @@ function MapEventView({
         venue: evs[0].venue_name,
         eventCount: evs.length,
         firstId: evs[0].id,
+        featureTier: evs[0].venue_feature_tier ?? 'basic',
       },
     })),
   }), [venueGroups]);
@@ -446,17 +447,23 @@ function MapEventView({
               textAllowOverlap: true,
             }}
           />
-          {/* Individual venue pins — accent=single event, lighter accent=multi-event venue */}
+          {/* Individual venue pins — gold=featured, purple=pro, accent=basic/other */}
           <MapboxGL.CircleLayer
             id="unclustered-point"
             filter={['!', ['has', 'point_count']]}
             style={{
               circleColor: [
                 'case',
+                ['==', ['get', 'featureTier'], 'featured'], '#f59e0b',
+                ['==', ['get', 'featureTier'], 'pro'], '#a78bfa',
                 ['>', ['get', 'eventCount'], 1], '#FF7A8A',
                 '#FF3B5C',
               ],
-              circleRadius: 9,
+              circleRadius: [
+                'case',
+                ['==', ['get', 'featureTier'], 'featured'], 11,
+                9,
+              ],
               circleStrokeWidth: 2.5,
               circleStrokeColor: '#fff',
               circleOpacity: 1,
@@ -817,6 +824,18 @@ export default function DiscoverScreen() {
     for (const e of [...legacyMapped, ...veMapped]) {
       if (!seen.has(e.id)) { seen.add(e.id); merged.push(e); }
     }
+
+    const tierRank = (t: string | null) => {
+      if (t === 'featured') return 0;
+      if (t === 'pro') return 1;
+      if (t === 'basic') return 2;
+      return 3;
+    };
+    merged.sort((a, b) => {
+      const tierDiff = tierRank(a.venue_feature_tier) - tierRank(b.venue_feature_tier);
+      if (tierDiff !== 0) return tierDiff;
+      return (a.event_date ?? '').localeCompare(b.event_date ?? '');
+    });
 
     setEvents(merged);
     setLoading(false);

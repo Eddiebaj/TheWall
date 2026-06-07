@@ -247,6 +247,7 @@ export default function BusinessDashboardScreen() {
       event_date: newDate.trim(),
       event_time: newTime.trim() || null,
       cover_charge: newEntry,
+      source: 'user',
     });
     setSaving(false);
     if (error) {

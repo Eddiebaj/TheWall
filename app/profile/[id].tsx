@@ -33,6 +33,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import PremiumBadge from '../../components/PremiumBadge';
 
 const ACCENT = '#FF3B5C';
 const BG = '#0a0a0a';
@@ -67,7 +68,7 @@ export default function UserProfileScreen() {
   const loadProfile = async () => {
     const { data } = await supabase
       .from('profiles')
-      .select('id, username, display_name, avatar_url, bio, created_at')
+      .select('id, username, display_name, avatar_url, bio, created_at, membership')
       .eq('id', id)
       .single();
     if (data) setProfile(data);
@@ -334,9 +335,14 @@ export default function UserProfileScreen() {
           <Text style={{ fontSize: 22, fontWeight: '800', color: '#fff', marginBottom: 4 }}>
             {profile.display_name || profile.username}
           </Text>
-          <Text style={{ fontSize: 14, color: MUTED, marginBottom: profile.bio ? 10 : 0 }}>
+          <Text style={{ fontSize: 14, color: MUTED, marginBottom: profile.membership === 'premium' ? 6 : (profile.bio ? 10 : 0) }}>
             @{profile.username}
           </Text>
+          {profile.membership === 'premium' && (
+            <View style={{ marginBottom: profile.bio ? 10 : 0 }}>
+              <PremiumBadge size="small" />
+            </View>
+          )}
 
           {profile.bio ? (
             <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', textAlign: 'center', lineHeight: 20, marginBottom: 4, paddingHorizontal: 16 }}>

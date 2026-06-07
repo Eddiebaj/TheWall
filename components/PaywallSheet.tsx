@@ -25,11 +25,9 @@ type Props = {
 };
 
 const FEATURES = [
-  { icon: 'notifications-outline' as const, en: 'Early access to event announcements', fr: 'Accès anticipé aux annonces d\'événements' },
-  { icon: 'options-outline' as const,       en: 'Exclusive filters: hidden gems, 18+, free events', fr: 'Filtres exclusifs : pépites cachées, 18+, gratuits' },
-  { icon: 'people-outline' as const,        en: 'Priority friend activity in your feed', fr: 'Activité des amis en priorité dans le fil' },
-  { icon: 'bookmark-outline' as const,      en: 'Saved events synced across devices', fr: 'Événements sauvegardés synchronisés sur vos appareils' },
   { icon: 'ribbon-outline' as const,        en: 'Supporter badge on your profile', fr: 'Badge Supporter sur votre profil' },
+  { icon: 'stats-chart-outline' as const,   en: 'Insights — your event history & favourite venues', fr: 'Statistiques — historique et lieux favoris' },
+  { icon: 'time-outline' as const,          en: 'Early check-in — arrive 30 min before event time', fr: 'Enregistrement anticipé — 30 min avant l\'événement' },
 ];
 
 export default function PaywallSheet({ visible, onClose, onDismiss, onSuccess, featureHint, highlightFeature }: Props) {

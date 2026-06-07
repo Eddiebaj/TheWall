@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import { useEffect, useState } from 'react';
 import { PREMIUM_ENABLED } from './flags';
+import { supabase } from './supabase';
 
 // Lazy-load for Expo Go compatibility (native module unavailable in Go)
 let Purchases: typeof import('react-native-purchases').default | null = null;
@@ -74,7 +75,32 @@ export function useIsPremium(): boolean {
 
   useEffect(() => {
     if (!PREMIUM_ENABLED) { setIsPremium(true); return; }
-    checkIsPremium().then(setIsPremium);
+
+    let cancelled = false;
+
+    async function check() {
+      // RevenueCat check
+      const rcPremium = await checkIsPremium();
+      if (cancelled) return;
+      if (rcPremium) { setIsPremium(true); return; }
+
+      // Supabase profile.membership check — whichever is true wins (OR logic)
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user || cancelled) return;
+        const { data } = await supabase
+          .from('profiles')
+          .select('membership')
+          .eq('id', user.id)
+          .single();
+        if (!cancelled) setIsPremium(data?.membership === 'premium');
+      } catch {
+        if (!cancelled) setIsPremium(false);
+      }
+    }
+
+    check();
+    return () => { cancelled = true; };
   }, []);
 
   return isPremium;
@@ -82,12 +108,9 @@ export function useIsPremium(): boolean {
 
 // Named feature keys used for paywall gating and badge display
 export const PREMIUM_FEATURES = {
-  EARLY_ACCESS:    'early_access',
-  EXCLUSIVE_FILTERS: 'exclusive_filters',
-  PRIORITY_FEED:   'priority_feed',
-  SAVED_SYNC:      'saved_sync',
   SUPPORTER_BADGE: 'supporter_badge',
   INSIGHTS:        'insights',
+  EARLY_CHECKIN:   'early_checkin',
 } as const;
 
 /** Alias for backwards compatibility with imports that use usePremium */
