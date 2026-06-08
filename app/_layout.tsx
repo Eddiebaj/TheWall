@@ -12,6 +12,7 @@ import { AuthProvider, useAuth } from '../context/AuthContext';
 import NetworkBanner from '../components/NetworkBanner';
 import { SK_ONBOARDED, SK_CRASH_LOG, SK_ONBOARDING_COMPLETE, SK_PROFILE_SETUP_DONE, SK_NOTIF_PERMISSION } from '../lib/storageKeys';
 import { initSentry, captureException } from '../lib/sentry';
+import { supabase } from '../lib/supabase';
 import { incrementSessionCount } from '../lib/onboardingPrompts';
 import { routeForNotification, NotificationType } from '../lib/notificationTypes';
 
@@ -211,6 +212,50 @@ function RootNav() {
         }, 0);
       } else {
         (async () => {
+          // Auto-claim business subscription if the user's email matches an active subscription
+          const userEmail = session.user.email;
+          if (userEmail) {
+            const { data: prof } = await supabase
+              .from('profiles')
+              .select('is_business')
+              .eq('id', session.user.id)
+              .single();
+
+            if (!prof?.is_business) {
+              const { data: subRow } = await supabase
+                .from('business_subscriptions')
+                .select('venue_id')
+                .eq('business_email', userEmail.toLowerCase())
+                .eq('status', 'active')
+                .maybeSingle();
+
+              if (subRow?.venue_id) {
+                await supabase.from('profiles').update({
+                  is_business: true,
+                  business_email: userEmail.toLowerCase(),
+                  venue_id: subRow.venue_id,
+                }).eq('id', session.user.id);
+
+                const { data: venueRow } = await supabase
+                  .from('venues')
+                  .select('name')
+                  .eq('id', subRow.venue_id)
+                  .single();
+
+                await supabase.from('business_profiles').upsert({
+                  user_id: session.user.id,
+                  venue_id: subRow.venue_id,
+                  business_name: venueRow?.name ?? '',
+                }, { onConflict: 'user_id' });
+
+                if (__DEV__) console.log('[RootNav] Business subscription claimed - routing to /business-dashboard');
+                navigationDoneRef.current = true;
+                router.replace('/business-dashboard' as any);
+                return;
+              }
+            }
+          }
+
           // Show onboarding slides if user hasn't seen them yet
           const onboarded = await AsyncStorage.getItem(SK_ONBOARDED).catch(() => null);
           if (!onboarded) {

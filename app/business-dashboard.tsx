@@ -47,21 +47,40 @@ type Analytics = {
   rsvps: number;
   views: number;
   saves: number;
-  topEvent: string | null;
+  prevRsvps: number;
+  prevViews: number;
+  prevSaves: number;
+  topEvent: { title: string; date: string; rsvpCount: number } | null;
+  isEmpty: boolean;
 };
 
 type Subscription = {
   plan: 'basic' | 'pro' | 'featured' | null;
   status: string;
   stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
 };
 
-function StatCard({ label, value, icon, colours }: { label: string; value: string | number; icon: string; colours: any }) {
+function trendLabel(current: number, prev: number): { text: string; color: string } | null {
+  if (prev === 0 && current === 0) return null;
+  if (prev === 0) return { text: `+${current} from last week`, color: '#00C07A' };
+  const pct = Math.round(((current - prev) / prev) * 100);
+  if (pct === 0) return { text: 'Same as last week', color: '#888' };
+  return {
+    text: `${pct > 0 ? '↑' : '↓'} ${Math.abs(pct)}% from last week`,
+    color: pct > 0 ? '#00C07A' : '#e53935',
+  };
+}
+
+function StatCard({ label, value, icon, colours, trend }: { label: string; value: string | number; icon: string; colours: any; trend?: { text: string; color: string } | null }) {
   return (
     <View style={{ flex: 1, backgroundColor: colours.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
       <Ionicons name={icon as any} size={18} color={colours.accent} style={{ marginBottom: 6 }} />
       <Text style={{ fontSize: 22, fontWeight: '800', color: colours.text }}>{value}</Text>
       <Text style={{ fontSize: 11, color: colours.muted, marginTop: 2, textAlign: 'center' }}>{label}</Text>
+      {trend ? (
+        <Text style={{ fontSize: 10, color: trend.color, marginTop: 4, textAlign: 'center', fontWeight: '600' }}>{trend.text}</Text>
+      ) : null}
     </View>
   );
 }
@@ -75,8 +94,8 @@ export default function BusinessDashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [venueName, setVenueName] = useState('');
   const [venueId, setVenueId] = useState<string | null>(null);
-  const [sub, setSub] = useState<Subscription>({ plan: null, status: 'inactive', stripe_customer_id: null });
-  const [analytics, setAnalytics] = useState<Analytics>({ rsvps: 0, views: 0, saves: 0, topEvent: null });
+  const [sub, setSub] = useState<Subscription>({ plan: null, status: 'inactive', stripe_customer_id: null, stripe_subscription_id: null });
+  const [analytics, setAnalytics] = useState<Analytics>({ rsvps: 0, views: 0, saves: 0, prevRsvps: 0, prevViews: 0, prevSaves: 0, topEvent: null, isEmpty: true });
   const [events, setEvents] = useState<VenueEvent[]>([]);
   const [businessProfileId, setBusinessProfileId] = useState<string | null>(null);
   const [stripeLinks, setStripeLinks] = useState<Record<string, string>>({});
@@ -106,6 +125,9 @@ export default function BusinessDashboardScreen() {
   monthStart.setHours(0, 0, 0, 0);
   const monthStartISO = monthStart.toISOString();
 
+  const weekStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const prevWeekStart = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+
   const loadData = useCallback(async () => {
     if (!user) return;
     setLoading(true);
@@ -127,13 +149,13 @@ export default function BusinessDashboardScreen() {
         // Load subscription
         const { data: subRow } = await supabase
           .from('business_subscriptions')
-          .select('plan, status, stripe_customer_id')
+          .select('plan, status, stripe_customer_id, stripe_subscription_id')
           .eq('venue_id', vid)
           .eq('status', 'active')
           .maybeSingle();
 
         if (subRow) {
-          setSub({ plan: subRow.plan, status: subRow.status, stripe_customer_id: subRow.stripe_customer_id });
+          setSub({ plan: subRow.plan, status: subRow.status, stripe_customer_id: subRow.stripe_customer_id, stripe_subscription_id: subRow.stripe_subscription_id });
         }
 
         // Load business profile id (needed for analytics and event inserts)
@@ -149,32 +171,59 @@ export default function BusinessDashboardScreen() {
             .eq('business_id', bpRow.id);
           const eventIds = (eventIdRows ?? []).map((r: any) => r.id);
 
-          const [rsvpRes, viewRes, saveRes] = await Promise.all([
+          const [rsvpRes, viewRes, saveRes, prevRsvpRes, prevViewRes, prevSaveRes] = await Promise.all([
             eventIds.length > 0
               ? supabase
                   .from('venue_event_rsvps')
                   .select('event_id', { count: 'exact', head: true })
-                  .gte('created_at', monthStartISO)
+                  .gte('created_at', weekStart)
                   .in('event_id', eventIds)
               : Promise.resolve({ count: 0 }),
             supabase
               .from('venue_views')
               .select('id', { count: 'exact', head: true })
               .eq('venue_id', vid)
-              .gte('viewed_at', monthStartISO),
+              .gte('viewed_at', weekStart),
             eventIds.length > 0
               ? supabase
                   .from('saved_events')
                   .select('event_id', { count: 'exact', head: true })
-                  .gte('created_at', monthStartISO)
+                  .gte('created_at', weekStart)
+                  .in('event_id', eventIds)
+              : Promise.resolve({ count: 0 }),
+            // Previous week
+            eventIds.length > 0
+              ? supabase
+                  .from('venue_event_rsvps')
+                  .select('event_id', { count: 'exact', head: true })
+                  .gte('created_at', prevWeekStart)
+                  .lt('created_at', weekStart)
+                  .in('event_id', eventIds)
+              : Promise.resolve({ count: 0 }),
+            supabase
+              .from('venue_views')
+              .select('id', { count: 'exact', head: true })
+              .eq('venue_id', vid)
+              .gte('viewed_at', prevWeekStart)
+              .lt('viewed_at', weekStart),
+            eventIds.length > 0
+              ? supabase
+                  .from('saved_events')
+                  .select('event_id', { count: 'exact', head: true })
+                  .gte('created_at', prevWeekStart)
+                  .lt('created_at', weekStart)
                   .in('event_id', eventIds)
               : Promise.resolve({ count: 0 }),
           ]);
 
-          let topEvent: string | null = null;
+          const currentRsvps = (rsvpRes as any).count ?? 0;
+          const currentViews = (viewRes as any).count ?? 0;
+          const currentSaves = (saveRes as any).count ?? 0;
+
+          let topEvent: { title: string; date: string; rsvpCount: number } | null = null;
           const { data: topData } = await supabase
             .from('venue_events')
-            .select('title, venue_event_rsvps(count)')
+            .select('title, event_date, venue_event_rsvps(count)')
             .eq('business_id', bpRow.id)
             .order('created_at', { ascending: false })
             .limit(10);
@@ -182,14 +231,27 @@ export default function BusinessDashboardScreen() {
             const sorted = [...topData].sort((a: any, b: any) =>
               (b.venue_event_rsvps?.[0]?.count ?? 0) - (a.venue_event_rsvps?.[0]?.count ?? 0)
             );
-            topEvent = sorted[0]?.title ?? null;
+            const top = sorted[0];
+            if (top) {
+              topEvent = {
+                title: top.title,
+                date: top.event_date,
+                rsvpCount: top.venue_event_rsvps?.[0]?.count ?? 0,
+              };
+            }
           }
 
+          const isEmpty = currentRsvps === 0 && currentViews === 0 && currentSaves === 0 && !topEvent;
+
           setAnalytics({
-            rsvps: (rsvpRes as any).count ?? 0,
-            views: (viewRes as any).count ?? 0,
-            saves: (saveRes as any).count ?? 0,
+            rsvps: currentRsvps,
+            views: currentViews,
+            saves: currentSaves,
+            prevRsvps: (prevRsvpRes as any).count ?? 0,
+            prevViews: (prevViewRes as any).count ?? 0,
+            prevSaves: (prevSaveRes as any).count ?? 0,
             topEvent,
+            isEmpty,
           });
         }
 
@@ -243,6 +305,7 @@ export default function BusinessDashboardScreen() {
     setSaving(true);
     const { error } = await supabase.from('venue_events').insert({
       business_id: businessProfileId,
+      creator_id: user!.id,
       title: newTitle.trim(),
       event_date: newDate.trim(),
       event_time: newTime.trim() || null,
@@ -382,12 +445,28 @@ export default function BusinessDashboardScreen() {
             )}
           </View>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: sub.status === 'active' ? '#00C07A' : '#cc3b2a' }} />
             <Text style={{ fontSize: 13, color: colours.muted }}>
               {sub.status === 'active' ? 'Subscription active' : 'Subscription inactive'}
             </Text>
           </View>
+
+          {sub.plan && sub.status === 'active' && (
+            <View style={{ backgroundColor: colours.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colours.border, marginBottom: 4 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: '#00C07A' }}>
+                Your {sub.plan.charAt(0).toUpperCase() + sub.plan.slice(1)} subscription is active ✓
+              </Text>
+              <Text style={{ fontSize: 12, color: colours.muted, marginTop: 4 }}>
+                Billed monthly · Plan: {sub.plan.charAt(0).toUpperCase() + sub.plan.slice(1)}
+              </Text>
+              {isPro && (
+                <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>
+                  Analytics below reflect the last 7 days
+                </Text>
+              )}
+            </View>
+          )}
 
           {sub.stripe_customer_id ? (
             <TouchableOpacity
@@ -420,26 +499,56 @@ export default function BusinessDashboardScreen() {
         {/* Analytics */}
         <View style={{ paddingHorizontal: 20, marginBottom: 28 }}>
           <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>
-            Analytics - This Month
+            Analytics - This Week
           </Text>
 
           {isPro ? (
+            analytics.isEmpty ? (
+              <View style={{ backgroundColor: colours.surface, borderRadius: 14, padding: 20, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text, marginBottom: 4 }}>No data yet</Text>
+                <Text style={{ fontSize: 13, color: colours.muted, textAlign: 'center', lineHeight: 19 }}>
+                  Your analytics will appear here once you have events and RSVPs.
+                </Text>
+              </View>
+            ) : (
             <>
               <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
-                <StatCard label="RSVPs" value={analytics.rsvps} icon="people-outline" colours={colours} />
-                <StatCard label="Profile Views" value={analytics.views} icon="eye-outline" colours={colours} />
-                <StatCard label="Saves" value={analytics.saves} icon="bookmark-outline" colours={colours} />
+                <StatCard
+                  label="People going to your events"
+                  value={analytics.rsvps}
+                  icon="people-outline"
+                  colours={colours}
+                  trend={trendLabel(analytics.rsvps, analytics.prevRsvps)}
+                />
+                <StatCard
+                  label="People viewed your venue"
+                  value={analytics.views}
+                  icon="eye-outline"
+                  colours={colours}
+                  trend={trendLabel(analytics.views, analytics.prevViews)}
+                />
+                <StatCard
+                  label="Saves"
+                  value={analytics.saves}
+                  icon="bookmark-outline"
+                  colours={colours}
+                  trend={trendLabel(analytics.saves, analytics.prevSaves)}
+                />
               </View>
               {analytics.topEvent && (
                 <View style={{ backgroundColor: colours.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colours.border, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                   <Ionicons name="trophy-outline" size={18} color="#f59e0b" />
-                  <View>
-                    <Text style={{ fontSize: 11, color: colours.muted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 }}>Most Popular Event</Text>
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text, marginTop: 2 }}>{analytics.topEvent}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 11, color: colours.muted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 }}>Your top event this week</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text, marginTop: 2 }}>{analytics.topEvent.title}</Text>
+                    <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>
+                      {analytics.topEvent.date} · {analytics.topEvent.rsvpCount} {analytics.topEvent.rsvpCount === 1 ? 'person going' : 'people going'}
+                    </Text>
                   </View>
                 </View>
               )}
             </>
+            )
           ) : (
             <View style={{ backgroundColor: colours.surface, borderRadius: 14, padding: 20, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
               <Ionicons name="lock-closed-outline" size={28} color={colours.muted} style={{ marginBottom: 10 }} />
@@ -476,8 +585,10 @@ export default function BusinessDashboardScreen() {
           ) : (
             <View style={{ gap: 10 }}>
               {events.map((ev) => (
-                <View
+                <TouchableOpacity
                   key={ev.id}
+                  onPress={() => router.push(`/event/${ev.id}` as any)}
+                  activeOpacity={0.75}
                   style={{ backgroundColor: colours.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colours.border }}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -487,9 +598,12 @@ export default function BusinessDashboardScreen() {
                         {ev.event_date}{ev.event_time ? `  ${ev.event_time}` : ''}
                       </Text>
                     </View>
-                    <View style={{ backgroundColor: colours.accent + '22', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, alignItems: 'center' }}>
-                      <Text style={{ fontSize: 16, fontWeight: '800', color: colours.accent }}>{ev.rsvp_count}</Text>
-                      <Text style={{ fontSize: 10, color: colours.muted }}>RSVPs</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <View style={{ backgroundColor: colours.accent + '22', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, alignItems: 'center' }}>
+                        <Text style={{ fontSize: 16, fontWeight: '800', color: colours.accent }}>{ev.rsvp_count}</Text>
+                        <Text style={{ fontSize: 10, color: colours.muted }}>RSVPs</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={colours.muted} />
                     </View>
                   </View>
                   {ev.cover_charge && (
@@ -501,7 +615,7 @@ export default function BusinessDashboardScreen() {
                       </View>
                     </View>
                   )}
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
           )}

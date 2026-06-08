@@ -888,7 +888,7 @@ export default function FriendsScreen() {
                 const p = item.profiles as any;
                 const ev = item.events as any;
                 const venue = ev?.venues?.name;
-                const dateLabel = formatActivityDate(ev?.date);
+                const dateLabel = formatActivityDate(ev?.event_date ?? ev?.date);
                 const name = p?.display_name || p?.username || 'Someone';
                 return (
                   <TouchableOpacity
