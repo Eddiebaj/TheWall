@@ -87,7 +87,7 @@ function StatCard({ label, value, icon, colours, trend }: { label: string; value
 
 export default function BusinessDashboardScreen() {
   const { colours } = useApp();
-  const { user, profile } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -291,7 +291,19 @@ export default function BusinessDashboardScreen() {
     setLoading(false);
   }, [user]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  // Guard: redirect non-business users before any data is fetched
+  useEffect(() => {
+    if (authLoading) return;
+    if (!profile) return;
+    if ((profile as any).is_business !== true) {
+      router.replace('/(tabs)/index' as any);
+    }
+  }, [authLoading, profile]);
+
+  useEffect(() => {
+    if (authLoading || (profile as any)?.is_business !== true) return;
+    loadData();
+  }, [loadData, authLoading, profile]);
 
   const handleAddEvent = async () => {
     if (!newTitle.trim() || !newDate.trim()) {
