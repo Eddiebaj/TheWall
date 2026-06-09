@@ -317,6 +317,7 @@ export default function BusinessDashboardScreen() {
     setSaving(true);
     const { error } = await supabase.from('venue_events').insert({
       business_id: businessProfileId,
+      venue_id: venueId,
       creator_id: user!.id,
       title: newTitle.trim(),
       event_date: newDate.trim(),
