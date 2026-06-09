@@ -579,35 +579,6 @@ export default function CreateEventScreen() {
 
       <View style={{ height: 20 }} />
 
-      <FieldLabel label="Entry" />
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        {(['Free', 'Paid'] as const).map(et => (
-          <TouchableOpacity
-            key={et}
-            onPress={() => setEntryType(et)}
-            activeOpacity={0.8}
-            style={[segmentStyle, { flex: 1 }, entryType === et && segmentActiveStyle]}
-          >
-            <Text style={{ fontSize: 14, fontWeight: '600', color: entryType === et ? ACCENT : MUTED }}>{et}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {entryType === 'Paid' && (
-        <View style={{ marginTop: 16 }}>
-          <FieldLabel label="Ticket URL (optional)" />
-          <TextInput
-            value={ticketUrl}
-            onChangeText={setTicketUrl}
-            placeholder="https://..."
-            placeholderTextColor={MUTED}
-            style={inputStyle}
-            autoCapitalize="none"
-            keyboardType="url"
-          />
-        </View>
-      )}
-
       <View style={{ height: 16 }} />
 
       <FieldLabel label="Max Attendees (optional)" />
@@ -734,14 +705,14 @@ export default function CreateEventScreen() {
         }}>
           <TouchableOpacity
             onPress={step === 3 ? handlePublish : handleNext}
-            disabled={publishing}
+            disabled={publishing || (step === 1 && (!title.trim() || !description.trim()))}
             activeOpacity={0.85}
             style={{
               backgroundColor: ACCENT,
               borderRadius: 14,
               paddingVertical: 16,
               alignItems: 'center',
-              opacity: publishing ? 0.7 : 1,
+              opacity: (publishing || (step === 1 && (!title.trim() || !description.trim()))) ? 0.4 : 1,
             }}
           >
             {publishing ? (

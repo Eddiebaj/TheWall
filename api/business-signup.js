@@ -527,7 +527,7 @@ const HTML = `<!DOCTYPE html>
       errorMsg.textContent = '';
     }
 
-    form.addEventListener('submit', function(e) {
+    form.addEventListener('submit', async function(e) {
       e.preventDefault();
       clearError();
 
@@ -537,7 +537,6 @@ const HTML = `<!DOCTYPE html>
       var venueName = document.getElementById('venue_name').value.trim();
       var planInput = form.querySelector('input[name="plan"]:checked');
       var plan = planInput ? planInput.value : null;
-      var boosts = Array.from(form.querySelectorAll('input[name="boosts"]:checked')).map(function(cb) { return cb.value; });
 
       // Clear previous error states
       ['business_name', 'contact_name', 'email', 'venue_name'].forEach(function(id) {
@@ -557,29 +556,38 @@ const HTML = `<!DOCTYPE html>
         return;
       }
 
-      // Basic email format check
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         document.getElementById('email').classList.add('error');
         showError('Please enter a valid email address.');
         return;
       }
 
-      var planLinks = {
-        basic:    'https://buy.stripe.com/test_aFaaEY8KMcYkdytejD04806',
-        pro:      'https://buy.stripe.com/test_fZu8wQ4uw1fC0LH6Rb04807',
-        featured: 'https://buy.stripe.com/test_aFacN65yAcYkbqlb7r04808'
-      };
-      var boostLinks = {
-        event_boost_3d:   'https://buy.stripe.com/test_aFa6oI5yAe2o9id0sN0480a',
-        event_boost_7d:   'https://buy.stripe.com/test_3cI6oIgde6zW51X8Zj0480b',
-        weekend_spotlight: 'https://buy.stripe.com/test_00weVe7GI6zWdytejD04809'
-      };
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Please wait…';
 
-      boosts.forEach(function(boost) {
-        if (boostLinks[boost]) window.open(boostLinks[boost], '_blank');
-      });
-
-      window.location.href = planLinks[plan];
+      try {
+        var res = await fetch('/api/business/create-checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: email,
+            business_name: businessName,
+            contact_name: contactName,
+            venue_name: venueName,
+            plan: plan,
+          }),
+        });
+        var data = await res.json();
+        if (!res.ok || !data.url) {
+          showError(data.error || 'Something went wrong. Please try again or email hello@affiche.app.');
+          return;
+        }
+        window.location.href = data.url;
+      } catch (err) {
+        showError('Network error. Please check your connection and try again.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Continue to Payment';
+      }
     });
   </script>
 

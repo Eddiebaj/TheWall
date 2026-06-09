@@ -23,8 +23,9 @@
           "NSAllowsArbitraryLoads": false
         },
         "ITSAppUsesNonExemptEncryption": false,
-        "NSPhotoLibraryUsageDescription": "affiche lets you attach a photo when submitting a community deal.",
-        "NSCameraUsageDescription": "affiche lets you take a photo when submitting a community deal.",
+        "NSPhotoLibraryUsageDescription": "affiche uses your photo library to let you add cover images to events, upload business photos, and submit community deals.",
+        "NSPhotoLibraryAddUsageDescription": "affiche may save event images to your photo library.",
+        "NSCameraUsageDescription": "affiche uses your camera to take photos for events, business profiles, and community deals.",
         "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to use speech recognition.",
         "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to use the microphone."
       }

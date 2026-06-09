@@ -101,16 +101,10 @@ export default function BusinessSignupScreen() {
   };
 
   const handleSubmit = async () => {
-    Alert.alert(
-      'Coming Soon',
-      "Business subscriptions are launching soon. Email hello@affiche.app to get early access and we'll set you up personally.",
-    );
-    return;
-    // eslint-disable-next-line no-unreachable
     const err = validate();
     if (err) { Alert.alert('Missing info', err); return; }
     if (!API_BASE) {
-      Alert.alert('Configuration error', 'EXPO_PUBLIC_API_URL is not set.');
+      Alert.alert('Configuration error', 'EXPO_PUBLIC_API_URL is not set. Contact hello@affiche.app to sign up.');
       return;
     }
     setSubmitting(true);

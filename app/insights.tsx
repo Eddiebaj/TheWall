@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
 import { supabase } from '../lib/supabase';
 import { useIsPremium } from '../lib/premium';
-import { PREMIUM_ENABLED } from '../lib/flags';
+import { PREMIUM_ENABLED, TRANSIT_MEMORY_ENABLED } from '../lib/flags';
 import PaywallSheet from '../components/PaywallSheet';
 import { haversineKm } from '../lib/geo';
 import { NEIGHBOURHOOD_GROUPS } from '../lib/neighbourhoodGroups';
@@ -387,6 +387,7 @@ export default function InsightsScreen() {
             )}
 
             {/* ── Transit Memory ── */}
+            {TRANSIT_MEMORY_ENABLED && (<>
             <View style={{ marginHorizontal: 20, marginTop: 8, marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 7 }}>
               <Ionicons name="analytics-outline" size={14} color={colours.accent} />
               <Text style={{ fontSize: 12, fontWeight: '800', letterSpacing: 1.2, color: colours.accent }}>
@@ -550,6 +551,7 @@ export default function InsightsScreen() {
                 </Card>
               </>
             )}
+            </>)}
           </>
         )}
       </ScrollView>

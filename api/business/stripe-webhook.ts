@@ -85,6 +85,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const stripe_customer_id = session.customer as string;
     const stripe_subscription_id = session.subscription as string;
 
+    // Recover business_email from metadata or customer_details
+    const business_email = (meta.business_email as string | undefined)
+      || (session.customer_details?.email as string | undefined)
+      || (session.customer_email as string | undefined)
+      || null;
+
     try {
       // Insert business subscription record
       const { error: subError } = await supabase.from('business_subscriptions').insert({
@@ -93,6 +99,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         stripe_subscription_id,
         plan,
         status: 'active',
+        business_email: business_email?.toLowerCase() ?? null,
       });
       if (subError) console.error('[stripe-webhook] Insert subscription error:', subError.message);
 

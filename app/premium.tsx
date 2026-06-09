@@ -1,7 +1,5 @@
 import React from 'react';
-import { Alert, View, Text, TouchableOpacity, ScrollView, Linking } from 'react-native';
-import { STRIPE_LINKS } from '../lib/stripeLinks';
-import { PREMIUM_ENABLED } from '../lib/flags';
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -56,39 +54,14 @@ export default function PremiumScreen() {
         </View>
       </ScrollView>
 
-      {/* Pricing CTAs */}
-      <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colours.bg, borderTopWidth: 1, borderTopColor: colours.border, padding: 20, paddingBottom: insets.bottom + 16, gap: 10 }}>
-        <TouchableOpacity
-          onPress={() => {
-            if (!PREMIUM_ENABLED || !STRIPE_LINKS.premium_annual) {
-              Alert.alert('Coming Soon', 'You\'re getting full access during our launch period! Premium features will be available soon.');
-              return;
-            }
-            Linking.openURL(STRIPE_LINKS.premium_annual).catch(() =>
-              Alert.alert('Error', 'Could not open the payment page. Please try again.')
-            );
-          }}
-          style={{ backgroundColor: '#e8a020', borderRadius: 14, paddingVertical: 16, alignItems: 'center' }}
-        >
-          <Text style={{ fontSize: 16, fontWeight: '800', color: 'white' }}>$19.99 / year</Text>
-          <Text style={{ fontSize: 12, color: 'white', opacity: 0.8, marginTop: 2 }}>Best value - save 44%</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => {
-            if (!PREMIUM_ENABLED || !STRIPE_LINKS.premium_monthly) {
-              Alert.alert('Coming Soon', 'You\'re getting full access during our launch period! Premium features will be available soon.');
-              return;
-            }
-            Linking.openURL(STRIPE_LINKS.premium_monthly).catch(() =>
-              Alert.alert('Error', 'Could not open the payment page. Please try again.')
-            );
-          }}
-          style={{ backgroundColor: colours.surface, borderRadius: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: colours.border }}
-        >
-          <Text style={{ fontSize: 15, fontWeight: '700', color: colours.text }}>$2.99 / month</Text>
-        </TouchableOpacity>
+      {/* Coming Soon CTA */}
+      <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colours.bg, borderTopWidth: 1, borderTopColor: colours.border, padding: 20, paddingBottom: insets.bottom + 16, gap: 10, alignItems: 'center' }}>
+        <Text style={{ fontSize: 15, fontWeight: '700', color: colours.muted }}>Coming Soon</Text>
+        <Text style={{ fontSize: 13, color: colours.muted, textAlign: 'center', lineHeight: 19 }}>
+          You're getting full access during our launch period. Paid plans will be announced soon.
+        </Text>
         <TouchableOpacity onPress={() => router.back()} style={{ paddingVertical: 10, alignItems: 'center' }}>
-          <Text style={{ fontSize: 13, color: colours.muted }}>Maybe later</Text>
+          <Text style={{ fontSize: 13, color: colours.accent, fontWeight: '600' }}>Got it</Text>
         </TouchableOpacity>
       </View>
     </View>

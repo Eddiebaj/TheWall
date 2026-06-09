@@ -307,7 +307,6 @@ function RootNav() {
       <Stack.Screen name="premium" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="admin" options={{ headerShown: false }} />
       <Stack.Screen name="business/index" options={{ headerShown: false }} />
-      <Stack.Screen name="business-signup" options={{ headerShown: false }} />
       <Stack.Screen name="business-setup" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding/preferences" options={{ headerShown: false, animation: 'fade' }} />
       <Stack.Screen name="onboarding/neighbourhood" options={{ headerShown: false, animation: 'fade' }} />
