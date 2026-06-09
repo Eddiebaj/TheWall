@@ -53,6 +53,7 @@ interface FeedEvent {
   going_count: number;
   going_avatars: { id: string; username: string; avatar_url: string | null }[];
   source?: string | null;
+  subscription_plan?: string | null;
 }
 
 interface RsvpEvent {
@@ -192,6 +193,19 @@ function EventCard({ item, onPress, userId }: { item: FeedEvent; onPress: () => 
           </View>
         )}
       </View>
+      {item.subscription_plan === 'featured' && (
+        <View style={{
+          position: 'absolute',
+          top: 6,
+          right: 34,
+          backgroundColor: 'rgba(0,0,0,0.55)',
+          borderRadius: 10,
+          paddingHorizontal: 5,
+          paddingVertical: 2,
+        }}>
+          <Text style={{ fontSize: 12 }}>👑</Text>
+        </View>
+      )}
       {userId && (
         <TouchableOpacity
           onPress={handleToggleSave}
@@ -826,6 +840,7 @@ export default function FeedScreen() {
       going_count: attendeeMap[e.id]?.count ?? 0,
       going_avatars: attendeeMap[e.id]?.avatars ?? [],
       source: e.source,
+      subscription_plan: tierMap[e.venue_id] ?? null,
     }));
 
     // Score: friend going +6, tonight +5, saved +3, interest match +2, has attendees +1, tier bonus (featured +4, pro +2, basic +1)

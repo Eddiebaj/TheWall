@@ -181,6 +181,19 @@ function EventCard({ event, onPress, checkinCount }: { event: DiscoverEvent; onP
           <Ionicons name="location-outline" size={14} color="#fff" />
         </View>
       )}
+      {event.venue_feature_tier === 'featured' && (
+        <View style={{
+          position: 'absolute',
+          top: 6,
+          right: 6,
+          backgroundColor: 'rgba(0,0,0,0.55)',
+          borderRadius: 10,
+          paddingHorizontal: 5,
+          paddingVertical: 2,
+        }}>
+          <Text style={{ fontSize: 12 }}>👑</Text>
+        </View>
+      )}
     </TouchableOpacity>
   );
 }
