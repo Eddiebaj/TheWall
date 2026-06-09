@@ -799,6 +799,20 @@ export default function FeedScreen() {
       }
     }
 
+    // Fetch subscription tiers for venue boost scoring
+    const venueIds = [...new Set(combined.map((e: any) => e.venue_id).filter(Boolean))];
+    const tierMap: Record<string, string> = {};
+    if (venueIds.length > 0) {
+      const { data: subs } = await supabase
+        .from('business_subscriptions')
+        .select('venue_id, plan, status')
+        .in('venue_id', venueIds)
+        .eq('status', 'active');
+      if (subs) {
+        subs.forEach(s => { tierMap[s.venue_id] = s.plan; });
+      }
+    }
+
     const mapped: FeedEvent[] = relevant.map((e: any) => ({
       id: e.id,
       title: e.title,
@@ -814,8 +828,16 @@ export default function FeedScreen() {
       source: e.source,
     }));
 
-    // Score: friend going +6, tonight +5, saved +3, interest match +2, has attendees +1
+    // Score: friend going +6, tonight +5, saved +3, interest match +2, has attendees +1, tier bonus (featured +4, pro +2, basic +1)
     const interests = new Set(profile?.interests ?? []);
+    const tierBonus = (venueId: string | null) => {
+      if (!venueId) return 0;
+      const plan = tierMap[venueId];
+      if (plan === 'featured') return 4;
+      if (plan === 'pro') return 2;
+      if (plan === 'basic') return 1;
+      return 0;
+    };
     mapped.sort((a, b) => {
       const aSaved = savedEventIds.has(a.id) ? 3 : 0;
       const bSaved = savedEventIds.has(b.id) ? 3 : 0;
@@ -825,8 +847,8 @@ export default function FeedScreen() {
       const bTonight = b.event_date === today ? 5 : 0;
       const aFriend = friendGoingSet.has(a.id) ? 6 : 0;
       const bFriend = friendGoingSet.has(b.id) ? 6 : 0;
-      const scoreA = aFriend + aTonight + aSaved + aInterest + (a.going_count > 0 ? 1 : 0);
-      const scoreB = bFriend + bTonight + bSaved + bInterest + (b.going_count > 0 ? 1 : 0);
+      const scoreA = aFriend + aTonight + aSaved + aInterest + (a.going_count > 0 ? 1 : 0) + tierBonus(a.venue_id);
+      const scoreB = bFriend + bTonight + bSaved + bInterest + (b.going_count > 0 ? 1 : 0) + tierBonus(b.venue_id);
       if (scoreB !== scoreA) return scoreB - scoreA;
       return (a.event_date ?? '').localeCompare(b.event_date ?? '');
     });
