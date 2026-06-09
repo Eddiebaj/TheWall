@@ -444,10 +444,10 @@ export default function FriendsScreen() {
       for (const f of friendsDown) {
         sendNotification(
           f.user_id,
-          'move_sent',
+          'plan_invite',
           `${profile?.display_name || profile?.username} sent the move`,
           `${event.title}${venueName !== event.title ? ` at ${venueName}` : ''}`,
-          { type: 'move_sent', hangout_id: hangout.id }
+          { type: 'plan_invite', hangout_id: hangout.id }
         );
       }
 
