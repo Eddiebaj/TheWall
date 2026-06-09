@@ -10,9 +10,11 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { routeForNotification, NotificationType } from '../lib/notificationTypes';
+import { NOTIF_PREFS_KEY, DEFAULT_NOTIF_PREFS, type NotifPrefs } from './notification-settings';
 
 const BG = '#0a0a0a';
 const SURFACE = '#161A22';
@@ -63,6 +65,15 @@ export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [notifPrefs, setNotifPrefs] = useState<NotifPrefs>(DEFAULT_NOTIF_PREFS);
+  const [markingAll, setMarkingAll] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(NOTIF_PREFS_KEY).then(val => {
+      if (!val) return;
+      try { setNotifPrefs({ ...DEFAULT_NOTIF_PREFS, ...JSON.parse(val) }); } catch {}
+    });
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -87,6 +98,19 @@ export default function NotificationsScreen() {
     await load();
     setRefreshing(false);
   }, [user]);
+
+  const handleMarkAllRead = async () => {
+    if (!user || markingAll) return;
+    setMarkingAll(true);
+    const now = new Date().toISOString();
+    setNotifications(prev => prev.map(n => n.read_at ? n : { ...n, read_at: now }));
+    await supabase
+      .from('notifications')
+      .update({ read_at: now })
+      .eq('user_id', user.id)
+      .is('read_at', null);
+    setMarkingAll(false);
+  };
 
   const handlePress = async (item: Notification) => {
     const route = routeForNotification(item.type as NotificationType, item.data ?? undefined);
@@ -117,6 +141,15 @@ export default function NotificationsScreen() {
           <Ionicons name="chevron-back" size={24} color={ACCENT} />
         </TouchableOpacity>
         <Text style={{ fontSize: 17, fontWeight: '700', color: '#fff', flex: 1 }}>Notifications</Text>
+        {notifications.some(n => !n.read_at) && (
+          <TouchableOpacity
+            onPress={handleMarkAllRead}
+            disabled={markingAll}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={{ fontSize: 13, fontWeight: '600', color: ACCENT }}>Mark all read</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {!authLoading && !user ? (
@@ -142,7 +175,10 @@ export default function NotificationsScreen() {
         </View>
       ) : (
         <FlatList
-          data={notifications}
+          data={notifications.filter(n => {
+            const key = n.type as keyof NotifPrefs;
+            return key in notifPrefs ? notifPrefs[key] : true;
+          })}
           keyExtractor={item => item.id}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}
           renderItem={({ item }) => {

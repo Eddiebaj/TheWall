@@ -128,6 +128,7 @@ function RootNav() {
   // Declare ref BEFORE the useEffect that assigns to it
   const animationResolveRef = useRef<(() => void) | null>(null);
   const navigationDoneRef = useRef(false);
+  const pendingDeepLinkRef = useRef<string | null>(null);
 
   // Notification tap handler
   useEffect(() => {
@@ -141,17 +142,21 @@ function RootNav() {
     return () => sub.remove();
   }, []);
 
-  // Deep link handler for thewall://event/:id
+  // Deep link handler for affiche://event/:id
   useEffect(() => {
-    const handleUrl = (url: string) => {
+    const dispatch = (url: string) => {
       const eventMatch = url.match(/^affiche:\/\/event\/([^/?#]+)/);
-      if (eventMatch) {
-        router.push(`/event/${eventMatch[1]}` as any);
-        return;
-      }
+      if (eventMatch) { router.push(`/event/${eventMatch[1]}` as any); return; }
       const inviteMatch = url.match(/^affiche:\/\/invite\/([^/?#]+)/);
-      if (inviteMatch) {
-        router.push(`/invite/${inviteMatch[1]}` as any);
+      if (inviteMatch) { router.push(`/invite/${inviteMatch[1]}` as any); }
+    };
+
+    const handleUrl = (url: string) => {
+      if (navigationDoneRef.current) {
+        dispatch(url);
+      } else {
+        // Save for after navigation completes (handles cold start while logged out)
+        pendingDeepLinkRef.current = url;
       }
     };
     // Handle cold-start deep link
@@ -278,6 +283,17 @@ function RootNav() {
           } else {
             if (__DEV__) console.log('[RootNav] Onboarding complete - routing to /(tabs)/index');
             router.replace('/(tabs)/index' as any);
+            // Dispatch any deep link that arrived before navigation was ready
+            if (pendingDeepLinkRef.current) {
+              const url = pendingDeepLinkRef.current;
+              pendingDeepLinkRef.current = null;
+              setTimeout(() => {
+                const eventMatch = url.match(/^affiche:\/\/event\/([^/?#]+)/);
+                if (eventMatch) { router.push(`/event/${eventMatch[1]}` as any); return; }
+                const inviteMatch = url.match(/^affiche:\/\/invite\/([^/?#]+)/);
+                if (inviteMatch) { router.push(`/invite/${inviteMatch[1]}` as any); }
+              }, 200);
+            }
           }
           // Request push notification permissions once after login
           Notifications.getPermissionsAsync().then(({ status }) => {
@@ -318,6 +334,8 @@ function RootNav() {
       <Stack.Screen name="privacy-policy" options={{ headerShown: false }} />
       <Stack.Screen name="terms-of-service" options={{ headerShown: false }} />
       <Stack.Screen name="notifications" options={{ headerShown: false }} />
+      <Stack.Screen name="notification-settings" options={{ headerShown: false }} />
+      <Stack.Screen name="saved-events" options={{ headerShown: false }} />
       <Stack.Screen name="event/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="venue/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="lets-go" options={{ headerShown: false }} />

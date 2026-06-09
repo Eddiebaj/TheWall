@@ -100,7 +100,7 @@ function formatTime(timeStr: string | null): string {
   return `${hh}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
-function EventCard({ item, onPress, userId }: { item: FeedEvent; onPress: () => void; userId: string | undefined }) {
+function EventCard({ item, onPress, userId, goingEventIds }: { item: FeedEvent; onPress: () => void; userId: string | undefined; goingEventIds?: Set<string> }) {
   const [imgError, setImgError] = React.useState(false);
   const [isSaved, setIsSaved] = React.useState(false);
   const savingRef = useRef(false);
@@ -204,6 +204,17 @@ function EventCard({ item, onPress, userId }: { item: FeedEvent; onPress: () => 
           paddingVertical: 2,
         }}>
           <Text style={{ fontSize: 12 }}>👑</Text>
+        </View>
+      )}
+      {goingEventIds?.has(item.id) && (
+        <View style={{
+          position: 'absolute', bottom: 36, right: 8,
+          backgroundColor: 'rgba(52,199,89,0.9)',
+          borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3,
+          flexDirection: 'row', alignItems: 'center', gap: 3,
+        }}>
+          <Ionicons name="checkmark" size={11} color="#fff" />
+          <Text style={{ fontSize: 10, fontWeight: '700', color: '#fff' }}>Going</Text>
         </View>
       )}
       {userId && (
@@ -459,6 +470,9 @@ export default function FeedScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
+  const [tonightFilter, setTonightFilter] = useState(false);
+  const [userGoingIds, setUserGoingIds] = useState<Set<string>>(new Set());
+  const [feedDisplayCount, setFeedDisplayCount] = useState(50);
   const insets = useSafeAreaInsets();
   const { user, profile } = useAuth();
   const router = useRouter();
@@ -488,6 +502,21 @@ export default function FeedScreen() {
 
   useEffect(() => {
     loadFeedEvents(getToday());
+    setFeedDisplayCount(50);
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) { setUserGoingIds(new Set()); return; }
+    Promise.all([
+      supabase.from('event_rsvps').select('event_id').eq('user_id', user.id).eq('status', 'going'),
+      supabase.from('venue_event_rsvps').select('event_id').eq('user_id', user.id).eq('status', 'going'),
+    ]).then(([r1, r2]) => {
+      const ids = new Set<string>();
+      for (const r of [...(r1.data ?? []), ...(r2.data ?? [])] as any[]) {
+        if (r.event_id) ids.add(r.event_id);
+      }
+      setUserGoingIds(ids);
+    });
   }, [user]);
 
   useEffect(() => {
@@ -1083,21 +1112,66 @@ export default function FeedScreen() {
       );
     }
 
+    const today = getToday();
+    const filteredEvents = tonightFilter
+      ? displayEvents.filter(e => e.event_date === today)
+      : displayEvents;
+
+    const tonightChip = (
+      <View style={{ paddingHorizontal: 16, paddingBottom: 10, flexDirection: 'row' }}>
+        <TouchableOpacity
+          onPress={() => setTonightFilter(v => !v)}
+          activeOpacity={0.8}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 5,
+            paddingHorizontal: 14,
+            paddingVertical: 7,
+            borderRadius: 20,
+            backgroundColor: tonightFilter ? '#FF3B5C' : 'rgba(255,255,255,0.08)',
+            borderWidth: 1,
+            borderColor: tonightFilter ? '#FF3B5C' : 'rgba(255,255,255,0.14)',
+          }}
+        >
+          <Text style={{ fontSize: 12, fontWeight: '700', color: tonightFilter ? '#fff' : 'rgba(255,255,255,0.7)' }}>🌙 Tonight</Text>
+        </TouchableOpacity>
+      </View>
+    );
+
+    const pagedEvents = filteredEvents.slice(0, feedDisplayCount);
+    const hasMore = filteredEvents.length > feedDisplayCount;
+
     return (
       <FlatList
         key="foryou-grid"
-        data={displayEvents}
+        data={pagedEvents}
         keyExtractor={item => item.id}
         numColumns={2}
         columnWrapperStyle={styles.feedRow}
-        ListHeaderComponent={showFallback ? (
-          <Text style={styles.fallbackLabel}>Popular this week</Text>
-        ) : null}
+        ListHeaderComponent={
+          <>
+            {tonightChip}
+            {showFallback && <Text style={styles.fallbackLabel}>Popular this week</Text>}
+          </>
+        }
+        ListFooterComponent={
+          hasMore ? (
+            <TouchableOpacity
+              onPress={() => setFeedDisplayCount(c => c + 50)}
+              style={{ marginHorizontal: 16, marginVertical: 16, paddingVertical: 14, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center' }}
+              activeOpacity={0.7}
+            >
+              <Text style={{ fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.7)' }}>Load more</Text>
+            </TouchableOpacity>
+          ) : null
+        }
         renderItem={({ item }) => (
           <EventCard
             item={item}
             onPress={() => router.push(`/event/${item.id}` as any)}
             userId={user?.id}
+            goingEventIds={userGoingIds}
           />
         )}
         contentContainerStyle={[styles.feedList, { paddingTop: insets.top + 56 }]}

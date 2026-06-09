@@ -884,6 +884,16 @@ export default function AccountScreen() {
           <MyEventsSection />
         </SettingsGroup>
 
+        {/* Library */}
+        <SettingsGroup>
+          <SettingsRow
+            label="Saved Events"
+            icon="bookmark"
+            iconBg="#0891B2"
+            onPress={() => router.push('/saved-events' as any)}
+          />
+        </SettingsGroup>
+
         {/* Notifications section */}
         <View style={{ marginTop: 24, marginBottom: 8 }}>
           {notifPermission === 'denied' && (
@@ -925,6 +935,14 @@ export default function AccountScreen() {
                 </View>
               </View>
             ))}
+          </SettingsGroup>
+          <SettingsGroup>
+            <SettingsRow
+              label="Notification Settings"
+              icon="options"
+              iconBg="#5856D6"
+              onPress={() => router.push('/notification-settings' as any)}
+            />
           </SettingsGroup>
         </View>
 

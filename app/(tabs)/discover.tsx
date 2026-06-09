@@ -767,6 +767,8 @@ export default function DiscoverScreen() {
   const [nowMins, setNowMins] = useState(0);
   const [activeCheckinVenueIds, setActiveCheckinVenueIds] = useState<Set<string>>(new Set());
   const [mapModalVisible, setMapModalVisible] = useState(false);
+  const [tonightFilter, setTonightFilter] = useState(false);
+  const [filter19Plus, setFilter19Plus] = useState(false);
   // Determine if happy hour window (3pm-8pm, any day)
   const isHappyHourWindow = (() => {
     const now = new Date();
@@ -916,12 +918,24 @@ export default function DiscoverScreen() {
     setRefreshing(false);
   };
 
+  const today = (() => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  })();
+
+  const filteredEvents = events.filter(e => {
+    if (tonightFilter && e.event_date !== today) return false;
+    if (filter19Plus && !(e.entry_type?.toLowerCase().includes('19') || false)) return false;
+    return true;
+  });
+
   const visibleCategories = CATEGORIES.filter(cat =>
-    events.some(e => e.category === cat.key)
+    filteredEvents.some(e => e.category === cat.key)
   );
 
   const eventsByCategory = (key: string) =>
-    events.filter(e => e.category === key);
+    filteredEvents.filter(e => e.category === key);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -949,6 +963,32 @@ export default function DiscoverScreen() {
               <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#fff" />
             }
           >
+          {/* Quick filters */}
+          <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 12, paddingTop: 4 }}>
+            {[
+              { label: '🌙 Tonight', active: tonightFilter, onPress: () => setTonightFilter(v => !v) },
+              { label: '🔞 19+', active: filter19Plus, onPress: () => setFilter19Plus(v => !v) },
+            ].map(chip => (
+              <TouchableOpacity
+                key={chip.label}
+                onPress={chip.onPress}
+                activeOpacity={0.8}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingHorizontal: 14,
+                  paddingVertical: 7,
+                  borderRadius: 20,
+                  backgroundColor: chip.active ? '#FF3B5C' : 'rgba(255,255,255,0.08)',
+                  borderWidth: 1,
+                  borderColor: chip.active ? '#FF3B5C' : 'rgba(255,255,255,0.14)',
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '700', color: chip.active ? '#fff' : 'rgba(255,255,255,0.7)' }}>{chip.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
           {/* Happy Hour Now */}
           {isHappyHourWindow && happyHourDeals.length > 0 && (
             <View
@@ -998,7 +1038,7 @@ export default function DiscoverScreen() {
               />
             </React.Fragment>
           ))}
-          {events.length === 0 && (
+          {filteredEvents.length === 0 && (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>No events found</Text>
             </View>
@@ -1024,7 +1064,7 @@ export default function DiscoverScreen() {
           </View>
 
           {MapboxGL ? (
-            <MapEventView events={events} onClose={() => setMapModalVisible(false)} user={user} />
+            <MapEventView events={filteredEvents} onClose={() => setMapModalVisible(false)} user={user} />
           ) : (
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 32 }}>
               <Ionicons name="map-outline" size={64} color="#333" />

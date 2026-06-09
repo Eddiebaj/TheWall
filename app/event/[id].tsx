@@ -441,6 +441,58 @@ export default function EventDetailScreen() {
     }
   };
 
+  const handleShareToStories = async () => {
+    if (!event) return;
+    setShareSheetVisible(false);
+    try {
+      const uri = await (posterRef.current as any)?.capture();
+      if (uri) {
+        // Try Instagram Stories deep link (works if Instagram is installed)
+        const igUrl = `instagram-stories://share?source_application=affiche`;
+        const canOpen = await Linking.canOpenURL(igUrl);
+        if (canOpen) {
+          await Linking.openURL(igUrl);
+          return;
+        }
+        // Fallback: system share sheet with the image
+        await Share.share({ url: uri, message: '' });
+        return;
+      }
+    } catch (_) {}
+    // Final fallback: text share
+    Share.share({ message: `Check out ${event.title} on affiche: affiche://event/${event.id}` });
+  };
+
+  const handleAddToCalendar = () => {
+    if (!event) return;
+    setShareSheetVisible(false);
+    const title = encodeURIComponent(event.title);
+    const location = encodeURIComponent(event.venue?.address || event.venue?.name || '');
+    const notes = encodeURIComponent(`affiche://event/${event.id}`);
+
+    let startDate: Date | null = null;
+    if (event.event_date) {
+      const [y, mo, d] = event.event_date.split('-').map(Number);
+      if (event.start_time) {
+        const [h, m] = event.start_time.split(':').map(Number);
+        startDate = new Date(y, mo - 1, d, h, m);
+      } else {
+        startDate = new Date(y, mo - 1, d, 20, 0);
+      }
+    }
+
+    if (startDate) {
+      // iOS: open native calendar at the event date (seconds since Jan 1 2001)
+      const refDate = new Date(2001, 0, 1).getTime();
+      const secs = Math.floor((startDate.getTime() - refDate) / 1000);
+      Linking.openURL(`calshow:${secs}`).catch(() => {
+        Alert.alert('Calendar', 'Could not open the Calendar app.');
+      });
+    } else {
+      Alert.alert('Calendar', 'This event does not have a date set.');
+    }
+  };
+
   const handleShareExternal = async () => {
     if (!event) return;
     setShareSheetVisible(false);
@@ -1035,6 +1087,29 @@ export default function EventDetailScreen() {
           </View>
         )}
 
+        {/* Add to Calendar */}
+        <TouchableOpacity
+          onPress={handleAddToCalendar}
+          activeOpacity={0.85}
+          style={{
+            borderRadius: 14,
+            paddingVertical: 13,
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'row',
+            gap: 8,
+            marginBottom: 10,
+            borderWidth: 1,
+            borderColor: colours.border,
+            backgroundColor: 'transparent',
+          }}
+        >
+          <Ionicons name="calendar-outline" size={17} color={colours.muted} />
+          <Text style={{ fontSize: 14, fontWeight: '600', color: colours.muted }}>
+            Add to Calendar
+          </Text>
+        </TouchableOpacity>
+
         {/* Share button */}
         <TouchableOpacity
           onPress={() => setShareSheetVisible(true)}
@@ -1189,6 +1264,48 @@ export default function EventDetailScreen() {
             <View>
               <Text style={{ fontSize: 15, fontWeight: '600', color: colours.text }}>Share to Friends or Groups</Text>
               <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>Send via direct message or group chat</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleShareToStories}
+            activeOpacity={0.85}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 14,
+              paddingVertical: 14,
+              borderBottomWidth: 1,
+              borderBottomColor: 'rgba(255,255,255,0.08)',
+            }}
+          >
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(214,36,159,0.15)', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="logo-instagram" size={20} color="#d6249f" />
+            </View>
+            <View>
+              <Text style={{ fontSize: 15, fontWeight: '600', color: colours.text }}>Share to Stories</Text>
+              <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>Share a styled card to Instagram Stories</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleAddToCalendar}
+            activeOpacity={0.85}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 14,
+              paddingVertical: 14,
+              borderBottomWidth: 1,
+              borderBottomColor: 'rgba(255,255,255,0.08)',
+            }}
+          >
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="calendar-outline" size={20} color={colours.text} />
+            </View>
+            <View>
+              <Text style={{ fontSize: 15, fontWeight: '600', color: colours.text }}>Add to Calendar</Text>
+              <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>Open date in your Calendar app</Text>
             </View>
           </TouchableOpacity>
 
