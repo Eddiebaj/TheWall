@@ -56,10 +56,10 @@ const CATEGORIES: { key: string; emoji: string; label: string; ionIcon?: keyof t
   { key: 'Nightlife',    emoji: '🍸', label: 'Nightlife' },
   { key: 'Comedy',       emoji: '😂', label: 'Comedy',       ionIcon: 'happy-outline' },
   { key: 'Art & Culture',emoji: '🎨', label: 'Art & Culture' },
-  { key: 'Sports',       emoji: '🏟️', label: 'Sports' },
+  { key: 'Sports',       emoji: '🏆', label: 'Sports' },
   { key: 'Food & Drinks',emoji: '🍔', label: 'Food & Drinks' },
   { key: 'Outdoor',      emoji: '🌿', label: 'Outdoor' },
-  { key: 'Networking',   emoji: '🤝', label: 'Networking' },
+  { key: 'Networking',   emoji: '💼', label: 'Networking' },
   { key: 'Social',       emoji: '🎉', label: 'Social' },
 ];
 
@@ -176,6 +176,11 @@ function EventCard({ event, onPress, checkinCount }: { event: DiscoverEvent; onP
           </View>
         )}
       </View>
+      {event.venue_lat == null && (
+        <View style={{ position: 'absolute', top: 8, right: 8, opacity: 0.4 }}>
+          <Ionicons name="location-outline" size={14} color="#fff" />
+        </View>
+      )}
     </TouchableOpacity>
   );
 }
@@ -397,7 +402,7 @@ function MapEventView({
       <View style={mapStyles.countBadge} pointerEvents="none">
         <Ionicons name="location" size={13} color="#FF3B5C" />
         <Text style={mapStyles.countBadgeText}>
-          {mappableEvents.length} event{mappableEvents.length !== 1 ? 's' : ''} across {totalVenues} venue{totalVenues !== 1 ? 's' : ''}
+          Showing {mappableEvents.length} of {events.length} events with locations
         </Text>
       </View>
 

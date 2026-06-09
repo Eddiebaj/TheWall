@@ -18,10 +18,10 @@ const TAGS = [
   { key: 'Nightlife',    emoji: '🍸', label: 'Nightlife' },
   { key: 'Comedy',       emoji: '😂', label: 'Comedy' },
   { key: 'Art & Culture',emoji: '🎨', label: 'Art & Culture' },
-  { key: 'Sports',       emoji: '🏟️', label: 'Sports' },
+  { key: 'Sports',       emoji: '🏆', label: 'Sports' },
   { key: 'Food & Drinks',emoji: '🍔', label: 'Food & Drinks' },
   { key: 'Outdoor',      emoji: '🌿', label: 'Outdoor' },
-  { key: 'Networking',   emoji: '🤝', label: 'Networking' },
+  { key: 'Networking',   emoji: '💼', label: 'Networking' },
 ] as const;
 
 export default function PreferencesScreen() {
