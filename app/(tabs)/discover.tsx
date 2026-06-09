@@ -754,9 +754,6 @@ export default function DiscoverScreen() {
   const [nowMins, setNowMins] = useState(0);
   const [activeCheckinVenueIds, setActiveCheckinVenueIds] = useState<Set<string>>(new Set());
   const [mapModalVisible, setMapModalVisible] = useState(false);
-  const [activeFilterKey, setActiveFilterKey] = useState<string | null>(null);
-  const scrollViewRef = useRef<ScrollView>(null);
-  const sectionOffsetsRef = useRef<Record<string, number>>({});
   // Determine if happy hour window (3pm-8pm, any day)
   const isHappyHourWindow = (() => {
     const now = new Date();
@@ -932,58 +929,16 @@ export default function DiscoverScreen() {
         <DiscoverRowsSkeleton />
       ) : (
         <>
-          {/* Category pill filter row */}
-          {visibleCategories.length > 0 && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.pillRow}
-            >
-              {isHappyHourWindow && happyHourDeals.length > 0 && (
-                <TouchableOpacity
-                  onPress={() => {
-                    setActiveFilterKey('__hh__');
-                    const y = sectionOffsetsRef.current['__hh__'] ?? 0;
-                    scrollViewRef.current?.scrollTo({ y, animated: true });
-                  }}
-                  activeOpacity={0.8}
-                  style={[styles.pill, activeFilterKey === '__hh__' && styles.pillActive]}
-                >
-                  <Text style={[styles.pillText, activeFilterKey === '__hh__' && styles.pillTextActive]}>🍺 Happy Hour</Text>
-                </TouchableOpacity>
-              )}
-              {visibleCategories.map(cat => (
-                <TouchableOpacity
-                  key={cat.key}
-                  onPress={() => {
-                    setActiveFilterKey(cat.key);
-                    const y = sectionOffsetsRef.current[cat.key] ?? 0;
-                    scrollViewRef.current?.scrollTo({ y, animated: true });
-                  }}
-                  activeOpacity={0.8}
-                  style={[styles.pill, activeFilterKey === cat.key && styles.pillActive]}
-                >
-                  <Text style={[styles.pillText, activeFilterKey === cat.key && styles.pillTextActive]}>
-                    {cat.emoji ? `${cat.emoji} ` : ''}{cat.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
-
           <ScrollView
-            ref={scrollViewRef}
             style={styles.scroll}
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#fff" />
             }
-            onScrollBeginDrag={() => setActiveFilterKey(null)}
           >
           {/* Happy Hour Now */}
           {isHappyHourWindow && happyHourDeals.length > 0 && (
             <View
-              onLayout={e => { sectionOffsetsRef.current['__hh__'] = e.nativeEvent.layout.y; }}
               style={styles.categorySection}
             >
               <View style={styles.categoryHeader}>
@@ -1015,10 +970,7 @@ export default function DiscoverScreen() {
 
 
           {visibleCategories.map(cat => (
-            <View
-              key={cat.key}
-              onLayout={e => { sectionOffsetsRef.current[cat.key] = e.nativeEvent.layout.y; }}
-            >
+            <React.Fragment key={cat.key}>
               <CategoryRow
                 category={cat}
                 ionIcon={cat.ionIcon}
@@ -1031,7 +983,7 @@ export default function DiscoverScreen() {
                 onSeeAll={() => router.push(`/category/${encodeURIComponent(cat.key)}` as any)}
                 activeCheckinVenueIds={activeCheckinVenueIds}
               />
-            </View>
+            </React.Fragment>
           ))}
           {events.length === 0 && (
             <View style={styles.emptyState}>
@@ -1257,31 +1209,5 @@ const styles = StyleSheet.create({
   emptyText: {
     color: '#555',
     fontSize: 16,
-  },
-  pillRow: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 8,
-    flexDirection: 'row',
-  },
-  pill: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-  pillActive: {
-    backgroundColor: '#FF3B5C',
-    borderColor: '#FF3B5C',
-  },
-  pillText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.7)',
-  },
-  pillTextActive: {
-    color: '#fff',
   },
 });
