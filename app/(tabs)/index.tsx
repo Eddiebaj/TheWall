@@ -411,22 +411,18 @@ function TabToggle({
   active,
   onSelect,
   insetTop,
-  onSearch,
   onBell,
   unreadNotifs,
 }: {
   active: 'foryou' | 'activity';
   onSelect: (t: 'foryou' | 'activity') => void;
   insetTop: number;
-  onSearch: () => void;
   onBell: () => void;
   unreadNotifs: number;
 }) {
   return (
     <View style={[styles.tabBar, { top: insetTop + 4, paddingHorizontal: 12, justifyContent: 'space-between' }]}>
-      <TouchableOpacity onPress={onSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-        <Ionicons name="search-outline" size={22} color="rgba(255,255,255,0.7)" />
-      </TouchableOpacity>
+      <View style={{ width: 30 }} />
       <View style={{ flexDirection: 'row', gap: 32 }}>
         <TouchableOpacity onPress={() => onSelect('foryou')} style={styles.tabBtn}>
           <Text style={[styles.tabText, active === 'foryou' && styles.tabTextActive]}>For You</Text>
@@ -1360,7 +1356,6 @@ export default function FeedScreen() {
         active={activeTab}
         onSelect={setActiveTab}
         insetTop={insets.top}
-        onSearch={() => router.push('/(tabs)/search' as any)}
         onBell={() => router.push('/notifications' as any)}
         unreadNotifs={unreadNotifs}
       />

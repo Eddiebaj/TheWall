@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useMemo, useState } from 'react';
 import {
   Animated,
   Dimensions,
@@ -9,6 +9,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -62,6 +63,20 @@ const CATEGORIES: { key: string; emoji: string; label: string; ionIcon?: keyof t
   { key: 'Networking',   emoji: '💼', label: 'Networking' },
   { key: 'Social',       emoji: '🎉', label: 'Social' },
 ];
+
+const CATEGORY_CHIP_TO_CAT: Record<string, string[]> = {
+  'Nightclub':    ['Nightlife'],
+  'Live Music':   ['Concerts'],
+  'Cocktail Bar': ['Nightlife'],
+  'Bar':          ['Nightlife', 'Food & Drinks'],
+  'Brewery':      ['Food & Drinks'],
+  'Comedy':       ['Comedy'],
+  'Theatre':      ['Art & Culture'],
+  'Sports':       ['Sports'],
+  'Outdoor':      ['Outdoor'],
+  'Culture':      ['Art & Culture'],
+};
+const CATEGORY_CHIP_KEYS = Object.keys(CATEGORY_CHIP_TO_CAT);
 
 interface HappyHourDeal {
   id: string;
@@ -767,8 +782,18 @@ export default function DiscoverScreen() {
   const [nowMins, setNowMins] = useState(0);
   const [activeCheckinVenueIds, setActiveCheckinVenueIds] = useState<Set<string>>(new Set());
   const [mapModalVisible, setMapModalVisible] = useState(false);
-  const [tonightFilter, setTonightFilter] = useState(false);
   const [filter19Plus, setFilter19Plus] = useState(false);
+  const [dateFilter, setDateFilter] = useState<'tonight' | 'weekend' | 'week' | null>(null);
+  const [categoryFilters, setCategoryFilters] = useState<Set<string>>(new Set());
+  const [priceFilter, setPriceFilter] = useState<'free' | 'paid' | null>(null);
+  const [neighbourhoodFilters, setNeighbourhoodFilters] = useState<Set<string>>(new Set());
+  const [neighbourhoodModalVisible, setNeighbourhoodModalVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<{
+    events: any[]; venues: any[]; happyHours: any[]; people: any[];
+  }>({ events: [], venues: [], happyHours: [], people: [] });
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Determine if happy hour window (3pm-8pm, any day)
   const isHappyHourWindow = (() => {
     const now = new Date();
@@ -918,24 +943,114 @@ export default function DiscoverScreen() {
     setRefreshing(false);
   };
 
-  const today = (() => {
+  const runSearch = useCallback(async (q: string) => {
+    if (!q.trim()) {
+      setSearchResults({ events: [], venues: [], happyHours: [], people: [] });
+      setSearchLoading(false);
+      return;
+    }
+    setSearchLoading(true);
+    const pattern = `%${q.trim()}%`;
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+
+    const [evRes, venueRes, hhRes, peopleRes] = await Promise.all([
+      supabase
+        .from('venue_events')
+        .select('id, title, poster_url, event_date, venue_id, venues(name)')
+        .ilike('title', pattern)
+        .gte('event_date', todayStr)
+        .limit(6),
+      supabase
+        .from('venues')
+        .select('id, name, neighbourhood, poster_url')
+        .ilike('name', pattern)
+        .limit(6),
+      supabase
+        .from('happy_hours')
+        .select('id, venue_id, title, deal_details, venues(name)')
+        .or(`title.ilike.${pattern},deal_details.ilike.${pattern}`)
+        .eq('status', 'active')
+        .limit(6),
+      supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url')
+        .ilike('username', pattern)
+        .limit(6),
+    ]);
+
+    setSearchResults({
+      events: evRes.data ?? [],
+      venues: venueRes.data ?? [],
+      happyHours: hhRes.data ?? [],
+      people: peopleRes.data ?? [],
+    });
+    setSearchLoading(false);
+  }, []);
+
+  const handleSearchChange = (text: string) => {
+    setSearchQuery(text);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    if (!text.trim()) {
+      setSearchResults({ events: [], venues: [], happyHours: [], people: [] });
+      return;
+    }
+    searchTimerRef.current = setTimeout(() => runSearch(text), 300);
+  };
+
+  const today = useMemo(() => {
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
     return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  })();
+  }, []);
 
-  const filteredEvents = events.filter(e => {
-    if (tonightFilter && e.event_date !== today) return false;
+  const allNeighbourhoods = useMemo(() => {
+    const s = new Set<string>();
+    for (const e of events) if (e.neighbourhood) s.add(e.neighbourhood);
+    return [...s].sort();
+  }, [events]);
+
+  const filteredEvents = useMemo(() => events.filter(e => {
+    if (dateFilter === 'tonight' && e.event_date !== today) return false;
+    if (dateFilter === 'weekend') {
+      if (!e.event_date) return false;
+      const dow = new Date(e.event_date + 'T12:00:00').getDay();
+      if (dow !== 5 && dow !== 6 && dow !== 0) return false;
+    }
+    if (dateFilter === 'week') {
+      if (!e.event_date) return false;
+      const diff = (new Date(e.event_date + 'T12:00:00').getTime() - new Date(today + 'T12:00:00').getTime()) / 86400000;
+      if (diff < 0 || diff > 7) return false;
+    }
     if (filter19Plus && !(e.entry_type?.toLowerCase().includes('19') || false)) return false;
+    if (categoryFilters.size > 0) {
+      const allowed = new Set<string>();
+      for (const chip of categoryFilters) {
+        for (const cat of (CATEGORY_CHIP_TO_CAT[chip] ?? [])) allowed.add(cat);
+      }
+      if (!e.category || !allowed.has(e.category)) return false;
+    }
+    if (priceFilter === 'free') {
+      const et = (e.entry_type ?? '').toLowerCase();
+      if (et && !et.includes('free')) return false;
+    }
+    if (priceFilter === 'paid') {
+      const et = (e.entry_type ?? '').toLowerCase();
+      if (!et || et.includes('free')) return false;
+    }
+    if (neighbourhoodFilters.size > 0 && (!e.neighbourhood || !neighbourhoodFilters.has(e.neighbourhood))) return false;
     return true;
-  });
+  }), [events, dateFilter, filter19Plus, categoryFilters, priceFilter, neighbourhoodFilters, today]);
 
-  const visibleCategories = CATEGORIES.filter(cat =>
+  const visibleCategories = useMemo(() => CATEGORIES.filter(cat =>
     filteredEvents.some(e => e.category === cat.key)
-  );
+  ), [filteredEvents]);
 
   const eventsByCategory = (key: string) =>
     filteredEvents.filter(e => e.category === key);
+
+  const isAnyFilterActive = dateFilter !== null || filter19Plus || categoryFilters.size > 0 || priceFilter !== null || neighbourhoodFilters.size > 0;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -952,7 +1067,156 @@ export default function DiscoverScreen() {
         </TouchableOpacity>
       </View>
 
-      {loading ? (
+      {/* Universal Search Bar */}
+      <View style={styles.searchBar}>
+        <Ionicons name="search" size={16} color="#666" style={{ marginRight: 8 }} />
+        <TextInput
+          value={searchQuery}
+          onChangeText={handleSearchChange}
+          placeholder="Search events, venues, people..."
+          placeholderTextColor="#555"
+          style={styles.searchInput}
+          returnKeyType="search"
+          autoCorrect={false}
+          autoCapitalize="none"
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity
+            onPress={() => {
+              setSearchQuery('');
+              setSearchResults({ events: [], venues: [], happyHours: [], people: [] });
+            }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="close-circle" size={16} color="#555" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {searchQuery.trim().length > 0 ? (
+        /* ── Search Results ── */
+        <ScrollView style={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          {searchLoading ? (
+            <View style={{ alignItems: 'center', paddingTop: 60 }}>
+              <Text style={{ color: '#555', fontSize: 14 }}>Searching...</Text>
+            </View>
+          ) : searchResults.events.length === 0 && searchResults.venues.length === 0 &&
+             searchResults.happyHours.length === 0 && searchResults.people.length === 0 ? (
+            <View style={[styles.emptyState, { paddingTop: 60 }]}>
+              <Ionicons name="search-outline" size={40} color="rgba(255,255,255,0.2)" />
+              <Text style={styles.emptyText}>No results</Text>
+            </View>
+          ) : (
+            <>
+              {searchResults.events.length > 0 && (
+                <View style={styles.searchSection}>
+                  <Text style={styles.searchSectionTitle}>EVENTS</Text>
+                  {searchResults.events.map((e: any) => (
+                    <TouchableOpacity
+                      key={e.id}
+                      style={styles.searchRow}
+                      onPress={() => router.push(`/event/${e.id}`)}
+                      activeOpacity={0.75}
+                    >
+                      {e.poster_url ? (
+                        <Image source={{ uri: e.poster_url }} style={styles.searchThumb} />
+                      ) : (
+                        <View style={[styles.searchThumb, { backgroundColor: '#1a1a2e', alignItems: 'center', justifyContent: 'center' }]}>
+                          <Text style={{ fontSize: 18 }}>📅</Text>
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.searchRowTitle} numberOfLines={1}>{e.title}</Text>
+                        <Text style={styles.searchRowSub} numberOfLines={1}>
+                          {[e.venues?.name, e.event_date ? formatDate(e.event_date) : null].filter(Boolean).join(' · ')}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={14} color="#444" />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              {searchResults.venues.length > 0 && (
+                <View style={styles.searchSection}>
+                  <Text style={styles.searchSectionTitle}>VENUES</Text>
+                  {searchResults.venues.map((v: any) => (
+                    <TouchableOpacity
+                      key={v.id}
+                      style={styles.searchRow}
+                      onPress={() => router.push(`/venue/${v.id}`)}
+                      activeOpacity={0.75}
+                    >
+                      {v.poster_url ? (
+                        <Image source={{ uri: v.poster_url }} style={styles.searchThumb} />
+                      ) : (
+                        <View style={[styles.searchThumb, { backgroundColor: '#1a1a2e', alignItems: 'center', justifyContent: 'center' }]}>
+                          <Text style={{ fontSize: 18 }}>🏢</Text>
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.searchRowTitle} numberOfLines={1}>{v.name}</Text>
+                        {v.neighbourhood ? <Text style={styles.searchRowSub} numberOfLines={1}>{v.neighbourhood}</Text> : null}
+                      </View>
+                      <Ionicons name="chevron-forward" size={14} color="#444" />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              {searchResults.happyHours.length > 0 && (
+                <View style={styles.searchSection}>
+                  <Text style={styles.searchSectionTitle}>HAPPY HOURS</Text>
+                  {searchResults.happyHours.map((h: any) => (
+                    <TouchableOpacity
+                      key={h.id}
+                      style={styles.searchRow}
+                      onPress={() => router.push(`/venue/${h.venue_id}`)}
+                      activeOpacity={0.75}
+                    >
+                      <View style={[styles.searchThumb, { backgroundColor: '#1a0a00', alignItems: 'center', justifyContent: 'center' }]}>
+                        <Text style={{ fontSize: 18 }}>🍺</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.searchRowTitle} numberOfLines={1}>{h.venues?.name ?? ''}</Text>
+                        <Text style={styles.searchRowSub} numberOfLines={1}>{h.title}</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={14} color="#444" />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              {searchResults.people.length > 0 && (
+                <View style={styles.searchSection}>
+                  <Text style={styles.searchSectionTitle}>PEOPLE</Text>
+                  {searchResults.people.map((p: any) => (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={styles.searchRow}
+                      onPress={() => router.push(`/profile/${p.id}`)}
+                      activeOpacity={0.75}
+                    >
+                      {p.avatar_url ? (
+                        <Image source={{ uri: p.avatar_url }} style={[styles.searchThumb, { borderRadius: 22 }]} />
+                      ) : (
+                        <View style={[styles.searchThumb, { borderRadius: 22, backgroundColor: '#2a2a2a', alignItems: 'center', justifyContent: 'center' }]}>
+                          <Text style={{ fontSize: 16, color: '#fff', fontWeight: '700' }}>
+                            {((p.display_name || p.username || '?')[0] as string).toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.searchRowTitle} numberOfLines={1}>{p.display_name || p.username}</Text>
+                        <Text style={styles.searchRowSub} numberOfLines={1}>@{p.username}</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={14} color="#444" />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </>
+          )}
+          <View style={{ height: 100 }} />
+        </ScrollView>
+      ) : loading ? (
         <DiscoverRowsSkeleton />
       ) : (
         <>
@@ -963,41 +1227,97 @@ export default function DiscoverScreen() {
               <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#fff" />
             }
           >
-          {/* Quick filters */}
-          <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 12, paddingTop: 4 }}>
-            {[
-              { key: 'tonight', label: 'Tonight', showMoon: true, active: tonightFilter, onPress: () => setTonightFilter(v => !v) },
-              { key: '19plus', label: '19+', showMoon: false, active: filter19Plus, onPress: () => setFilter19Plus(v => !v) },
-            ].map(chip => (
+          {/* Filter chips */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 12, paddingTop: 4 }}
+          >
+            <TouchableOpacity
+              onPress={() => setDateFilter(v => v === 'tonight' ? null : 'tonight')}
+              activeOpacity={0.8}
+              style={[styles.chip, dateFilter === 'tonight' && styles.chipActive]}
+            >
+              <Ionicons name="moon" size={13} color={dateFilter === 'tonight' ? '#fff' : 'rgba(255,255,255,0.7)'} />
+              <Text style={[styles.chipText, dateFilter === 'tonight' && styles.chipTextActive]}>Tonight</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setDateFilter(v => v === 'weekend' ? null : 'weekend')}
+              activeOpacity={0.8}
+              style={[styles.chip, dateFilter === 'weekend' && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, dateFilter === 'weekend' && styles.chipTextActive]}>This Weekend</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setDateFilter(v => v === 'week' ? null : 'week')}
+              activeOpacity={0.8}
+              style={[styles.chip, dateFilter === 'week' && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, dateFilter === 'week' && styles.chipTextActive]}>This Week</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setFilter19Plus(v => !v)}
+              activeOpacity={0.8}
+              style={[styles.chip, filter19Plus && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, filter19Plus && styles.chipTextActive]}>19+</Text>
+            </TouchableOpacity>
+            {CATEGORY_CHIP_KEYS.map(chipKey => (
               <TouchableOpacity
-                key={chip.key}
-                onPress={chip.onPress}
+                key={chipKey}
+                onPress={() => setCategoryFilters(prev => {
+                  const next = new Set(prev);
+                  if (next.has(chipKey)) next.delete(chipKey); else next.add(chipKey);
+                  return next;
+                })}
                 activeOpacity={0.8}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 5,
-                  paddingHorizontal: 14,
-                  paddingVertical: 7,
-                  borderRadius: 20,
-                  backgroundColor: chip.active ? '#FF3B5C' : 'rgba(255,255,255,0.08)',
-                  borderWidth: 1,
-                  borderColor: chip.active ? '#FF3B5C' : 'rgba(255,255,255,0.14)',
-                }}
+                style={[styles.chip, categoryFilters.has(chipKey) && styles.chipActive]}
               >
-                {chip.showMoon && (
-                  <Ionicons name="moon" size={13} color={chip.active ? '#fff' : 'rgba(255,255,255,0.7)'} />
-                )}
-                <Text style={{ fontSize: 12, fontWeight: '700', color: chip.active ? '#fff' : 'rgba(255,255,255,0.7)' }}>{chip.label}</Text>
+                <Text style={[styles.chipText, categoryFilters.has(chipKey) && styles.chipTextActive]}>{chipKey}</Text>
               </TouchableOpacity>
             ))}
-          </View>
+            {(['free', 'paid'] as const).map(pk => (
+              <TouchableOpacity
+                key={pk}
+                onPress={() => setPriceFilter(v => v === pk ? null : pk)}
+                activeOpacity={0.8}
+                style={[styles.chip, priceFilter === pk && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, priceFilter === pk && styles.chipTextActive]}>
+                  {pk === 'free' ? 'Free' : 'Paid'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              onPress={() => setNeighbourhoodModalVisible(true)}
+              activeOpacity={0.8}
+              style={[styles.chip, neighbourhoodFilters.size > 0 && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, neighbourhoodFilters.size > 0 && styles.chipTextActive]}>
+                {neighbourhoodFilters.size > 0 ? `Neighbourhood (${neighbourhoodFilters.size})` : 'Neighbourhood'}
+              </Text>
+            </TouchableOpacity>
+            {isAnyFilterActive && (
+              <TouchableOpacity
+                onPress={() => {
+                  setDateFilter(null);
+                  setFilter19Plus(false);
+                  setCategoryFilters(new Set());
+                  setPriceFilter(null);
+                  setNeighbourhoodFilters(new Set());
+                }}
+                activeOpacity={0.8}
+                style={[styles.chip, { borderColor: 'rgba(255,59,92,0.4)' }]}
+              >
+                <Ionicons name="close" size={12} color="#FF3B5C" />
+                <Text style={[styles.chipText, { color: '#FF3B5C' }]}>Clear</Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
 
           {/* Happy Hour Now */}
           {isHappyHourWindow && happyHourDeals.length > 0 && (
-            <View
-              style={styles.categorySection}
-            >
+            <View style={styles.categorySection}>
               <View style={styles.categoryHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Text style={styles.categoryTitle}>🍺 Happy Hour</Text>
@@ -1005,8 +1325,7 @@ export default function DiscoverScreen() {
                     <Text style={styles.hhLiveText}>NOW</Text>
                   </View>
                 </View>
-                <Text style={styles.hhTime}>{formatTimeTo12(`${new Date().getHours()}:${String(new Date().getMinutes()).padStart(2, '0')}`)}
-                </Text>
+                <Text style={styles.hhTime}>{formatTimeTo12(`${new Date().getHours()}:${String(new Date().getMinutes()).padStart(2, '0')}`)}</Text>
               </View>
               <ScrollView
                 horizontal
@@ -1024,7 +1343,6 @@ export default function DiscoverScreen() {
               </ScrollView>
             </View>
           )}
-
 
           {visibleCategories.map(cat => (
             <React.Fragment key={cat.key}>
@@ -1052,6 +1370,7 @@ export default function DiscoverScreen() {
         </>
       )}
 
+      {/* Map Modal */}
       <Modal
         visible={mapModalVisible}
         animationType="slide"
@@ -1059,14 +1378,12 @@ export default function DiscoverScreen() {
         onRequestClose={() => setMapModalVisible(false)}
       >
         <View style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
-          {/* Header */}
           <View style={{ paddingTop: 56, paddingHorizontal: 16, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: '#1a1a1a' }}>
             <TouchableOpacity onPress={() => setMapModalVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Ionicons name="close" size={26} color="#fff" />
             </TouchableOpacity>
             <Text style={{ fontSize: 18, fontWeight: '700', color: '#fff', flex: 1 }}>Event Map</Text>
           </View>
-
           {MapboxGL ? (
             <MapEventView events={filteredEvents} onClose={() => setMapModalVisible(false)} user={user} />
           ) : (
@@ -1079,6 +1396,61 @@ export default function DiscoverScreen() {
             </View>
           )}
         </View>
+      </Modal>
+
+      {/* Neighbourhood Modal */}
+      <Modal
+        visible={neighbourhoodModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setNeighbourhoodModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' }}
+          activeOpacity={1}
+          onPress={() => setNeighbourhoodModalVisible(false)}
+        >
+          <View style={{
+            position: 'absolute', bottom: 0, left: 0, right: 0,
+            backgroundColor: '#111', borderTopLeftRadius: 22, borderTopRightRadius: 22,
+            padding: 24, paddingBottom: 40, maxHeight: SCREEN_HEIGHT * 0.6,
+          }}>
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: '#333', alignSelf: 'center', marginBottom: 16 }} />
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700', marginBottom: 16 }}>Neighbourhood</Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {allNeighbourhoods.map(n => (
+                <TouchableOpacity
+                  key={n}
+                  onPress={() => setNeighbourhoodFilters(prev => {
+                    const next = new Set(prev);
+                    if (next.has(n)) next.delete(n); else next.add(n);
+                    return next;
+                  })}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                    paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#222',
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <Text style={{
+                    color: neighbourhoodFilters.has(n) ? '#fff' : 'rgba(255,255,255,0.65)',
+                    fontSize: 15, fontWeight: neighbourhoodFilters.has(n) ? '700' : '400',
+                  }}>{n}</Text>
+                  {neighbourhoodFilters.has(n) && <Ionicons name="checkmark" size={18} color="#FF3B5C" />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            {neighbourhoodFilters.size > 0 && (
+              <TouchableOpacity
+                onPress={() => { setNeighbourhoodFilters(new Set()); setNeighbourhoodModalVisible(false); }}
+                style={{ marginTop: 16, paddingVertical: 13, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center' }}
+                activeOpacity={0.75}
+              >
+                <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, fontWeight: '600' }}>Clear</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </TouchableOpacity>
       </Modal>
 
     </View>
@@ -1266,5 +1638,81 @@ const styles = StyleSheet.create({
   emptyText: {
     color: '#555',
     fontSize: 16,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  searchInput: {
+    flex: 1,
+    color: '#fff',
+    fontSize: 15,
+  },
+  searchSection: {
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  searchSectionTitle: {
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginBottom: 8,
+    marginTop: 16,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.07)',
+  },
+  searchThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: '#1a1a1a',
+  },
+  searchRowTitle: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  searchRowSub: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  chipActive: {
+    backgroundColor: '#FF3B5C',
+    borderColor: '#FF3B5C',
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.7)',
+  },
+  chipTextActive: {
+    color: '#fff',
   },
 });
