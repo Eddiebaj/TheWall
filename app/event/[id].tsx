@@ -20,6 +20,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
+import { UNSPLASH_API_KEY } from '../../lib/keys';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
 import { useAnalytics } from '../../lib/analytics';
@@ -109,6 +110,7 @@ interface EventDetail {
   organizer_name?: string | null;
   recurrence?: string | null;
   creator_id?: string | null;
+  unsplash_download_location?: string | null;
 }
 
 function getEventTags(title: string): string[] {
@@ -186,6 +188,17 @@ export default function EventDetailScreen() {
     }
   }, [id, user]);
 
+  const downloadTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (!event?.unsplash_download_location || downloadTriggeredRef.current) return;
+    downloadTriggeredRef.current = true;
+    try {
+      fetch(event.unsplash_download_location, {
+        headers: { Authorization: `Client-ID ${UNSPLASH_API_KEY}` },
+      });
+    } catch {}
+  }, [event?.unsplash_download_location]);
+
   const loadPlanStatus = async () => {
     if (!user || !id) return;
     const { data } = await supabase
@@ -218,7 +231,7 @@ export default function EventDetailScreen() {
       eventData = legacyData;
     } else {
       if (__DEV__) console.log('[EventDetail] looking up venue_event id:', id);
-      const veSelect = '*, venues(name, neighbourhood, address)';
+      const veSelect = '*, unsplash_download_location, venues(name, neighbourhood, address)';
       const { data: veById, error: veByIdErr } = await supabase
         .from('venue_events')
         .select(veSelect)
@@ -338,6 +351,7 @@ export default function EventDetailScreen() {
       organizer_name: isVenueEvent ? (eventData.organizer_name || null) : null,
       recurrence: isVenueEvent ? (eventData.recurrence || null) : null,
       creator_id: isVenueEvent ? (eventData.creator_id || null) : null,
+      unsplash_download_location: isVenueEvent ? (eventData.unsplash_download_location || null) : null,
     });
     setLoading(false);
   };
