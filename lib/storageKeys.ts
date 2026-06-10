@@ -68,9 +68,6 @@ export const SK_SESSION_COUNT = 'thewall_session_count';
 export const SK_SHOWN_PROMPTS = 'thewall_shown_prompts';
 export const SK_COMMUTE_DEALS_LAST_PUSH = 'thewall_commute_deals_last_push';
 
-// ── UI state ──
-export const SK_TOOLTIP_SHOWN = 'affiche_tooltip_shown';
-
 // ── Friends / social ──
 export const SK_DOWN_TONIGHT = 'down_tonight_date';
 

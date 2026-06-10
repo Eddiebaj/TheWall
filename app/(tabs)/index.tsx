@@ -5,7 +5,6 @@ import {
   Dimensions,
   FlatList,
   Image,
-  Modal,
   RefreshControl,
   ScrollView,
   Share,
@@ -15,14 +14,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
 import { useAnalytics } from '../../lib/analytics';
 import { sendNotification } from '../../lib/notificationHelpers';
-import { SK_TOOLTIP_SHOWN } from '../../lib/storageKeys';
 import { FeedGridSkeleton } from '../../components/Shimmer';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -470,8 +467,6 @@ export default function FeedScreen() {
   const [planInvites, setPlanInvites] = useState<any[]>([]);
   const [hasFriends, setHasFriends] = useState(true);
   const [hasProfile, setHasProfile] = useState<boolean | null>(null); // null = loading
-  const [showTooltip, setShowTooltip] = useState(false);
-  const [tooltipStep, setTooltipStep] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
@@ -495,14 +490,6 @@ export default function FeedScreen() {
       .is('read_at', null)
       .then(({ count }) => setUnreadNotifs(count ?? 0));
   }, [user]);
-
-  useEffect(() => {
-    if (profile) {
-      AsyncStorage.getItem(SK_TOOLTIP_SHOWN).then(val => {
-        if (!val) setShowTooltip(true);
-      });
-    }
-  }, [profile]);
 
   useEffect(() => {
     loadFeedEvents(getToday());
@@ -1337,44 +1324,6 @@ export default function FeedScreen() {
         avatarUrl={(profile as any)?.avatar_url}
       />
 
-      <Modal visible={showTooltip} transparent animationType="fade">
-        <TouchableOpacity
-          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', alignItems: 'center', justifyContent: 'center', padding: 32 }}
-          activeOpacity={1}
-          onPress={() => {
-            if (tooltipStep < 2) {
-              setTooltipStep(s => s + 1);
-            } else {
-              setShowTooltip(false);
-              AsyncStorage.setItem(SK_TOOLTIP_SHOWN, 'true');
-            }
-          }}
-        >
-          <View style={{ backgroundColor: '#1C1F2A', borderRadius: 20, padding: 28, width: '100%', gap: 12 }}>
-            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 4 }}>
-              {[0, 1, 2].map(i => (
-                <View key={i} style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: i <= tooltipStep ? '#FF3B5C' : 'rgba(255,255,255,0.15)' }} />
-              ))}
-            </View>
-            <Text style={{ fontSize: 22, textAlign: 'center' }}>
-              {tooltipStep === 0 ? '🗓️' : tooltipStep === 1 ? '➕' : '🔍'}
-            </Text>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: '#fff', textAlign: 'center' }}>
-              {tooltipStep === 0 ? 'Your personalized feed' : tooltipStep === 1 ? 'Create or join events' : 'Browse by category'}
-            </Text>
-            <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)', textAlign: 'center', lineHeight: 20 }}>
-              {tooltipStep === 0
-                ? 'Events ranked for you based on your taste and what your friends are doing.'
-                : tooltipStep === 1
-                  ? 'Tap the + button to create your own event or join a plan.'
-                  : 'Use Discover to browse events by category, neighbourhood, or venue.'}
-            </Text>
-            <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', textAlign: 'center', marginTop: 4 }}>
-              {tooltipStep < 2 ? 'Tap to continue' : 'Tap to get started'}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      </Modal>
     </View>
   );
 }

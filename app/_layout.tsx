@@ -206,6 +206,54 @@ function RootNav() {
     }
   }, [session, authLoading]);
 
+  // Auto-claim business subscription on every session (restore or fresh login).
+  // Idempotent: exits immediately if is_business is already true or no active subscription row exists.
+  // Deps: [session] only — DB writes don't change session, so no re-trigger loop.
+  useEffect(() => {
+    if (!session) return;
+    const userEmail = session.user.email;
+    if (!userEmail) return;
+    (async () => {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('is_business')
+        .eq('id', session.user.id)
+        .single();
+      if (prof?.is_business) return; // (1) already claimed — safe no-op
+
+      const { data: subRow } = await supabase
+        .from('business_subscriptions')
+        .select('venue_id')
+        .eq('business_email', userEmail.toLowerCase())
+        .eq('status', 'active')
+        .maybeSingle();
+      if (!subRow?.venue_id) return; // (2) no active subscription — no-op for normal users
+
+      if (__DEV__) console.log('[RootNav] claim: sub found venue_id=', subRow.venue_id, '— writing profiles...');
+      await supabase.from('profiles').update({
+        is_business: true,
+        business_email: userEmail.toLowerCase(),
+        venue_id: subRow.venue_id,
+      }).eq('id', session.user.id);
+
+      const { data: venueRow } = await supabase
+        .from('venues')
+        .select('name')
+        .eq('id', subRow.venue_id)
+        .single();
+
+      await supabase.from('business_profiles').upsert({
+        user_id: session.user.id,
+        venue_id: subRow.venue_id,
+        business_name: venueRow?.name ?? '',
+      }, { onConflict: 'user_id' });
+
+      if (__DEV__) console.log('[RootNav] claim complete — routing to /business-dashboard');
+      navigationDoneRef.current = true; // (3) prevents routing effect from also navigating
+      router.replace('/business-dashboard' as any);
+    })();
+  }, [session]);
+
   useEffect(() => {
     if (__DEV__) console.log('[RootNav] showSplash/destination changed - showSplash=', showSplash, 'destination=', destination, 'authLoading=', authLoading);
     if (!showSplash && destination === 'tabs' && !authLoading && !navigationDoneRef.current) {
@@ -217,50 +265,6 @@ function RootNav() {
         }, 0);
       } else {
         (async () => {
-          // Auto-claim business subscription if the user's email matches an active subscription
-          const userEmail = session.user.email;
-          if (userEmail) {
-            const { data: prof } = await supabase
-              .from('profiles')
-              .select('is_business')
-              .eq('id', session.user.id)
-              .single();
-
-            if (!prof?.is_business) {
-              const { data: subRow } = await supabase
-                .from('business_subscriptions')
-                .select('venue_id')
-                .eq('business_email', userEmail.toLowerCase())
-                .eq('status', 'active')
-                .maybeSingle();
-
-              if (subRow?.venue_id) {
-                await supabase.from('profiles').update({
-                  is_business: true,
-                  business_email: userEmail.toLowerCase(),
-                  venue_id: subRow.venue_id,
-                }).eq('id', session.user.id);
-
-                const { data: venueRow } = await supabase
-                  .from('venues')
-                  .select('name')
-                  .eq('id', subRow.venue_id)
-                  .single();
-
-                await supabase.from('business_profiles').upsert({
-                  user_id: session.user.id,
-                  venue_id: subRow.venue_id,
-                  business_name: venueRow?.name ?? '',
-                }, { onConflict: 'user_id' });
-
-                if (__DEV__) console.log('[RootNav] Business subscription claimed - routing to /business-dashboard');
-                navigationDoneRef.current = true;
-                router.replace('/business-dashboard' as any);
-                return;
-              }
-            }
-          }
-
           // Show onboarding slides if user hasn't seen them yet
           const onboarded = await AsyncStorage.getItem(SK_ONBOARDED).catch(() => null);
           if (!onboarded) {
