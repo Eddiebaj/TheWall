@@ -87,7 +87,7 @@ export default function UserProfileScreen() {
   const loadProfile = async () => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, username, display_name, avatar_url, bio, created_at, membership')
+      .select('id, username, display_name, avatar_url, campus, created_at')
       .eq('id', id)
       .single();
     console.log('PROFILE SCREEN query result:', JSON.stringify(data), 'error:', JSON.stringify(error));
@@ -368,18 +368,12 @@ export default function UserProfileScreen() {
           <Text style={{ fontSize: 22, fontWeight: '800', color: '#fff', marginBottom: 4 }}>
             {profile.display_name || profile.username}
           </Text>
-          <Text style={{ fontSize: 14, color: MUTED, marginBottom: profile.membership === 'premium' ? 6 : (profile.bio ? 10 : 0) }}>
+          <Text style={{ fontSize: 14, color: MUTED, marginBottom: 6 }}>
             @{profile.username}
           </Text>
-          {profile.membership === 'premium' && (
-            <View style={{ marginBottom: profile.bio ? 10 : 0 }}>
-              <PremiumBadge size="small" />
-            </View>
-          )}
-
-          {profile.bio ? (
-            <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', textAlign: 'center', lineHeight: 20, marginBottom: 4, paddingHorizontal: 16 }}>
-              {profile.bio}
+          {profile.campus ? (
+            <Text style={{ fontSize: 13, color: MUTED, marginBottom: 4 }}>
+              {profile.campus}
             </Text>
           ) : null}
 
