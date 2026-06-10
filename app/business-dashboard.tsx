@@ -30,6 +30,7 @@ type VenueEvent = {
   event_time: string | null;
   cover_charge: string | null;
   rsvp_count: number;
+  business_id: string | null;
 };
 
 type HappyHourDeal = {
@@ -170,7 +171,7 @@ export default function BusinessDashboardScreen() {
           const { data: eventIdRows } = await supabase
             .from('venue_events')
             .select('id')
-            .eq('business_id', bpRow.id);
+            .eq('venue_id', vid);
           const eventIds = (eventIdRows ?? []).map((r: any) => r.id);
 
           const [rsvpRes, viewRes, saveRes, prevRsvpRes, prevViewRes, prevSaveRes] = await Promise.all([
@@ -226,7 +227,7 @@ export default function BusinessDashboardScreen() {
           const { data: topData } = await supabase
             .from('venue_events')
             .select('title, event_date, venue_event_rsvps(count)')
-            .eq('business_id', bpRow.id)
+            .eq('venue_id', vid)
             .order('created_at', { ascending: false })
             .limit(10);
           if (topData && topData.length > 0) {
@@ -266,11 +267,11 @@ export default function BusinessDashboardScreen() {
         setDeals((dealRows ?? []) as HappyHourDeal[]);
 
         // Load events
-        if (bpRow) {
+        if (vid) {
           const { data: evRows } = await supabase
             .from('venue_events')
-            .select('id, title, event_date, event_time, cover_charge')
-            .eq('business_id', bpRow.id)
+            .select('id, title, event_date, event_time, cover_charge, business_id')
+            .eq('venue_id', vid)
             .order('event_date', { ascending: true });
 
           if (evRows) {

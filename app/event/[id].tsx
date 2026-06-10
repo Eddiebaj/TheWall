@@ -27,6 +27,7 @@ import { useAnalytics } from '../../lib/analytics';
 import { sendNotification } from '../../lib/notificationHelpers';
 import { hapticLight, hapticMedium, hapticSuccess } from '../../lib/haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 import { EventDetailSkeleton } from '../../components/Shimmer';
 
 let Notifications: typeof import('expo-notifications') | null = null;
@@ -110,7 +111,10 @@ interface EventDetail {
   organizer_name?: string | null;
   recurrence?: string | null;
   creator_id?: string | null;
+  business_id?: string | null;
   unsplash_download_location?: string | null;
+  poster_credit_name?: string | null;
+  poster_credit_url?: string | null;
 }
 
 function getEventTags(title: string): string[] {
@@ -167,6 +171,10 @@ export default function EventDetailScreen() {
   const [editTime, setEditTime] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editLoading, setEditLoading] = useState(false);
+  const [ownedVenueId, setOwnedVenueId] = useState<string | null>(null);
+  const [businessProfileId, setBusinessProfileId] = useState<string | null>(null);
+  const [editPosterUri, setEditPosterUri] = useState<string | null>(null);
+  const [editPosterUrl, setEditPosterUrl] = useState<string | null>(null);
 
   // Share sheet
   const [shareSheetVisible, setShareSheetVisible] = useState(false);
@@ -231,7 +239,7 @@ export default function EventDetailScreen() {
       eventData = legacyData;
     } else {
       if (__DEV__) console.log('[EventDetail] looking up venue_event id:', id);
-      const veSelect = '*, unsplash_download_location, venues(name, neighbourhood, address)';
+      const veSelect = '*, unsplash_download_location, poster_credit_name, poster_credit_url, venues(name, neighbourhood, address)';
       const { data: veById, error: veByIdErr } = await supabase
         .from('venue_events')
         .select(veSelect)
@@ -295,6 +303,13 @@ export default function EventDetailScreen() {
       isGoing = rsvp?.status === 'going';
       isInterested = !!interest;
       setIsSaved(!!saved);
+      const { data: bp } = await supabase
+        .from('business_profiles')
+        .select('venue_id, id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      setOwnedVenueId((bp as any)?.venue_id ?? null);
+      setBusinessProfileId((bp as any)?.id ?? null);
     }
 
     const [{ data: rsvpRows }, { data: friendRows }] = await Promise.all([
@@ -351,7 +366,10 @@ export default function EventDetailScreen() {
       organizer_name: isVenueEvent ? (eventData.organizer_name || null) : null,
       recurrence: isVenueEvent ? (eventData.recurrence || null) : null,
       creator_id: isVenueEvent ? (eventData.creator_id || null) : null,
+      business_id: isVenueEvent ? (eventData.business_id ?? null) : null,
       unsplash_download_location: isVenueEvent ? (eventData.unsplash_download_location || null) : null,
+      poster_credit_name: isVenueEvent ? (eventData.poster_credit_name || null) : null,
+      poster_credit_url: isVenueEvent ? (eventData.poster_credit_url || null) : null,
     });
     setLoading(false);
   };
@@ -669,6 +687,8 @@ export default function EventDetailScreen() {
     setEditDate(event.event_date || '');
     setEditTime(event.start_time || '');
     setEditDescription(event.description || '');
+    setEditPosterUri(null);
+    setEditPosterUrl(event.poster_url ?? null);
     setEditVisible(true);
   };
 
@@ -681,12 +701,42 @@ export default function EventDetailScreen() {
       event_time: editTime.trim() || null,
       description: editDescription.trim() || null,
     };
+    // Upload new poster only if user picked one
+    if (editPosterUri) {
+      const uploadPath = `${businessProfileId ?? user!.id}/${Date.now()}.jpg`;
+      try {
+        const response = await fetch(editPosterUri);
+        const blob = await response.blob();
+        const { error: uploadError } = await supabase.storage
+          .from('event-posters')
+          .upload(uploadPath, blob, { upsert: true, contentType: 'image/jpeg' });
+        if (uploadError) {
+          Alert.alert('Photo upload failed', uploadError.message + '\nYour other changes will still be saved.');
+        } else {
+          const { data: urlData } = supabase.storage.from('event-posters').getPublicUrl(uploadPath);
+          updates.poster_url = urlData.publicUrl;
+        }
+      } catch {
+        Alert.alert('Photo upload failed', 'Could not upload the image. Your other changes will still be saved.');
+      }
+    }
+    // Claim: associate unclaimed event with this owner's business profile
+    if (event.business_id === null && businessProfileId) {
+      updates.business_id = businessProfileId;
+    }
     const { error } = await supabase.from('venue_events').update(updates).eq('id', event.id);
     setEditLoading(false);
     if (error) {
       Alert.alert('Error', 'Could not save changes.');
     } else {
-      setEvent(e => e ? { ...e, title: updates.title, event_date: updates.event_date, start_time: updates.event_time, description: updates.description } : e);
+      setEvent(e => e ? {
+        ...e,
+        title: updates.title,
+        event_date: updates.event_date,
+        start_time: updates.event_time,
+        description: updates.description,
+        ...(updates.poster_url !== undefined ? { poster_url: updates.poster_url } : {}),
+      } : e);
       setEditVisible(false);
     }
   };
@@ -781,6 +831,13 @@ export default function EventDetailScreen() {
   }
   getEventTags(event.title).forEach(t => unifiedTags.push({ label: t }));
 
+  const canEdit = !!(
+    user &&
+    event &&
+    (event.creator_id === user.id ||
+      (ownedVenueId !== null && ownedVenueId === event.venue_id))
+  );
+
   return (
     <View style={{ flex: 1, backgroundColor: colours.bg }}>
       {/* Hero image with gradient scrim */}
@@ -848,6 +905,19 @@ export default function EventDetailScreen() {
         >
           <Ionicons name="share-outline" size={20} color="#fff" />
         </TouchableOpacity>
+        {/* Unsplash attribution */}
+        {event.poster_credit_name && (
+          <View style={{ position: 'absolute', bottom: 8, right: 10, flexDirection: 'row' }}>
+            <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>Photo by </Text>
+            <TouchableOpacity onPress={() => event.poster_credit_url && Linking.openURL(event.poster_credit_url)}>
+              <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', textDecorationLine: 'underline' }}>{event.poster_credit_name}</Text>
+            </TouchableOpacity>
+            <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}> on </Text>
+            <TouchableOpacity onPress={() => Linking.openURL('https://unsplash.com/?utm_source=affiche&utm_medium=referral')}>
+              <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', textDecorationLine: 'underline' }}>Unsplash</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* Content */}
@@ -1148,7 +1218,7 @@ export default function EventDetailScreen() {
         </TouchableOpacity>
 
         {/* Creator-only: Edit & Delete */}
-        {user && event.creator_id === user.id && (
+        {canEdit && (
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
             <TouchableOpacity
               onPress={openEditModal}
@@ -1580,6 +1650,46 @@ export default function EventDetailScreen() {
             numberOfLines={3}
             style={{ backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: colours.text, marginBottom: 20, minHeight: 80, textAlignVertical: 'top' }}
           />
+
+          <Text style={{ fontSize: 12, fontWeight: '600', color: colours.muted, marginBottom: 6 }}>POSTER</Text>
+          <TouchableOpacity
+            onPress={async () => {
+              const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert('Permission needed', 'Please allow photo access to change the poster.');
+                return;
+              }
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['images'] as any,
+                allowsEditing: true,
+                aspect: [4, 3],
+                quality: 0.8,
+              });
+              if (!result.canceled) {
+                setEditPosterUri(result.assets[0].uri);
+                setEditPosterUrl(result.assets[0].uri);
+              }
+            }}
+            activeOpacity={0.8}
+            style={{
+              borderRadius: 12,
+              overflow: 'hidden',
+              marginBottom: 20,
+              height: editPosterUrl ? 160 : 80,
+              backgroundColor: 'rgba(255,255,255,0.07)',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {editPosterUrl ? (
+              <Image source={{ uri: editPosterUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            ) : (
+              <>
+                <Ionicons name="image-outline" size={28} color={colours.muted} />
+                <Text style={{ color: colours.muted, fontSize: 13, marginTop: 6 }}>Change Poster</Text>
+              </>
+            )}
+          </TouchableOpacity>
 
           <TouchableOpacity
             onPress={handleSaveEdit}
