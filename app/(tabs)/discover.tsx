@@ -246,7 +246,7 @@ function formatDate(dateStr: string | null): string {
 }
 
 
-function EventCard({ event, onPress, checkinCount }: { event: DiscoverEvent; onPress: () => void; checkinCount?: number }) {
+function EventCard({ event, onPress, checkinCount, isPromoted }: { event: DiscoverEvent; onPress: () => void; checkinCount?: number; isPromoted?: boolean }) {
   const isFeatured = event.venue_feature_tier === 'featured';
   const catDef = CATEGORIES.find(c => c.key === event.category);
   const emoji = catDef?.emoji ?? '📅';
@@ -296,6 +296,18 @@ function EventCard({ event, onPress, checkinCount }: { event: DiscoverEvent; onP
               {checkinCount} here now
             </Text>
           </View>
+        )}
+        {isPromoted && (
+          <Text style={{
+            fontSize: 9,
+            letterSpacing: 0.8,
+            color: 'rgba(255,255,255,0.4)',
+            textTransform: 'uppercase',
+            marginTop: 5,
+            alignSelf: 'flex-end',
+          }}>
+            Promoted
+          </Text>
         )}
       </View>
       {event.venue_lat == null && (
@@ -391,6 +403,7 @@ function CategoryRow({
             event={e}
             onPress={() => onCardPress(e)}
             checkinCount={e.venue_id && activeCheckinVenueIds.has(e.venue_id) ? 1 : 0}
+            isPromoted={e.isPromoted}
           />
         ))}
       </ScrollView>
