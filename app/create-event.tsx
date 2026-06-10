@@ -23,8 +23,8 @@ import { useApp } from '../context/AppContext';
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const CATEGORIES = [
-  'Nightlife', 'Concerts', 'Comedy', 'Art', 'Sports',
-  'Food', 'Outdoor', 'Networking', 'Social', 'Other',
+  'Concerts', 'Nightlife', 'Bar', 'Comedy', 'Art & Culture',
+  'Sports', 'Food & Drinks', 'Outdoor', 'Networking',
 ] as const;
 
 const RECURRENCE_OPTIONS = [

@@ -30,7 +30,7 @@ const CATEGORY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   'Food & Drinks': 'restaurant',
   'Outdoor':       'leaf',
   'Networking':    'people',
-  'Social':        'sparkles',
+  'Bar':           'beer',
 };
 
 const FILTERS = ['All', 'Today', 'This Week', 'This Weekend', 'Free'] as const;

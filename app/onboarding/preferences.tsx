@@ -16,6 +16,7 @@ import { useAuth } from '../../context/AuthContext';
 const TAGS = [
   { key: 'Concerts',     emoji: '🎵', label: 'Concerts' },
   { key: 'Nightlife',    emoji: '🍸', label: 'Nightlife' },
+  { key: 'Bar',                        label: 'Bar' },
   { key: 'Comedy',       emoji: '😂', label: 'Comedy' },
   { key: 'Art & Culture',emoji: '🎨', label: 'Art & Culture' },
   { key: 'Sports',       emoji: '🏆', label: 'Sports' },
@@ -83,7 +84,6 @@ export default function PreferencesScreen() {
                   onPress={() => toggle(tag.key)}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.pillEmoji}>{tag.emoji}</Text>
                   <Text style={[styles.pillLabel, isSelected && styles.pillLabelSelected]}>
                     {tag.label}
                   </Text>
@@ -153,7 +153,6 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: 100,
     borderWidth: 1,
@@ -164,9 +163,6 @@ const styles = StyleSheet.create({
   pillSelected: {
     borderColor: '#FF3B5C',
     backgroundColor: 'rgba(255,59,92,0.14)',
-  },
-  pillEmoji: {
-    fontSize: 22,
   },
   pillLabel: {
     color: 'rgba(255,255,255,0.65)',

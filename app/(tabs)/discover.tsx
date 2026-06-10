@@ -74,21 +74,21 @@ function deriveCategory(title: string, venueName: string): string | null {
 const CATEGORIES: { key: string; emoji: string; label: string }[] = [
   { key: 'Concerts',     emoji: '🎵', label: 'Concerts' },
   { key: 'Nightlife',    emoji: '🍸', label: 'Nightlife' },
+  { key: 'Bar',          emoji: '🍺', label: 'Bar' },
   { key: 'Comedy',       emoji: '😂', label: 'Comedy' },
   { key: 'Art & Culture',emoji: '🎨', label: 'Art & Culture' },
   { key: 'Sports',       emoji: '🏆', label: 'Sports' },
   { key: 'Food & Drinks',emoji: '🍔', label: 'Food & Drinks' },
   { key: 'Outdoor',      emoji: '🌿', label: 'Outdoor' },
   { key: 'Networking',   emoji: '💼', label: 'Networking' },
-  { key: 'Social',       emoji: '🎉', label: 'Social' },
 ];
 
 const CATEGORY_CHIP_TO_CAT: Record<string, string[]> = {
   'Nightclub':    ['Nightlife'],
   'Live Music':   ['Concerts'],
-  'Cocktail Bar': ['Nightlife'],
-  'Bar':          ['Nightlife', 'Food & Drinks'],
-  'Brewery':      ['Food & Drinks'],
+  'Cocktail Bar': ['Bar'],
+  'Bar':          ['Bar'],
+  'Brewery':      ['Bar'],
   'Comedy':       ['Comedy'],
   'Theatre':      ['Art & Culture'],
   'Sports':       ['Sports'],

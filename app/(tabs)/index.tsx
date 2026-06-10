@@ -48,6 +48,7 @@ interface FeedEvent {
   venue_id: string | null;
   neighbourhood: string | null;
   entry_type: string | null;
+  category: string | null;
   going_count: number;
   going_avatars: { id: string; username: string; avatar_url: string | null }[];
   source?: string | null;
@@ -865,6 +866,7 @@ export default function FeedScreen() {
       venue_id: e.venue_id,
       neighbourhood: e.neighbourhood,
       entry_type: e.entry_type,
+      category: e.category || null,
       going_count: attendeeMap[e.id]?.count ?? 0,
       going_avatars: attendeeMap[e.id]?.avatars ?? [],
       source: e.source,
@@ -884,8 +886,8 @@ export default function FeedScreen() {
     mapped.sort((a, b) => {
       const aSaved = savedEventIds.has(a.id) ? 3 : 0;
       const bSaved = savedEventIds.has(b.id) ? 3 : 0;
-      const aInterest = interests.size > 0 && a.entry_type && interests.has(a.entry_type) ? 2 : 0;
-      const bInterest = interests.size > 0 && b.entry_type && interests.has(b.entry_type) ? 2 : 0;
+      const aInterest = interests.size > 0 && a.category && interests.has(a.category) ? 2 : 0;
+      const bInterest = interests.size > 0 && b.category && interests.has(b.category) ? 2 : 0;
       const aTonight = a.event_date === today ? 5 : 0;
       const bTonight = b.event_date === today ? 5 : 0;
       const aFriend = friendGoingSet.has(a.id) ? 6 : 0;

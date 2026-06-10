@@ -13,7 +13,7 @@ const CATEGORY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   'Food & Drinks': 'restaurant-outline',
   'Outdoor':       'leaf-outline',
   'Networking':    'people-outline',
-  'Social':        'sparkles-outline',
+  'Bar':           'beer-outline',
 };
 
 function deriveEventIcon(title: string, venueName: string): keyof typeof Ionicons.glyphMap {

@@ -251,6 +251,7 @@ async function main() {
     description: string | null;
     ticket_url: string | null;
     entry_type: string;
+    category: string | null;
     source: string;
     business_id: null;
   };
@@ -322,6 +323,7 @@ async function main() {
       description: event.description ?? event.info ?? null,
       ticket_url: event.url ?? null,
       entry_type: entryType(event),
+      category: mapCategory(event) ?? null,
       source: 'ticketmaster',
       business_id: null,
     });
