@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Alert, KeyboardAvoidingView, Linking,
+  ActivityIndicator, Alert, Image, KeyboardAvoidingView, Linking,
   Modal, Platform, ScrollView, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -105,6 +106,7 @@ export default function BusinessDashboardScreen() {
   const [newTitle, setNewTitle] = useState('');
   const [newDate, setNewDate] = useState('');
   const [newTime, setNewTime] = useState('');
+  const [newPosterUri, setNewPosterUri] = useState<string | null>(null);
   const [newDesc, setNewDesc] = useState('');
   const [newEntry, setNewEntry] = useState<'Free' | 'Paid'>('Free');
   const [saving, setSaving] = useState(false);
@@ -305,6 +307,21 @@ export default function BusinessDashboardScreen() {
     loadData();
   }, [loadData, authLoading, profile]);
 
+  const handlePickPoster = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Please allow photo access to add a poster.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'] as any,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+    if (!result.canceled) setNewPosterUri(result.assets[0].uri);
+  };
+
   const handleAddEvent = async () => {
     if (!newTitle.trim() || !newDate.trim()) {
       Alert.alert('Missing fields', 'Event name and date are required.');
@@ -315,6 +332,22 @@ export default function BusinessDashboardScreen() {
       return;
     }
     setSaving(true);
+    let poster_url: string | null = null;
+    if (newPosterUri) {
+      const filePath = `${businessProfileId}/${Date.now()}.jpg`;
+      const response = await fetch(newPosterUri);
+      const blob = await response.blob();
+      const { error: uploadError } = await supabase.storage
+        .from('event-posters')
+        .upload(filePath, blob, { upsert: true, contentType: 'image/jpeg' });
+      if (uploadError) {
+        Alert.alert('Upload failed', uploadError.message);
+        setSaving(false);
+        return;
+      }
+      const { data } = supabase.storage.from('event-posters').getPublicUrl(filePath);
+      poster_url = data.publicUrl;
+    }
     const { error } = await supabase.from('venue_events').insert({
       business_id: businessProfileId,
       venue_id: venueId,
@@ -323,6 +356,7 @@ export default function BusinessDashboardScreen() {
       event_date: newDate.trim(),
       event_time: newTime.trim() || null,
       cover_charge: newEntry,
+      poster_url,
       source: 'user',
     });
     setSaving(false);
@@ -331,7 +365,7 @@ export default function BusinessDashboardScreen() {
       return;
     }
     setShowAddEvent(false);
-    setNewTitle(''); setNewDate(''); setNewTime(''); setNewDesc(''); setNewEntry('Free');
+    setNewTitle(''); setNewDate(''); setNewTime(''); setNewDesc(''); setNewEntry('Free'); setNewPosterUri(null);
     loadData();
   };
 
@@ -869,6 +903,21 @@ export default function BusinessDashboardScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+
+            <Text style={{ fontSize: 12, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Poster (optional)</Text>
+            {newPosterUri ? (
+              <TouchableOpacity onPress={handlePickPoster} style={{ marginBottom: 14 }}>
+                <Image source={{ uri: newPosterUri }} style={{ width: '100%', height: 160, borderRadius: 12 }} resizeMode="cover" />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={handlePickPoster}
+                style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: colours.border, borderRadius: 12, height: 100, alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}
+              >
+                <Ionicons name="image-outline" size={28} color={colours.muted} />
+                <Text style={{ color: colours.muted, marginTop: 6, fontSize: 13 }}>Add Poster</Text>
+              </TouchableOpacity>
+            )}
 
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <TouchableOpacity
