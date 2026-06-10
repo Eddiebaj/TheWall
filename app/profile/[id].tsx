@@ -33,6 +33,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { getBlockedIds } from '../../lib/blockList';
 import PremiumBadge from '../../components/PremiumBadge';
 
 const ACCENT = '#FF3B5C';
@@ -63,12 +64,28 @@ export default function UserProfileScreen() {
 
   const loadAll = async () => {
     setLoading(true);
-    await Promise.all([loadProfile(), loadUpcomingEvents(), loadFriendship()]);
-    setLoading(false);
+    try {
+      if (user && user.id !== id) {
+        let blockedIds = new Set<string>();
+        try {
+          blockedIds = await getBlockedIds(user.id);
+        } catch (e) {
+          console.error('PROFILE SCREEN block check error:', e);
+        }
+        console.log('block check done, blocked=', blockedIds.has(id as string));
+        if (blockedIds.has(id as string)) {
+          // Either we blocked them or they blocked us — hide the profile
+          return;
+        }
+      }
+      await Promise.all([loadProfile(), loadUpcomingEvents(), loadFriendship()]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadProfile = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('id, username, display_name, avatar_url, bio, created_at, membership')
       .eq('id', id)
