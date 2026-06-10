@@ -679,7 +679,7 @@ export default function FriendsScreen() {
                 marginBottom: friendsDownCount > 0 ? 16 : 0,
               }}
             >
-              <Text style={{ fontSize: 30, marginBottom: 8 }}>🌙</Text>
+              <Ionicons name="moon" size={32} color="rgba(255,255,255,0.35)" style={{ marginBottom: 8 }} />
               <Text style={{ fontSize: 18, fontWeight: '800', color: '#fff', letterSpacing: -0.3, marginBottom: 4 }}>
                 I'm out tonight
               </Text>

@@ -423,7 +423,7 @@ function TabToggle({
   unreadNotifs: number;
 }) {
   return (
-    <View style={[styles.tabBar, { top: insetTop + 12, paddingHorizontal: 12, justifyContent: 'space-between' }]}>
+    <View style={[styles.tabBar, { top: insetTop + 4, paddingHorizontal: 12, justifyContent: 'space-between' }]}>
       <TouchableOpacity onPress={onSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
         <Ionicons name="search-outline" size={22} color="rgba(255,255,255,0.7)" />
       </TouchableOpacity>
@@ -1084,7 +1084,7 @@ export default function FeedScreen() {
 
   const renderForYou = () => {
     if (loading || hasProfile === null) {
-      return <FeedGridSkeleton paddingTop={insets.top + 56} count={6} />;
+      return <FeedGridSkeleton paddingTop={insets.top + 48} count={6} />;
     }
 
     const showFallback = hasProfile === false || feedEvents.length < 3;
@@ -1134,7 +1134,8 @@ export default function FeedScreen() {
             borderColor: tonightFilter ? '#FF3B5C' : 'rgba(255,255,255,0.14)',
           }}
         >
-          <Text style={{ fontSize: 12, fontWeight: '700', color: tonightFilter ? '#fff' : 'rgba(255,255,255,0.7)' }}>🌙 Tonight</Text>
+          <Ionicons name="moon" size={13} color={tonightFilter ? '#fff' : 'rgba(255,255,255,0.7)'} />
+          <Text style={{ fontSize: 12, fontWeight: '700', color: tonightFilter ? '#fff' : 'rgba(255,255,255,0.7)' }}>Tonight</Text>
         </TouchableOpacity>
       </View>
     );
@@ -1174,7 +1175,7 @@ export default function FeedScreen() {
             goingEventIds={userGoingIds}
           />
         )}
-        contentContainerStyle={[styles.feedList, { paddingTop: insets.top + 56 }]}
+        contentContainerStyle={[styles.feedList, { paddingTop: insets.top + 48 }]}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FF3B5C" />}
       />
@@ -1347,7 +1348,7 @@ export default function FeedScreen() {
                     currentUsername={profile?.username}
                   />
                 )}
-                contentContainerStyle={[styles.activityList, { paddingTop: insets.top + 56 }]}
+                contentContainerStyle={[styles.activityList, { paddingTop: insets.top + 48 }]}
                 showsVerticalScrollIndicator={false}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FF3B5C" />}
               />

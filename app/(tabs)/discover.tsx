@@ -966,16 +966,17 @@ export default function DiscoverScreen() {
           {/* Quick filters */}
           <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 12, paddingTop: 4 }}>
             {[
-              { label: '🌙 Tonight', active: tonightFilter, onPress: () => setTonightFilter(v => !v) },
-              { label: '🔞 19+', active: filter19Plus, onPress: () => setFilter19Plus(v => !v) },
+              { key: 'tonight', label: 'Tonight', showMoon: true, active: tonightFilter, onPress: () => setTonightFilter(v => !v) },
+              { key: '19plus', label: '19+', showMoon: false, active: filter19Plus, onPress: () => setFilter19Plus(v => !v) },
             ].map(chip => (
               <TouchableOpacity
-                key={chip.label}
+                key={chip.key}
                 onPress={chip.onPress}
                 activeOpacity={0.8}
                 style={{
                   flexDirection: 'row',
                   alignItems: 'center',
+                  gap: 5,
                   paddingHorizontal: 14,
                   paddingVertical: 7,
                   borderRadius: 20,
@@ -984,6 +985,9 @@ export default function DiscoverScreen() {
                   borderColor: chip.active ? '#FF3B5C' : 'rgba(255,255,255,0.14)',
                 }}
               >
+                {chip.showMoon && (
+                  <Ionicons name="moon" size={13} color={chip.active ? '#fff' : 'rgba(255,255,255,0.7)'} />
+                )}
                 <Text style={{ fontSize: 12, fontWeight: '700', color: chip.active ? '#fff' : 'rgba(255,255,255,0.7)' }}>{chip.label}</Text>
               </TouchableOpacity>
             ))}
