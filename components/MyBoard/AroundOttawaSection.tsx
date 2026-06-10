@@ -252,9 +252,7 @@ export default function AroundOttawaSection({ colours, t, cardShadow, language, 
             {post.poster_url ? (
               <Image source={{ uri: post.poster_url }} style={{ width: '100%', aspectRatio: 0.75 }} resizeMode="cover" />
             ) : (
-              <View style={{ width: '100%', aspectRatio: 0.75, backgroundColor: colours.accent + '18', alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="ticket-outline" size={32} color={colours.accent} />
-              </View>
+              <View style={{ width: '100%', aspectRatio: 0.75, backgroundColor: colours.accent + '18' }} />
             )}
             <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: colours.accent, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
               <Text style={{ fontSize: 8, fontWeight: '800', color: 'white' }}>ON THE WALL</Text>

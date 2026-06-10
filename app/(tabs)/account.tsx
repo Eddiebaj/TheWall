@@ -311,9 +311,17 @@ function RowDivider() {
 
 function SettingsGroup({ children }: { children: React.ReactNode }) {
   return (
-    <View style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: '#111', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+    <View style={{ marginHorizontal: 16, marginBottom: 16, backgroundColor: '#111', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
       {children}
     </View>
+  );
+}
+
+function SectionLabel({ label }: { label: string }) {
+  return (
+    <Text style={{ fontSize: 12, fontWeight: '700', color: '#666', letterSpacing: 0.5, textTransform: 'uppercase', marginHorizontal: 16, marginTop: 24, marginBottom: 8 }}>
+      {label}
+    </Text>
   );
 }
 
@@ -808,10 +816,12 @@ export default function AccountScreen() {
                 <Text style={{ fontSize: 19, fontWeight: '800', color: '#fff', letterSpacing: -0.4, marginBottom: 3 }}>
                   {profile?.display_name || profile?.username || 'Your Name'}
                 </Text>
-                <Text style={{ fontSize: 14, color: '#888', marginBottom: isPremium ? 6 : 12 }}>
-                  @{profile?.username || 'username'}
-                </Text>
-                {isPremium && <PremiumBadge size="small" />}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                  <Text style={{ fontSize: 14, color: '#888' }}>
+                    @{profile?.username || 'username'}
+                  </Text>
+                  {isPremium && <PremiumBadge size="small" />}
+                </View>
                 <TouchableOpacity
                   onPress={openEditProfile}
                   style={{ alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.05)' }}
@@ -846,34 +856,8 @@ export default function AccountScreen() {
         {/* My Wall */}
         <MyWallSection onCountChange={setWallCount} />
 
-        {/* Saved Events */}
-        {savedEvents.length > 0 && (
-          <View style={{ marginBottom: 24 }}>
-            <Text style={{ fontSize: 11, fontWeight: '600', color: '#666', textTransform: 'uppercase', letterSpacing: 0.8, paddingHorizontal: 20, marginBottom: 12 }}>Saved Events</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
-              {savedEvents.map((ev) => (
-                <TouchableOpacity
-                  key={ev.id}
-                  onPress={() => router.push(`/event/${ev.id}` as any)}
-                  activeOpacity={0.85}
-                  style={{ width: 120, borderRadius: 12, overflow: 'hidden', backgroundColor: '#111' }}
-                >
-                  <Image
-                    source={{ uri: ev.poster_url || 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&q=80' }}
-                    style={{ width: 120, height: 100 }}
-                    resizeMode="cover"
-                  />
-                  <View style={{ padding: 8 }}>
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#fff' }} numberOfLines={1}>{ev.venue_name}</Text>
-                    <Text style={{ fontSize: 10, color: '#888', marginTop: 1 }} numberOfLines={1}>{ev.title}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        {/* My Events */}
+        {/* YOUR STUFF */}
+        <SectionLabel label="Your Stuff" />
         <SettingsGroup>
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, minHeight: 44, paddingVertical: 12 }}>
             <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: '#2563EB', alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
@@ -882,10 +866,7 @@ export default function AccountScreen() {
             <Text style={{ flex: 1, fontSize: 16, color: '#fff', fontWeight: '400' }}>My Events</Text>
           </View>
           <MyEventsSection />
-        </SettingsGroup>
-
-        {/* Library */}
-        <SettingsGroup>
+          <RowDivider />
           <SettingsRow
             label="Saved Events"
             icon="bookmark"
@@ -894,131 +875,113 @@ export default function AccountScreen() {
           />
         </SettingsGroup>
 
-        {/* Notifications section */}
-        <View style={{ marginTop: 24, marginBottom: 8 }}>
-          {notifPermission === 'denied' && (
-            <TouchableOpacity
-              onPress={() => { hapticMedium(); Linking.openSettings().catch(() => {}); }}
-              activeOpacity={0.7}
-              style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: 'rgba(255,149,0,0.08)', padding: 14, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: 'rgba(255,149,0,0.2)' }}
-            >
-              <Ionicons name="alert-circle" size={18} color="#ff9500" />
-              <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: '#ff9500' }}>
-                Notifications off -- tap to enable
-              </Text>
-              <Ionicons name="open-outline" size={14} color="#ff9500" />
-            </TouchableOpacity>
-          )}
-          <SettingsGroup>
-            {notifToggles.map((item, i) => (
-              <View key={item.key}>
-                {i > 0 && <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginLeft: 60 }} />}
-                <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 0, minHeight: 52 }}>
-                  <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: '#1C1C1E', alignItems: 'center', justifyContent: 'center', marginRight: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }}>
-                    <Ionicons
-                      name={item.icon as any}
-                      size={16}
-                      color={notifSettings[item.key as keyof NotifSettings] ? '#FF3B5C' : '#888'}
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 16, color: '#fff', fontWeight: '400' }}>{item.label}</Text>
-                    <Text style={{ fontSize: 12, color: '#888', marginTop: 1 }}>{(item as any).description}</Text>
-                  </View>
-                  <Switch
-                    value={!!notifSettings[item.key as keyof NotifSettings]}
-                    onValueChange={v => toggleMaster(item.key, v)}
-                    trackColor={{ false: '#2a2a2a', true: '#FF3B5C' }}
-                    thumbColor="white"
-                    ios_backgroundColor="#2a2a2a"
+        {/* NOTIFICATIONS */}
+        <SectionLabel label="Notifications" />
+        {notifPermission === 'denied' && (
+          <TouchableOpacity
+            onPress={() => { hapticMedium(); Linking.openSettings().catch(() => {}); }}
+            activeOpacity={0.7}
+            style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: 'rgba(255,149,0,0.08)', padding: 14, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: 'rgba(255,149,0,0.2)' }}
+          >
+            <Ionicons name="alert-circle" size={18} color="#ff9500" />
+            <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: '#ff9500' }}>
+              Notifications off -- tap to enable
+            </Text>
+            <Ionicons name="open-outline" size={14} color="#ff9500" />
+          </TouchableOpacity>
+        )}
+        <SettingsGroup>
+          {notifToggles.map((item, i) => (
+            <View key={item.key}>
+              {i > 0 && <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginLeft: 60 }} />}
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 0, minHeight: 52 }}>
+                <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: '#1C1C1E', alignItems: 'center', justifyContent: 'center', marginRight: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }}>
+                  <Ionicons
+                    name={item.icon as any}
+                    size={16}
+                    color={notifSettings[item.key as keyof NotifSettings] ? '#FF3B5C' : '#888'}
                   />
                 </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, color: '#fff', fontWeight: '400' }}>{item.label}</Text>
+                  <Text style={{ fontSize: 12, color: '#888', marginTop: 1 }}>{(item as any).description}</Text>
+                </View>
+                <Switch
+                  value={!!notifSettings[item.key as keyof NotifSettings]}
+                  onValueChange={v => toggleMaster(item.key, v)}
+                  trackColor={{ false: '#2a2a2a', true: '#FF3B5C' }}
+                  thumbColor="white"
+                  ios_backgroundColor="#2a2a2a"
+                />
               </View>
-            ))}
-          </SettingsGroup>
-          <SettingsGroup>
-            <SettingsRow
-              label="Notification Settings"
-              icon="options"
-              iconBg="#5856D6"
-              onPress={() => router.push('/notification-settings' as any)}
-            />
-          </SettingsGroup>
-        </View>
-
-        {/* Group 2: Account actions */}
-        <SettingsGroup>
-          <SettingsRow
-            label="Business Portal"
-            icon="storefront"
-            iconBg="#7C3AED"
-            onPress={() => {
-              if ((profile as any)?.is_business) {
-                router.push('/business-dashboard' as any);
-              } else {
-                router.push('/business-setup' as any);
-              }
-            }}
-          />
+            </View>
+          ))}
           <RowDivider />
           <SettingsRow
-            label="Insights"
-            icon="stats-chart"
-            iconBg="#0891B2"
-            onPress={() => {
-              if (PREMIUM_ENABLED && !isPremium) {
-                setInsightsPaywallVisible(true);
-              } else {
-                router.push('/insights' as any);
-              }
-            }}
+            label="Notification Settings"
+            icon="options"
+            iconBg="#5856D6"
+            onPress={() => router.push('/notification-settings' as any)}
           />
-          {!(profile as any)?.is_organizer && !(profile as any)?.is_business && (
-            <>
-              <RowDivider />
+        </SettingsGroup>
+
+        {/* FOR ORGANIZERS */}
+        {((profile as any)?.is_business || (profile as any)?.is_organizer) && (
+          <>
+            <SectionLabel label="For Organizers" />
+            <SettingsGroup>
               <SettingsRow
-                label="Become an Organizer"
-                icon="ribbon"
-                iconBg="#059669"
+                label="Business Portal"
+                icon="storefront"
+                iconBg="#7C3AED"
                 onPress={() => {
-                  if (STRIPE_LINKS.organizer_monthly) {
-                    Linking.openURL(STRIPE_LINKS.organizer_monthly).catch(() =>
-                      Alert.alert('Error', 'Could not open the payment page. Please try again.')
-                    );
+                  if ((profile as any)?.is_business) {
+                    router.push('/business-dashboard' as any);
                   } else {
-                    Alert.alert('Coming Soon', 'Organizer plans will be available shortly. Stay tuned!');
+                    router.push('/business-setup' as any);
                   }
                 }}
-                right={
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '600', color: '#888' }}>$19.99/mo</Text>
-                    <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.2)" />
-                  </View>
-                }
               />
-            </>
-          )}
-          {(profile as any)?.is_organizer && (
-            <>
               <RowDivider />
-              <OrganizerDashboardSection colours={colours} fonts={fonts} />
-            </>
-          )}
-        </SettingsGroup>
+              <SettingsRow
+                label="Insights"
+                icon="stats-chart"
+                iconBg="#0891B2"
+                onPress={() => {
+                  if (PREMIUM_ENABLED && !isPremium) {
+                    setInsightsPaywallVisible(true);
+                  } else {
+                    router.push('/insights' as any);
+                  }
+                }}
+              />
+              {(profile as any)?.is_organizer && (
+                <>
+                  <RowDivider />
+                  <OrganizerDashboardSection colours={colours} fonts={fonts} />
+                </>
+              )}
+            </SettingsGroup>
+          </>
+        )}
 
         {/* Admin */}
         {isAdmin && (
-          <SettingsGroup>
-            <SettingsRow
-              label="Admin Panel"
-              icon="shield-checkmark"
-              iconBg="#DC2626"
-              onPress={() => router.push('/admin' as any)}
-            />
-          </SettingsGroup>
+          <>
+            <SectionLabel label="Admin" />
+            <SettingsGroup>
+              <SettingsRow
+                label="Admin Panel"
+                icon="shield-checkmark"
+                iconBg="#DC2626"
+                onPress={() => router.push('/admin' as any)}
+              />
+            </SettingsGroup>
+          </>
         )}
 
-        {/* Group 3: Support */}
+        {/* SUPPORT */}
+        <SectionLabel label="Support" />
         <SettingsGroup>
           <SettingsRow
             label="Rate affiche"
@@ -1052,17 +1015,22 @@ export default function AccountScreen() {
           />
         </SettingsGroup>
 
-        {/* Group 4: Danger zone */}
+        {/* ACCOUNT */}
+        <SectionLabel label="Account" />
         <SettingsGroup>
-          <TouchableOpacity
+          <SettingsRow
+            label="Sign Out"
+            icon="log-out"
+            iconBg="#3A3A3C"
             onPress={signOut}
-            activeOpacity={0.7}
-            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, minHeight: 52 }}
-          >
-            <Text style={{ flex: 1, fontSize: 16, color: '#fff', fontWeight: '400' }}>Sign Out</Text>
-          </TouchableOpacity>
-          <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.06)' }} />
-          <TouchableOpacity
+            right={null}
+          />
+          <RowDivider />
+          <SettingsRow
+            label="Delete Account"
+            icon="trash"
+            iconBg="#7F1D1D"
+            destructive
             onPress={() => {
               Alert.alert(
                 'Delete your account?',
@@ -1101,11 +1069,7 @@ export default function AccountScreen() {
                 ]
               );
             }}
-            activeOpacity={0.7}
-            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, minHeight: 52 }}
-          >
-            <Text style={{ flex: 1, fontSize: 16, color: '#FF3B5C', fontWeight: '400' }}>Delete Account</Text>
-          </TouchableOpacity>
+          />
         </SettingsGroup>
 
         {__DEV__ && (

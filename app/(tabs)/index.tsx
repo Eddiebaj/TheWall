@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import {
   Dimensions,
   FlatList,
@@ -50,6 +51,7 @@ interface FeedEvent {
   going_count: number;
   going_avatars: { id: string; username: string; avatar_url: string | null }[];
   source?: string | null;
+  organizer_name?: string | null;
   subscription_plan?: string | null;
 }
 
@@ -178,11 +180,11 @@ function EventCard({ item, onPress, userId, goingEventIds }: { item: FeedEvent; 
         </Text>
       </LinearGradient>
       <View style={{ position: 'absolute', top: 8, left: 8, flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
-        {item.source === 'user' ? (
+        {item.organizer_name != null ? (
           <View style={{ backgroundColor: '#FF3B5C', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
             <Text style={{ fontSize: 9, fontWeight: '800', color: '#fff', letterSpacing: 0.4 }}>ORGANIZER</Text>
           </View>
-        ) : item.source != null ? (
+        ) : item.source === 'ticketmaster' || item.source === 'manual' ? (
           <View style={{ backgroundColor: '#FF3B5C', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
             <Text style={{ fontSize: 9, fontWeight: '800', color: '#fff', letterSpacing: 0.4 }}>VENUE</Text>
           </View>
@@ -477,6 +479,12 @@ export default function FeedScreen() {
   const router = useRouter();
   const { capture } = useAnalytics();
 
+  const navigation = useNavigation();
+  useEffect(() => {
+    const unsub = navigation.addListener('tabPress', () => setActiveTab('foryou'));
+    return unsub;
+  }, [navigation]);
+
   useEffect(() => {
     capture('app_opened');
   }, []);
@@ -721,7 +729,7 @@ export default function FeedScreen() {
         .limit(120),
       supabase
         .from('venue_events')
-        .select('id, title, poster_url, event_date, event_time, entry_type, category, venue_id, source, creator_id, visibility, venues(name, neighbourhood)')
+        .select('id, title, poster_url, event_date, event_time, entry_type, category, venue_id, source, creator_id, visibility, organizer_name, venues(name, neighbourhood)')
         .gte('event_date', today)
         .in('source', ['user', 'ticketmaster'])
         .order('event_date', { ascending: true })
@@ -905,7 +913,7 @@ export default function FeedScreen() {
         .limit(20),
       supabase
         .from('venue_events')
-        .select('id, title, poster_url, event_date, event_time, entry_type, venue_id, source, venues(name, neighbourhood)')
+        .select('id, title, poster_url, event_date, event_time, entry_type, venue_id, source, organizer_name, venues(name, neighbourhood)')
         .gte('event_date', today)
         .in('source', ['user', 'ticketmaster'])
         .neq('visibility', 'friends')

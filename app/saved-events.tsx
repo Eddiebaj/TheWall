@@ -141,9 +141,7 @@ export default function SavedEventsScreen() {
                   resizeMode="cover"
                 />
               ) : (
-                <View style={{ width: 56, height: 56, borderRadius: 10, backgroundColor: SURFACE, alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name="calendar-outline" size={22} color={MUTED} />
-                </View>
+                <View style={{ width: 56, height: 56, borderRadius: 10, backgroundColor: SURFACE }} />
               )}
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 15, fontWeight: '600', color: '#fff', marginBottom: 3 }} numberOfLines={2}>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, Switch, TouchableOpacity, TextInput,
+  View, Text, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, Alert, Share, Modal, Image, RefreshControl, FlatList
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -13,6 +13,7 @@ import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { sendNotification } from '../../lib/notificationHelpers';
+import { getBlockedIds } from '../../lib/blockList';
 import { SK_DOWN_TONIGHT } from '../../lib/storageKeys';
 
 export default function FriendsScreen() {
@@ -171,35 +172,45 @@ export default function FriendsScreen() {
   };
 
   const loadFriends = async () => {
-    const { data } = await supabase
-      .from('friendships')
-      .select(`
-        id, status,
-        requester:profiles!friendships_requester_id_fkey(id, username, display_name, avatar_url),
-        addressee:profiles!friendships_addressee_id_fkey(id, username, display_name, avatar_url)
-      `)
-      .eq('status', 'accepted')
-      .or(`requester_id.eq.${user!.id},addressee_id.eq.${user!.id}`);
+    const [{ data }, blockedIds] = await Promise.all([
+      supabase
+        .from('friendships')
+        .select(`
+          id, status,
+          requester:profiles!friendships_requester_id_fkey(id, username, display_name, avatar_url),
+          addressee:profiles!friendships_addressee_id_fkey(id, username, display_name, avatar_url)
+        `)
+        .eq('status', 'accepted')
+        .or(`requester_id.eq.${user!.id},addressee_id.eq.${user!.id}`),
+      getBlockedIds(user!.id),
+    ]);
 
     if (data) {
-      setFriends(data.map(f => {
-        const friend = f.requester?.id === user!.id ? f.addressee : f.requester;
-        return { ...friend, friendshipId: f.id };
-      }));
+      setFriends(
+        data
+          .map(f => {
+            const friend = f.requester?.id === user!.id ? f.addressee : f.requester;
+            return { ...friend, friendshipId: f.id };
+          })
+          .filter((f: any) => f?.id && !blockedIds.has(f.id))
+      );
     }
   };
 
   const loadPendingRequests = async () => {
-    const { data } = await supabase
-      .from('friendships')
-      .select(`
-        id,
-        requester:profiles!friendships_requester_id_fkey(id, username, display_name)
-      `)
-      .eq('addressee_id', user!.id)
-      .eq('status', 'pending');
+    const [{ data }, blockedIds] = await Promise.all([
+      supabase
+        .from('friendships')
+        .select(`
+          id,
+          requester:profiles!friendships_requester_id_fkey(id, username, display_name)
+        `)
+        .eq('addressee_id', user!.id)
+        .eq('status', 'pending'),
+      getBlockedIds(user!.id),
+    ]);
 
-    if (data) setPendingRequests(data);
+    if (data) setPendingRequests(data.filter((r: any) => !blockedIds.has(r.requester?.id)));
   };
 
   const loadConversations = async () => {
@@ -266,17 +277,22 @@ export default function FriendsScreen() {
   const searchUsers = async (query: string) => {
     if (query.length < 2) { setSearchResults([]); return; }
     setSearching(true);
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, username, display_name')
-      .ilike('username', `%${query}%`)
-      .neq('id', user!.id)
-      .limit(5);
-    setSearchResults(data || []);
+    const [{ data }, blockedIds] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('id, username, display_name')
+        .ilike('username', `%${query}%`)
+        .neq('id', user!.id)
+        .limit(5),
+      getBlockedIds(user!.id),
+    ]);
+    setSearchResults((data || []).filter((p: any) => !blockedIds.has(p.id)));
     setSearching(false);
   };
 
   const sendFriendRequest = async (addresseeId: string) => {
+    const blockedIds = await getBlockedIds(user!.id);
+    if (blockedIds.has(addresseeId)) return;
     const { error } = await supabase
       .from('friendships')
       .insert({ requester_id: user!.id, addressee_id: addresseeId });
@@ -663,61 +679,32 @@ export default function FriendsScreen() {
         ════════════════════════════════════════════════════════════════════ */}
         <View style={{ paddingHorizontal: 16, marginBottom: 32 }}>
 
-          {/* Down tonight toggle — hero when off, compact when on */}
-          {!downTonight ? (
-            <TouchableOpacity
-              onPress={() => handleDownToggle(true)}
-              activeOpacity={0.8}
-              style={{
-                borderRadius: 20,
-                borderWidth: 1.5,
-                borderColor: 'rgba(255,255,255,0.1)',
-                backgroundColor: '#111',
-                paddingHorizontal: 20,
-                paddingVertical: 22,
-                alignItems: 'center',
-                marginBottom: friendsDownCount > 0 ? 16 : 0,
-              }}
-            >
-              <Ionicons name="moon" size={32} color="rgba(255,255,255,0.35)" style={{ marginBottom: 8 }} />
-              <Text style={{ fontSize: 18, fontWeight: '800', color: '#fff', letterSpacing: -0.3, marginBottom: 4 }}>
-                I'm out tonight
+          {/* I'm down — single toggle button */}
+          <TouchableOpacity
+            onPress={() => handleDownToggle(!downTonight)}
+            activeOpacity={0.8}
+            style={{
+              flexDirection: 'row', alignItems: 'center', gap: 12,
+              backgroundColor: downTonight ? 'rgba(0,192,122,0.07)' : '#111',
+              borderWidth: 1.5,
+              borderColor: downTonight ? 'rgba(0,192,122,0.25)' : 'rgba(255,255,255,0.1)',
+              borderRadius: 16, paddingHorizontal: 16, paddingVertical: 13,
+              marginBottom: 16,
+            }}
+          >
+            <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: downTonight ? 'rgba(0,192,122,0.12)' : 'rgba(255,255,255,0.07)', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="moon" size={16} color={downTonight ? '#00C07A' : 'rgba(255,255,255,0.4)'} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: downTonight ? '#00C07A' : '#fff', letterSpacing: -0.2 }}>
+                {downTonight ? "You're out tonight" : "I'm down"}
               </Text>
-              <Text style={{ fontSize: 13, color: '#666', marginBottom: 16, textAlign: 'center' }}>
-                Let friends know you're free
+              <Text style={{ fontSize: 12, color: downTonight ? 'rgba(0,192,122,0.6)' : '#666', marginTop: 1 }}>
+                Tap to see who else is free tonight.
               </Text>
-              <View style={{ paddingHorizontal: 24, paddingVertical: 10, borderRadius: 22, backgroundColor: '#FF3B5C' }}>
-                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>I'm down</Text>
-              </View>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              onPress={() => handleDownToggle(false)}
-              activeOpacity={0.75}
-              style={{
-                flexDirection: 'row', alignItems: 'center', gap: 12,
-                backgroundColor: 'rgba(0,192,122,0.07)',
-                borderWidth: 1,
-                borderColor: 'rgba(0,192,122,0.25)',
-                borderRadius: 16, paddingHorizontal: 16, paddingVertical: 13,
-                marginBottom: 16,
-              }}
-            >
-              <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(0,192,122,0.12)', alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="moon" size={16} color="#00C07A" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontWeight: '700', color: '#00C07A', letterSpacing: -0.2 }}>You're out tonight</Text>
-                <Text style={{ fontSize: 12, color: 'rgba(0,192,122,0.6)', marginTop: 1 }}>Friends can see you're available</Text>
-              </View>
-              <Switch
-                value={downTonight}
-                onValueChange={handleDownToggle}
-                trackColor={{ false: '#2a2a2a', true: '#00C07A' }}
-                thumbColor="#fff"
-              />
-            </TouchableOpacity>
-          )}
+            </View>
+            {downTonight && <Ionicons name="checkmark-circle" size={20} color="#00C07A" />}
+          </TouchableOpacity>
 
           {/* Friends who are down — avatar strip with headline */}
           {friendsDownCount > 0 && (
@@ -857,7 +844,7 @@ export default function FriendsScreen() {
           {/* Prompt to enable if no tonight activity at all */}
           {!tonightActive && myHangouts.length === 0 && friendsPlans.length === 0 && (
             <Text style={{ fontSize: 13, color: '#444', textAlign: 'center', paddingTop: 4 }}>
-              Toggle above to see who else is free tonight.
+              Tap to see who else is free tonight.
             </Text>
           )}
         </View>

@@ -18,6 +18,7 @@ export default function AdminScreen() {
   const [sponsored, setSponsored] = useState<any[]>([]);
   const [pendingBusinesses, setPendingBusinesses] = useState<any[]>([]);
   const [pendingDeals, setPendingDeals] = useState<any[]>([]);
+  const [pendingOrganizerRequests, setPendingOrganizerRequests] = useState<any[]>([]);
   const [wallPosts, setWallPosts] = useState<any[]>([]);
   const [seedVenueName, setSeedVenueName] = useState('');
   const [seedEventTitle, setSeedEventTitle] = useState('');
@@ -34,13 +35,14 @@ export default function AdminScreen() {
 
   const loadData = async () => {
     setDataLoading(true);
-    const [usersRes, hangoutsRes, messagesRes, sponsoredRes, businessRes, dealsRes] = await Promise.all([
+    const [usersRes, hangoutsRes, messagesRes, sponsoredRes, businessRes, dealsRes, orgReqRes] = await Promise.all([
       supabase.from('profiles').select('id', { count: 'exact', head: true }),
       supabase.from('hangouts').select('id', { count: 'exact', head: true }),
       supabase.from('messages').select('id', { count: 'exact', head: true }),
       supabase.from('sponsored_venues').select('*').order('created_at', { ascending: false }),
       supabase.from('business_profiles').select('*, profiles(email, display_name)').eq('is_verified', false).order('verification_requested_at', { ascending: true }),
       supabase.from('business_deals').select('*, business_profiles(business_name)').eq('is_approved', false).order('created_at', { ascending: true }),
+      supabase.from('organizer_requests').select('*, profiles(display_name, username)').eq('status', 'pending').order('requested_at', { ascending: true }),
     ]);
     setStats({
       users: usersRes.count || 0,
@@ -50,6 +52,7 @@ export default function AdminScreen() {
     setSponsored(sponsoredRes.data || []);
     setPendingBusinesses(businessRes.data || []);
     setPendingDeals(dealsRes.data || []);
+    setPendingOrganizerRequests(orgReqRes.data || []);
     setDataLoading(false);
     const { data: posts } = await supabase.from('city_board_posts').select('*').order('created_at', { ascending: false }).limit(20);
     setWallPosts(posts || []);
@@ -203,6 +206,44 @@ export default function AdminScreen() {
                 >
                   <Text style={{ fontSize: 13, fontWeight: '700', color: 'white' }}>Approve deal</Text>
                 </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+
+          {/* Organizer Requests */}
+          <View>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+              Organizer Requests ({pendingOrganizerRequests.length})
+            </Text>
+            {pendingOrganizerRequests.length === 0 ? (
+              <View style={{ padding: 24, borderRadius: 14, borderWidth: 1, borderColor: colours.border, alignItems: 'center' }}>
+                <Text style={{ color: colours.muted }}>No pending requests</Text>
+              </View>
+            ) : pendingOrganizerRequests.map(r => (
+              <View key={r.id} style={{ padding: 14, borderRadius: 14, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border, marginBottom: 8 }}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: colours.text }}>{r.profiles?.display_name ?? r.profiles?.username ?? 'Unknown'}</Text>
+                <Text style={{ fontSize: 12, color: colours.muted, marginTop: 2 }}>{new Date(r.requested_at).toLocaleDateString()}</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                  <TouchableOpacity
+                    onPress={async () => {
+                      await supabase.from('organizer_requests').update({ status: 'approved', reviewed_at: new Date().toISOString() }).eq('id', r.id);
+                      await supabase.from('profiles').update({ is_organizer: true, organizer_name: r.profiles?.display_name ?? r.profiles?.username }).eq('id', r.user_id);
+                      loadData();
+                    }}
+                    style={{ flex: 1, backgroundColor: colours.accent, borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: 'white' }}>Approve</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={async () => {
+                      await supabase.from('organizer_requests').update({ status: 'rejected', reviewed_at: new Date().toISOString() }).eq('id', r.id);
+                      loadData();
+                    }}
+                    style={{ flex: 1, backgroundColor: colours.surface, borderRadius: 10, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: '#cc3b2a' }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#cc3b2a' }}>Reject</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             ))}
           </View>
