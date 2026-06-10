@@ -466,7 +466,6 @@ export default function FeedScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
-  const [tonightFilter, setTonightFilter] = useState(false);
   const [userGoingIds, setUserGoingIds] = useState<Set<string>>(new Set());
   const [feedDisplayCount, setFeedDisplayCount] = useState(50);
   const insets = useSafeAreaInsets();
@@ -1108,36 +1107,8 @@ export default function FeedScreen() {
       );
     }
 
-    const today = getToday();
-    const filteredEvents = tonightFilter
-      ? displayEvents.filter(e => e.event_date === today)
-      : displayEvents;
-
-    const tonightChip = (
-      <View style={{ paddingHorizontal: 16, paddingBottom: 10, flexDirection: 'row' }}>
-        <TouchableOpacity
-          onPress={() => setTonightFilter(v => !v)}
-          activeOpacity={0.8}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 5,
-            paddingHorizontal: 14,
-            paddingVertical: 7,
-            borderRadius: 20,
-            backgroundColor: tonightFilter ? '#FF3B5C' : 'rgba(255,255,255,0.08)',
-            borderWidth: 1,
-            borderColor: tonightFilter ? '#FF3B5C' : 'rgba(255,255,255,0.14)',
-          }}
-        >
-          <Ionicons name="moon" size={13} color={tonightFilter ? '#fff' : 'rgba(255,255,255,0.7)'} />
-          <Text style={{ fontSize: 12, fontWeight: '700', color: tonightFilter ? '#fff' : 'rgba(255,255,255,0.7)' }}>Tonight</Text>
-        </TouchableOpacity>
-      </View>
-    );
-
-    const pagedEvents = filteredEvents.slice(0, feedDisplayCount);
-    const hasMore = filteredEvents.length > feedDisplayCount;
+    const pagedEvents = displayEvents.slice(0, feedDisplayCount);
+    const hasMore = displayEvents.length > feedDisplayCount;
 
     return (
       <FlatList
@@ -1147,10 +1118,7 @@ export default function FeedScreen() {
         numColumns={2}
         columnWrapperStyle={styles.feedRow}
         ListHeaderComponent={
-          <>
-            {tonightChip}
-            {showFallback && <Text style={styles.fallbackLabel}>Popular this week</Text>}
-          </>
+          showFallback ? <Text style={styles.fallbackLabel}>Popular this week</Text> : null
         }
         ListFooterComponent={
           hasMore ? (

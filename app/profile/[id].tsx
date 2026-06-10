@@ -43,6 +43,7 @@ const MUTED = 'rgba(255,255,255,0.4)';
 
 export default function UserProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  console.log('PROFILE SCREEN got id param:', id);
   const { user } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -72,6 +73,7 @@ export default function UserProfileScreen() {
       .select('id, username, display_name, avatar_url, bio, created_at, membership')
       .eq('id', id)
       .single();
+    console.log('PROFILE SCREEN query result:', JSON.stringify(data), 'error:', JSON.stringify(error));
     if (data) setProfile(data);
   };
 

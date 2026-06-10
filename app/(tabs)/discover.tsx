@@ -976,7 +976,7 @@ export default function DiscoverScreen() {
       supabase
         .from('profiles')
         .select('id, username, display_name, avatar_url')
-        .ilike('username', pattern)
+        .or(`username.ilike.${pattern},display_name.ilike.${pattern}`)
         .limit(6),
     ]);
 
@@ -1191,7 +1191,7 @@ export default function DiscoverScreen() {
                     <TouchableOpacity
                       key={p.id}
                       style={styles.searchRow}
-                      onPress={() => router.push(`/profile/${p.id}`)}
+                      onPress={() => { console.log('SEARCH NAV -> profile id:', p.id, 'full person:', JSON.stringify(p)); router.push(`/profile/${p.id}`); }}
                       activeOpacity={0.75}
                     >
                       {p.avatar_url ? (
