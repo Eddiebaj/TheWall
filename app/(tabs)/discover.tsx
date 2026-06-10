@@ -1456,13 +1456,7 @@ export default function DiscoverScreen() {
           {(isHappyHourWindow || happyHourChip) && happyHourDeals.length > 0 && (
             <View style={styles.categorySection}>
               <View style={styles.categoryHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Text style={styles.categoryTitle}>🍺 Happy Hour</Text>
-                  <View style={styles.hhLivePill}>
-                    <Text style={styles.hhLiveText}>NOW</Text>
-                  </View>
-                </View>
-                <Text style={styles.hhTime}>{formatTimeTo12(`${new Date().getHours()}:${String(new Date().getMinutes()).padStart(2, '0')}`)}</Text>
+                <Text style={styles.categoryTitle}>Happy Hour</Text>
               </View>
               <ScrollView
                 horizontal

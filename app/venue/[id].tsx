@@ -6,6 +6,7 @@ import {
   Dimensions,
   FlatList,
   Image,
+  Linking,
   Modal,
   ScrollView,
   Text,
@@ -19,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../../lib/supabase';
+import { UNSPLASH_API_KEY } from '../../lib/keys';
 import { useAuth } from '../../context/AuthContext';
 import { sendNotification } from '../../lib/notificationHelpers';
 
@@ -32,6 +34,9 @@ interface Venue {
   neighbourhood: string | null;
   address: string | null;
   poster_url: string | null;
+  unsplash_download_location: string | null;
+  poster_credit_name: string | null;
+  poster_credit_url: string | null;
 }
 
 interface VenueEvent {
@@ -121,6 +126,17 @@ export default function VenueScreen() {
   const [submitTitle, setSubmitTitle] = useState('');
   const [submitDetails, setSubmitDetails] = useState('');
   const [submitLoading, setSubmitLoading] = useState(false);
+
+  const downloadTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (!venue?.unsplash_download_location || downloadTriggeredRef.current) return;
+    downloadTriggeredRef.current = true;
+    try {
+      fetch(venue.unsplash_download_location, {
+        headers: { Authorization: `Client-ID ${UNSPLASH_API_KEY}` },
+      });
+    } catch {}
+  }, [venue?.unsplash_download_location]);
 
   // Pulse animation for live dot
   useEffect(() => {
@@ -387,7 +403,7 @@ export default function VenueScreen() {
     const [venueRes, eventsRes, hhRes] = await Promise.all([
       supabase
         .from('venues')
-        .select('id, name, neighbourhood, address, poster_url')
+        .select('id, name, neighbourhood, address, poster_url, unsplash_download_location, poster_credit_name, poster_credit_url')
         .eq('id', id)
         .single(),
       supabase
@@ -491,6 +507,19 @@ export default function VenueScreen() {
             colors={['rgba(0,0,0,0.5)', 'transparent', 'rgba(0,0,0,0.7)']}
             style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
           />
+          {/* Unsplash attribution */}
+          {venue.poster_credit_name && (
+            <View style={{ position: 'absolute', bottom: 8, right: 10, flexDirection: 'row' }}>
+              <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>Photo by </Text>
+              <TouchableOpacity onPress={() => venue.poster_credit_url && Linking.openURL(venue.poster_credit_url)}>
+                <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', textDecorationLine: 'underline' }}>{venue.poster_credit_name}</Text>
+              </TouchableOpacity>
+              <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}> on </Text>
+              <TouchableOpacity onPress={() => Linking.openURL('https://unsplash.com/?utm_source=affiche&utm_medium=referral')}>
+                <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', textDecorationLine: 'underline' }}>Unsplash</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         {/* Back button */}
@@ -720,52 +749,29 @@ export default function VenueScreen() {
                     return (
                       <View
                         key={hh.id}
-                        style={{ backgroundColor: '#1a0d00', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#3d1f00' }}
+                        style={{ backgroundColor: '#141414', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' }}
                       >
-                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                          <Text style={{ fontSize: 13, fontWeight: '700', color: '#f97316' }}>
-                            {DAY_ABBR[hh.day_of_week]}  {fmt12(hh.start_time)} - {fmt12(hh.end_time)}
-                          </Text>
-                          {isOutdated && (
-                            <View style={{ backgroundColor: 'rgba(245,158,11,0.15)', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: 'rgba(245,158,11,0.35)' }}>
-                              <Text style={{ fontSize: 10, fontWeight: '700', color: '#f59e0b' }}>May be outdated</Text>
-                            </View>
-                          )}
-                        </View>
-                        <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff', marginBottom: hh.deal_details ? 4 : 0 }}>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.4)', letterSpacing: 0.5, marginBottom: 6 }}>
+                          {DAY_ABBR[hh.day_of_week]}  ·  {fmt12(hh.start_time)} – {fmt12(hh.end_time)}
+                        </Text>
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff', lineHeight: 22 }}>
                           {hh.title}
                         </Text>
                         {hh.deal_details ? (
-                          <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 18 }}>
+                          <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 19, marginTop: 4 }}>
                             {hh.deal_details}
                           </Text>
                         ) : null}
-                        {/* Footer row: verified info + buttons */}
-                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
-                          <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
-                            {verifyToast === hh.id
-                              ? 'Thanks for verifying!'
-                              : daysSinceVerified === 0
-                              ? 'Verified today'
-                              : daysSinceVerified === 1
-                              ? 'Verified yesterday'
-                              : daysSinceVerified != null
-                              ? `Verified ${daysSinceVerified}d ago`
-                              : 'Never verified'}
-                          </Text>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                            {user && !alreadyVerifiedToday && (
-                              <TouchableOpacity onPress={() => handleVerify(hh.id)}>
-                                <Text style={{ fontSize: 12, fontWeight: '600', color: '#4ade80' }}>✓ Still accurate</Text>
-                              </TouchableOpacity>
-                            )}
-                            {user && (
-                              <TouchableOpacity onPress={() => handleReportDeal(hh.id)}>
-                                <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>Report</Text>
-                              </TouchableOpacity>
-                            )}
-                          </View>
-                        </View>
+                        {user && !alreadyVerifiedToday && (
+                          <TouchableOpacity onPress={() => handleVerify(hh.id)} style={{ marginTop: 12, alignSelf: 'flex-start' }}>
+                            <Text style={{ fontSize: 12, fontWeight: '600', color: verifyToast === hh.id ? 'rgba(74,222,128,0.5)' : '#4ade80' }}>
+                              {verifyToast === hh.id ? 'Thanks!' : '✓ Still accurate'}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                        {user && alreadyVerifiedToday && (
+                          <Text style={{ fontSize: 12, color: 'rgba(74,222,128,0.45)', marginTop: 12 }}>✓ Verified today</Text>
+                        )}
                       </View>
                     );
                   })}
