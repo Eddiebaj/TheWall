@@ -75,7 +75,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "affiche needs your location to show nearby stops and transit options."
+          "locationWhenInUsePermission": "affiche uses your location to show events and venues near you."
         }
       ],
       "expo-image-picker",
