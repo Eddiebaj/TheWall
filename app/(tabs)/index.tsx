@@ -143,7 +143,7 @@ function EventCard({ item, onPress, userId, goingEventIds }: { item: FeedEvent; 
           onError={() => setImgError(true)}
         />
       ) : (
-        <View style={[styles.eventImage, { backgroundColor: '#1a1a1a' }]} />
+        <LinearGradient colors={['#1a0620', '#2d1040', '#0a0a1a']} style={styles.eventImage} />
       )}
       <LinearGradient
         colors={['transparent', 'rgba(0,0,0,0.88)']}
@@ -172,6 +172,9 @@ function EventCard({ item, onPress, userId, goingEventIds }: { item: FeedEvent; 
           </View>
         )}
         <Text style={styles.eventVenue} numberOfLines={1}>{item.venue_name}</Text>
+        {item.neighbourhood && (
+          <Text style={styles.eventNeighbourhood} numberOfLines={1}>{item.neighbourhood}</Text>
+        )}
         <Text style={styles.eventTitle} numberOfLines={2}>{item.title}</Text>
         <Text style={styles.eventDate}>
           {[formatDate(item.event_date), formatTime(item.start_time)].filter(Boolean).join(' · ')}
@@ -187,11 +190,6 @@ function EventCard({ item, onPress, userId, goingEventIds }: { item: FeedEvent; 
             <Text style={{ fontSize: 9, fontWeight: '800', color: '#fff', letterSpacing: 0.4 }}>VENUE</Text>
           </View>
         ) : null}
-        {item.neighbourhood && (
-          <View style={styles.neighbourhoodPill}>
-            <Text style={styles.neighbourhoodText}>{item.neighbourhood}</Text>
-          </View>
-        )}
       </View>
       {item.subscription_plan === 'featured' && (
         <View style={{
@@ -387,7 +385,7 @@ function RsvpCard({ item, onPress }: { item: RsvpEvent; onPress: () => void }) {
           onError={() => setImgError(true)}
         />
       ) : (
-        <View style={{ width: RSVP_CARD_WIDTH, height: RSVP_CARD_HEIGHT, backgroundColor: '#1a1a1a' }} />
+        <LinearGradient colors={['#1a0620', '#2d1040', '#0a0a1a']} style={{ width: RSVP_CARD_WIDTH, height: RSVP_CARD_HEIGHT }} />
       )}
       <LinearGradient
         colors={['transparent', 'rgba(0,0,0,0.9)']}
@@ -413,26 +411,19 @@ function TabToggle({
   insetTop,
   onBell,
   unreadNotifs,
+  onAvatar,
+  avatarUrl,
 }: {
   active: 'foryou' | 'activity';
   onSelect: (t: 'foryou' | 'activity') => void;
   insetTop: number;
   onBell: () => void;
   unreadNotifs: number;
+  onAvatar: () => void;
+  avatarUrl: string | null | undefined;
 }) {
   return (
     <View style={[styles.tabBar, { top: insetTop + 4, paddingHorizontal: 12, justifyContent: 'space-between' }]}>
-      <View style={{ width: 30 }} />
-      <View style={{ flexDirection: 'row', gap: 32 }}>
-        <TouchableOpacity onPress={() => onSelect('foryou')} style={styles.tabBtn}>
-          <Text style={[styles.tabText, active === 'foryou' && styles.tabTextActive]}>For You</Text>
-          {active === 'foryou' && <View style={styles.tabUnderline} />}
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => onSelect('activity')} style={styles.tabBtn}>
-          <Text style={[styles.tabText, active === 'activity' && styles.tabTextActive]}>Activity</Text>
-          {active === 'activity' && <View style={styles.tabUnderline} />}
-        </TouchableOpacity>
-      </View>
       <TouchableOpacity onPress={onBell} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ position: 'relative' }}>
         <Ionicons name="notifications-outline" size={22} color="rgba(255,255,255,0.7)" />
         {unreadNotifs > 0 && (
@@ -446,6 +437,24 @@ function TabToggle({
             </Text>
           </View>
         )}
+      </TouchableOpacity>
+      <View style={{ flexDirection: 'row', gap: 32 }}>
+        <TouchableOpacity onPress={() => onSelect('foryou')} style={styles.tabBtn}>
+          <Text style={[styles.tabText, active === 'foryou' && styles.tabTextActive]}>For You</Text>
+          {active === 'foryou' && <View style={styles.tabUnderline} />}
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => onSelect('activity')} style={styles.tabBtn}>
+          <Text style={[styles.tabText, active === 'activity' && styles.tabTextActive]}>Activity</Text>
+          {active === 'activity' && <View style={styles.tabUnderline} />}
+        </TouchableOpacity>
+      </View>
+      <TouchableOpacity onPress={onAvatar} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        {avatarUrl
+          ? <Image source={{ uri: avatarUrl }} style={{ width: 30, height: 30, borderRadius: 15 }} />
+          : <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: '#1E2230', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="person" size={16} color="rgba(255,255,255,0.5)" />
+            </View>
+        }
       </TouchableOpacity>
     </View>
   );
@@ -1117,9 +1126,7 @@ export default function FeedScreen() {
         keyExtractor={item => item.id}
         numColumns={2}
         columnWrapperStyle={styles.feedRow}
-        ListHeaderComponent={
-          showFallback ? <Text style={styles.fallbackLabel}>Popular this week</Text> : null
-        }
+        ListHeaderComponent={null}
         ListFooterComponent={
           hasMore ? (
             <TouchableOpacity
@@ -1326,6 +1333,8 @@ export default function FeedScreen() {
         insetTop={insets.top}
         onBell={() => router.push('/notifications' as any)}
         unreadNotifs={unreadNotifs}
+        onAvatar={() => router.push('/(tabs)/account' as any)}
+        avatarUrl={(profile as any)?.avatar_url}
       />
 
       <Modal visible={showTooltip} transparent animationType="fade">
@@ -1433,15 +1442,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  fallbackLabel: {
-    color: 'rgba(255,255,255,0.4)',
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    paddingHorizontal: 4,
-    paddingBottom: 12,
-  },
   // For You grid
   feedList: {
     paddingHorizontal: GRID_PADDING,
@@ -1522,16 +1522,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
-  neighbourhoodPill: {
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    borderRadius: 20,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  neighbourhoodText: {
-    color: '#fff',
+  eventNeighbourhood: {
+    color: 'rgba(255,255,255,0.35)',
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '600',
+    marginBottom: 3,
   },
   sectionHeader: {
     color: '#fff',
