@@ -19,8 +19,10 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { getBlockedIds } from '../../lib/blockList';
 import { useAnalytics } from '../../lib/analytics';
 import { DiscoverRowsSkeleton } from '../../components/Shimmer';
+import * as Location from 'expo-location';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -33,6 +35,23 @@ try {
 }
 
 const TORONTO_COORDS: [number, number] = [-79.3832, 43.6532];
+
+// ─── Ranking weights ──────────────────────────────────────────────────────────
+const SCORE_TONIGHT         = 100;
+const SCORE_TONIGHT_PARTIAL =  55; // today, started >2h ago, no end_time
+const SCORE_WEEKEND         =  70;
+const SCORE_THIS_WEEK       =  40;
+const SCORE_LATER           =  10;
+const SCORE_PROXIMITY_MAX   =  80; // ≤500 m
+const SCORE_PROXIMITY_MID   =  40; // ≤2 km
+const SCORE_PROXIMITY_FAR   =  10; // ≤5 km
+const SCORE_TIER_FEATURED   =  15;
+const SCORE_TIER_PRO        =   8;
+const SCORE_TIER_BASIC      =   3;
+const SCORE_CATEGORY_MATCH  =  25;
+const SCORE_HAS_POSTER      =   5;
+const SCORE_BUZZ            =  20; // venue has active check-ins right now
+// TODO: add friend-graph bonus (~15) once friend-saved/going data is loaded
 
 const CARD_W = 160;
 const CARD_H = 220;
@@ -52,10 +71,10 @@ function deriveCategory(title: string, venueName: string): string | null {
   return null;
 }
 
-const CATEGORIES: { key: string; emoji: string; label: string; ionIcon?: keyof typeof Ionicons.glyphMap }[] = [
-  { key: 'Concerts',     emoji: '🎵', label: 'Concerts',     ionIcon: 'musical-notes-outline' },
+const CATEGORIES: { key: string; emoji: string; label: string }[] = [
+  { key: 'Concerts',     emoji: '🎵', label: 'Concerts' },
   { key: 'Nightlife',    emoji: '🍸', label: 'Nightlife' },
-  { key: 'Comedy',       emoji: '😂', label: 'Comedy',       ionIcon: 'happy-outline' },
+  { key: 'Comedy',       emoji: '😂', label: 'Comedy' },
   { key: 'Art & Culture',emoji: '🎨', label: 'Art & Culture' },
   { key: 'Sports',       emoji: '🏆', label: 'Sports' },
   { key: 'Food & Drinks',emoji: '🍔', label: 'Food & Drinks' },
@@ -75,6 +94,7 @@ const CATEGORY_CHIP_TO_CAT: Record<string, string[]> = {
   'Sports':       ['Sports'],
   'Outdoor':      ['Outdoor'],
   'Culture':      ['Art & Culture'],
+  'Nightlife':    ['Nightlife'],
 };
 const CATEGORY_CHIP_KEYS = Object.keys(CATEGORY_CHIP_TO_CAT);
 
@@ -104,6 +124,95 @@ interface DiscoverEvent {
   venue_lat: number | null;
   venue_lng: number | null;
   venue_feature_tier: 'basic' | 'pro' | 'featured' | null;
+  _score?: number;
+  isPromoted?: boolean;
+}
+
+function haversineMetres(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6_371_000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function scoreEvent(
+  e: DiscoverEvent,
+  now: Date,
+  todayStr: string,
+  userLoc: { lat: number; lng: number } | null,
+  activeCheckinIds: Set<string>,
+  activeChips: Set<string>,
+): number {
+  let score = 0;
+
+  // ── Temporal ──
+  const parseMins = (t: string | null): number | null => {
+    if (!t) return null;
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+  };
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+
+  if (e.event_date === todayStr) {
+    const endMins = parseMins(e.end_time);
+    if (endMins !== null && nowMins > endMins) {
+      return -1; // ended — filtered out by caller
+    }
+    const startMins = parseMins(e.start_time);
+    if (startMins !== null && nowMins > startMins + 120 && endMins === null) {
+      score += SCORE_TONIGHT_PARTIAL;
+    } else {
+      score += SCORE_TONIGHT;
+    }
+  } else if (e.event_date) {
+    const dow = new Date(e.event_date + 'T12:00:00').getDay();
+    const daysAway = Math.round(
+      (new Date(e.event_date + 'T12:00:00').getTime() - now.getTime()) / 86_400_000,
+    );
+    if (dow === 5 || dow === 6) {
+      score += SCORE_WEEKEND;
+    } else if (daysAway <= 7) {
+      score += SCORE_THIS_WEEK;
+    } else {
+      score += SCORE_LATER;
+    }
+  } else {
+    score += SCORE_LATER;
+  }
+
+  // ── Proximity ──
+  if (userLoc && e.venue_lat != null && e.venue_lng != null) {
+    const m = haversineMetres(userLoc.lat, userLoc.lng, e.venue_lat, e.venue_lng);
+    if (m <= 500)       score += SCORE_PROXIMITY_MAX;
+    else if (m <= 2000) score += SCORE_PROXIMITY_MID;
+    else if (m <= 5000) score += SCORE_PROXIMITY_FAR;
+  }
+
+  // ── Tier ──
+  if (e.venue_feature_tier === 'featured')   score += SCORE_TIER_FEATURED;
+  else if (e.venue_feature_tier === 'pro')   score += SCORE_TIER_PRO;
+  else if (e.venue_feature_tier === 'basic') score += SCORE_TIER_BASIC;
+
+  // ── Category chip match ──
+  if (activeChips.size > 0 && e.category) {
+    const allowed = new Set<string>();
+    for (const chip of activeChips) {
+      for (const cat of (CATEGORY_CHIP_TO_CAT[chip] ?? [])) allowed.add(cat);
+    }
+    if (allowed.has(e.category)) score += SCORE_CATEGORY_MATCH;
+  }
+
+  // ── Poster ──
+  if (e.poster_url) score += SCORE_HAS_POSTER;
+
+  // ── Buzz (live check-ins) ──
+  if (e.venue_id && activeCheckinIds.has(e.venue_id)) score += SCORE_BUZZ;
+
+  return score;
 }
 
 function timeToMinutes(t: string): number {
@@ -161,9 +270,7 @@ function EventCard({ event, onPress, checkinCount }: { event: DiscoverEvent; onP
         <LinearGradient
           colors={['#1a0620', '#2d1040', '#0a0a1a']}
           style={styles.cardImagePlaceholder}
-        >
-          <Text style={{ fontSize: 28 }}>{emoji}</Text>
-        </LinearGradient>
+        />
       )}
       <LinearGradient
         colors={['transparent', 'rgba(0,0,0,0.85)']}
@@ -258,24 +365,17 @@ function CategoryRow({
   onCardPress,
   onSeeAll,
   activeCheckinVenueIds,
-  ionIcon,
 }: {
   category: typeof CATEGORIES[0];
   events: DiscoverEvent[];
   onCardPress: (e: DiscoverEvent) => void;
   onSeeAll: () => void;
   activeCheckinVenueIds: Set<string>;
-  ionIcon?: keyof typeof Ionicons.glyphMap;
 }) {
   return (
     <View style={styles.categorySection}>
       <View style={styles.categoryHeader}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-          {ionIcon
-            ? <Ionicons name={ionIcon} size={18} color="#fff" />
-            : <Text style={{ fontSize: 18 }}>{category.emoji}</Text>}
-          <Text style={styles.categoryTitle}>{category.label}</Text>
-        </View>
+        <Text style={styles.categoryTitle}>{category.label}</Text>
         <TouchableOpacity onPress={onSeeAll} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Text style={styles.seeAll}>See all →</Text>
         </TouchableOpacity>
@@ -312,9 +412,7 @@ function SingleEventPreview({ event, onView }: { event: DiscoverEvent; onView: (
           onError={() => setImgError(true)}
         />
       ) : (
-        <LinearGradient colors={['#1a0620', '#2d1040']} style={[mapStyles.previewPoster, { alignItems: 'center', justifyContent: 'center' }]}>
-          <Text style={{ fontSize: 28 }}>{catDef?.emoji ?? '📅'}</Text>
-        </LinearGradient>
+        <LinearGradient colors={['#1a0620', '#2d1040']} style={mapStyles.previewPoster} />
       )}
       <View style={{ flex: 1, justifyContent: 'space-between' }}>
         <View>
@@ -785,6 +883,7 @@ export default function DiscoverScreen() {
   const [filter19Plus, setFilter19Plus] = useState(false);
   const [dateFilter, setDateFilter] = useState<'tonight' | 'weekend' | 'week' | null>(null);
   const [categoryFilters, setCategoryFilters] = useState<Set<string>>(new Set());
+  const [happyHourChip, setHappyHourChip] = useState(false);
   const [priceFilter, setPriceFilter] = useState<'free' | 'paid' | null>(null);
   const [neighbourhoodFilters, setNeighbourhoodFilters] = useState<Set<string>>(new Set());
   const [neighbourhoodModalVisible, setNeighbourhoodModalVisible] = useState(false);
@@ -794,6 +893,7 @@ export default function DiscoverScreen() {
   }>({ events: [], venues: [], happyHours: [], people: [] });
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const userLocationRef = useRef<{ lat: number; lng: number } | null>(null);
   // Determine if happy hour window (3pm-8pm, any day)
   const isHappyHourWindow = (() => {
     const now = new Date();
@@ -806,8 +906,16 @@ export default function DiscoverScreen() {
     setNowMins(now.getHours() * 60 + now.getMinutes());
     loadEvents();
     loadActiveCheckins();
-    if (isHappyHourWindow) loadHappyHour();
+    if (isHappyHourWindow || happyHourChip) loadHappyHour();
+  }, []);
 
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      userLocationRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    })();
   }, []);
 
   const loadActiveCheckins = async () => {
@@ -875,18 +983,6 @@ export default function DiscoverScreen() {
     for (const e of [...legacyMapped, ...veMapped]) {
       if (!seen.has(e.id)) { seen.add(e.id); merged.push(e); }
     }
-
-    const tierRank = (t: string | null) => {
-      if (t === 'featured') return 0;
-      if (t === 'pro') return 1;
-      if (t === 'basic') return 2;
-      return 3;
-    };
-    merged.sort((a, b) => {
-      const tierDiff = tierRank(a.venue_feature_tier) - tierRank(b.venue_feature_tier);
-      if (tierDiff !== 0) return tierDiff;
-      return (a.event_date ?? '').localeCompare(b.event_date ?? '');
-    });
 
     setEvents(merged);
     setLoading(false);
@@ -980,11 +1076,12 @@ export default function DiscoverScreen() {
         .limit(6),
     ]);
 
+    const blockedIds = user ? await getBlockedIds(user.id) : new Set<string>();
     setSearchResults({
       events: evRes.data ?? [],
       venues: venueRes.data ?? [],
       happyHours: hhRes.data ?? [],
-      people: peopleRes.data ?? [],
+      people: (peopleRes.data ?? []).filter((p: any) => !blockedIds.has(p.id)),
     });
     setSearchLoading(false);
   }, []);
@@ -1043,14 +1140,32 @@ export default function DiscoverScreen() {
     return true;
   }), [events, dateFilter, filter19Plus, categoryFilters, priceFilter, neighbourhoodFilters, today]);
 
+  const rankedEvents = useMemo(() => {
+    const now = new Date();
+    const scored = filteredEvents
+      .map(e => ({ ...e, _score: scoreEvent(e, now, today, userLocationRef.current, activeCheckinVenueIds, categoryFilters) }))
+      .filter(e => (e._score ?? 0) >= 0)
+      .sort((a, b) => (b._score ?? 0) - (a._score ?? 0));
+
+    // Promoted-cap pass: first tier≠null event per category gets isPromoted
+    const promotedCats = new Set<string>();
+    return scored.map(e => {
+      if (e.venue_feature_tier && e.category && !promotedCats.has(e.category)) {
+        promotedCats.add(e.category);
+        return { ...e, isPromoted: true };
+      }
+      return e;
+    });
+  }, [filteredEvents, today, activeCheckinVenueIds, categoryFilters]);
+
   const visibleCategories = useMemo(() => CATEGORIES.filter(cat =>
-    filteredEvents.some(e => e.category === cat.key)
-  ), [filteredEvents]);
+    rankedEvents.some(e => e.category === cat.key)
+  ), [rankedEvents]);
 
   const eventsByCategory = (key: string) =>
-    filteredEvents.filter(e => e.category === key);
+    rankedEvents.filter(e => e.category === key);
 
-  const isAnyFilterActive = dateFilter !== null || filter19Plus || categoryFilters.size > 0 || priceFilter !== null || neighbourhoodFilters.size > 0;
+  const isAnyFilterActive = dateFilter !== null || filter19Plus || categoryFilters.size > 0 || priceFilter !== null || neighbourhoodFilters.size > 0 || happyHourChip;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -1289,6 +1404,14 @@ export default function DiscoverScreen() {
               </TouchableOpacity>
             ))}
             <TouchableOpacity
+              onPress={() => setHappyHourChip(v => !v)}
+              activeOpacity={0.8}
+              style={[styles.chip, happyHourChip && styles.chipActive]}
+            >
+              <Ionicons name="beer-outline" size={13} color={happyHourChip ? '#fff' : 'rgba(255,255,255,0.7)'} />
+              <Text style={[styles.chipText, happyHourChip && styles.chipTextActive]}>Happy Hour</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               onPress={() => setNeighbourhoodModalVisible(true)}
               activeOpacity={0.8}
               style={[styles.chip, neighbourhoodFilters.size > 0 && styles.chipActive]}
@@ -1305,6 +1428,7 @@ export default function DiscoverScreen() {
                   setCategoryFilters(new Set());
                   setPriceFilter(null);
                   setNeighbourhoodFilters(new Set());
+                  setHappyHourChip(false);
                 }}
                 activeOpacity={0.8}
                 style={[styles.chip, { borderColor: 'rgba(255,59,92,0.4)' }]}
@@ -1316,7 +1440,7 @@ export default function DiscoverScreen() {
           </ScrollView>
 
           {/* Happy Hour Now */}
-          {isHappyHourWindow && happyHourDeals.length > 0 && (
+          {(isHappyHourWindow || happyHourChip) && happyHourDeals.length > 0 && (
             <View style={styles.categorySection}>
               <View style={styles.categoryHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1348,7 +1472,6 @@ export default function DiscoverScreen() {
             <React.Fragment key={cat.key}>
               <CategoryRow
                 category={cat}
-                ionIcon={cat.ionIcon}
                 events={eventsByCategory(cat.key)}
                 onCardPress={e => {
                   if (__DEV__) console.log('[Discover] navigating to event id:', e.id, 'title:', e.title);
@@ -1360,7 +1483,7 @@ export default function DiscoverScreen() {
               />
             </React.Fragment>
           ))}
-          {filteredEvents.length === 0 && (
+          {rankedEvents.length === 0 && (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>No events found</Text>
             </View>
