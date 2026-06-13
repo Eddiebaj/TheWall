@@ -59,12 +59,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const fetchProfile = async (userId: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .single();
-    if (data) setProfile(data);
+    if (data) {
+      setProfile(data);
+    } else if (error && __DEV__) {
+      console.warn('[AuthContext] fetchProfile failed:', error.message);
+    }
+    // On network/RLS error keep existing profile state rather than nulling it out
   };
 
   const signInWithEmail = async (email: string) => {

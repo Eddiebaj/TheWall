@@ -1284,7 +1284,7 @@ export default function FeedScreen() {
                     <Text style={styles.emptyHint}>Invite friends to see what they're up to tonight</Text>
                     <TouchableOpacity
                       style={{ marginTop: 4, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, backgroundColor: '#FF3B5C' }}
-                      onPress={() => Share.share({ message: "Join me on affiche \u2014 discover what's happening in Toronto tonight. Download: https://apps.apple.com/app/affiche" })}
+                      onPress={() => Share.share({ message: "Join me on Affiche \u2014 discover what's happening in Toronto tonight. Download: https://apps.apple.com/app/affiche" })}
                     >
                       <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Invite friends</Text>
                     </TouchableOpacity>

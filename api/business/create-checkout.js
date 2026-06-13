@@ -32,24 +32,35 @@ async function stripePost(endpoint, params) {
 
 async function lookupVenueByName(venueName) {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return null;
-  const encoded = encodeURIComponent(`%${venueName.trim()}%`);
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/venues?name=ilike.${encoded}&select=id,name&limit=1`,
-    {
-      headers: {
-        apikey: SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-      },
-    }
+  const name = venueName.trim();
+  const headers = {
+    apikey: SUPABASE_SERVICE_KEY,
+    Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+  };
+
+  // 1. Try exact case-insensitive match first
+  const exactRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/venues?name=ilike.${encodeURIComponent(name)}&select=id,name&limit=1`,
+    { headers }
   );
-  if (!res.ok) return null;
-  const rows = await res.json();
+  if (exactRes.ok) {
+    const exactRows = await exactRes.json();
+    if (exactRows?.[0]) return exactRows[0];
+  }
+
+  // 2. Fall back to substring match
+  const fuzzyRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/venues?name=ilike.${encodeURIComponent(`%${name}%`)}&select=id,name&limit=1`,
+    { headers }
+  );
+  if (!fuzzyRes.ok) return null;
+  const rows = await fuzzyRes.json();
   return rows?.[0] ?? null;
 }
 
 module.exports = async function handler(req, res) {
   try {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN ?? 'https://the-wall-gamma.vercel.app');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 

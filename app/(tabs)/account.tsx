@@ -984,7 +984,7 @@ export default function AccountScreen() {
         <SectionLabel label="Support" />
         <SettingsGroup>
           <SettingsRow
-            label="Rate affiche"
+            label="Rate Affiche"
             icon="star"
             iconBg="#D97706"
             onPress={() => {
@@ -1018,6 +1018,18 @@ export default function AccountScreen() {
         {/* ACCOUNT */}
         <SectionLabel label="Account" />
         <SettingsGroup>
+          {!!STRIPE_LINKS.billing_portal && (
+            <>
+              <SettingsRow
+                label="Manage Subscription"
+                icon="card"
+                iconBg="#16A34A"
+                onPress={() => Linking.openURL(STRIPE_LINKS.billing_portal).catch(() => {})}
+                right={<Ionicons name="open-outline" size={16} color="rgba(255,255,255,0.2)" />}
+              />
+              <RowDivider />
+            </>
+          )}
           <SettingsRow
             label="Sign Out"
             icon="log-out"
@@ -1164,7 +1176,7 @@ export default function AccountScreen() {
                         Alert.alert('Report submitted', "We'll review it shortly.");
                       } catch (e) {
                         if (__DEV__) console.warn('bug report failed:', e);
-                        const subject = encodeURIComponent('affiche Bug Report');
+                        const subject = encodeURIComponent('Affiche Bug Report');
                         const body = encodeURIComponent(`${bugMessage.trim()}\n\n---\nScreen: ${bugScreen || 'N/A'}\nDevice: ${Platform.OS} ${Platform.Version}\nDate: ${new Date().toLocaleDateString('en-CA')}\n`);
                         Linking.openURL(`mailto:support@affiche.app?subject=${subject}&body=${body}`).catch(() => Alert.alert(t('Could not send report', "Impossible d'envoyer le rapport")));
                         setBugSent(true);

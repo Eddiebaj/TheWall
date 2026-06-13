@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { SK_INVITED_BY, SK_PROFILE_SETUP_DONE } from '../lib/storageKeys';
+import { SK_INVITED_BY } from '../lib/storageKeys';
 
 export default function ProfileSetupScreen() {
   const { profile, updateProfile } = useAuth();
@@ -79,20 +79,30 @@ export default function ProfileSetupScreen() {
         Alert.alert('Error', error.message);
       }
     } else {
-      await AsyncStorage.setItem(SK_PROFILE_SETUP_DONE, 'true');
+      // SK_PROFILE_SETUP_DONE is written by neighbourhood.tsx at the end of the full
+      // onboarding flow (alongside SK_ONBOARDING_COMPLETE), ensuring users reach the
+      // interests and neighbourhood screens before being marked as fully onboarded.
       // Auto-send friend request to inviter if present
       try {
         const inviterId = await AsyncStorage.getItem(SK_INVITED_BY);
         if (inviterId) {
           const { data: { user } } = await supabase.auth.getUser();
           if (user && inviterId !== user.id) {
-            await supabase.from('friendships').insert({
-              requester_id: user.id,
-              addressee_id: inviterId,
-              status: 'pending',
-            });
-            await AsyncStorage.removeItem(SK_INVITED_BY);
+            // Verify the inviter is a real user before sending the request
+            const { data: inviterProfile } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('id', inviterId)
+              .maybeSingle();
+            if (inviterProfile) {
+              await supabase.from('friendships').insert({
+                requester_id: user.id,
+                addressee_id: inviterId,
+                status: 'pending',
+              });
+            }
           }
+          await AsyncStorage.removeItem(SK_INVITED_BY);
         }
       } catch {
         // Non-fatal: ignore errors silently
@@ -110,9 +120,24 @@ export default function ProfileSetupScreen() {
         <Text style={{ fontSize: 28, fontWeight: '700', color: '#fff', marginBottom: 8 }}>
           Set up your profile
         </Text>
-        <Text style={{ fontSize: 16, color: '#999', marginBottom: 40, lineHeight: 24 }}>
-          This is how your friends will find you on affiche.
+        <Text style={{ fontSize: 16, color: '#999', marginBottom: 32, lineHeight: 24 }}>
+          This is how your friends will find you on Affiche.
         </Text>
+
+        {/* Initials avatar preview */}
+        {(() => {
+          const initial = (displayName || username || '').trim()[0]?.toUpperCase() || '?';
+          const colors = ['#5856D6','#FF2D55','#FF9500','#34C759','#007AFF','#AF52DE','#FF3B30'];
+          const idx = initial.charCodeAt(0) % colors.length;
+          return (
+            <View style={{ alignItems: 'center', marginBottom: 32 }}>
+              <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: colors[idx], alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 30, fontWeight: '700', color: '#fff' }}>{initial}</Text>
+              </View>
+              <Text style={{ fontSize: 12, color: '#555', marginTop: 8 }}>Your avatar</Text>
+            </View>
+          );
+        })()}
 
         {/* Username */}
         <Text style={{ fontSize: 13, fontWeight: '700', color: '#666', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>

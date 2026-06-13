@@ -124,7 +124,14 @@ export default function BusinessSignupScreen() {
       if (!res.ok || !json.url) throw new Error(json.error ?? 'Failed to create checkout session.');
       await Linking.openURL(json.url);
     } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Something went wrong. Please try again.');
+      const raw = e?.message ?? '';
+      const isNetwork = raw.toLowerCase().includes('network') || raw.toLowerCase().includes('fetch') || raw === 'Failed to fetch';
+      Alert.alert(
+        'Error',
+        isNetwork
+          ? 'Network error — check your connection and try again.'
+          : (raw || 'Something went wrong. Email hello@affiche.app if this persists.'),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -166,7 +173,7 @@ export default function BusinessSignupScreen() {
               List Your Venue
             </Text>
             <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', lineHeight: 20 }}>
-              Get featured on affiche and reach Toronto's nightlife audience.
+              Get featured on Affiche and reach Toronto's nightlife audience.
             </Text>
           </View>
 

@@ -41,7 +41,7 @@ interface ProductSpec {
 const PRODUCTS: ProductSpec[] = [
   {
     key: 'STRIPE_PRICE_BASIC_MONTHLY',
-    name: 'affiche Basic',
+    name: 'Affiche Basic',
     description: 'Featured badge on map, algorithm priority boost',
     amount: 4900,
     currency: 'cad',
@@ -49,7 +49,7 @@ const PRODUCTS: ProductSpec[] = [
   },
   {
     key: 'STRIPE_PRICE_PRO_MONTHLY',
-    name: 'affiche Pro',
+    name: 'Affiche Pro',
     description: 'Basic + analytics dashboard',
     amount: 9900,
     currency: 'cad',
@@ -57,7 +57,7 @@ const PRODUCTS: ProductSpec[] = [
   },
   {
     key: 'STRIPE_PRICE_FEATURED_MONTHLY',
-    name: 'affiche Featured',
+    name: 'Affiche Featured',
     description: 'Pro + stronger algorithm boost + Featured badge on event cards',
     amount: 14900,
     currency: 'cad',
@@ -65,7 +65,7 @@ const PRODUCTS: ProductSpec[] = [
   },
   {
     key: 'STRIPE_PRICE_ORGANIZER_MONTHLY',
-    name: 'affiche Organizer',
+    name: 'Affiche Organizer',
     description: 'Post unlimited events, Organizer badge on all your events',
     amount: 1999,
     currency: 'cad',

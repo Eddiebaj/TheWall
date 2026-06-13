@@ -28,25 +28,25 @@ export default function TermsOfService() {
 
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.brand}>affiche</Text>
+          <Text style={styles.brand}>Affiche</Text>
           <Text style={styles.title}>Terms of Service</Text>
           <Text style={styles.updated}>Last updated: May 26, 2026</Text>
         </View>
 
         <Section title="1. Acceptance of Terms">
-          <P>By creating an account or using affiche, you agree to these Terms of Service. If you do not agree, do not use the app.</P>
+          <P>By creating an account or using Affiche, you agree to these Terms of Service. If you do not agree, do not use the app.</P>
         </Section>
 
         <Section title="2. Account Terms">
-          <Bullet>You must be at least 13 years old to use affiche.</Bullet>
+          <Bullet>You must be at least 13 years old to use Affiche.</Bullet>
           <Bullet>You are responsible for maintaining the security of your account and password.</Bullet>
           <Bullet>You are responsible for all activity that occurs under your account.</Bullet>
-          <Bullet>You must not use affiche for any illegal or unauthorized purpose.</Bullet>
-          <Bullet>You must not, in your use of affiche, violate any laws in your jurisdiction.</Bullet>
+          <Bullet>You must not use Affiche for any illegal or unauthorized purpose.</Bullet>
+          <Bullet>You must not, in your use of Affiche, violate any laws in your jurisdiction.</Bullet>
         </Section>
 
         <Section title="3. Event Content">
-          <P>As an event organizer or user, you agree that content you post on affiche:</P>
+          <P>As an event organizer or user, you agree that content you post on Affiche:</P>
           <Bullet>Must be accurate and not misleading.</Bullet>
           <Bullet>Must not infringe on the intellectual property rights of others.</Bullet>
           <Bullet>Must not contain hate speech, harassment, or content that promotes violence.</Bullet>
@@ -55,19 +55,19 @@ export default function TermsOfService() {
         </Section>
 
         <Section title="4. Payments and Ticketing">
-          <P>Certain features of affiche may require payment. By making a purchase through affiche you agree that:</P>
+          <P>Certain features of Affiche may require payment. By making a purchase through Affiche you agree that:</P>
           <Bullet>All fees are in Canadian dollars unless stated otherwise.</Bullet>
           <Bullet>You authorize us to charge your payment method for any fees incurred.</Bullet>
-          <Bullet>Refund policies for ticketed events are set by the event organizer, not affiche.</Bullet>
-          <Bullet>affiche is not responsible for events that are cancelled, postponed, or changed by organizers.</Bullet>
+          <Bullet>Refund policies for ticketed events are set by the event organizer, not Affiche.</Bullet>
+          <Bullet>Affiche is not responsible for events that are cancelled, postponed, or changed by organizers.</Bullet>
         </Section>
 
         <Section title="5. Limitation of Liability">
           <P>
-            To the maximum extent permitted by applicable law, affiche and its officers, directors, employees, and agents shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the service.
+            To the maximum extent permitted by applicable law, Affiche and its officers, directors, employees, and agents shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the service.
           </P>
           <P>
-            affiche does not endorse, guarantee, or take responsibility for any events listed on the platform. Attendance at events is at your own risk.
+            Affiche does not endorse, guarantee, or take responsibility for any events listed on the platform. Attendance at events is at your own risk.
           </P>
         </Section>
 
@@ -79,7 +79,7 @@ export default function TermsOfService() {
 
         <Section title="7. Changes to These Terms">
           <P>
-            We reserve the right to modify these terms at any time. We will notify you of material changes via email or in-app notice. Continued use of affiche after changes take effect constitutes your acceptance of the updated terms.
+            We reserve the right to modify these terms at any time. We will notify you of material changes via email or in-app notice. Continued use of Affiche after changes take effect constitutes your acceptance of the updated terms.
           </P>
         </Section>
 

@@ -13,7 +13,7 @@ const { width } = Dimensions.get('window');
 
 const SLIDES = [
   {
-    headline: 'affiche',
+    headline: 'Affiche',
     subtext: 'Discover what\'s happening tonight in Toronto. Real venues, real events, updated daily.',
     icon: 'sparkles' as const,
   },

@@ -13,7 +13,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
-import { SK_ONBOARDING_COMPLETE } from '../../lib/storageKeys';
+import { SK_ONBOARDING_COMPLETE, SK_PROFILE_SETUP_DONE } from '../../lib/storageKeys';
 
 const NEIGHBOURHOODS = [
   'Queen West',
@@ -40,6 +40,7 @@ const NEIGHBOURHOODS = [
 
 const finishOnboarding = async () => {
   await AsyncStorage.setItem(SK_ONBOARDING_COMPLETE, 'true');
+  await AsyncStorage.setItem(SK_PROFILE_SETUP_DONE, 'true');
   router.replace('/(tabs)/index' as any);
 };
 

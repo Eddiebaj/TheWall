@@ -3,8 +3,8 @@ const HTML = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Get Listed on affiche</title>
-  <meta name="description" content="List your venue on affiche and reach Toronto's nightlife crowd." />
+  <title>Get Listed on Affiche</title>
+  <meta name="description" content="List your venue on Affiche and reach Toronto's nightlife crowd." />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -348,7 +348,7 @@ const HTML = `<!DOCTYPE html>
   <nav class="nav">
     <div class="container">
       <div class="nav-inner">
-        <span class="nav-brand">affiche</span>
+        <span class="nav-brand">Affiche</span>
         <a href="https://eddiebaj.github.io/thewall-business" class="nav-back">Back to overview</a>
       </div>
     </div>
@@ -396,9 +396,8 @@ const HTML = `<!DOCTYPE html>
             <p class="plan-name">Basic</p>
             <p class="plan-price">$49<span>/mo</span></p>
             <ul class="plan-features">
-              <li>1 venue listing</li>
-              <li>Event posting</li>
-              <li>Basic analytics</li>
+              <li>Featured badge on map</li>
+              <li>Algorithm priority boost</li>
             </ul>
           </label>
 
@@ -408,10 +407,9 @@ const HTML = `<!DOCTYPE html>
             <p class="plan-name">Pro</p>
             <p class="plan-price">$99<span>/mo</span></p>
             <ul class="plan-features">
-              <li>3 venue listings</li>
-              <li>Priority placement</li>
-              <li>Full analytics</li>
-              <li>Social highlights</li>
+              <li>Everything in Basic</li>
+              <li>Analytics dashboard</li>
+              <li>RSVP, saves and views data</li>
             </ul>
           </label>
 
@@ -420,11 +418,9 @@ const HTML = `<!DOCTYPE html>
             <p class="plan-name">Featured</p>
             <p class="plan-price">$149<span>/mo</span></p>
             <ul class="plan-features">
-              <li>Unlimited listings</li>
-              <li>Top of feed placement</li>
-              <li>Full analytics</li>
-              <li>Dedicated support</li>
-              <li>Co-marketing posts</li>
+              <li>Everything in Pro</li>
+              <li>Strongest algorithm boost</li>
+              <li>Featured badge on event cards</li>
             </ul>
           </label>
 

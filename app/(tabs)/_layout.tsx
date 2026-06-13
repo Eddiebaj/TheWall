@@ -29,11 +29,13 @@ function useFriendsBadge(userId: string | undefined): number {
       let unreadCount = 0;
       if (convs?.length) {
         const convIds = convs.map((c: any) => c.conversation_id);
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
         const { data: msgs } = await supabase
           .from('messages')
           .select('id')
           .in('conversation_id', convIds)
-          .neq('sender_id', userId);
+          .neq('sender_id', userId)
+          .gte('created_at', thirtyDaysAgo);
 
         if (msgs?.length) {
           const msgIds = msgs.map((m: any) => m.id);
@@ -160,8 +162,7 @@ function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen name="search" options={{ href: null }} />
-      <Tabs.Screen name="account" options={{ href: null }} />
+<Tabs.Screen name="account" options={{ href: null }} />
       <Tabs.Screen name="profile" options={{ href: null }} />
     </Tabs>
   );

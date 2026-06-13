@@ -412,7 +412,7 @@ export default function FriendsScreen() {
 
   const handleShareInvite = async () => {
     await Share.share({
-      message: "Join me on affiche \u2014 see what's happening in Toronto tonight. https://apps.apple.com/app/affiche",
+      message: "Join me on Affiche \u2014 see what's happening in Toronto tonight. https://apps.apple.com/app/affiche",
     });
   };
 

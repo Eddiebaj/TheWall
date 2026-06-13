@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "affiche",
+    "name": "Affiche",
     "slug": "thewall",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -23,9 +23,9 @@
           "NSAllowsArbitraryLoads": false
         },
         "ITSAppUsesNonExemptEncryption": false,
-        "NSPhotoLibraryUsageDescription": "affiche uses your photo library to let you add cover images to events, upload business photos, and submit community deals.",
-        "NSPhotoLibraryAddUsageDescription": "affiche may save event images to your photo library.",
-        "NSCameraUsageDescription": "affiche uses your camera to take photos for events, business profiles, and community deals.",
+        "NSPhotoLibraryUsageDescription": "Affiche uses your photo library to let you add cover images to events, upload business photos, and submit community deals.",
+        "NSPhotoLibraryAddUsageDescription": "Affiche may save event images to your photo library.",
+        "NSCameraUsageDescription": "Affiche uses your camera to take photos for events, business profiles, and community deals.",
         "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to use speech recognition.",
         "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to use the microphone."
       }
@@ -75,7 +75,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "affiche uses your location to show events and venues near you."
+          "locationWhenInUsePermission": "Affiche uses your location to show events and venues near you."
         }
       ],
       "expo-image-picker",

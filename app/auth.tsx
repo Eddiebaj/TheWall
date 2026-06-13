@@ -43,7 +43,7 @@ export default function AuthScreen() {
   const [forgotLoading, setForgotLoading] = useState(false);
 
   // Phone state
-  const [countryCode] = useState('+1');
+  const [countryCode, setCountryCode] = useState('+1');
   const [phone, setPhone] = useState('');
   const [phoneLoading, setPhoneLoading] = useState(false);
   const [phoneSent, setPhoneSent] = useState(false);
@@ -372,7 +372,7 @@ export default function AuthScreen() {
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, paddingTop: insets.top + 32, paddingBottom: insets.bottom + 32 }}>
         {/* Logo */}
         <Text style={{ fontSize: 40, fontWeight: '800', color: '#fff', letterSpacing: -1, marginBottom: 8 }}>
-          affiche
+          Affiche
         </Text>
         <Text style={{ fontSize: 16, color: '#999', marginBottom: 40 }}>
           Toronto's social event wall
@@ -413,7 +413,7 @@ export default function AuthScreen() {
             </Text>
             <Text style={{ fontSize: 15, color: '#666', marginBottom: 24, alignSelf: 'flex-start' }}>
               {usePassword
-                ? (authMode === 'signin' ? 'Welcome back.' : 'Join your friends on affiche.')
+                ? (authMode === 'signin' ? 'Welcome back.' : 'Join your friends on Affiche.')
                 : 'Enter your email and we\'ll send you a code.'}
             </Text>
 
@@ -577,17 +577,26 @@ export default function AuthScreen() {
             </Text>
 
             <View style={{ flexDirection: 'row', width: '100%', marginBottom: 12, gap: 8 }}>
-              <View style={{
-                backgroundColor: '#1a1a1a',
-                borderWidth: 1,
-                borderColor: '#2a2a2a',
-                borderRadius: 14,
-                paddingHorizontal: 14,
-                paddingVertical: 14,
-                justifyContent: 'center',
-              }}>
-                <Text style={{ fontSize: 16, color: '#fff', fontWeight: '600' }}>{countryCode}</Text>
-              </View>
+              <TextInput
+                style={{
+                  backgroundColor: '#1a1a1a',
+                  borderWidth: 1,
+                  borderColor: '#2a2a2a',
+                  borderRadius: 14,
+                  paddingHorizontal: 14,
+                  paddingVertical: 14,
+                  fontSize: 16,
+                  color: '#fff',
+                  fontWeight: '600',
+                  width: 72,
+                  textAlign: 'center',
+                }}
+                value={countryCode}
+                onChangeText={v => setCountryCode(v.startsWith('+') ? v : `+${v}`)}
+                keyboardType="phone-pad"
+                maxLength={5}
+                returnKeyType="next"
+              />
               <TextInput
                 style={{
                   flex: 1,

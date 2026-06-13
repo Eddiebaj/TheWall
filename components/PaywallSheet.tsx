@@ -138,7 +138,7 @@ export default function PaywallSheet({ visible, onClose, onDismiss, onSuccess, f
               <Ionicons name="star" size={28} color={colours.accent} />
             </View>
             <Text style={{ fontSize: fonts.xl, fontWeight: '800', color: colours.text, textAlign: 'center' }}>
-              {t('affiche Premium', 'affiche Premium')}
+              {t('Affiche Premium', 'Affiche Premium')}
             </Text>
             {featureHint ? (
               <Text style={{ fontSize: fonts.sm, color: colours.muted, textAlign: 'center', marginTop: 4 }}>
@@ -146,7 +146,7 @@ export default function PaywallSheet({ visible, onClose, onDismiss, onSuccess, f
               </Text>
             ) : (
               <Text style={{ fontSize: fonts.sm, color: colours.muted, textAlign: 'center', marginTop: 4 }}>
-                {t('Unlock the full affiche experience', 'Debloquez l\'experience affiche complete')}
+                {t('Unlock the full Affiche experience', 'Debloquez l\'experience Affiche complete')}
               </Text>
             )}
           </View>

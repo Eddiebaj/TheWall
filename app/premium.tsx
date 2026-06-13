@@ -30,10 +30,10 @@ export default function PremiumScreen() {
             <Ionicons name="star" size={36} color="#e8a020" />
           </View>
           <Text style={{ fontSize: 28, fontWeight: '800', color: colours.text, textAlign: 'center', marginBottom: 8 }}>
-            affiche Premium
+            Affiche Premium
           </Text>
           <Text style={{ fontSize: 15, color: colours.muted, textAlign: 'center', lineHeight: 22 }}>
-            Unlock the full affiche experience and never miss what Toronto has to offer.
+            Unlock the full Affiche experience and never miss what Toronto has to offer.
           </Text>
         </View>
 

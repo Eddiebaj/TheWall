@@ -110,7 +110,7 @@ export default function BusinessSetupScreen() {
         <View style={{ marginBottom: 32 }}>
           <Text style={{ fontSize: 28, fontWeight: '800', color: colours.text, marginBottom: 6 }}>Business Setup</Text>
           <Text style={{ fontSize: 14, color: colours.muted, lineHeight: 20 }}>
-            Link your affiche business subscription to your account to access the venue dashboard.
+            Link your Affiche business subscription to your account to access the venue dashboard.
           </Text>
         </View>
 

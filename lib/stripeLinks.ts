@@ -13,4 +13,7 @@ export const STRIPE_LINKS = {
   // User premium
   premium_monthly: process.env.EXPO_PUBLIC_STRIPE_LINK_PREMIUM_MONTHLY ?? '',
   premium_annual:  process.env.EXPO_PUBLIC_STRIPE_LINK_PREMIUM_ANNUAL  ?? '',
+
+  // Billing portal (manage existing subscription)
+  billing_portal: process.env.EXPO_PUBLIC_STRIPE_BILLING_PORTAL ?? '',
 };

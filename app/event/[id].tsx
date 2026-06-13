@@ -492,7 +492,7 @@ export default function EventDetailScreen() {
       }
     } catch (_) {}
     // Final fallback: text share
-    Share.share({ message: `Check out ${event.title} on affiche: affiche://event/${event.id}` });
+    Share.share({ message: `Check out ${event.title} on Affiche: affiche://event/${event.id}` });
   };
 
   const handleAddToCalendar = () => {
@@ -542,7 +542,7 @@ export default function EventDetailScreen() {
       // fall through to text share
     }
     Share.share({
-      message: `Check out ${event.title} at ${venueName} on ${dateStr} - open in affiche: affiche://event/${event.id}`,
+      message: `Check out ${event.title} at ${venueName} on ${dateStr} - open in Affiche: affiche://event/${event.id}`,
     });
   };
 
@@ -1284,7 +1284,7 @@ export default function EventDetailScreen() {
           }} />
           {/* affiche wordmark */}
           <Text style={{ position: 'absolute', top: 80, left: 80, fontSize: 48, fontWeight: '800', color: '#fff', letterSpacing: -1 }}>
-            affiche
+            Affiche
           </Text>
           {/* Red accent line */}
           <View style={{ position: 'absolute', top: 840, left: 80, width: 120, height: 5, backgroundColor: '#FF3B5C', borderRadius: 3 }} />

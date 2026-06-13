@@ -8,6 +8,17 @@ import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 
+// ⚠️  RLS NOTE: The queries below rely on client-side isAdmin guard only.
+// Add these Supabase policies so the DB rejects requests from non-admins at the row level:
+//
+//   create policy "Admin only" on public.sponsored_venues for all
+//     using (exists (select 1 from profiles where id = auth.uid() and is_admin = true));
+//   create policy "Admin only" on public.business_profiles for all
+//     using (exists (select 1 from profiles where id = auth.uid() and is_admin = true));
+//   create policy "Admin only" on public.organizer_requests for all
+//     using (exists (select 1 from profiles where id = auth.uid() and is_admin = true));
+//
+// Run these in the Supabase SQL editor before launching.
 export default function AdminScreen() {
   const { colours } = useApp();
   const { isAdmin, loading } = useAuth();
@@ -64,6 +75,21 @@ export default function AdminScreen() {
       return;
     }
     setSeedingPoster(true);
+    // Guard against duplicate posts for the same venue + date
+    let dupQuery = supabase
+      .from('city_board_posts')
+      .select('id')
+      .eq('venue_name', seedVenueName);
+    if (seedEventDate) dupQuery = dupQuery.eq('event_date', seedEventDate);
+    const { data: existing } = await dupQuery.maybeSingle();
+    if (existing) {
+      Alert.alert(
+        'Duplicate',
+        `A post for "${seedVenueName}"${seedEventDate ? ` on ${seedEventDate}` : ''} already exists.`,
+      );
+      setSeedingPoster(false);
+      return;
+    }
     const { data: { user } } = await supabase.auth.getUser();
     await supabase.from('city_board_posts').insert({
       venue_name: seedVenueName,
@@ -77,7 +103,7 @@ export default function AdminScreen() {
     setSeedVenueName(''); setSeedEventTitle(''); setSeedEventDate(''); setSeedPosterUrl('');
     await loadData();
     setSeedingPoster(false);
-    Alert.alert('Posted!', 'Poster is live on affiche.');
+    Alert.alert('Posted!', 'Poster is live on Affiche.');
   };
 
   const toggleSponsored = async (id: string, current: boolean) => {
@@ -250,18 +276,18 @@ export default function AdminScreen() {
 
           {/* Seed affiche */}
           <View style={{ gap: 12 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>Seed affiche</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colours.muted, textTransform: 'uppercase', letterSpacing: 1 }}>Seed Affiche</Text>
             <TextInput value={seedVenueName} onChangeText={setSeedVenueName} placeholder="Venue name" placeholderTextColor={colours.muted} style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 10, padding: 12, color: colours.text, backgroundColor: colours.surface }} />
             <TextInput value={seedEventTitle} onChangeText={setSeedEventTitle} placeholder="Event title (optional)" placeholderTextColor={colours.muted} style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 10, padding: 12, color: colours.text, backgroundColor: colours.surface }} />
             <TextInput value={seedEventDate} onChangeText={setSeedEventDate} placeholder="Date e.g. May 16, 2026" placeholderTextColor={colours.muted} style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 10, padding: 12, color: colours.text, backgroundColor: colours.surface }} />
             <TextInput value={seedPosterUrl} onChangeText={setSeedPosterUrl} placeholder="Poster image URL" placeholderTextColor={colours.muted} style={{ borderWidth: 1, borderColor: colours.border, borderRadius: 10, padding: 12, color: colours.text, backgroundColor: colours.surface }} />
             {seedPosterUrl ? <Image source={{ uri: seedPosterUrl }} style={{ width: '100%', height: 160, borderRadius: 10 }} resizeMode="cover" /> : null}
             <TouchableOpacity onPress={seedPoster} disabled={seedingPoster} style={{ backgroundColor: colours.accent, borderRadius: 10, paddingVertical: 12, alignItems: 'center' }}>
-              {seedingPoster ? <ActivityIndicator color="white" /> : <Text style={{ fontSize: 14, fontWeight: '700', color: 'white' }}>Post to affiche</Text>}
+              {seedingPoster ? <ActivityIndicator color="white" /> : <Text style={{ fontSize: 14, fontWeight: '700', color: 'white' }}>Post to Affiche</Text>}
             </TouchableOpacity>
             {wallPosts.length > 0 && (
               <View style={{ gap: 8 }}>
-                <Text style={{ fontSize: 12, color: colours.muted }}>{wallPosts.length} posts on affiche</Text>
+                <Text style={{ fontSize: 12, color: colours.muted }}>{wallPosts.length} posts on Affiche</Text>
                 {wallPosts.slice(0, 5).map(p => (
                   <View key={p.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 10, backgroundColor: colours.surface, borderWidth: 1, borderColor: colours.border }}>
                     {p.poster_url && <Image source={{ uri: p.poster_url }} style={{ width: 40, height: 40, borderRadius: 6 }} />}

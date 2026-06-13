@@ -242,6 +242,17 @@ export default function CreateEventScreen() {
     setPublishing(true);
 
     try {
+      // Validate date is not in the past
+      const todayMidnight = new Date();
+      todayMidnight.setHours(0, 0, 0, 0);
+      const selectedDay = new Date(eventDate);
+      selectedDay.setHours(0, 0, 0, 0);
+      if (selectedDay < todayMidnight) {
+        Alert.alert('Invalid date', 'Event date must be today or in the future.');
+        setPublishing(false);
+        return;
+      }
+
       // Rate limit: free users may create 1 event per week; organizers and business users are unlimited
       const { data: prof } = await supabase
         .from('profiles')
@@ -279,10 +290,10 @@ export default function CreateEventScreen() {
         const fileName = `${user.id}/${Date.now()}.${ext}`;
         const response = await fetch(coverImageUri);
         const blob = await response.blob();
-        const arrayBuffer = await blob.arrayBuffer();
+        // Pass the Blob directly — avoids blob.arrayBuffer() which is unreliable on Hermes
         const { error: uploadError } = await supabase.storage
           .from('event-images')
-          .upload(fileName, arrayBuffer, { contentType: `image/${ext}`, upsert: true });
+          .upload(fileName, blob, { contentType: `image/${ext === 'jpg' ? 'jpeg' : ext}`, upsert: true });
 
         if (!uploadError) {
           const { data: urlData } = supabase.storage.from('event-images').getPublicUrl(fileName);
@@ -310,6 +321,7 @@ export default function CreateEventScreen() {
 
       if (useCustomLocation) {
         row.venue_id = null;
+        row.custom_address = customAddress.trim() || null;
       } else if (selectedVenue) {
         row.venue_id = selectedVenue.id;
       }
