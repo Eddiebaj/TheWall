@@ -524,12 +524,11 @@ export default function BusinessDashboardScreen() {
             </View>
           )}
 
-          {sub.stripe_customer_id ? (
+          {sub.stripe_customer_id && (process.env.EXPO_PUBLIC_STRIPE_BILLING_PORTAL ?? '').trim() ? (
             <TouchableOpacity
               onPress={() => {
                 const portalUrl = (process.env.EXPO_PUBLIC_STRIPE_BILLING_PORTAL ?? '').trim();
-                const url = portalUrl || 'https://billing.stripe.com/p/login/';
-                Linking.openURL(url).catch(() =>
+                Linking.openURL(portalUrl).catch(() =>
                   Alert.alert('Error', 'Could not open the billing portal. Email support@affiche.app for help.')
                 );
               }}
