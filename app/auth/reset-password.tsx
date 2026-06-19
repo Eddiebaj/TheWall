@@ -11,13 +11,45 @@ import { supabase } from '../../lib/supabase';
 export default function ResetPasswordScreen() {
   const router = useRouter();
   const confirmRef = useRef<TextInput>(null);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const init = async () => {
+      // On web, Supabase appends the recovery token as a URL hash fragment.
+      // detectSessionInUrl is false (needed for native), so we must handle it manually.
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.hash) {
+        const params = new URLSearchParams(window.location.hash.slice(1));
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        const type = params.get('type');
+
+        if (type === 'recovery' && accessToken && refreshToken) {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (error) {
+            Alert.alert('Invalid or expired link', 'Please request a new password reset email.');
+            router.replace('/auth' as any);
+            return;
+          }
+          // Clean the hash from the URL without reloading
+          history.replaceState(null, '', window.location.pathname);
+          setReady(true);
+          return;
+        }
+      }
+
+      // Native flow: session was already set by the deep-link callback
+      const { data: { session } } = await supabase.auth.getSession();
       if (!session || session.user.aud !== 'authenticated') {
         router.replace('/auth' as any);
+        return;
       }
-    });
+      setReady(true);
+    };
+
+    init();
   }, []);
 
   const [password, setPassword] = useState('');
@@ -45,6 +77,14 @@ export default function ResetPasswordScreen() {
   };
 
   const insets = useSafeAreaInsets();
+
+  if (!ready) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#0a0a0a', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator color="#FF3B5C" />
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView

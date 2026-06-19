@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import { resetBusinessRedirect } from './_layout';
 
 const TIER_COLOURS: Record<string, string> = {
   basic: '#8888aa',
@@ -439,6 +440,12 @@ export default function BusinessDashboardScreen() {
     ]);
   };
 
+  const handleLogout = async () => {
+    resetBusinessRedirect();
+    await supabase.auth.signOut();
+    router.replace('/auth');
+  };
+
   const tierColour = TIER_COLOURS[sub.plan ?? 'basic'];
   const isPro = sub.plan === 'pro' || sub.plan === 'featured';
 
@@ -473,11 +480,12 @@ export default function BusinessDashboardScreen() {
         {/* Header */}
         <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
           <TouchableOpacity
-            onPress={() => router.back()}
-            style={{ marginBottom: 16, width: 40, height: 40, borderRadius: 20, backgroundColor: colours.surface, alignItems: 'center', justifyContent: 'center' }}
+            onPress={handleLogout}
+            style={{ marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-end' }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="arrow-back" size={20} color={colours.text} />
+            <Ionicons name="log-out-outline" size={18} color={colours.muted} />
+            <Text style={{ fontSize: 13, color: colours.muted, fontWeight: '600' }}>Sign out</Text>
           </TouchableOpacity>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>

@@ -127,10 +127,19 @@ function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
   );
 }
 
+// Module-level guard: prevents the business-dashboard redirect from firing more than
+// once per app session. Only counts after the nav tree is mounted (!showSplash).
+let businessRedirectDone = false;
+
+export function resetBusinessRedirect() {
+  businessRedirectDone = false;
+}
+
 function RootNav() {
   const [showSplash, setShowSplash] = useState(true);
   const [destination, setDestination] = useState<'onboarding' | 'tabs' | null>(null);
   const [claimState, setClaimState] = useState<'idle' | 'checking' | 'done'>('idle');
+  const [isBusinessUser, setIsBusinessUser] = useState(false);
   const { session, loading: authLoading } = useAuth();
 
   // Declare ref BEFORE the useEffect that assigns to it
@@ -238,7 +247,11 @@ function RootNav() {
           .select('is_business')
           .eq('id', session.user.id)
           .single();
-        if (prof?.is_business) return; // (1) already claimed — safe no-op
+        if (prof?.is_business) {
+          if (__DEV__) console.log('[RootNav] already business — setting isBusinessUser');
+          setIsBusinessUser(true);
+          return;
+        }
 
         const { data: subRow } = await supabase
           .from('business_subscriptions')
@@ -267,9 +280,8 @@ function RootNav() {
           business_name: venueRow?.name ?? '',
         }, { onConflict: 'user_id' });
 
-        if (__DEV__) console.log('[RootNav] claim complete — routing to /business-dashboard');
-        navigationDoneRef.current = true; // (3) prevents routing effect from also navigating
-        router.replace('/business-dashboard' as any);
+        if (__DEV__) console.log('[RootNav] claim complete — setting isBusinessUser');
+        setIsBusinessUser(true);
       } finally {
         setClaimState('done');
       }
@@ -289,6 +301,14 @@ function RootNav() {
         setTimeout(() => {
           router.replace('/auth');
         }, 0);
+      } else if (isBusinessUser) {
+        // Nav tree is mounted and user is confirmed business — redirect once.
+        if (!businessRedirectDone) {
+          businessRedirectDone = true;
+          navigationDoneRef.current = true;
+          if (__DEV__) console.log('[RootNav] isBusinessUser — routing to /business-dashboard');
+          router.replace('/business-dashboard' as any);
+        }
       } else {
         (async () => {
           // Show onboarding slides if user hasn't seen them yet
@@ -336,7 +356,7 @@ function RootNav() {
         })();
       }
     }
-  }, [showSplash, destination, authLoading, session, claimState]);
+  }, [showSplash, destination, authLoading, session, claimState, isBusinessUser]);
 
   if (showSplash) {
     return <AnimatedSplash onFinish={handleSplashFinish} />;
@@ -376,9 +396,10 @@ function RootNav() {
   );
 }
 
-export default function RootLayout() {
+const POSTHOG_KEY = process.env.EXPO_PUBLIC_POSTHOG_API_KEY;
+
+function AppTree() {
   return (
-    <PostHogProvider apiKey={process.env.EXPO_PUBLIC_POSTHOG_API_KEY ?? ''} options={{ host: 'https://us.i.posthog.com' }}>
     <AuthProvider>
       <SafeAreaProvider>
         <RootErrorBoundary>
@@ -391,6 +412,16 @@ export default function RootLayout() {
         </RootErrorBoundary>
       </SafeAreaProvider>
     </AuthProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <PostHogProvider
+      apiKey={POSTHOG_KEY ?? 'disabled'}
+      options={{ host: 'https://us.i.posthog.com', disabled: !POSTHOG_KEY }}
+    >
+      <AppTree />
     </PostHogProvider>
   );
 }
