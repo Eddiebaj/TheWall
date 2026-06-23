@@ -59,23 +59,28 @@ export default function AuthScreen() {
       return;
     }
     setPasswordLoading(true);
-    const { data, error } = await supabase.auth.signUp({
-      email: email.trim().toLowerCase(),
-      password,
-    });
-    setPasswordLoading(false);
-    if (error) {
-      Alert.alert('Sign up failed', error.message);
-    } else if (data.session) {
-      // Email confirmation disabled — user is signed in immediately
-      capture('account_created');
-      router.replace('/profile-setup' as any);
-    } else {
-      // Email confirmation required
-      Alert.alert(
-        'Check your email',
-        `We sent a confirmation link to ${email.trim().toLowerCase()}. Click it to activate your account.`,
-      );
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      if (error) {
+        Alert.alert('Sign up failed', error.message);
+      } else if (data.session) {
+        // Email confirmation disabled — user is signed in immediately
+        capture('account_created');
+        router.replace('/profile-setup' as any);
+      } else {
+        // Email confirmation required
+        Alert.alert(
+          'Check your email',
+          `We sent a confirmation link to ${email.trim().toLowerCase()}. Click it to activate your account.`,
+        );
+      }
+    } catch (e: any) {
+      Alert.alert('Sign up failed', e?.message ?? 'An unexpected error occurred.');
+    } finally {
+      setPasswordLoading(false);
     }
   };
 
