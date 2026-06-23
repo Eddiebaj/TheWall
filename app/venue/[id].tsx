@@ -158,7 +158,7 @@ export default function VenueScreen() {
       loadFollows();
       loadVerifiedToday();
     }
-  }, [id, user]);
+  }, [id, user?.id]);
 
   const loadVerifiedToday = async () => {
     const today = new Date().toISOString().slice(0, 10);

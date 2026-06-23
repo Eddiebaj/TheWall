@@ -26,6 +26,7 @@ export default function FriendsScreen() {
   // ── friends / social ──────────────────────────────────────────────────────
   const [friends, setFriends] = useState<any[]>([]);
   const [friendsPlans, setFriendsPlans] = useState<any[]>([]);
+  const [friendsEventRsvps, setFriendsEventRsvps] = useState<any[]>([]);
   const [myHangouts, setMyHangouts] = useState<any[]>([]);
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [conversations, setConversations] = useState<any[]>([]);
@@ -153,6 +154,17 @@ export default function FriendsScreen() {
 
       if (error) return;
       if (data) setFriendsPlans(data.filter((d: any) => d.hangouts && d.profiles));
+
+      const { data: evData } = await supabase
+        .from('venue_event_rsvps')
+        .select('status, created_at, venue_events(title, venues(name)), profiles!venue_event_rsvps_user_id_fkey(username, display_name, avatar_url)')
+        .in('user_id', friendIds)
+        .in('status', ['going', 'interested'])
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (evData) setFriendsEventRsvps(evData.filter((d: any) => d.venue_events && d.profiles));
     } catch (e) {
       if (__DEV__) console.error('[friends] loadFriendsPlans error:', e);
     }
@@ -842,8 +854,55 @@ export default function FriendsScreen() {
             </View>
           )}
 
+          {/* Friends' venue event RSVPs */}
+          {friendsEventRsvps.length > 0 && (
+            <View style={{ marginTop: (myHangouts.length > 0 || friendsPlans.length > 0) ? 16 : 0 }}>
+              <Text style={{ fontSize: 11, fontWeight: '600', color: '#666', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>Friends Going Out</Text>
+              <View style={{ backgroundColor: '#111', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+                {friendsEventRsvps.map((item, i) => {
+                  const prof = item.profiles as any;
+                  const ev = item.venue_events as any;
+                  const venueName = ev?.venues?.name ?? '';
+                  return (
+                    <View
+                      key={i}
+                      style={{
+                        flexDirection: 'row', alignItems: 'center',
+                        paddingHorizontal: 14, paddingVertical: 12,
+                        borderTopWidth: i > 0 ? 1 : 0, borderTopColor: 'rgba(255,255,255,0.05)',
+                      }}
+                    >
+                      <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: '#FF3B5C18', alignItems: 'center', justifyContent: 'center', marginRight: 12, overflow: 'hidden' }}>
+                        {prof?.avatar_url ? (
+                          <Image source={{ uri: prof.avatar_url }} style={{ width: 38, height: 38 }} />
+                        ) : (
+                          <Text style={{ fontSize: 15, fontWeight: '700', color: '#FF3B5C' }}>
+                            {(prof?.display_name || prof?.username || '?')[0].toUpperCase()}
+                          </Text>
+                        )}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff', letterSpacing: -0.2 }}>
+                          {prof?.display_name || prof?.username}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#888', marginTop: 1 }} numberOfLines={1}>
+                          {item.status === 'going' ? 'Going to' : 'Interested in'} {ev?.title}{venueName ? ` · ${venueName}` : ''}
+                        </Text>
+                      </View>
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: item.status === 'going' ? 'rgba(0,192,122,0.12)' : 'rgba(232,160,32,0.12)' }}>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: item.status === 'going' ? '#00C07A' : '#e8a020' }}>
+                          {item.status === 'going' ? 'Going' : 'Maybe'}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
           {/* Prompt to enable if no tonight activity at all */}
-          {!tonightActive && myHangouts.length === 0 && friendsPlans.length === 0 && (
+          {!tonightActive && myHangouts.length === 0 && friendsPlans.length === 0 && friendsEventRsvps.length === 0 && (
             <Text style={{ fontSize: 13, color: '#444', textAlign: 'center', paddingTop: 4 }}>
               Tap to see who else is free tonight.
             </Text>
