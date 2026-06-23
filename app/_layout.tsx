@@ -429,7 +429,7 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   splash: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: '#0a0a0a',
     alignItems: 'center',
     justifyContent: 'center',
   },
