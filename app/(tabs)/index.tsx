@@ -66,7 +66,7 @@ interface RsvpEvent {
 
 interface ActivityItem {
   id: string;
-  type: 'rsvp' | 'post' | 'created_event';
+  type: 'rsvp' | 'post' | 'created_event' | 'bookmark';
   created_at: string;
   user_id: string;
   event_id: string | null;
@@ -324,6 +324,9 @@ function ActivityRow({
     if (item.event?.venue_name) text += ` at ${item.event.venue_name}`;
   } else if (item.type === 'created_event') {
     text = `${username} created an event: ${item.event?.title ?? 'Untitled'}`;
+    if (item.event?.venue_name) text += ` at ${item.event.venue_name}`;
+  } else if (item.type === 'bookmark') {
+    text = `You saved ${item.event?.title ?? 'an event'}`;
     if (item.event?.venue_name) text += ` at ${item.event.venue_name}`;
   } else {
     text = `${username} posted`;
@@ -656,8 +659,11 @@ export default function FeedScreen() {
     const preferredVenueIds = new Set<string>();
     const savedEventIds = new Set<string>();
 
+    let intRsvpData: any[] = [];
+    let intVeRsvpData: any[] = [];
+
     if (user) {
-      const [rsvpRes, veRsvpRes, savedRes] = await Promise.all([
+      const [rsvpRes, veRsvpRes, savedRes, intRsvpRes, intVeRsvpRes] = await Promise.all([
         supabase
           .from('event_rsvps')
           .select('events(venue_id, entry_type, venues(neighbourhood))')
@@ -674,6 +680,19 @@ export default function FeedScreen() {
           .from('saved_events')
           .select('event_id')
           .eq('user_id', user.id),
+        // Interested RSVPs -- lighter signal, queried separately
+        supabase
+          .from('event_rsvps')
+          .select('events(venue_id, entry_type, venues(neighbourhood))')
+          .eq('user_id', user.id)
+          .eq('status', 'interested')
+          .limit(30),
+        supabase
+          .from('venue_event_rsvps')
+          .select('venue_events(venue_id, entry_type, venues(neighbourhood))')
+          .eq('user_id', user.id)
+          .eq('status', 'interested')
+          .limit(30),
       ]);
 
       for (const r of (rsvpRes.data ?? []) as any[]) {
@@ -693,14 +712,34 @@ export default function FeedScreen() {
       for (const s of (savedRes.data ?? []) as any[]) {
         if (s.event_id) savedEventIds.add(s.event_id);
       }
+
+      intRsvpData = (intRsvpRes.data ?? []) as any[];
+      intVeRsvpData = (intVeRsvpRes.data ?? []) as any[];
     }
 
     // No taste profile yet -- load fallback instead of blank screen
+    // (only going RSVPs and saved events count as strong signal here; interested added below)
     if (preferredNeighbourhoods.size === 0 && preferredEntryTypes.size === 0 && savedEventIds.size === 0) {
       setHasProfile(false);
       await loadFallbackEvents(today);
       if (showSpinner) setLoading(false);
       return;
+    }
+
+    // Interested RSVPs expand the pool with lighter signal but don't gate hasProfile on their own
+    for (const r of intRsvpData) {
+      const ev = r.events;
+      if (!ev) continue;
+      if (ev.venues?.neighbourhood) preferredNeighbourhoods.add(ev.venues.neighbourhood);
+      if (ev.entry_type) preferredEntryTypes.add(ev.entry_type);
+      if (ev.venue_id) preferredVenueIds.add(ev.venue_id);
+    }
+    for (const r of intVeRsvpData) {
+      const ev = r.venue_events;
+      if (!ev) continue;
+      if (ev.venues?.neighbourhood) preferredNeighbourhoods.add(ev.venues.neighbourhood);
+      if (ev.entry_type) preferredEntryTypes.add(ev.entry_type);
+      if (ev.venue_id) preferredVenueIds.add(ev.venue_id);
     }
 
     setHasProfile(true);
@@ -1000,7 +1039,9 @@ export default function FeedScreen() {
       f.requester_id === user.id ? f.addressee_id : f.requester_id
     );
 
-    const [rsvpRes, postRes, createdEventsRes] = await Promise.all([
+    const since48h = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+
+    const [rsvpRes, postRes, createdEventsRes, savedRes] = await Promise.all([
       supabase
         .from('event_rsvps')
         .select('id, created_at, user_id, event_id, profiles(username, avatar_url), events(id, title, venues(name))')
@@ -1020,6 +1061,14 @@ export default function FeedScreen() {
         .select('id, created_at, creator_id, title, venue_id, venues(name)')
         .in('creator_id', friendIds)
         .eq('source', 'user')
+        .order('created_at', { ascending: false })
+        .limit(20),
+      // Current user's recent bookmarks (last 48 h)
+      supabase
+        .from('saved_events')
+        .select('id, created_at, event_id, venue_events(id, title, venues(name))')
+        .eq('user_id', user.id)
+        .gte('created_at', since48h)
         .order('created_at', { ascending: false })
         .limit(20),
     ]);
@@ -1067,7 +1116,23 @@ export default function FeedScreen() {
       event: { id: e.id, title: e.title, venue_name: e.venues?.name ?? null },
     }));
 
-    const merged = [...rsvpItems, ...postItems, ...createdItems]
+    const bookmarkItems: ActivityItem[] = (savedRes.data ?? [])
+      .map((s: any) => {
+        const ve = s.venue_events;
+        if (!ve) return null;
+        return {
+          id: `bookmark-${s.id}`,
+          type: 'bookmark' as const,
+          created_at: s.created_at,
+          user_id: user.id,
+          event_id: ve.id,
+          profile: profile ? { username: profile.username, avatar_url: profile.avatar_url ?? null } : null,
+          event: { id: ve.id, title: ve.title, venue_name: ve.venues?.name ?? null },
+        };
+      })
+      .filter(Boolean) as ActivityItem[];
+
+    const merged = [...rsvpItems, ...postItems, ...createdItems, ...bookmarkItems]
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       .slice(0, 50);
 
