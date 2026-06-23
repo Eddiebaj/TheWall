@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Alert, Share, Modal, Image, RefreshControl, FlatList
+  ActivityIndicator, Alert, Share, Modal, Image, RefreshControl, FlatList,
+  KeyboardAvoidingView, Platform
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
@@ -1122,7 +1123,8 @@ export default function FriendsScreen() {
 
       {/* ── New Group modal ──────────────────────────────────────────────────── */}
       <Modal visible={showNewGroup} transparent animationType="slide" onRequestClose={() => setShowNewGroup(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}>
           <View style={{ backgroundColor: '#111', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: insets.bottom + 24, maxHeight: '80%' }}>
             <Text style={{ fontSize: 18, fontWeight: '800', color: '#fff', marginBottom: 20, letterSpacing: -0.3 }}>New Group</Text>
 
@@ -1217,7 +1219,8 @@ export default function FriendsScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
     </View>
