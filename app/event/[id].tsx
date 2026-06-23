@@ -194,7 +194,7 @@ export default function EventDetailScreen() {
       loadEvent();
       if (user) loadPlanStatus();
     }
-  }, [id, user]);
+  }, [id, user?.id]);
 
   const downloadTriggeredRef = useRef(false);
   useEffect(() => {
