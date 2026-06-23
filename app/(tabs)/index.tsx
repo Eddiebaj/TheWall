@@ -498,12 +498,12 @@ export default function FeedScreen() {
       .eq('user_id', user.id)
       .is('read_at', null)
       .then(({ count }) => setUnreadNotifs(count ?? 0));
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     loadFeedEvents(getToday());
     setFeedDisplayCount(50);
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user) { setUserGoingIds(new Set()); return; }
@@ -517,7 +517,7 @@ export default function FeedScreen() {
       }
       setUserGoingIds(ids);
     });
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (activeTab === 'activity') {
@@ -525,7 +525,7 @@ export default function FeedScreen() {
       loadMyRsvps();
       if (user) loadPlanInvites();
     }
-  }, [activeTab, user]);
+  }, [activeTab, user?.id]);
 
   const loadPlanInvites = async () => {
     if (!user) return;
