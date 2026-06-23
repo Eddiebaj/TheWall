@@ -554,8 +554,10 @@ function MapEventView({
       >
         <MapboxGL.Camera
           ref={cameraRef}
-          zoomLevel={12}
-          centerCoordinate={TORONTO_COORDS}
+          defaultSettings={{
+            centerCoordinate: TORONTO_COORDS,
+            zoomLevel: 12,
+          }}
           animationMode="none"
         />
         <MapboxGL.ShapeSource
