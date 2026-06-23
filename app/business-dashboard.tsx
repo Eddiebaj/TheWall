@@ -479,14 +479,24 @@ export default function BusinessDashboardScreen() {
 
         {/* Header */}
         <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
-          <TouchableOpacity
-            onPress={handleLogout}
-            style={{ marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-end' }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="log-out-outline" size={18} color={colours.muted} />
-            <Text style={{ fontSize: 13, color: colours.muted, fontWeight: '600' }}>Sign out</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 20, marginBottom: 16 }}>
+            <TouchableOpacity
+              onPress={() => router.replace('/(tabs)/index' as any)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="compass-outline" size={18} color={colours.muted} />
+              <Text style={{ fontSize: 13, color: colours.muted, fontWeight: '600' }}>Browse Events</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleLogout}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="log-out-outline" size={18} color={colours.muted} />
+              <Text style={{ fontSize: 13, color: colours.muted, fontWeight: '600' }}>Sign out</Text>
+            </TouchableOpacity>
+          </View>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <Text style={{ fontSize: 26, fontWeight: '800', color: colours.text, flex: 1 }} numberOfLines={1}>
