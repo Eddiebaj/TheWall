@@ -537,13 +537,6 @@ function MapEventView({
 
   return (
     <View style={{ flex: 1 }}>
-      {/* Event count badge */}
-      <View style={mapStyles.countBadge} pointerEvents="none">
-        <Ionicons name="location" size={13} color="#FF3B5C" />
-        <Text style={mapStyles.countBadgeText}>
-          Showing {mappableEvents.length} of {events.length} events with locations
-        </Text>
-      </View>
 
       <MapboxGL.MapView
         style={{ flex: 1 }}
