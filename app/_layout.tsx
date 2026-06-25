@@ -4,7 +4,7 @@ import * as Notifications from 'expo-notifications';
 import { Stack, router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Image, Linking, View, Text, ScrollView, StyleSheet } from 'react-native';
+import { Linking, View, Text, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppProvider } from '../context/AppContext';
 import { BoardProvider } from '../context/BoardContext';
@@ -16,7 +16,7 @@ import { supabase } from '../lib/supabase';
 import { incrementSessionCount } from '../lib/onboardingPrompts';
 import { routeForNotification, NotificationType } from '../lib/notificationTypes';
 
-// Prevent the native splash screen from auto-hiding until our animated splash starts
+// Prevent the native splash screen from auto-hiding until the app is ready
 SplashScreen.preventAutoHideAsync();
 
 // Initialize Sentry as early as possible (no-op if DSN is placeholder or package missing)
@@ -91,44 +91,8 @@ class RootErrorBoundary extends React.Component<
   }
 }
 
-function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
-  const opacity = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (__DEV__) console.log('[Splash] AnimatedSplash mounted, calling SplashScreen.hideAsync()');
-    SplashScreen.hideAsync().then(() => {
-      if (__DEV__) console.log('[Splash] SplashScreen.hideAsync() resolved');
-    }).catch(e => {
-      if (__DEV__) console.log('[Splash] SplashScreen.hideAsync() error:', e);
-    });
-
-    if (__DEV__) console.log('[Splash] Starting animation sequence (400 fade-in + 600 hold + 300 fade-out)');
-    // Fade in 400ms -> hold 600ms -> fade out 300ms
-    Animated.sequence([
-      Animated.timing(opacity, { toValue: 1, duration: 400, useNativeDriver: true }),
-      Animated.delay(600),
-      Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: true }),
-    ]).start(({ finished }) => {
-      if (__DEV__) console.log('[Splash] Animation sequence complete, finished=', finished, ', calling onFinish()');
-      onFinish();
-    });
-  }, []);
-
-  return (
-    <View style={styles.splash}>
-      <Animated.View style={{ opacity }}>
-        <Image
-          source={require('../assets/images/icon.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-      </Animated.View>
-    </View>
-  );
-}
-
 // Module-level guard: prevents the business-dashboard redirect from firing more than
-// once per app session. Only counts after the nav tree is mounted (!showSplash).
+// once per app session.
 let businessRedirectDone = false;
 
 export function resetBusinessRedirect() {
@@ -136,14 +100,11 @@ export function resetBusinessRedirect() {
 }
 
 function RootNav() {
-  const [showSplash, setShowSplash] = useState(true);
   const [destination, setDestination] = useState<'onboarding' | 'tabs' | null>(null);
   const [claimState, setClaimState] = useState<'idle' | 'checking' | 'done'>('idle');
   const [isBusinessUser, setIsBusinessUser] = useState(false);
   const { session, loading: authLoading } = useAuth();
 
-  // Declare ref BEFORE the useEffect that assigns to it
-  const animationResolveRef = useRef<(() => void) | null>(null);
   const navigationDoneRef = useRef(false);
   const pendingDeepLinkRef = useRef<string | null>(null);
   const handledInitialUrlRef = useRef<string | null>(null);
@@ -190,36 +151,10 @@ function RootNav() {
   }, []);
 
   useEffect(() => {
-    if (__DEV__) console.log('[RootNav] useEffect start - creating storagePromise and animationPromise');
-
-    // After splash always route to auth; onboarding is shown post-auth based on SK_ONBOARDED
-    const storagePromise = Promise.resolve('tabs' as const);
-
-    const animationPromise = new Promise<void>(resolve => {
-      if (__DEV__) console.log('[RootNav] animationPromise created, setting animationResolveRef.current');
-      animationResolveRef.current = resolve;
-    });
-
-    if (__DEV__) console.log('[RootNav] Waiting on Promise.all([storagePromise, animationPromise])...');
-    Promise.all([storagePromise, animationPromise]).then(([dest]) => {
-      if (__DEV__) console.log('[RootNav] Promise.all resolved! dest=', dest, '- calling setShowSplash(false)');
-      setShowSplash(false);
-      setDestination(dest);
-      // Increment session counter for onboarding prompts
-      incrementSessionCount().catch(() => {});
-    });
+    SplashScreen.hideAsync().catch(() => {});
+    setDestination('tabs');
+    incrementSessionCount().catch(() => {});
   }, []);
-
-  const handleSplashFinish = () => {
-    if (__DEV__) console.log('[RootNav] handleSplashFinish called, animationResolveRef.current=', animationResolveRef.current != null ? 'SET' : 'NULL');
-    if (animationResolveRef.current) {
-      animationResolveRef.current();
-      if (__DEV__) console.log('[RootNav] animationResolveRef.current() called - animationPromise should now resolve');
-    } else {
-      if (__DEV__) console.warn('[RootNav] animationResolveRef.current is NULL - animationPromise will never resolve! Forcing splash off.');
-      setShowSplash(false);
-    }
-  };
 
   // Reset navigation gate whenever auth state settles (sign-in or sign-out)
   // so the routing effect re-evaluates with the new session state.
@@ -293,8 +228,8 @@ function RootNav() {
   // nothing happens. Then authLoading flips to false, triggering a second run that
   // actually navigates. navigationDoneRef prevents any double-nav. Intentional.
   useEffect(() => {
-    if (__DEV__) console.log('[RootNav] showSplash/destination changed - showSplash=', showSplash, 'destination=', destination, 'authLoading=', authLoading);
-    if (!showSplash && destination === 'tabs' && !authLoading && !navigationDoneRef.current && claimState === 'done') {
+    if (__DEV__) console.log('[RootNav] destination changed - destination=', destination, 'authLoading=', authLoading);
+    if (destination === 'tabs' && !authLoading && !navigationDoneRef.current && claimState === 'done') {
       if (!session) {
         if (__DEV__) console.log('[RootNav] No session - routing to /auth');
         navigationDoneRef.current = true;
@@ -356,11 +291,7 @@ function RootNav() {
         })();
       }
     }
-  }, [showSplash, destination, authLoading, session, claimState, isBusinessUser]);
-
-  if (showSplash) {
-    return <AnimatedSplash onFinish={handleSplashFinish} />;
-  }
+  }, [destination, authLoading, session, claimState, isBusinessUser]);
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
@@ -427,16 +358,6 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
-  splash: {
-    flex: 1,
-    backgroundColor: '#0a0a0a',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logo: {
-    width: 160,
-    height: 160,
-  },
   container: {
     flex: 1,
     backgroundColor: '#1a1a2e',
