@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { SK_INVITED_BY } from '../lib/storageKeys';
+import { SK_INVITED_BY, SK_PENDING_INTERESTS } from '../lib/storageKeys';
 
 export default function ProfileSetupScreen() {
   const { profile, updateProfile } = useAuth();
@@ -107,7 +107,21 @@ export default function ProfileSetupScreen() {
       } catch {
         // Non-fatal: ignore errors silently
       }
-      router.replace('/onboarding/preferences' as any);
+      // Apply any interests captured pre-auth on the vibe screen
+      try {
+        const pendingRaw = await AsyncStorage.getItem(SK_PENDING_INTERESTS);
+        if (pendingRaw) {
+          const interests = JSON.parse(pendingRaw);
+          const { data: { user: currentUser } } = await supabase.auth.getUser();
+          if (currentUser && Array.isArray(interests) && interests.length > 0) {
+            await supabase.from('profiles').update({ interests }).eq('id', currentUser.id);
+          }
+          await AsyncStorage.removeItem(SK_PENDING_INTERESTS);
+        }
+      } catch {
+        // Non-fatal: ignore errors silently
+      }
+      router.replace('/onboarding/neighbourhood' as any);
     }
   };
 

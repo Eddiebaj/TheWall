@@ -79,3 +79,6 @@ export const SK_PROFILE_SETUP_DONE = 'thewall_profile_setup_done';
 // Set only after the full post-auth flow (profile-setup → interests → neighbourhood) completes.
 // SK_PROFILE_SETUP_DONE is checked as a legacy fallback for users who onboarded before this key existed.
 export const SK_ONBOARDING_COMPLETE = 'thewall_onboarding_complete';
+
+// Interests selected on the pre-auth vibe screen, applied to the profile after signup.
+export const SK_PENDING_INTERESTS = 'thewall_pending_interests';

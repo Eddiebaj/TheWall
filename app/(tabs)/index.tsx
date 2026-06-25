@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
   Dimensions,
   FlatList,
@@ -507,6 +507,12 @@ export default function FeedScreen() {
     loadFeedEvents(getToday());
     setFeedDisplayCount(50);
   }, [user?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadFeedEvents(getToday(), false);
+    }, [user?.id])
+  );
 
   useEffect(() => {
     if (!user) { setUserGoingIds(new Set()); return; }

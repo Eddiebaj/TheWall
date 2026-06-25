@@ -196,6 +196,7 @@ export default function EventDetailScreen() {
     }
   }, [id, user?.id]);
 
+  const loadGenRef = useRef(0);
   const downloadTriggeredRef = useRef(false);
   useEffect(() => {
     if (!event?.unsplash_download_location || downloadTriggeredRef.current) return;
@@ -223,6 +224,7 @@ export default function EventDetailScreen() {
   };
 
   const loadEvent = async () => {
+    const gen = ++loadGenRef.current;
     setLoading(true);
 
     // Try legacy events table first, then venue_events
@@ -344,6 +346,7 @@ export default function EventDetailScreen() {
       ? (eventData.event_time || null)
       : (eventData.start_time || null);
 
+    if (loadGenRef.current !== gen) return;
     setEvent({
       id: eventData.id,
       title: eventData.title,
@@ -381,6 +384,7 @@ export default function EventDetailScreen() {
     }
     if (!event) return;
     if (rsvpLoading) return;
+    loadGenRef.current++;
     setRsvpLoading(true);
 
     const isActive = status === 'going' ? event.isGoing : event.isInterested;

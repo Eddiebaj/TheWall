@@ -9,9 +9,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { SK_PENDING_INTERESTS } from '../../lib/storageKeys';
 
 const TAGS = [
   { key: 'Concerts',     emoji: '🎵', label: 'Concerts' },
@@ -49,18 +51,31 @@ export default function PreferencesScreen() {
 
   const handleContinue = async () => {
     setSaving(true);
-    if (user && selected.size > 0) {
-      await supabase
-        .from('profiles')
-        .update({ interests: Array.from(selected) })
-        .eq('id', user.id);
+    if (user) {
+      if (selected.size > 0) {
+        await supabase
+          .from('profiles')
+          .update({ interests: Array.from(selected) })
+          .eq('id', user.id);
+      }
+      setSaving(false);
+      router.replace('/onboarding/neighbourhood' as any);
+    } else {
+      // Pre-auth: persist selections so profile-setup can apply them after signup
+      if (selected.size > 0) {
+        await AsyncStorage.setItem(SK_PENDING_INTERESTS, JSON.stringify(Array.from(selected)));
+      }
+      setSaving(false);
+      router.replace('/auth' as any);
     }
-    setSaving(false);
-    router.replace('/onboarding/neighbourhood' as any);
   };
 
   const handleSkip = () => {
-    router.replace('/onboarding/neighbourhood' as any);
+    if (user) {
+      router.replace('/onboarding/neighbourhood' as any);
+    } else {
+      router.replace('/auth' as any);
+    }
   };
 
   return (
