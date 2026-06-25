@@ -663,7 +663,17 @@ export default function FeedScreen() {
     const preferredNeighbourhoods = new Set<string>();
     const preferredEntryTypes = new Set<string>();
     const preferredVenueIds = new Set<string>();
+    const preferredCategories = new Set<string>();
     const savedEventIds = new Set<string>();
+
+    // Seed cold-start signals from onboarding profile selections
+    for (const interest of (profile?.interests ?? [])) {
+      preferredCategories.add(interest);
+    }
+    if (profile?.neighbourhood) {
+      const hoods = Array.isArray(profile.neighbourhood) ? profile.neighbourhood : [profile.neighbourhood];
+      for (const n of hoods) if (n) preferredNeighbourhoods.add(n);
+    }
 
     let intRsvpData: any[] = [];
     let intVeRsvpData: any[] = [];
@@ -749,7 +759,7 @@ export default function FeedScreen() {
 
     // No taste profile yet -- load fallback instead of blank screen
     // (only going RSVPs and saved events count as strong signal here; interested added below)
-    if (preferredNeighbourhoods.size === 0 && preferredEntryTypes.size === 0 && savedEventIds.size === 0) {
+    if (preferredNeighbourhoods.size === 0 && preferredEntryTypes.size === 0 && savedEventIds.size === 0 && preferredCategories.size === 0) {
       setHasProfile(false);
       await loadFallbackEvents(today);
       if (showSpinner) setLoading(false);
@@ -872,14 +882,19 @@ export default function FeedScreen() {
       if (!seen.has(e.id)) { seen.add(e.id); combined.push(e); }
     }
 
-    // Filter to taste profile, saved events, OR events where a friend is going
+    // Filter to taste profile, saved events, OR events where a friend is going.
+    // For cold-start users (interests/neighbourhood only), tonight's events bleed through
+    // regardless of category so there's always something immediately relevant.
+    const coldStartOnly = preferredVenueIds.size === 0 && preferredEntryTypes.size === 0 && savedEventIds.size === 0;
     const relevant = combined.filter(e => {
       if (savedEventIds.has(e.id)) return true;
       if (friendGoingSet.has(e.id)) return true;
+      if (coldStartOnly && e.event_date === today) return true;
       return (
         (e.neighbourhood && preferredNeighbourhoods.has(e.neighbourhood)) ||
         (e.entry_type && preferredEntryTypes.has(e.entry_type)) ||
-        (e.venue_id && preferredVenueIds.has(e.venue_id))
+        (e.venue_id && preferredVenueIds.has(e.venue_id)) ||
+        (e.category && preferredCategories.has(e.category))
       );
     });
 
