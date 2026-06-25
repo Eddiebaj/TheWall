@@ -663,7 +663,7 @@ export default function FeedScreen() {
     let intVeRsvpData: any[] = [];
 
     if (user) {
-      const [rsvpRes, veRsvpRes, savedRes, intRsvpRes, intVeRsvpRes] = await Promise.all([
+      const [rsvpRes, veRsvpRes, savedRes, intRsvpRes, intVeRsvpRes, savedVenueRes, venueFollowsRes] = await Promise.all([
         supabase
           .from('event_rsvps')
           .select('events(venue_id, entry_type, venues(neighbourhood))')
@@ -693,6 +693,17 @@ export default function FeedScreen() {
           .eq('user_id', user.id)
           .eq('status', 'interested')
           .limit(30),
+        // Saved events with venue data -- same weight as interested
+        supabase
+          .from('saved_events')
+          .select('event_id, venue_events(id, venue_id, entry_type, venues(neighbourhood))')
+          .eq('user_id', user.id)
+          .limit(50),
+        // Followed venues -- feed venue preference directly
+        supabase
+          .from('venue_follows')
+          .select('venue_id')
+          .eq('user_id', user.id),
       ]);
 
       for (const r of (rsvpRes.data ?? []) as any[]) {
@@ -715,6 +726,19 @@ export default function FeedScreen() {
 
       intRsvpData = (intRsvpRes.data ?? []) as any[];
       intVeRsvpData = (intVeRsvpRes.data ?? []) as any[];
+
+      // Saved event venues -- same weight as interested
+      for (const s of (savedVenueRes.data ?? []) as any[]) {
+        const ev = s.venue_events;
+        if (!ev) continue;
+        if (ev.venues?.neighbourhood) preferredNeighbourhoods.add(ev.venues.neighbourhood);
+        if (ev.entry_type) preferredEntryTypes.add(ev.entry_type);
+        if (ev.venue_id) preferredVenueIds.add(ev.venue_id);
+      }
+      // Followed venues -- feed directly into venue preference
+      for (const f of (venueFollowsRes.data ?? []) as any[]) {
+        if (f.venue_id) preferredVenueIds.add(f.venue_id);
+      }
     }
 
     // No taste profile yet -- load fallback instead of blank screen
