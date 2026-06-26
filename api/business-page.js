@@ -197,10 +197,48 @@ const HTML = `<!DOCTYPE html>
     .footer-inner a { transition: color 0.15s; }
     .footer-inner a:hover { color: rgba(255,255,255,0.6); }
 
+    /* ── Screenshots ── */
+    .screenshots {
+      padding: 56px 0 48px;
+      border-top: 1px solid rgba(255,255,255,0.07);
+    }
+    .screenshots-heading {
+      font-size: clamp(20px, 3vw, 26px);
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      margin-bottom: 36px;
+    }
+    .screenshots-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    .screenshot-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+    .screenshot-item img {
+      width: 100%;
+      max-width: 220px;
+      border-radius: 22px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.07);
+      display: block;
+    }
+    .screenshot-caption {
+      font-size: 13px;
+      color: rgba(255,255,255,0.45);
+      text-align: center;
+      line-height: 1.4;
+    }
+
     @media (max-width: 680px) {
       .pricing-row { grid-template-columns: 1fr; }
       .hero { padding: 48px 0 40px; }
       .pricing { padding: 32px 0 40px; }
+      .screenshots-row { grid-template-columns: 1fr; align-items: center; }
+      .screenshot-item img { max-width: 280px; }
     }
   </style>
 </head>
@@ -218,6 +256,26 @@ const HTML = `<!DOCTYPE html>
       <div class="hero-eyebrow">Toronto Nightlife</div>
       <h1 class="hero-title">Get your venue in front of thousands of people every weekend</h1>
       <p class="hero-sub">Affiche is where Toronto decides where to go out. List your events, boost your placement, and track what's working.</p>
+    </div>
+  </section>
+
+  <section class="screenshots">
+    <div class="container">
+      <h2 class="screenshots-heading">See how your venue appears in Affiche.</h2>
+      <div class="screenshots-row">
+        <div class="screenshot-item">
+          <img src="/screenshots/discover.jpg" alt="Discover screen" />
+          <p class="screenshot-caption">Discover what's happening tonight</p>
+        </div>
+        <div class="screenshot-item">
+          <img src="/screenshots/event-detail.jpg" alt="Event detail screen" />
+          <p class="screenshot-caption">Your events, front and centre</p>
+        </div>
+        <div class="screenshot-item">
+          <img src="/screenshots/map.jpg" alt="Map screen" />
+          <p class="screenshot-caption">Pinned on the map for everyone to find</p>
+        </div>
+      </div>
     </div>
   </section>
 
