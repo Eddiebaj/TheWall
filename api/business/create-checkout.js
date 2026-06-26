@@ -1,6 +1,23 @@
 /** @typedef {{ query: Record<string, string>, body: any, method: string, headers: Record<string, string> }} VercelRequest */
 /** @typedef {{ status: (code: number) => any, json: (body: any) => any, setHeader: (k: string, v: string) => void, end: () => void }} VercelResponse */
 
+// In-memory rate limiter: max 5 requests per IP per hour
+const rateLimitMap = new Map(); // ip -> { count, resetAt }
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT_MAX) return false;
+  entry.count += 1;
+  return true;
+}
+
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const STRIPE_API = 'https://api.stripe.com/v1';
 
@@ -66,6 +83,11 @@ module.exports = async function handler(req, res) {
 
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.socket?.remoteAddress ?? 'unknown';
+    if (!checkRateLimit(ip)) {
+      return res.status(429).json({ error: 'Too many requests. Please try again later.' });
+    }
 
     const { email, business_name, contact_name, venue_id, venue_name, plan } = req.body ?? {};
 

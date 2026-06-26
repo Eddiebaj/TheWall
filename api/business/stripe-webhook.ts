@@ -61,8 +61,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const rawBody = await readRawBody(req);
 
   if (!verifyStripeSignature(rawBody, sigHeader, WEBHOOK_SECRET)) {
-    console.warn('[stripe-webhook] Invalid signature');
-    return res.status(400).json({ error: 'Invalid signature' });
+    return res.status(400).end();
   }
 
   let event: any;
